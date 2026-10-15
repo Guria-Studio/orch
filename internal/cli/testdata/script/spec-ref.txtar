@@ -1,0 +1,112 @@
+# Spec refs that will not resolve where a task runs (#341, #342).
+#
+# `orch atomize` reads specs from the working tree; a task's worktree starts
+# from origin/<base_branch>. atomize warns (stderr, exit 0) about a spec that
+# is untracked, committed but not pushed, or carries uncommitted edits, and
+# `orch validate` reports every specRef whose file or heading is missing from
+# the working tree or from the base ref, as `spec.missing` warnings.
+
+env GIT_AUTHOR_NAME=t
+env GIT_AUTHOR_EMAIL=t@example.test
+env GIT_COMMITTER_NAME=t
+env GIT_COMMITTER_EMAIL=t@example.test
+exec git init -q --bare remote.git
+exec git -C sproj init -q
+exec git -C sproj symbolic-ref HEAD refs/heads/main
+exec git -C sproj add tasks.json scripts .orchestrator specs/f10.md
+exec git -C sproj commit -q -m init
+exec git -C sproj remote add origin $WORK/remote.git
+exec git -C sproj push -q origin main
+
+# ---- untracked: a warning in the preview and on --apply, never a failure ----
+exec orch atomize --project-root sproj --project-id sproj
+stderr '^warning: specs/f11\.md is not committed — a task''s worktree starts from origin/main and will not have it; commit and push it before `orch run`$'
+! stderr 'f10\.md'
+stdout '\+ NUEVAS \(2\)'
+
+exec orch atomize --apply --project-root sproj --project-id sproj
+stderr 'warning: specs/f11\.md is not committed'
+stdout '✓ Escrito:'
+
+# validate names the two hand-written refs that resolve nowhere, and the spec
+# the worktree would not have.
+! exec orch validate --json --project-root sproj --project-id sproj
+stdout '\{"task_id":"H-1","field":"specRef","kind":"spec.missing","message":"spec file specs/gone.md not found","remediation":"Write the spec, or fix the task''s specRef; until then its agent works from the description alone.","severity":"warn"\}'
+stdout '\{"task_id":"H-2","field":"specRef","kind":"spec.missing","message":"spec file specs/f10.md has no heading for F10.9.T9","remediation":"Add the heading to the spec, or fix the anchor in the task''s specRef.","severity":"warn"\}'
+stdout '\{"task_id":"F11.1.T1","field":"specRef","kind":"spec.missing","message":"spec file specs/f11.md is not on origin/main","remediation":"Commit and push it: the task''s worktree starts from origin/main, and the task blocks at dispatch without it.","severity":"warn"\}'
+stdout '"summary":\{"total":3,"by_kind":\{"spec.missing":3\},"errors":0,"warnings":3\},"exit_code":1\}$'
+
+! exec orch validate --project-root sproj --project-id sproj
+stdout '0 error\(s\) · 3 warning\(s\) · 3 total'
+stdout 'warn\s+spec\.missing\s+F11\.1\.T1\s+specRef\s+spec file specs/f11\.md is not on origin/main'
+
+# ---- committed, not pushed -------------------------------------------------
+exec git -C sproj add specs/f11.md tasks.json
+exec git -C sproj commit -q -m f11
+exec orch atomize --project-root sproj --project-id sproj
+stderr '^warning: specs/f11\.md is not on origin/main — a task''s worktree starts there and will not have it; push it before `orch run`$'
+
+# ---- pushed: atomize is quiet, validate has only the hand-written two ------
+exec git -C sproj push -q origin main
+exec orch atomize --project-root sproj --project-id sproj
+! stderr .
+! exec orch validate --json --project-root sproj --project-id sproj
+stdout '"summary":\{"total":2,"by_kind":\{"spec.missing":2\},"errors":0,"warnings":2\},"exit_code":1\}$'
+! stdout 'F11\.1\.T1'
+
+# ---- a new section, not committed: the worktree's copy has no heading ------
+cp f11-more.md sproj/specs/f11.md
+exec orch atomize --apply --project-root sproj --project-id sproj
+stderr '^warning: specs/f11\.md has uncommitted changes — a task''s worktree starts from origin/main and will read the committed version; commit and push them before `orch run`$'
+! exec orch validate --json --project-root sproj --project-id sproj
+stdout '\{"task_id":"F11.1.T3","field":"specRef","kind":"spec.missing","message":"spec file specs/f11.md on origin/main has no heading for F11.1.T3"'
+! stdout '"task_id":"F11.1.T1"'
+
+-- sproj/tasks.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"H-1","phase":0,"title":"gone","model":"claude-sonnet-4-6","dependencies":[],"specRef":"gone.md#H-1"},
+  {"id":"H-2","phase":0,"title":"wrong anchor","model":"claude-sonnet-4-6","dependencies":[],"specRef":"f10.md#F10.9.T9"}
+]}
+-- sproj/scripts/task-start.sh --
+#!/usr/bin/env bash
+exit 0
+-- sproj/.orchestrator/config.yaml --
+state:
+  backend: sqlite
+-- sproj/.orchestrator/model_router.yaml --
+claude-sonnet-4-6:
+  backend: claude
+  cli_model: claude-sonnet-4-6
+  tier: standard
+-- sproj/specs/f10.md --
+# F10 — Old
+
+## F10.1 — Package: old
+
+### F10.1.T1 — Done long ago
+
+- **Modelo**: claude-sonnet-4-6
+- **Estimación**: 1h
+-- sproj/specs/f11.md --
+# F11 — Dataset
+
+## F11.1 — Package: load
+
+### F11.1.T1 — Load the dataset
+
+- **Modelo**: claude-sonnet-4-6
+- **Estimación**: 2h
+-- f11-more.md --
+# F11 — Dataset
+
+## F11.1 — Package: load
+
+### F11.1.T1 — Load the dataset
+
+- **Modelo**: claude-sonnet-4-6
+- **Estimación**: 2h
+
+### F11.1.T3 — Clean the dataset
+
+- **Modelo**: claude-sonnet-4-6
+- **Estimación**: 1h

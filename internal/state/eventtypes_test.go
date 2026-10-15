@@ -101,6 +101,9 @@ var goOnlyEventTypes = map[string]bool{
 	// A budget alert sent to Slack/Discord, recorded so a restarted run does
 	// not send it again.
 	"budget_alert": true,
+	// A dispatch whose spec ref did not resolve in the agent's working dir
+	// (#341, #342); the task ran on its description.
+	"spec_ref_warning": true,
 }
 
 // The four names the plan's FR-STATE-7 listed are not event types.

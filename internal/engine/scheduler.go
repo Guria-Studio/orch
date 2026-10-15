@@ -496,6 +496,21 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		workdir = created
 	}
 
+	// The spec preflight (#341, #342): the prompt is about to tell the agent
+	// to READ FIRST a file, so look for it where the agent will be.
+	specState, blockReason := s.checkSpec(ctx, task, route, workdir)
+	if blockReason != "" {
+		release()
+		if s.Worktree != nil && s.Opts.WorktreeMode {
+			if err := s.Worktree.Remove(ctx, task.ID); err != nil {
+				s.logger().Warn("removing the worktree of a task blocked before dispatch failed", "task", task.ID, "err", err)
+			}
+		}
+		s.logger().Error("the task's spec is not in its worktree", "task", task.ID, "reason", blockReason)
+		s.blockAtDispatch(ctx, task, route, blockReason)
+		return false, nil
+	}
+
 	// Render the prompt and write it before forking. The provider pipes this
 	// file to the child's stdin, so a dispatch without it is a CLI with no
 	// instructions — Python renders it at the same point, for the same
@@ -508,6 +523,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		// The invitation names orch_report_finding, which only files when
 		// the project opted in; otherwise it would ask for the impossible.
 		ReportFindings: s.Opts.Cfg.ReportFindings.Enabled,
+		Spec:           specState,
 	})
 	if err != nil {
 		release()

@@ -79,7 +79,26 @@ type Options struct {
 	// should do better (`report_findings.enabled`). Off, the prompt is
 	// byte-identical to the one without the feature.
 	ReportFindings bool
+	// Spec is what the dispatcher found when it looked for the spec ref in
+	// the directory the agent will run in. The zero value renders the line
+	// as it always has; the other two say so on the line itself, so an agent
+	// is never told to READ FIRST a file it cannot open (#341, #342).
+	Spec SpecState
 }
+
+// SpecState is whether the spec ref was found where the agent will run.
+type SpecState int
+
+const (
+	// SpecUnchecked renders the plain `Spec ref (READ FIRST):` line: the
+	// spec was found, or nobody looked.
+	SpecUnchecked SpecState = iota
+	// SpecFileMissing is a spec file that is not in the agent's working dir.
+	SpecFileMissing
+	// SpecAnchorMissing is a file that is there without a heading for the
+	// ref's `#anchor`.
+	SpecAnchorMissing
+)
 
 // Render returns the prompt body and any warnings worth showing an operator.
 //
@@ -101,10 +120,20 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 
 	var warnings []string
 	specLine := fmt.Sprintf("%s/%s", specRoot, specRef)
-	if specRef == "" {
+	switch {
+	case specRef == "":
 		specLine = "(no spec ref provided — proceed with the description only)"
 		warnings = append(warnings,
 			"prompt rendered without spec_ref — proceeding with description only")
+	case opts.Spec == SpecFileMissing:
+		specLine += " (NOT FOUND in your working dir — do not look for it; take the acceptance criteria from the description)"
+		warnings = append(warnings, fmt.Sprintf(
+			"spec file of %s is not in the working dir — the agent proceeds with the description only", specRef))
+	case opts.Spec == SpecAnchorMissing:
+		_, anchor, _ := strings.Cut(specRef, "#")
+		specLine += fmt.Sprintf(" (the file has no heading for %s — read it for context, and take the acceptance criteria from the description)", anchor)
+		warnings = append(warnings, fmt.Sprintf(
+			"spec ref %s: the file has no heading for %s — the agent relies on the description", specRef, anchor))
 	}
 
 	return expand(template, map[string]string{

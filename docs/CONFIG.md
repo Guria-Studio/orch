@@ -60,6 +60,14 @@ the dispatch prompt. A task with `specRef: f0.md` under the default gets
 `specs/f0.md`. Point it at wherever your specs live — `docs/specs`, `sdd/`,
 whatever.
 
+Before a dispatch, orch looks for the spec where the agent will run (#341,
+#342). In worktree mode, a spec the project has and the task's worktree does
+not — never committed and pushed to `base_branch` — blocks the task with
+`spec_missing: …`; push it, then `orch task-status <id> todo`. A spec that is
+nowhere, or has no heading for the ref's `#anchor`, dispatches with a prompt
+that says so. `orch atomize` warns about unpushed specs and `orch validate`
+reports every dangling `specRef` as a `spec.missing` warning.
+
 ### `state`
 
 ```yaml

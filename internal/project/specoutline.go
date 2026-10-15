@@ -1,10 +1,6 @@
 package project
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,32 +40,26 @@ func SpecOutline(projectRoot, specRoot string, tasks []model.Task) (Outline, err
 			continue
 		}
 		seen[file] = true
-		for _, candidate := range []string{
-			filepath.Join(projectRoot, specRoot, file),
-			filepath.Join(projectRoot, file),
-		} {
-			data, err := os.ReadFile(candidate) // #nosec G304 -- a spec path inside the operator's own project root.
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			if err != nil {
-				return Outline{}, fmt.Errorf("reading spec %s: %w", candidate, err)
-			}
-			for _, line := range strings.Split(string(data), "\n") {
-				line = strings.TrimRight(line, "\r")
-				if m := phaseHeader.FindStringSubmatch(line); m != nil {
-					n, _ := strconv.Atoi(m[1])
-					if _, ok := out.Phases[n]; !ok {
-						out.Phases[n] = m[2]
-					}
-				} else if m := packageHeader.FindStringSubmatch(line); m != nil {
-					key := m[1] + "." + m[2]
-					if _, ok := out.Packages[key]; !ok {
-						out.Packages[key] = m[3]
-					}
+		data, _, found, err := readSpec(projectRoot, specRoot, file)
+		if err != nil {
+			return Outline{}, err
+		}
+		if !found {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimRight(line, "\r")
+			if m := phaseHeader.FindStringSubmatch(line); m != nil {
+				n, _ := strconv.Atoi(m[1])
+				if _, ok := out.Phases[n]; !ok {
+					out.Phases[n] = m[2]
+				}
+			} else if m := packageHeader.FindStringSubmatch(line); m != nil {
+				key := m[1] + "." + m[2]
+				if _, ok := out.Packages[key]; !ok {
+					out.Packages[key] = m[3]
 				}
 			}
-			break
 		}
 	}
 	return out, nil
