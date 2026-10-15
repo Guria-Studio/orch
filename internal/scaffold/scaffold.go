@@ -524,6 +524,10 @@ func (w *writer) workflow() {
 		w.fail("reading the repository to propose its CI: %w", err)
 		return
 	}
+	if testCommand == "" {
+		w.write(rel, []byte(placeholderWorkflow), 0o600)
+		return
+	}
 	body, err := fs.ReadFile(templates.Files(), "github/orch-ci.yml.tmpl")
 	if err != nil {
 		w.fail("the embedded tree has no CI workflow: %w", err)
