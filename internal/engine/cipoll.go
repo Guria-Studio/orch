@@ -118,6 +118,8 @@ type CIPoller struct {
 	noChecksSince map[string]time.Time
 	// prStateAt is when each task's PR state was last read (prStateDue).
 	prStateAt map[string]time.Time
+	// merges is each green PR's auto-merge retry state (#347).
+	merges map[string]*mergeRetry
 }
 
 // Poll asks CI about every task waiting on it, if enough time has passed.
@@ -172,8 +174,9 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 		}
 		switch state {
 		case vcs.CISuccess:
-			p.ciSucceeded(ctx, s, row)
-			acted++
+			if p.ciSucceeded(ctx, s, row) {
+				acted++
+			}
 		case vcs.CIFailure:
 			p.ciFailed(ctx, s, row)
 			acted++
@@ -278,24 +281,131 @@ func (p *CIPoller) maxRetries() int {
 }
 
 // ciSucceeded finishes a task whose CI went green, and merges its PR when
-// the project asked for that.
-func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.TaskRuntime) {
-	p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
-	p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
-
+// the project asked for that. Reports whether it acted: a merge put off to a
+// later poll is not progress.
+//
+// With auto-merge on, the merge comes BEFORE the task is finished (#347).
+// Finishing releases the dependents, and a dependent dispatched while the
+// merge is still being retried starts from a base without this task's code —
+// which is how several green PRs left open became dependents built on
+// nothing. A merge that will not go through after mergeMaxAttempts finishes
+// the task anyway, as before, with the PR open and the reason recorded.
+func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.TaskRuntime) bool {
 	if !p.AutoMerge {
-		return
+		p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
+		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
+		return true
 	}
-	// A merge that does not happen is reported, not retried: the PR is open
-	// and green, and a human merging it by hand is a perfectly good outcome.
-	// Python distinguishes the two events for exactly that reason.
-	event := EventPRAutoMerged
-	if err := p.Provider.MergePR(row.PRURL, p.Squash, p.MergeWhenPassing); err != nil {
-		s.logger().Warn("auto-merge failed; the PR is green and still open",
-			"task", row.ID, "pr", row.PRURL, "err", err)
-		event = EventPRAutoMergeFailed
+	now := s.now()
+	m := p.mergeRetryFor(row.ID)
+	if now.Before(m.nextAt) {
+		return false
 	}
-	p.emit(ctx, s, event, row, map[string]any{"pr_url": row.PRURL})
+	err := p.Provider.MergePR(row.PRURL, p.Squash, p.MergeWhenPassing)
+	if err == nil {
+		delete(p.merges, row.ID)
+		p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
+		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
+		p.emit(ctx, s, EventPRAutoMerged, row, map[string]any{"pr_url": row.PRURL})
+		return true
+	}
+
+	var me *vcs.MergeError
+	updated := errors.As(err, &me) && me.BranchUpdated
+	if updated {
+		m.updates++
+	} else {
+		m.attempts++
+	}
+	if mergeRetryable(err) && m.attempts < mergeMaxAttempts && m.updates <= mergeMaxBranchUpdates {
+		wait := mergeBackoff(m.attempts)
+		m.nextAt = now.Add(wait)
+		msg := "auto-merge did not go through; retrying"
+		if updated {
+			msg = "the PR was behind its base and was updated; merging after CI passes again"
+		}
+		s.logger().Info(msg, "task", row.ID, "pr", row.PRURL,
+			"attempt", m.attempts, "branch_updates", m.updates, "next_in", wait, "err", err)
+		return false
+	}
+
+	// Out of attempts, or a failure no wait can fix: the existing outcome —
+	// the task is done, the PR is green and open — but said where it is
+	// seen. The event carries gh's own words, and the task's note says the
+	// PR is still open, which is what a person has to act on.
+	delete(p.merges, row.ID)
+	tries := m.attempts + m.updates
+	s.logger().Warn("auto-merge failed; the PR is green and still open",
+		"task", row.ID, "pr", row.PRURL, "attempts", tries, "err", err)
+	p.finishTask(ctx, s, row, CIStatusSuccess, fmt.Sprintf(
+		"CI passed; auto-merge failed after %d attempt(s), the PR is still open: %s (%v)", tries, row.PRURL, err))
+	p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
+	p.emit(ctx, s, EventPRAutoMergeFailed, row, map[string]any{
+		"pr_url": row.PRURL, "attempts": tries, "error": err.Error(),
+	})
+	return true
+}
+
+// Auto-merge retry policy (#347). Five attempts with the waits below span
+// about two and a half minutes of polling — long enough for GitHub to
+// recompute mergeability after a sibling PR merged, short enough that a PR
+// that will not merge is reported while someone is still watching. A PR
+// that was behind and got updated does not spend an attempt: its CI runs
+// again, which is the wait; mergeMaxBranchUpdates bounds a base that keeps
+// moving.
+const (
+	mergeMaxAttempts      = 5
+	mergeMaxBranchUpdates = 3
+)
+
+// mergeBackoff is the wait after the given number of failed attempts.
+func mergeBackoff(failed int) time.Duration {
+	if failed < 1 {
+		failed = 1
+	}
+	d := time.Duration(failed) * 15 * time.Second
+	if d > time.Minute {
+		d = time.Minute
+	}
+	return d
+}
+
+// mergeRetryable reports whether a failed merge is worth asking again. A
+// provider that diagnosed the failure says so itself; any other merge
+// failure is retried within the budget, since the merge itself is
+// idempotent. A gh that is missing or logged out, or an error that is not a
+// merge failure at all, is not going to change in two minutes.
+func mergeRetryable(err error) bool {
+	var me *vcs.MergeError
+	if errors.As(err, &me) {
+		return me.Retryable
+	}
+	var cliErr *vcs.CLIError
+	if errors.As(err, &cliErr) {
+		return false
+	}
+	return errors.Is(err, vcs.ErrMergeFailed)
+}
+
+// mergeRetry is one task's auto-merge retry state. In memory: a restarted
+// run finds the row still pending CI and starts a fresh budget, which is the
+// right side to err on.
+type mergeRetry struct {
+	attempts int
+	updates  int
+	nextAt   time.Time
+}
+
+func (p *CIPoller) mergeRetryFor(taskID string) *mergeRetry {
+	if p.merges == nil {
+		p.merges = map[string]*mergeRetry{}
+	}
+	m, ok := p.merges[taskID]
+	if !ok {
+		m = &mergeRetry{}
+		p.merges[taskID] = m
+	}
+	return m
 }
 
 // ciNoChecks finishes a task whose PR never reported a check within the

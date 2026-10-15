@@ -295,11 +295,69 @@ func (p *GitHubProvider) MergePR(prURL string, squash, auto bool) error {
 	if auto {
 		args = append(args, "--auto")
 	}
-	if _, err := run("gh", nil, args...); err != nil {
-		if authErr := checkAuth("gh", nil); authErr != nil {
-			return authErr
-		}
-		return ErrMergeFailed
+	_, err := run("gh", nil, args...)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if authErr := checkAuth("gh", nil); authErr != nil {
+		return authErr
+	}
+	return p.diagnoseMerge(prURL, mergeDetail(err))
+}
+
+// githubRetryableMergeStates are the mergeStateStatus values a failed merge
+// can come back from without anyone touching the PR (#347):
+//
+//   - UNKNOWN: GitHub is still computing mergeability, which it does again
+//     every time the base moves — right after a sibling PR merged.
+//   - BLOCKED: a required check or review is not satisfied yet; a check that
+//     is re-running is the transient case.
+//   - CLEAN / HAS_HOOKS / UNSTABLE: mergeable now. The failure was the base
+//     moving under the merge ("Base branch was modified"), or gh asked to
+//     arm `--auto` on a repository without auto-merge while the PR was not
+//     yet mergeable; asked again, gh merges a mergeable PR directly.
+//
+// Not here: DIRTY (conflicts) and DRAFT need a person; BEHIND is handled by
+// updating the branch.
+var githubRetryableMergeStates = map[string]bool{
+	"UNKNOWN": true, "BLOCKED": true, "CLEAN": true, "HAS_HOOKS": true, "UNSTABLE": true,
+}
+
+// diagnoseMerge reads the PR after a failed `gh pr merge` and says what the
+// failure was. A PR that turns out merged is success: a concurrent merge, or
+// auto-merge firing between the two calls. A PR behind its base is brought
+// up to date, which re-runs its CI.
+func (p *GitHubProvider) diagnoseMerge(prURL, detail string) error {
+	out, err := run("gh", nil, "pr", "view", prURL, "--json", "state,mergeStateStatus")
+	if err != nil {
+		// Could not tell: the merge failure itself is the answer, and it is
+		// worth another try — a flaky API is the likeliest reason for both.
+		return &MergeError{Detail: detail, Retryable: true}
+	}
+	var view struct {
+		State            string `json:"state"`
+		MergeStateStatus string `json:"mergeStateStatus"`
+	}
+	if err := json.Unmarshal([]byte(out), &view); err != nil {
+		return &MergeError{Detail: detail, Retryable: true}
+	}
+	if view.State == "MERGED" {
+		return nil
+	}
+	ms := view.MergeStateStatus
+	if view.State == "CLOSED" {
+		return &MergeError{Detail: detail, MergeState: ms}
+	}
+	if ms == "BEHIND" {
+		// The repository requires branches to be up to date before merging,
+		// and the base moved. Merge the base in; CI runs on the new head.
+		if _, upErr := run("gh", nil, "pr", "update-branch", prURL); upErr != nil {
+			return &MergeError{
+				Detail:     detail + "; gh pr update-branch: " + mergeDetail(upErr),
+				MergeState: ms, Retryable: true,
+			}
+		}
+		return &MergeError{Detail: detail, MergeState: ms, Retryable: true, BranchUpdated: true}
+	}
+	return &MergeError{Detail: detail, MergeState: ms, Retryable: githubRetryableMergeStates[ms]}
 }
