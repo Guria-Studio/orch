@@ -522,3 +522,25 @@ func TestFindingsInvitationFollowsTheOptIn(t *testing.T) {
 		})
 	}
 }
+
+// With dispatch.isolate_compose on, the agent is told its compose project and
+// not to override it or touch another project's containers (#343): those are
+// a sibling task's, running in parallel. Off, the prompt is byte-identical to
+// the one without the feature, which is what keeps the goldens unchanged.
+func TestComposeLineFollowsIsolation(t *testing.T) {
+	task := model.Task{ID: "F1.T1", Title: "t", Model: "claude/sonnet"}
+	without, _ := Render(task, nil, "specs/a.md", Options{ProjectRoot: "/p"})
+	with, _ := Render(task, nil, "specs/a.md", Options{ProjectRoot: "/p", ComposeProject: "usebot-f1-t1"})
+
+	if strings.Contains(without, "compose") {
+		t.Errorf("the prompt mentions compose with isolation off:\n%s", without)
+	}
+	want := "- Docker compose runs as project \"usebot-f1-t1\" (COMPOSE_PROJECT_NAME is set for you): do not pass\n" +
+		"  -p/--project-name, and do not stop or remove containers of other compose projects.\n"
+	if !strings.Contains(with, want) {
+		t.Errorf("the prompt is missing the compose line %q:\n%s", want, with)
+	}
+	if strings.Replace(with, want, "", 1) != without {
+		t.Errorf("the compose line is not the only difference:\n%s", with)
+	}
+}

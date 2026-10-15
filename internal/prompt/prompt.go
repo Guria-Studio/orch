@@ -79,6 +79,10 @@ type Options struct {
 	// should do better (`report_findings.enabled`). Off, the prompt is
 	// byte-identical to the one without the feature.
 	ReportFindings bool
+	// ComposeProject is the docker compose project the task's containers
+	// run under (COMPOSE_PROJECT_NAME, dispatch.isolate_compose, #343).
+	// Empty, the prompt says nothing about compose.
+	ComposeProject string
 }
 
 // Render returns the prompt body and any warnings worth showing an operator.
@@ -116,6 +120,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"deps_block":     renderDepsBlock(completedDeps),
 		"model":          task.Model,
 		"working_dir":    workingDir,
+		"compose_line":   composeLine(opts.ComposeProject),
 		"findings_block": findingsBlock(opts.ReportFindings),
 	}), warnings
 }
@@ -179,6 +184,19 @@ func Write(task model.Task, completedDeps []model.Task, specRef string, opts Opt
 		return "", warnings, fmt.Errorf("write prompt %s: %w", path, err)
 	}
 	return path, warnings, nil
+}
+
+// composeLine tells the agent the docker compose project orch put it in
+// (#343), or nothing when orch did not. Other tasks run in sibling worktrees
+// at the same time, under projects of their own: `-p` would put this one back
+// in a shared project, and a `docker compose down` or `docker rm` aimed at
+// "whatever is running" would take a sibling's containers with it.
+func composeLine(project string) string {
+	if project == "" {
+		return ""
+	}
+	return fmt.Sprintf("- Docker compose runs as project %q (COMPOSE_PROJECT_NAME is set for you): do not pass\n"+
+		"  -p/--project-name, and do not stop or remove containers of other compose projects.\n", project)
 }
 
 // findingsBlock is the dogfooding invitation, or nothing. It comes last and
@@ -378,6 +396,9 @@ func truncateRunes(s string, n int) string {
 //     unwired feature and a broken rule (#318, #320). It may now make the
 //     edits the task cannot work without and say why in its note, and the
 //     PR names every file outside the list (engine's scopeSection, #319).
+//   - **The compose line exists only when orch set the project** (#343). It
+//     follows the constraints and is empty with dispatch.isolate_compose
+//     off, so a project without it renders byte for byte as before.
 const template = `TASK_ID={id}
 You are executing task {id}.
 
@@ -412,4 +433,4 @@ Constraints:
   manifest and lockfile of the package you work in for a dependency the task
   needs — edit it, and name each such file and why in your done note.
 - Report progress through one of the two channels above only.
-{findings_block}`
+{compose_line}{findings_block}`

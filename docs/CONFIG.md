@@ -81,6 +81,7 @@ dispatch:
   worktree_mode: true    # each task runs in its own git worktree
   base_branch: main
   worktree_setup: ""     # e.g. "pnpm install --frozen-lockfile"
+  isolate_compose: true  # each task gets its own docker compose project
 ```
 
 **`worktree_setup`** is a shell command orch runs inside each fresh worktree
@@ -92,6 +93,48 @@ its own (#324). Use the command your CI installs with: `pnpm install
 with `sh -c` in the worktree, for at most 10 minutes; a non-zero exit blocks
 the task with the tail of its output, and the worktree is removed. Empty (the
 default) runs nothing. Go only.
+
+**`isolate_compose`** (default `true`, Go only) gives each dispatched task its
+own docker compose project. Parallel tasks run in sibling worktrees of one
+repository, and with a fixed top-level `name:` in the compose file every one
+of them used the same project: one task's `docker compose up` recreated the
+containers another was testing against, and its `down` removed them (#343).
+With it on, orch sets `COMPOSE_PROJECT_NAME=<project>-<task-id>` (lowercased,
+anything but `a-z0-9_-` turned into `-`, so `usebot` / `F1.T2` is
+`usebot-f1-t2`) in the agent's environment and in `worktree_setup`'s,
+replacing any value your shell exported. It beats a top-level `name:`; only
+`-p` beats it, so the dispatch prompt gains one line telling the agent its
+project, not to pass `-p`/`--project-name`, and not to stop or remove another
+compose project's containers. Off, orch leaves `COMPOSE_PROJECT_NAME` and the
+prompt alone.
+
+Every task, isolated or not, also gets **`ORCH_TASK_ID`** and
+**`ORCH_TASK_SLOT`**: a small integer (1, 2, …) no other task running in the
+same `orch run` holds, the lowest free one, given back when the task finishes.
+A project name does not stop two tasks from binding the same host port, and
+orch does not rewrite compose files, so the convention for published ports is
+a variable with a default, set per task from the slot:
+
+```yaml
+# docker-compose.yml
+services:
+  api:
+    ports:
+      - "${API_PORT:-3001}:3001"   # 3001 in your own checkout
+```
+
+```yaml
+# .orchestrator/config.yaml — compose reads .env from the project directory;
+# keep .env gitignored, or orch's auto-commit picks it up.
+dispatch:
+  worktree_setup: >-
+    pnpm install --frozen-lockfile &&
+    echo "API_PORT=$((3001 + ORCH_TASK_SLOT))" >> .env
+```
+
+Slot 1 is the first task, so the base port stays your own stack's. `orch
+doctor` warns (`compose.isolation`) about compose files at the root or one
+directory down that set a fixed `name:` or publish a fixed host port.
 
 With `worktree_mode` on and no git repo — or no remote — orch **degrades and
 says so** rather than failing: see `orch doctor`.

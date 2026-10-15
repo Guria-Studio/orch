@@ -747,6 +747,29 @@ func TestCreateFailsAndCleansUpWhenSetupFails(t *testing.T) {
 	}
 }
 
+// The setup runs with the task's own compose project and slot (#343), so a
+// setup that starts containers starts the task's, and a value the operator's
+// shell exported is replaced rather than left next to it.
+func TestCreateWithEnvHandsTheSetupItsEnvironment(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, true)
+	t.Setenv("COMPOSE_PROJECT_NAME", "shared")
+	t.Setenv("ORCH_SETUP_INHERITED", "kept")
+	m.Setup = `printf '%s|%s|%s' "$COMPOSE_PROJECT_NAME" "$ORCH_TASK_SLOT" "$ORCH_SETUP_INHERITED" > setup-env`
+
+	path, err := m.CreateWithEnv("F2.1.T1", "main", []string{"COMPOSE_PROJECT_NAME=usebot-f2-1-t1", "ORCH_TASK_SLOT=2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(path, "setup-env")) // #nosec G304 -- the test's own worktree
+	if err != nil {
+		t.Fatalf("setup did not run: %v", err)
+	}
+	if want := "usebot-f2-1-t1|2|kept"; string(got) != want {
+		t.Errorf("setup saw %q, want %q", got, want)
+	}
+}
+
 // ChangedFiles is the task's own work: a dependency's files merged in by
 // Create are not the task's edits, and naming them in its PR as out of scope
 // would bury the real deviations.

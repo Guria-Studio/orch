@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,15 @@ func (m *Manager) startPoint(taskID, baseBranch string) string {
 // Create goes on to fail anyway, both are folded into the returned error
 // via errors.Join so nothing gets lost on the path that actually matters.
 func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, error) {
+	return m.CreateWithEnv(taskID, baseBranch, nil, deps...)
+}
+
+// CreateWithEnv is Create with setupEnv added to dispatch.worktree_setup's
+// environment, on top of orch's own and replacing any variable of the same
+// name: the engine hands it the task's COMPOSE_PROJECT_NAME and
+// ORCH_TASK_SLOT (#343), so a setup that starts containers starts the
+// task's own rather than a sibling's.
+func (m *Manager) CreateWithEnv(taskID, baseBranch string, setupEnv []string, deps ...string) (string, error) {
 	wtPath := m.WorktreePath(taskID)
 	var cleanupErr error
 	if pathExists(wtPath) || pathExists(filepath.Join(LegacyDir(m.root), taskID)) {
@@ -101,7 +111,7 @@ func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, err
 			return "", errors.Join(err, m.Remove(taskID), cleanupErr, purgeErr)
 		}
 	}
-	if err := m.runSetup(taskID, wtPath); err != nil {
+	if err := m.runSetup(taskID, wtPath, setupEnv); err != nil {
 		return "", errors.Join(err, m.Remove(taskID), cleanupErr, purgeErr)
 	}
 	// Where the agent's own work starts: after the dependency merges, so
@@ -329,7 +339,7 @@ func (m *Manager) Recreate(taskID string) (string, error) {
 	if _, err := m.run(taskID, "git", "worktree", "add", "-B", branch, wtPath, remoteBranch); err != nil {
 		return "", errors.Join(err, cleanupErr)
 	}
-	if err := m.runSetup(taskID, wtPath); err != nil {
+	if err := m.runSetup(taskID, wtPath, nil); err != nil {
 		return "", errors.Join(err, m.Remove(taskID), cleanupErr)
 	}
 
@@ -366,8 +376,9 @@ func (m *Manager) RemoveAll() []string {
 // checkout — no node_modules, no .venv — so without it every agent's first
 // test run failed, and the agent had to decide whether installing from the
 // lockfile broke its "do not touch dependencies" rule. The error carries the
-// tail of the command's output, which is where an installer says why.
-func (m *Manager) runSetup(taskID, wtPath string) error {
+// tail of the command's output, which is where an installer says why. env,
+// when non-empty, is added to the inherited environment (see CreateWithEnv).
+func (m *Manager) runSetup(taskID, wtPath string, env []string) error {
 	if strings.TrimSpace(m.Setup) == "" {
 		return nil
 	}
@@ -377,6 +388,9 @@ func (m *Manager) runSetup(taskID, wtPath string) error {
 	// #nosec G204 -- dispatch.worktree_setup is the project owner's own command.
 	cmd := exec.CommandContext(ctx, "sh", "-c", m.Setup)
 	cmd.Dir = wtPath
+	if len(env) > 0 {
+		cmd.Env = overrideEnv(os.Environ(), env)
+	}
 	// Its own process group, killed whole on timeout: an installer forks.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
@@ -389,4 +403,20 @@ func (m *Manager) runSetup(taskID, wtPath string) error {
 		tail = "…" + tail[len(tail)-500:]
 	}
 	return fmt.Errorf("worktree: dispatch.worktree_setup %q failed for %s: %w: %s", m.Setup, taskID, err, tail)
+}
+
+// overrideEnv is base with every variable vars sets replaced by vars' value.
+func overrideEnv(base, vars []string) []string {
+	set := make(map[string]bool, len(vars))
+	for _, kv := range vars {
+		key, _, _ := strings.Cut(kv, "=")
+		set[key] = true
+	}
+	out := make([]string, 0, len(base)+len(vars))
+	for _, kv := range base {
+		if key, _, _ := strings.Cut(kv, "="); !set[key] {
+			out = append(out, kv)
+		}
+	}
+	return append(out, vars...)
 }

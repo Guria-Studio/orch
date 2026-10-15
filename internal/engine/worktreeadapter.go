@@ -17,8 +17,11 @@ import (
 // dependent on a repo shape.
 type WorktreeManager interface {
 	// Create branches taskID's worktree from baseBranch and merges in the
-	// branches of deps the base does not contain yet (#322).
-	Create(ctx context.Context, taskID, baseBranch string, deps ...string) (string, error)
+	// branches of deps the base does not contain yet (#322). setupEnv is
+	// added to dispatch.worktree_setup's environment: the task's compose
+	// project and slot (#343), so a setup that starts containers starts the
+	// task's own.
+	Create(ctx context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, error)
 	CommitPending(ctx context.Context, taskID string) error
 	Push(ctx context.Context, taskID string) error
 	Remove(ctx context.Context, taskID string) error
@@ -43,8 +46,8 @@ type managerAdapter struct{ m *worktree.Manager }
 // NewWorktreeManager adapts a worktree.Manager for the engine.
 func NewWorktreeManager(m *worktree.Manager) WorktreeManager { return managerAdapter{m: m} }
 
-func (a managerAdapter) Create(_ context.Context, taskID, baseBranch string, deps ...string) (string, error) {
-	return a.m.Create(taskID, baseBranch, deps...)
+func (a managerAdapter) Create(_ context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, error) {
+	return a.m.CreateWithEnv(taskID, baseBranch, setupEnv, deps...)
 }
 
 // CommitPending stages and commits whatever the agent left behind.

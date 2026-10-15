@@ -105,6 +105,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			})...)
 			checks = append(checks, doctor.CheckMCPConfig(paths.Root))
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))
+			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker()))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))
 
