@@ -45,7 +45,7 @@ func newRunCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().StringVar(&opts.mode, "mode", string(engine.ModeAuto),
 		"auto dispatches everything ready; semi asks before each critical task")
 	cmd.Flags().IntVar(&opts.maxTasks, "max-tasks", 0,
-		"Stop after dispatching this many tasks; 0 means no limit")
+		"Start at most this many tasks (their retries do not count); 0 means no limit")
 	cmd.Flags().StringVar(&opts.only, "only", "",
 		"Only dispatch tasks whose id matches this glob (dependencies still resolve across the whole DAG)")
 	cmd.Flags().BoolVar(&opts.taskLocks, "task-locks", false,

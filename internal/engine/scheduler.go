@@ -69,7 +69,9 @@ type SchedulerOptions struct {
 	UseTaskLocks bool
 	// Only narrows the candidate set to task ids matching this glob.
 	Only string
-	// MaxTasks caps how many dispatches one run performs. Zero means no cap.
+	// MaxTasks caps how many distinct tasks one run starts. Retries of a
+	// task already started (a failed attempt, a CI failure) do not count.
+	// Zero means no cap.
 	MaxTasks int
 	// StateDir is where logs and task locks live.
 	StateDir string
@@ -142,8 +144,11 @@ type Scheduler struct {
 	// `orch status` can tell blocked-by-budget from not-ready-yet. Rewritten
 	// every tick, so it is always current.
 	deferReasons map[string]string
-	// dispatched counts successful spawns against MaxTasks.
+	// dispatched counts every successful spawn, retries included.
 	dispatched int
+	// dispatchedIDs is the tasks this run has started at least once, which
+	// is what MaxTasks bounds: a retry of one of them is not a new task.
+	dispatchedIDs map[string]bool
 	// draining is set when the operator answers "quit": no new dispatches,
 	// but the children already running are left to finish.
 	draining bool
@@ -227,17 +232,18 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		capacity = 1
 	}
 	return &Scheduler{
-		Queue:        q,
-		Routes:       routes,
-		Sems:         NewSems(opts.GlobalMax, opts.PerProvider),
-		Opts:         opts,
-		inFlight:     make(map[int]*InFlight),
-		deferred:     make(map[string]bool),
-		deferReasons: make(map[string]string),
-		done:         make(chan completion, capacity),
-		spentUSD:     make(map[string]float64),
-		ciRetryPR:    make(map[string]string),
-		now:          time.Now,
+		Queue:         q,
+		Routes:        routes,
+		Sems:          NewSems(opts.GlobalMax, opts.PerProvider),
+		Opts:          opts,
+		inFlight:      make(map[int]*InFlight),
+		deferred:      make(map[string]bool),
+		deferReasons:  make(map[string]string),
+		dispatchedIDs: make(map[string]bool),
+		done:          make(chan completion, capacity),
+		spentUSD:      make(map[string]float64),
+		ciRetryPR:     make(map[string]string),
+		now:           time.Now,
 	}
 }
 
@@ -292,8 +298,8 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 		Deferred: s.deferred,
 		Waiting:  s.retryQueueIDs(),
 	}) {
-		if s.Opts.MaxTasks > 0 && s.dispatched >= s.Opts.MaxTasks {
-			break
+		if !s.mayStart(task.ID) {
+			continue
 		}
 		if s.draining {
 			break
@@ -329,9 +335,23 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 		if ok {
 			started++
 			s.dispatched++
+			s.dispatchedIDs[task.ID] = true
 		}
 	}
 	return started, nil
+}
+
+// capReached reports whether --max-tasks has been spent on new tasks.
+func (s *Scheduler) capReached() bool {
+	return s.Opts.MaxTasks > 0 && len(s.dispatchedIDs) >= s.Opts.MaxTasks
+}
+
+// mayStart reports whether the ready set may hand taskID to a child: always
+// below the cap, and past it only for a task this run already started — one
+// a person or a failed write moved back to todo is still this run's work.
+// MaxTasks bounds new tasks; a retry is never one (#346).
+func (s *Scheduler) mayStart(taskID string) bool {
+	return !s.capReached() || s.dispatchedIDs[taskID]
 }
 
 // drainRetryQueue dispatches everything whose backoff has expired, and
@@ -347,9 +367,9 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 
 	for _, item := range s.retryQueue {
 		switch {
-		case s.draining,
-			s.Opts.MaxTasks > 0 && s.dispatched >= s.Opts.MaxTasks,
-			item.EarliestAt.After(now):
+		// No --max-tasks check: a retry, CI's included, is another
+		// attempt at a task already started, not a new one (#346).
+		case s.draining, item.EarliestAt.After(now):
 			remaining = append(remaining, item)
 			continue
 		}
@@ -363,6 +383,7 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 		if ok {
 			started++
 			s.dispatched++
+			s.dispatchedIDs[item.Task.ID] = true
 			continue
 		}
 		// Not dispatched. Requeue only if this was a capacity miss — if
@@ -762,4 +783,19 @@ func (s *Scheduler) logger() *slog.Logger {
 // `<stateDir>/prompts/<id>.txt`, matching Python's layout.
 func PromptPathFor(stateDir, taskID string) string {
 	return filepath.Join(stateDir, "prompts", taskID+".txt")
+}
+
+// startableReady is the ready set less what --max-tasks holds back.
+func (s *Scheduler) startableReady(opts ReadyOpts) []model.Task {
+	ready := s.Queue.Ready(opts)
+	if !s.capReached() {
+		return ready
+	}
+	out := ready[:0:0]
+	for _, t := range ready {
+		if s.dispatchedIDs[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out
 }

@@ -235,7 +235,7 @@ Usage:
 
 Flags:
   -h, --help            help for run
-      --max-tasks int   Stop after dispatching this many tasks; 0 means no limit
+      --max-tasks int   Start at most this many tasks (their retries do not count); 0 means no limit
       --mode string     auto dispatches everything ready; semi asks before each critical task (default "auto")
       --no-push         Skip pushing task branches — for a project with no remote
       --only string     Only dispatch tasks whose id matches this glob (dependencies still resolve across the whole DAG)
