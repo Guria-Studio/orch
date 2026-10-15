@@ -30,6 +30,58 @@ func (m *Manager) PurgeOrphanBranch(taskID string) error {
 	return m.runBestEffort(taskID, "git", "branch", "-D", m.BranchName(taskID))
 }
 
+// clearLeftoverBranch deletes orch/<taskID> when an earlier attempt left it
+// behind and nothing uses it, so `git worktree add -b` can create it afresh.
+//
+// PurgeOrphanBranch alone was not enough (#345): when the earlier attempt's
+// worktree directory vanished without `git worktree remove` — a killed run, a
+// cleaned-up disk — git still lists that worktree, refuses to delete a branch
+// it has checked out, and `worktree add -b` then fails with "a branch named
+// ... already exists" on every dispatch. `git worktree prune` drops exactly
+// those registrations (the ones whose directory is gone) and nothing else.
+//
+// A branch a worktree that does exist still has checked out is somebody's
+// work in progress — most likely another `orch run` on the same project
+// (#344) — and is left alone: Create fails, naming where it is checked out.
+func (m *Manager) clearLeftoverBranch(taskID string) error {
+	branch := m.BranchName(taskID)
+	if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+		return nil // no branch: the ordinary first dispatch
+	}
+	prune := []string{"git", "worktree", "prune"}
+	if err := m.runBestEffort(taskID, prune...); err != nil {
+		logGitWarning(taskID, prune, err)
+	}
+	list, err := m.run(taskID, "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("worktree: listing worktrees to check who uses %s: %w", branch, err)
+	}
+	if at := worktreeUsing(list, branch); at != "" {
+		return fmt.Errorf("worktree: branch %s is still checked out at %s; another orch run may be working on %s — "+
+			"stop it, or run `git worktree remove %s` if nothing is", branch, at, taskID, at)
+	}
+	if err := m.PurgeOrphanBranch(taskID); err != nil {
+		return fmt.Errorf("worktree: deleting the leftover branch %s: %w", branch, err)
+	}
+	slog.Info("worktree: deleted a leftover branch from an earlier attempt", "task_id", taskID, "branch", branch)
+	return nil
+}
+
+// worktreeUsing returns the path of the worktree in `git worktree list
+// --porcelain` output that has branch checked out, or "".
+func worktreeUsing(porcelain, branch string) string {
+	path := ""
+	for _, line := range strings.Split(porcelain, "\n") {
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			path = strings.TrimPrefix(line, "worktree ")
+		case line == "branch refs/heads/"+branch:
+			return path
+		}
+	}
+	return ""
+}
+
 // startPoint is what a new task branch starts from: the remote's base when
 // there is a remote to push to, freshly fetched, else the local base.
 //
@@ -54,15 +106,13 @@ func (m *Manager) startPoint(taskID, baseBranch string) string {
 // Create makes an isolated worktree for taskID branched off baseBranch, with
 // the branch of every task in deps merged in when the base does not already
 // contain it (see mergeDependency). A stale worktree directory left by a
-// crashed prior run is removed first; PurgeOrphanBranch then clears any branch
-// ref a partial prior attempt left behind (see its doc comment) before
-// `git worktree add -b` runs.
+// crashed prior run is removed first; clearLeftoverBranch then deletes the
+// branch an earlier attempt left behind (see its doc comment) before
+// `git worktree add -b` runs, or refuses when a live worktree still uses it.
 //
-// Both cleanup steps are best-effort — Create can succeed despite either
-// failing — but neither error is dropped (rule 19): Remove already logs a
-// genuine failure at WARN; PurgeOrphanBranch's routine "branch doesn't
-// exist" is logged at DEBUG (see its doc comment for why not WARN). If
-// Create goes on to fail anyway, both are folded into the returned error
+// Removing the stale directory is best-effort — Create can succeed despite it
+// failing — but its error is not dropped (rule 19): Remove logs it at WARN,
+// and if Create goes on to fail anyway it is folded into the returned error
 // via errors.Join so nothing gets lost on the path that actually matters.
 func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, error) {
 	wtPath := m.WorktreePath(taskID)
@@ -85,30 +135,28 @@ func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, err
 		return "", errors.Join(err, cleanupErr)
 	}
 
-	purgeErr := m.PurgeOrphanBranch(taskID)
-	if purgeErr != nil {
-		slog.Debug("worktree: orphan branch purge failed (expected when the task has no prior branch)",
-			"task_id", taskID, "error", purgeErr)
+	if err := m.clearLeftoverBranch(taskID); err != nil {
+		return "", errors.Join(err, cleanupErr)
 	}
 
 	if _, err := m.run(taskID, "git", "worktree", "add", wtPath, "-b", m.BranchName(taskID), m.startPoint(taskID, baseBranch)); err != nil {
-		return "", errors.Join(err, cleanupErr, purgeErr)
+		return "", errors.Join(err, cleanupErr)
 	}
 	for _, dep := range deps {
 		if err := m.mergeDependency(taskID, wtPath, dep); err != nil {
 			// Leave nothing half-merged behind: the task blocks with the
 			// reason, and its next dispatch starts from a clean slate.
-			return "", errors.Join(err, m.Remove(taskID), cleanupErr, purgeErr)
+			return "", errors.Join(err, m.Remove(taskID), cleanupErr)
 		}
 	}
 	if err := m.runSetup(taskID, wtPath); err != nil {
-		return "", errors.Join(err, m.Remove(taskID), cleanupErr, purgeErr)
+		return "", errors.Join(err, m.Remove(taskID), cleanupErr)
 	}
 	// Where the agent's own work starts: after the dependency merges, so
 	// ChangedFiles does not count their files as the task's.
 	head, err := m.run(taskID, "git", "-C", wtPath, "rev-parse", "HEAD")
 	if err != nil {
-		return "", errors.Join(err, m.Remove(taskID), cleanupErr, purgeErr)
+		return "", errors.Join(err, m.Remove(taskID), cleanupErr)
 	}
 
 	m.mu.Lock()
@@ -126,21 +174,28 @@ func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, err
 // and a sandboxed agent cannot fetch or merge it in (#322). So the dependency's
 // branch is merged here: origin's copy when there is a remote and the branch
 // is still there (a task's Push may have raced this dispatch), else the local
-// one. No branch at all is not an error — it was deleted after its PR merged,
-// or the task never ran in a worktree — and a branch the base already contains
-// is left alone, so a dependency merged the ordinary way adds nothing.
+// one when there is no remote.
+//
+// Not merged, because the work is already in the base: a branch the base
+// contains, and — with a remote — a branch the remote no longer has, which is
+// what a forge deleting it after the merge looks like (#345). Its local copy
+// is not merged instead: after a squash merge it conflicts with the squashed
+// commit that already holds the same work. A squash-merged branch still on
+// the remote is the engine's to leave out of deps; git cannot tell.
 //
 // A merge that conflicts is returned as an error naming the dependency: the
 // dependency's own PR conflicts with the base too, and that is for a person
 // to resolve before the dependent can meaningfully run.
 func (m *Manager) mergeDependency(taskID, wtPath, dep string) error {
-	ref := m.dependencyRef(taskID, dep)
+	ref, why := m.dependencyRef(taskID, dep)
 	if ref == "" {
-		slog.Debug("worktree: the dependency has no branch to merge; its work is taken to be in the base",
-			"task_id", taskID, "dependency", dep)
+		slog.Info("worktree: not merging the dependency's branch; its work is taken to be in the base",
+			"task_id", taskID, "dependency", dep, "reason", why)
 		return nil
 	}
 	if _, err := m.run(taskID, "git", "-C", wtPath, "merge-base", "--is-ancestor", ref, "HEAD"); err == nil {
+		slog.Debug("worktree: the base already contains the dependency's branch",
+			"task_id", taskID, "dependency", dep, "ref", ref)
 		return nil
 	}
 	if _, err := m.run(taskID, "git", "-C", wtPath,
@@ -156,20 +211,29 @@ func (m *Manager) mergeDependency(taskID, wtPath, dep string) error {
 	return nil
 }
 
-// dependencyRef is the freshest ref holding dep's work: origin's copy of its
-// branch when there is a remote and the branch is still on it, else the local
-// branch, else "" when neither exists.
-func (m *Manager) dependencyRef(taskID, dep string) string {
+// dependencyRef is the freshest ref holding dep's work, or "" and why there
+// is none to merge.
+//
+// With a remote: origin's copy of its branch when the fetch finds it; nothing
+// when origin answers that it has no such branch (deleted after its PR
+// merged, #345); the local branch when origin cannot be asked at all, so a
+// network blip does not drop work the base may lack. Without a remote: the
+// local branch, if any.
+func (m *Manager) dependencyRef(taskID, dep string) (ref, why string) {
 	branch := m.BranchName(dep)
 	if m.pushEnabled {
 		if _, err := m.run(taskID, "git", "fetch", "origin", branch); err == nil {
-			return "origin/" + branch
+			return "origin/" + branch, ""
+		}
+		heads, err := m.run(taskID, "git", "ls-remote", "--heads", "origin", "refs/heads/"+branch)
+		if err == nil && strings.TrimSpace(heads) == "" {
+			return "", "the branch is gone from the remote"
 		}
 	}
 	if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
-		return branch
+		return branch, ""
 	}
-	return ""
+	return "", "the dependency has no branch"
 }
 
 // CommitPending stages and commits any uncommitted changes inside taskID's

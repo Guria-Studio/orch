@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -128,6 +129,10 @@ type Scheduler struct {
 	// the CI poller's filter. Without it a PR would be opened and never
 	// watched, so openPR refuses to leave one in that state.
 	CIRecorder PRRecorder
+	// PRs reads a dependency's pull request URL, so a dependency whose PR is
+	// already merged is not merged into its dependent's worktree again
+	// (#345). Nil, or VCS nil, hands every dependency to the worktree.
+	PRs TaskPRReader
 	// Comments reads a finished dependency's notes for the prompt's
 	// "Completed dependencies (context)" block. Nil falls back to whatever
 	// tasks.json carried, which since F-12 is nothing — see completedDeps.
@@ -214,6 +219,12 @@ type RecordBackend interface {
 	TaskStatus(ctx context.Context, taskID string) (model.Status, error)
 	// Transition moves a task, recording the note.
 	Transition(ctx context.Context, taskID string, to model.Status, note string) error
+}
+
+// TaskPRReader reads the pull request a task's work went up in; "" when it
+// has none.
+type TaskPRReader interface {
+	TaskPR(ctx context.Context, taskID string) (string, error)
 }
 
 // CommentReader reads a finished task's comment trail.
@@ -507,7 +518,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// prevent.
 	workdir := s.Opts.Cwd
 	if s.Worktree != nil && s.Opts.WorktreeMode {
-		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), task.Dependencies...)
+		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.depsToMerge(ctx, task)...)
 		if err != nil {
 			release()
 			s.logger().Error("creating the worktree failed", "task", task.ID, "err", err)
@@ -641,6 +652,46 @@ func (s *Scheduler) blockAtDispatch(ctx context.Context, task model.Task, route 
 	if err := s.Backend.Transition(ctx, task.ID, model.StatusBlocked, reason); err != nil {
 		s.logger().Error("recording blocked failed", "task", task.ID, "err", err)
 	}
+}
+
+// depsToMerge are the dependencies whose branches the worktree should merge
+// in: all of them, less those whose PR is merged (#345).
+//
+// A merged PR's work is in the base already. After a squash merge, merging
+// its branch again conflicts with the squashed commit that holds the same
+// changes, and the dependent blocked on it. Git alone cannot see that while
+// the branch is still on the remote; the forge can. A lookup that fails keeps
+// the dependency: the worktree still skips a branch the base contains or the
+// remote has deleted, and a merge it should not have tried is a clear error,
+// where a dependency silently left out is an agent missing code.
+func (s *Scheduler) depsToMerge(ctx context.Context, task model.Task) []string {
+	if s.PRs == nil || s.VCS == nil || len(task.Dependencies) == 0 {
+		return task.Dependencies
+	}
+	out := make([]string, 0, len(task.Dependencies))
+	for _, dep := range task.Dependencies {
+		url, err := s.PRs.TaskPR(ctx, dep)
+		if err != nil {
+			s.logger().Warn("reading a dependency's PR; merging its branch if the base lacks it",
+				"task", task.ID, "dep", dep, "err", err)
+		}
+		if url == "" {
+			out = append(out, dep)
+			continue
+		}
+		st, err := s.VCS.PRState(url)
+		if err != nil && !errors.Is(err, vcs.ErrPRStateUnsupported) {
+			s.logger().Warn("reading a dependency's PR state; merging its branch if the base lacks it",
+				"task", task.ID, "dep", dep, "pr", url, "err", err)
+		}
+		if err == nil && st == vcs.PRMerged {
+			s.logger().Info("not merging a dependency's branch: its PR is merged, so its work is in the base",
+				"task", task.ID, "dep", dep, "pr", url)
+			continue
+		}
+		out = append(out, dep)
+	}
+	return out
 }
 
 // completedDeps are the task's dependencies that are done, for the prompt's

@@ -113,9 +113,17 @@ be writable, and a project at the filesystem root or one whose name ends in
 - A task's worktree starts from the remote's `base_branch` (freshly fetched)
   plus the branch `orch/<dep>` of every dependency the base does not contain
   yet, since a dependency is done as soon as its agent says so, usually before
-  its PR merges (#322). A dependency branch that conflicts with the base
-  blocks the task at dispatch, naming the dependency: resolve its PR, then
-  `orch task-status <id> todo` to retry.
+  its PR merges (#322). A dependency whose work is already in the base is not
+  merged again (#345): its PR is merged, its branch is gone from the remote
+  (deleted after the merge — its local copy is not used instead), or the base
+  contains its tip. Each skip is logged at INFO. A dependency branch that
+  conflicts with the base otherwise blocks the task at dispatch, naming the
+  dependency: resolve its PR, then `orch task-status <id> todo` to retry.
+- A branch `orch/<task-id>` left by an earlier attempt is deleted before the
+  new worktree is made, logged at INFO, once no worktree has it checked out
+  (one whose directory was deleted by hand is pruned first). If a worktree that
+  still exists has it checked out — most likely another `orch run` — the task
+  blocks with a reason naming that path (#345).
 - Worktrees an older orch left inside the project, in `.worktrees/<task-id>/`,
   still resolve the same way. `orch run` removes one when it dispatches that
   task again, and `orch doctor` lists the rest (`worktree.orphans`). The
