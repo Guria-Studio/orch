@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { Now } from "@/hooks/useNow"
+import type { Estimate, Now } from "@/hooks/useNow"
 import type { Onboarding, ReceiptPayload } from "@/hooks/useReceipt"
 import { setLanguage } from "@/i18n"
 import { englishLeaks, visibleText } from "@/i18n/leaks"
@@ -23,8 +23,10 @@ vi.mock("@/hooks/useReceipt", async (importOriginal) => ({
   useOnboarding: () => ({ data: state.onboarding, refetch, isFetching: false }),
 }))
 
+let estimate: Estimate | undefined
 vi.mock("@/hooks/useNow", () => ({
   useNow: () => ({ data: state.now, isLoading: false, isError: false }),
+  useEstimate: (enabled: boolean) => ({ data: enabled ? estimate : undefined }),
   useTicker: () => NOW,
 }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ status: "open", lastEventAt: null }) }))
@@ -164,6 +166,22 @@ describe("NowPage", () => {
     expect(screen.getByText(/Nothing needs you/)).toBeInTheDocument()
   })
 
+  it("says what the next run would take while nothing runs", () => {
+    estimate = {
+      tasks: ["A", "B", "C"], cost_usd: 3.2, cost_by_backend: { claude: 3.2 }, wall_s: 7800, critical_path_s: 5400,
+      slots: 4, past_attempts: 37, attempts_per_task: 1.3, confidence: "medium",
+    }
+    state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [] }
+    renderPage()
+    expect(screen.getByText("Next run: ≈ 3 tasks · ≈ $3.20 · ≈ 2h 10m with 4 slots")).toBeInTheDocument()
+    expect(screen.getByText("From 37 past attempts in this project · confidence medium")).toBeInTheDocument()
+    // While a run works, the page shows the agents instead.
+    state.now = base()
+    renderPage()
+    expect(screen.getAllByText(/Next run/)).toHaveLength(1)
+    estimate = undefined
+  })
+
   it("shows the last finished run's receipt, with costs labelled by where they come from", () => {
     state.receipt = {
       markdown: "## orch run `run-6` — finished\n",
@@ -237,6 +255,21 @@ describe("NowPage in Portuguese", () => {
     expect(screen.getByRole("heading", { name: "Trabalhando agora" })).toBeInTheDocument()
     expect(screen.getByText("29.394 / 480.000 tokens")).toBeInTheDocument()
     expect(englishLeaks(visibleText(container), "pt")).toEqual([])
+  })
+
+  it("says the next run's estimate in Portuguese", () => {
+    estimate = {
+      tasks: ["A"], cost_usd: 0.75, cost_by_backend: { claude: 0.75 }, wall_s: 600, critical_path_s: 600,
+      slots: 4, past_attempts: 0, attempts_per_task: 1, confidence: "none",
+    }
+    state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [] }
+    state.onboarding = undefined
+    setLanguage("pt")
+    const { container } = renderPage()
+    expect(screen.getByText(/Próxima execução: ≈ 1 tarefa ·/)).toBeInTheDocument()
+    expect(screen.getByText("Ainda sem histórico: é uma estimativa aproximada")).toBeInTheDocument()
+    expect(englishLeaks(visibleText(container), "pt")).toEqual([])
+    estimate = undefined
   })
 })
 

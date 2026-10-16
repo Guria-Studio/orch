@@ -1,0 +1,14 @@
+# orch estimate against the parity fixture: F2.T2 is in-progress, which a new
+# run re-dispatches; F2.T3 is blocked and never dispatches; the rest is done.
+# The fixture has no spend, so the numbers are the stated defaults.
+exec orch estimate --project-root proj --project-id parity-project
+stdout '^≈ 1 task · ≈ \$[0-9.]+ \(claude \$[0-9.]+\) · ≈ 10m with 4 slots \(critical path 10m\)$'
+stdout '^no history yet — rough'
+
+exec orch estimate --json --project-root proj --project-id parity-project
+stdout '"tasks":\["F2\.T2"\]'
+stdout '"confidence":"none"'
+
+# --only narrows like run's.
+exec orch estimate --only 'F0*' --project-root proj --project-id parity-project
+stdout '^≈ 0 tasks'

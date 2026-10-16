@@ -106,6 +106,7 @@ internal/
   router/            — model_router.yaml
   budget/            — per-provider guardrails
   pricing/           — pricing.yaml for spend estimates
+  estimate/          — `orch estimate`: what the next run would dispatch, cost and take, from past spend
   state/             — SQLite backend, the single source of truth
   engine/            — dispatch loop: refill, reaper, scheduler, run loop, CI poller
   project/           — what CLI and dashboard share: tasks.json hydrated with state

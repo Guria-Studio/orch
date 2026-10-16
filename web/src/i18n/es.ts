@@ -66,6 +66,18 @@ export const es = {
   "now.slots_unknown": { one: "{used} slot en uso", other: "{used} slots en uso" },
   "now.nothing_running":
     "No hay nada corriendo. Mientras una corrida los despacha, los agentes aparecen aquí con el tiempo que llevan trabajando.",
+  "now.next_run": {
+    one: "Próxima corrida: ≈ {count} tarea · ≈ {cost} · ≈ {time} con {slots} slots",
+    other: "Próxima corrida: ≈ {count} tareas · ≈ {cost} · ≈ {time} con {slots} slots",
+  },
+  "now.next_run_basis": {
+    one: "Según {count} intento anterior en este proyecto · confianza {confidence}",
+    other: "Según {count} intentos anteriores en este proyecto · confianza {confidence}",
+  },
+  "now.next_run_rough": "Todavía sin historial: es una estimación gruesa",
+  "now.confidence.low": "baja",
+  "now.confidence.medium": "media",
+  "now.confidence.high": "alta",
   "now.attempt": "intento {attempt} de {max}",
   "now.attempt_n": "intento {attempt}",
   "now.elapsed": "Lleva {elapsed}",

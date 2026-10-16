@@ -15,12 +15,12 @@ import { useBudgetSummary, type BudgetRow } from "@/hooks/useBudgetSummary"
 import { useOnboarding, useReceipt } from "@/hooks/useReceipt"
 import { useEventStream } from "@/hooks/useEventStream"
 import { useMilestones } from "@/hooks/useMilestones"
-import { useNow, useTicker, type NowDispatch } from "@/hooks/useNow"
+import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch } from "@/hooks/useNow"
 import { useTasks } from "@/hooks/useTasks"
 import { fmt, t } from "@/i18n"
 import { describeLoadError } from "@/lib/errors"
 import { STATUS } from "@/lib/status"
-import { formatElapsed, formatRelative } from "@/lib/time"
+import { formatDuration, formatElapsed, formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { PhaseSegments } from "@/pages/StakeholderSummaryPage"
 import type { SprintBlocker } from "@/lib/types"
@@ -215,6 +215,22 @@ function BudgetGauge({ row, now }: { row: BudgetRow; now: number }) {
   )
 }
 
+// What the next `orch run` would take, shown while nothing runs (#357).
+function NextRun({ e }: { e: Estimate }) {
+  return (
+    <p className="mt-2 text-sm">
+      <span className="tabular-nums">
+        {t("now.next_run", { count: e.tasks.length, cost: fmt.usd(e.cost_usd), time: formatDuration(e.wall_s), slots: e.slots })}
+      </span>
+      <span className="mt-0.5 block text-xs text-muted-foreground">
+        {e.confidence === "none"
+          ? t("now.next_run_rough")
+          : t("now.next_run_basis", { count: e.past_attempts, confidence: t(`now.confidence.${e.confidence}`) })}
+      </span>
+    </p>
+  )
+}
+
 const panel = "overflow-hidden rounded-xl border bg-card"
 
 export function NowPage() {
@@ -226,6 +242,8 @@ export function NowPage() {
   const { data: tasks } = useTasks()
   const { data: receipt } = useReceipt()
   const onboarding = useOnboarding()
+  const idle = !!data && data.working.length === 0 && data.run?.status !== "live"
+  const { data: estimate } = useEstimate(idle)
   const [collapsed, toggle] = useCollapsed()
   const fold = (id: string) => ({ id, collapsed: collapsed.has(id), onToggle: () => toggle(id) })
 
@@ -325,7 +343,10 @@ export function NowPage() {
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.nothing_running")}</p>
+              <div className="rounded-xl border border-dashed px-4 py-6">
+                <p className="text-sm text-muted-foreground">{t("now.nothing_running")}</p>
+                {idle && estimate && estimate.tasks.length > 0 ? <NextRun e={estimate} /> : null}
+              </div>
             )}
           </Section>
 

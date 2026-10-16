@@ -66,6 +66,18 @@ export const pt = {
   "now.slots_unknown": { one: "{used} slot em uso", other: "{used} slots em uso" },
   "now.nothing_running":
     "Nada está rodando. Enquanto uma execução os despacha, os agentes aparecem aqui com o tempo que já estão trabalhando.",
+  "now.next_run": {
+    one: "Próxima execução: ≈ {count} tarefa · ≈ {cost} · ≈ {time} com {slots} slots",
+    other: "Próxima execução: ≈ {count} tarefas · ≈ {cost} · ≈ {time} com {slots} slots",
+  },
+  "now.next_run_basis": {
+    one: "Com base em {count} tentativa anterior neste projeto · confiança {confidence}",
+    other: "Com base em {count} tentativas anteriores neste projeto · confiança {confidence}",
+  },
+  "now.next_run_rough": "Ainda sem histórico: é uma estimativa aproximada",
+  "now.confidence.low": "baixa",
+  "now.confidence.medium": "média",
+  "now.confidence.high": "alta",
   "now.attempt": "tentativa {attempt} de {max}",
   "now.attempt_n": "tentativa {attempt}",
   "now.elapsed": "Rodando há {elapsed}",

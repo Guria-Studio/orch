@@ -61,3 +61,25 @@ export function useTicker(intervalMs = 1_000): number {
   }, [intervalMs])
   return now
 }
+
+/** /api/estimate: what the next `orch run` would dispatch, cost and take. */
+export interface Estimate {
+  tasks: string[]
+  cost_usd: number
+  cost_by_backend: Record<string, number>
+  wall_s: number
+  critical_path_s: number
+  slots: number
+  past_attempts: number
+  attempts_per_task: number
+  /** "none" when there is no history and the numbers are defaults. */
+  confidence: "none" | "low" | "medium" | "high"
+}
+
+export function useEstimate(enabled: boolean) {
+  return useQuery({
+    queryKey: ["tasks", "estimate"],
+    queryFn: async () => (await apiClient.get<Estimate>("/api/estimate")).data,
+    enabled,
+  })
+}
