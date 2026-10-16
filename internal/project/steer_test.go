@@ -60,9 +60,9 @@ func TestTheRunsAnswerToAStopIsNotDroppedAsADuplicate(t *testing.T) {
 	s.Backend = engine.NewStateRecorder(backend)
 	s.StopTask(ctx, "T-1", false)
 
-	ev, ok := steer.WaitStopped(ctx, res, 2*time.Second)
-	if !ok || ev.Extra["stopped"] != "not_running" {
-		t.Fatalf("WaitStopped = %+v, %v; want the run's not_running answer", ev, ok)
+	ev, ok, err := steer.WaitStopped(ctx, res, 2*time.Second)
+	if err != nil || !ok || ev.Extra["stopped"] != "not_running" {
+		t.Fatalf("WaitStopped = %+v, %v, %v; want the run's not_running answer", ev, ok, err)
 	}
 }
 
@@ -94,8 +94,16 @@ func TestStopWithNoRunIsAPlainChange(t *testing.T) {
 	if err := steer.Note(ctx, "T-1", " "); err == nil {
 		t.Error("an empty note was accepted")
 	}
+	// Blocked now, so a stop without --hold has nothing to do.
+	res, err = steer.Stop(ctx, "T-1", false, "")
+	if err != nil || res.To != model.StatusBlocked || res.Message != "no orch run is running and T-1 is blocked: nothing to stop" {
+		t.Errorf("Stop on a blocked task = %+v, %v", res, err)
+	}
 	// The flock this test never took is still free.
-	f, _ := os.Open(filepath.Join(dir, project.RunLockFile)) // #nosec G304 -- a temp dir
+	f, err := os.Open(filepath.Join(dir, project.RunLockFile)) // #nosec G304 -- a temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() { _ = f.Close() }()
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		t.Errorf("Stop left the run lock taken: %v", err)

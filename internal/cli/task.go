@@ -105,7 +105,10 @@ func newTaskStopCmd(flags *projectFlags) *cobra.Command {
 			if _, err := fmt.Fprintln(out, res.Message); err != nil || !res.Requested {
 				return err
 			}
-			ev, ok := steer.WaitStopped(cmd.Context(), res, stopWait)
+			ev, ok, err := steer.WaitStopped(cmd.Context(), res, stopWait)
+			if err != nil {
+				return err
+			}
 			if !ok {
 				_, err = fmt.Fprintf(out, "the run has not answered yet; `orch events %s` shows it when it does\n", id)
 				return err
