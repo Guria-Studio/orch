@@ -165,9 +165,10 @@ func openPortfolioProject(ctx context.Context, root string, static http.Handler,
 	}
 
 	server, err := dashboard.New(dashCfg, dashboard.Options{
-		Paths:  paths,
-		Static: static,
-		State:  backend,
+		Paths:    paths,
+		Static:   static,
+		State:    backend,
+		Releases: dashboardReleases(),
 	})
 	if err != nil {
 		closeNow(closeDB, warn, root)

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { isPortfolioNavVisible, usePortfolio } from "@/hooks/usePortfolio"
 import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed"
 import { useWhoami } from "@/hooks/useWhoami"
+import { releasesSeen, useReleases } from "@/hooks/useReleases"
 import { TAB_ICONS, findTab, homePath, isPathAllowed, visibleDestinations, type NavDestination } from "@/lib/nav"
 import { isMac, useKeyboardShortcuts } from "@/lib/shortcuts"
 import { nextTheme, useTheme } from "@/lib/theme"
@@ -103,9 +104,20 @@ function DestinationLinks({ destinations, currentId, collapsed }: { destinations
   )
 }
 
+/**
+ * Whether the running version's notes are still unread here: the What's new
+ * tab carries a dot until they are opened.
+ */
+function useUnseenRelease(enabled: boolean): boolean {
+  const { data } = useReleases(enabled)
+  const version = data?.releases.some((r) => r.current) ? data.current : ""
+  return version !== "" && !releasesSeen(version)
+}
+
 /** The pages inside the current destination, when it has more than one. */
 function SectionTabs({ destination, pathname }: { destination: NavDestination; pathname: string }) {
   const { search } = useLocation()
+  const unseen = useUnseenRelease(destination.id === "now")
   if (destination.tabs.length < 2) return null
   // Filters live in the query string; moving between List, Kanban and Graph keeps them.
   const carry = new URLSearchParams(search)
@@ -132,6 +144,9 @@ function SectionTabs({ destination, pathname }: { destination: NavDestination; p
             >
               {Icon ? <Icon className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden /> : null}
               {t(tab.label)}
+              {tab.to === "/now/releases" && unseen && !active ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" role="img" aria-label={t("releases.unseen")} />
+              ) : null}
             </NavLink>
           )
         })}

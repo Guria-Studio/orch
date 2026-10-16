@@ -153,6 +153,22 @@ func writeUpdateNotice(matched *cobra.Command, version string, stderr io.Writer,
 	}
 }
 
+// dashboardReleases is what the dashboard's What's new page lists: the same
+// once-a-day check as the notice, through the same cache. nil when update
+// checks are turned off.
+func dashboardReleases() func(ctx context.Context) ([]update.Release, error) {
+	if os.Getenv(update.DisableEnv) != "" {
+		return nil
+	}
+	return func(ctx context.Context) ([]update.Release, error) {
+		path, err := updateCachePath()
+		if err != nil {
+			return nil, err
+		}
+		return update.Check(ctx, updateClient, path, time.Now())
+	}
+}
+
 func newUpgradeCmd(version string) *cobra.Command {
 	var check, yes bool
 	cmd := &cobra.Command{

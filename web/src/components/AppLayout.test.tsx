@@ -10,6 +10,12 @@ vi.mock("@/hooks/usePortfolio", () => ({
   isPortfolioNavVisible: () => false,
 }))
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ clearToken: vi.fn() }) }))
+vi.mock("@/hooks/useReleases", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useReleases")>()),
+  useReleases: () => ({
+    data: { current: "v0.17.0", releases: [{ tag: "v0.17.0", url: "", critical: false, notes: "", published_at: "", newer: false, current: true }] },
+  }),
+}))
 vi.mock("@/pages/LogsPage", () => ({ LogsPage: () => <p>event log</p> }))
 
 function Where() {
@@ -64,9 +70,19 @@ describe("AppLayout", () => {
     expect(within(tabs).getByRole("link", { current: "page" })).toHaveTextContent("Kanban")
   })
 
-  it("has no tab strip on a destination with a single page", () => {
+  // #364: Now holds What's new, which carries a dot until the running
+  // version's notes have been opened in this browser.
+  it("marks What's new until the running version's notes were read", () => {
+    window.localStorage.clear()
+    const { unmount } = renderAt("/")
+    const tabs = screen.getByRole("navigation", { name: "Sections" })
+    expect(hrefs(tabs)).toEqual(["/", "/now/releases"])
+    expect(within(tabs).getByRole("img", { name: "New notes" })).toBeInTheDocument()
+    unmount()
+
+    window.localStorage.setItem("orch.releases.seen", "v0.17.0")
     renderAt("/")
-    expect(screen.queryByRole("navigation", { name: "Sections" })).not.toBeInTheDocument()
+    expect(within(screen.getByRole("navigation", { name: "Sections" })).queryByRole("img", { name: "New notes" })).toBeNull()
   })
 
   it("opens the event log over the current page and closes it again", () => {

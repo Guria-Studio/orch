@@ -17,6 +17,7 @@ import { MilestonesPage } from "@/pages/MilestonesPage"
 import { NowPage } from "@/pages/NowPage"
 import { PacePage } from "@/pages/PacePage"
 import { PortfolioPage } from "@/pages/PortfolioPage"
+import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
@@ -33,6 +34,7 @@ const queryClient = new QueryClient({
 const PAGES: Record<string, ReactNode> = {
   "/": <NowPage />,
   "/now/portfolio": <PortfolioPage />,
+  "/now/releases": <ReleasesPage />,
   "/work/list": <ListPage />,
   "/work/kanban": <KanbanPage />,
   "/work/graph": <GraphPage />,
