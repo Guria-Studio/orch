@@ -30,9 +30,13 @@ stdout 'report_findings is on'
 grep '^  enabled: true' batchproj/.orchestrator/config.yaml
 
 # The scaffolded project passes its own validator. This is the assertion the
-# Python side was missing.
-exec orch validate --project-root batchproj --project-id batchproj
+# Python side was missing. No errors; the two warnings are the template's
+# specRefs, which name specs the operator has not written yet (#342) — exit 1
+# is validate's "warnings only".
+! exec orch validate --project-root batchproj --project-id batchproj
 ! stderr .
+stdout '^0 error\(s\) · 2 warning\(s\) · 2 total$'
+stdout 'warn\s+spec\.missing\s+F0\.T1\s+specRef\s+spec file specs/f0-foundation\.md not found'
 
 # The router stub does not close its own YAML document (#141/#144), so the
 # entries below it load.

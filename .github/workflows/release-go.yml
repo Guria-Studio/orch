@@ -87,7 +87,17 @@ jobs:
         run: orch init /tmp/smoke-project --template python-api
 
       - name: orch validate
-        run: orch validate --project-root /tmp/smoke-project
+        # Warnings only (exit 1) are the expected result: the template's
+        # tasks name specs nobody has written yet, and validate reports each
+        # as a spec.missing warning (#342). Any error (exit 2) fails the step.
+        run: |
+          set +e
+          orch validate --project-root /tmp/smoke-project
+          code=$?
+          set -e
+          if [ "$code" -gt 1 ]; then
+            exit "$code"
+          fi
 
       - name: orch doctor
         # Warnings are a legitimate result for a fresh scratch project. So
