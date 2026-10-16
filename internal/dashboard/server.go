@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/tunnel"
@@ -52,6 +53,8 @@ type Server struct {
 	// version and releases are Options.Version and Options.Releases.
 	version  string
 	releases func(ctx context.Context) ([]update.Release, error)
+	// steer is Options.Steer.
+	steer *project.Steer
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
@@ -155,6 +158,11 @@ type Options struct {
 	// checks are off.
 	Version  string
 	Releases func(ctx context.Context) ([]update.Release, error)
+	// Steer is what the stop and note endpoints write through (#356). Nil
+	// turns them off. It is the one write the dashboard makes to the
+	// project's state, and it writes requests the run acts on — the same
+	// ones `orch task stop|note` write.
+	Steer *project.Steer
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -182,6 +190,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		snapshot: opts.Snapshot,
 		version:  opts.Version,
 		releases: opts.Releases,
+		steer:    opts.Steer,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,

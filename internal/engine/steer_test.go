@@ -1,0 +1,190 @@
+package engine
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/hectorcanaimero/orch/internal/state"
+)
+
+// stopRequestsAt hands the loop one stop request from its second read on —
+// by then the child the first tick dispatched is running — and runs onAsk
+// when it does.
+type stopRequestsAt struct {
+	mu    sync.Mutex
+	reads int
+	req   state.Event
+	onAsk func()
+}
+
+func (f *stopRequestsAt) LatestEventID(context.Context) (int64, error) { return 0, nil }
+
+func (f *stopRequestsAt) EventsSince(_ context.Context, after int64, _ int) ([]state.Event, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reads++
+	if f.reads < 2 || after >= f.req.ID {
+		return nil, nil
+	}
+	if f.onAsk != nil {
+		f.onAsk()
+		f.onAsk = nil
+	}
+	return []state.Event{f.req}, nil
+}
+
+func stopRequest(taskID string, hold bool) state.Event {
+	return state.Event{ID: 7, EventType: project.EventOperatorStop, TaskID: taskID,
+		Extra: map[string]any{"hold": hold, "requested_by": "cli"}}
+}
+
+// slowTask makes the fake CLI for C-1 run for a minute, and returns the file
+// that does it.
+func slowTask(t *testing.T) string {
+	t.Helper()
+	dir, _ := FakeProviderDir()
+	path := filepath.Join(dir, string(model.BackendClaude), "C-1"+fakeSleepExt)
+	write(t, path, "60")
+	return path
+}
+
+// TestStopAndHoldEndsARunningChild: #356. The request kills the real child
+// long before its minute is up, the attempt is recorded as stopped (not a
+// failure), and the task ends held, not retried.
+func TestStopAndHoldEndsARunningChild(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse()}, SchedulerOptions{})
+	slowTask(t)
+	f.r.Requests = &stopRequestsAt{req: stopRequest("C-1", true)}
+
+	start := time.Now()
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if took := time.Since(start); took > 20*time.Second {
+		t.Errorf("the run took %s: the child was not stopped", took)
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+		t.Errorf("C-1 = %q, want blocked (held)", got)
+	}
+	if f.s.Dispatched() != 1 {
+		t.Errorf("dispatched = %d, want 1: a held task is not dispatched again", f.s.Dispatched())
+	}
+	if len(f.backend.finishes) != 1 || !f.backend.finishes[0].Stopped || !f.backend.finishes[0].Held || f.backend.finishes[0].Failure != "" {
+		t.Errorf("finishes = %+v, want one stopped and held, unclassified", f.backend.finishes)
+	}
+	if !strings.Contains(strings.Join(f.backend.notes, "\n"), "C-1=blocked: "+project.HeldReason) {
+		t.Errorf("notes = %q, want the hold", f.backend.notes)
+	}
+}
+
+// TestStopWithoutHoldDispatchesAgainWithTheSameAttempt: a redirect ends the
+// attempt and dispatches the task again at once, as the same attempt — the
+// operator's stop does not count against max_attempts.
+func TestStopWithoutHoldDispatchesAgainWithTheSameAttempt(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse()}, SchedulerOptions{})
+	sleep := slowTask(t)
+	// The second attempt finishes at once.
+	f.r.Requests = &stopRequestsAt{req: stopRequest("C-1", false), onAsk: func() { _ = os.Remove(sleep) }}
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done after the second attempt", got)
+	}
+	var attempts []any
+	for _, e := range f.backend.events {
+		if e.eventType == EventDispatch {
+			attempts = append(attempts, e.extra["attempt"])
+		}
+	}
+	if len(attempts) != 2 || attempts[0] != 1 || attempts[1] != 1 {
+		t.Errorf("dispatch attempts = %v, want [1 1]", attempts)
+	}
+	if !f.backend.finishes[0].Stopped || f.backend.finishes[0].Held {
+		t.Errorf("first finish = %+v, want stopped, not held", f.backend.finishes[0])
+	}
+}
+
+// TestStopHoldsATaskWaitingToRetry: not running, but in the retry queue —
+// held, and the retry is dropped.
+func TestStopHoldsATaskWaitingToRetry(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")}, nil, SchedulerOptions{})
+	tk, _ := f.s.Queue.Task("C-1")
+	f.s.retryQueue = []RetryItem{{Task: tk, Attempt: 2, EarliestAt: f.r.now().Add(time.Hour)}}
+	f.s.StopTask(context.Background(), "C-1", true)
+	if len(f.s.RetryQueue()) != 0 {
+		t.Errorf("retry queue = %+v, want empty", f.s.RetryQueue())
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+		t.Errorf("C-1 = %q, want blocked", got)
+	}
+	last := f.backend.events[len(f.backend.events)-1]
+	if last.eventType != project.EventOperatorStop || last.extra["stopped"] != "held" {
+		t.Errorf("answer = %+v", last)
+	}
+}
+
+// TestStopWithoutHoldRetriesAWaitingTaskNow: a redirect of a task waiting out
+// a backoff brings its retry forward instead of dropping it.
+func TestStopWithoutHoldRetriesAWaitingTaskNow(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")}, nil, SchedulerOptions{})
+	tk, _ := f.s.Queue.Task("C-1")
+	f.s.retryQueue = []RetryItem{{Task: tk, Attempt: 2, EarliestAt: f.r.now().Add(time.Hour)}}
+	f.s.StopTask(context.Background(), "C-1", false)
+	rq := f.s.RetryQueue()
+	if len(rq) != 1 || rq[0].Attempt != 2 || rq[0].EarliestAt.After(f.r.now()) {
+		t.Errorf("retry queue = %+v, want attempt 2 due now", rq)
+	}
+	last := f.backend.events[len(f.backend.events)-1]
+	if last.extra["stopped"] != "retry_now" {
+		t.Errorf("answer = %+v", last)
+	}
+}
+
+// TestAStoppedChildThatAlreadyReportedDoneKeepsItsWork: the agent reported
+// done before the stop reached it; the attempt is finished as what it was.
+func TestAStoppedChildThatAlreadyReportedDoneKeepsItsWork(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse()}, SchedulerOptions{})
+	ctx := context.Background()
+	if _, err := f.s.Refill(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for pid := range f.s.InFlight() {
+		f.s.stopping[pid] = true
+	}
+	f.backend.status["C-1"] = model.StatusDone
+	if _, err := f.s.DrainWait(ctx, 10*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done", got)
+	}
+	if len(f.backend.finishes) != 1 || f.backend.finishes[0].Stopped {
+		t.Errorf("finishes = %+v, want one, not stopped", f.backend.finishes)
+	}
+}
+
+// TestStopOnADoneTaskLeavesItDone: nothing to stop, and the answer says so.
+func TestStopOnADoneTaskLeavesItDone(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{{ID: "C-1", Phase: 1, Title: "t", Model: "claude/opus", Status: model.StatusDone}},
+		nil, SchedulerOptions{})
+	f.s.StopTask(context.Background(), "C-1", true)
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done", got)
+	}
+	last := f.backend.events[len(f.backend.events)-1]
+	if last.extra["stopped"] != "already_done" || len(f.backend.transitions) != 0 {
+		t.Errorf("answer = %+v, transitions = %+v", last, f.backend.transitions)
+	}
+}

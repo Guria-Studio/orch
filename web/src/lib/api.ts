@@ -96,6 +96,33 @@ async function tunnelAction(action: "start" | "stop"): Promise<TunnelStatus> {
 export const startTunnel = () => tunnelAction("start")
 export const stopTunnel = () => tunnelAction("stop")
 
+/** What `POST /api/task/{id}/stop` did (project.StopResult). */
+export interface StopResult {
+  task_id: string
+  requested: boolean
+  hold: boolean
+  from?: string
+  to?: string
+  message: string
+}
+
+/**
+ * The operator's stop and note controls (#356). Local operator only, like the
+ * tunnel controls; a refusal rejects with the server's `detail`.
+ */
+async function steer<T>(id: string, action: "stop" | "note", body: { hold?: boolean; note?: string }): Promise<T> {
+  try {
+    const { data } = await apiClient.post<T>(`/api/task/${encodeURIComponent(id)}/${action}`, body)
+    return data
+  } catch (err) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    throw new Error(detail ?? (err instanceof Error ? err.message : `could not ${action} ${id}`))
+  }
+}
+
+export const stopTask = (id: string, hold: boolean, note: string) => steer<StopResult>(id, "stop", { hold, note })
+export const noteTask = (id: string, note: string) => steer<{ message: string }>(id, "note", { note })
+
 /**
  * Thrown by `getPortfolio` when `/api/portfolio` answered with something
  * that isn't a portfolio payload — a single-project dashboard has no

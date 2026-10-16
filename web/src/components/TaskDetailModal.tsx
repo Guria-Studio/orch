@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
 import { StatusBadge } from "@/components/StatusBadge"
+import { TaskSteer } from "@/components/TaskSteer"
 import { useTaskDetail } from "@/hooks/useTaskDetail"
 import { fmt, t } from "@/i18n"
 import { statusKey } from "@/lib/status"
@@ -106,6 +107,8 @@ function TaskBody({ task }: { task: Task }) {
           </pre>
         </Section>
       ) : null}
+
+      <TaskSteer task={task} />
 
       {/* The last dispatch's steps, followed while the task runs. The model's
           route names its provider: "claude/sonnet". */}

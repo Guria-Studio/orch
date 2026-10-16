@@ -10,11 +10,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/hectorcanaimero/orch/internal/project"
 )
 
 // RunLockFile is the file under a project's state directory that one `orch
 // run` holds for as long as it runs.
-const RunLockFile = "run.lock"
+const RunLockFile = project.RunLockFile
 
 // RunLock is the exclusive, per-project lock `orch run` holds (#344).
 //

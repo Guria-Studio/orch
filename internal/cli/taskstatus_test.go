@@ -76,6 +76,23 @@ func TestTaskStatusAndTaskSetExitCodes(t *testing.T) {
 			want: 3,
 		},
 		{
+			// #356: no run, so F2.T2 (in-progress) just goes back to todo.
+			name: "task stop with no run",
+			args: []string{"task", "stop", "--id", "F2.T2", "--note", "try the other API"},
+			want: 0,
+		},
+		{
+			// done -> blocked is illegal, held or not.
+			name: "task stop --hold on a done task",
+			args: []string{"task", "stop", "--id", "F0.T1", "--hold"},
+			want: 3,
+		},
+		{
+			name: "task stop unknown task",
+			args: []string{"task", "stop", "--id", "NOPE"},
+			want: 1,
+		},
+		{
 			name: "task note",
 			args: []string{"task", "note", "--id", "F2.T2", "do", "not", "touch", "the", "migration"},
 			want: 0,
