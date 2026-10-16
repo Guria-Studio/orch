@@ -53,6 +53,34 @@ export function receiptMarkdown(payload: ReceiptPayload, builtWith: boolean): st
   return builtWith ? `${payload.markdown}\n${payload.built_with}\n` : payload.markdown
 }
 
+/**
+ * The receipt as a PNG to post: GET /api/receipt.svg (the card `orch report
+ * receipt --svg` prints) drawn on a canvas at twice its size, so it stays
+ * sharp on a high-density screen. No image library: the browser rasterises.
+ */
+export async function receiptImage(runId: string, builtWith: boolean): Promise<Blob> {
+  const params: Record<string, string> = { run: runId }
+  if (!builtWith) params.built_with = "0"
+  const svg = (await apiClient.get<string>("/api/receipt.svg", { params, responseType: "text" })).data
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }))
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    const canvas = document.createElement("canvas")
+    canvas.width = img.naturalWidth * 2
+    canvas.height = img.naturalHeight * 2
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("no 2d canvas")
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas.toBlob gave nothing"))), "image/png"),
+    )
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 export function useReceipt() {
   return useQuery({
     // Under "tasks" so the event stream's invalidation refreshes it: a run
@@ -62,7 +90,7 @@ export function useReceipt() {
   })
 }
 
-export type OnboardingId = "providers" | "budget" | "tasks" | "vcs" | "tunnel" | "first_run"
+export type OnboardingId = "providers" | "claude_permissions" | "budget" | "tasks" | "vcs" | "tunnel" | "first_run"
 
 export interface OnboardingItem {
   id: OnboardingId

@@ -88,6 +88,9 @@ export const en = {
   "receipt.built_with": "Add “Built with orch”",
   "receipt.copy": "Copy as Markdown",
   "receipt.copy_manual": "The clipboard is not available here. Select the text and copy it.",
+  "receipt.download_image": "Download image",
+  "receipt.copy_image": "Copy image",
+  "receipt.image_failed": "Could not make the image. Try again, or copy the Markdown.",
 
   "onboarding.title": "Get to your first run",
   "onboarding.progress": "{done} of {total} required",
@@ -98,6 +101,8 @@ export const en = {
   "onboarding.recheck": "Check again",
   "onboarding.providers": "A provider CLI is installed",
   "onboarding.providers.hint": "orch dispatches tasks to claude, codex, opencode, gemini or agy.",
+  "onboarding.claude_permissions": "Claude agents may use orch's tools",
+  "onboarding.claude_permissions.hint": "Claude refuses its agents orch's MCP tools and task scripts until .claude/settings.json allows them. The command shows the rules and asks first.",
   "onboarding.budget": "The budget guardrail is on",
   "onboarding.budget.hint": "Without budgets.yaml nothing rations provider usage.",
   "onboarding.tasks": "tasks.json has tasks",

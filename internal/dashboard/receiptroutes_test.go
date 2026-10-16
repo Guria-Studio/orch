@@ -2,7 +2,9 @@ package dashboard
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -87,9 +89,34 @@ func TestReceiptBeforeAnyRun(t *testing.T) {
 	}
 }
 
+// The card is the same receipt, as an image, with the mark unless asked not to.
+func TestReceiptCard(t *testing.T) {
+	s := demoServer(t)
+	resp := get(t, s, "/api/receipt.svg")
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/svg+xml" {
+		t.Fatalf("status = %d, type = %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if !strings.HasPrefix(string(body), "<svg") || !strings.Contains(string(body), ">16</text>") || !strings.Contains(string(body), "Built with orch") {
+		t.Errorf("card = %s", body)
+	}
+
+	resp = get(t, s, "/api/receipt.svg?built_with=0")
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if strings.Contains(string(body), "Built with orch") {
+		t.Error("built_with=0 still carries the mark")
+	}
+
+	if resp := get(t, newReadServer(t, &fakeState{}), "/api/receipt.svg"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("before any run: status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestReceiptAndOnboardingAreGated(t *testing.T) {
 	s := newGatedServer(t, &fakeState{})
-	for _, path := range []string{"/api/receipt", "/api/onboarding"} {
+	for _, path := range []string{"/api/receipt", "/api/receipt.svg", "/api/onboarding"} {
 		if resp := get(t, s, path); resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s no token: status = %d, want 401", path, resp.StatusCode)
 		}
@@ -163,5 +190,42 @@ func TestOnboarding(t *testing.T) {
 		if it.ID == "first_run" && !it.Done {
 			t.Errorf("first_run = %+v, want done", it)
 		}
+	}
+}
+
+// #361: a project routing to claude is walked through allowing orch's tools,
+// with the command that does it; the item is met once the rules are there.
+func TestOnboardingClaudePermissions(t *testing.T) {
+	saved := checkBackends
+	t.Cleanup(func() { checkBackends = saved })
+	checkBackends = func([]string) []doctor.Check { return nil }
+
+	s := demoServer(t)
+	item := func() (onboardingItem, bool) {
+		var got onboardingPayload
+		decode(t, get(t, s, "/api/onboarding"), &got)
+		for i, it := range got.Items {
+			if it.ID == "claude_permissions" {
+				if i == 0 || got.Items[i-1].ID != "providers" {
+					t.Errorf("claude_permissions is not right after providers: %+v", got.Items)
+				}
+				return it, true
+			}
+		}
+		return onboardingItem{}, false
+	}
+	it, ok := item()
+	if !ok || it.Done || it.Optional || it.Command != doctor.ClaudePermissionsCommand {
+		t.Fatalf("claude_permissions = %+v (present %v), want unmet with the command", it, ok)
+	}
+	dir := filepath.Join(s.paths.Root, ".claude")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"permissions":{"allow":["mcp__orch","Bash"]}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if it, _ := item(); !it.Done {
+		t.Errorf("with the rules: %+v, want done", it)
 	}
 }

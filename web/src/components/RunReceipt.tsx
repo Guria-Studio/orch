@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
-import { Check, ClipboardCopy } from "lucide-react"
+import { Check, ClipboardCopy, Download, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { receiptMarkdown, type ReceiptPayload } from "@/hooks/useReceipt"
+import { receiptImage, receiptMarkdown, type ReceiptPayload } from "@/hooks/useReceipt"
 import { fmt, t } from "@/i18n"
 import { formatDuration, formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
@@ -16,12 +16,18 @@ function readBuiltWith(): boolean {
   }
 }
 
-/** The last finished run: what it did, how long, what it cost, and a copy as Markdown. */
+// Copying an image needs ClipboardItem (absent from older Firefox and from
+// plain-http pages); the button only shows where it can work.
+const canCopyImage = () => typeof ClipboardItem !== "undefined" && typeof navigator.clipboard?.write === "function"
+
+/** The last finished run: what it did, how long, what it cost, and a copy as Markdown or as an image. */
 export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: number }) {
   const r = payload.receipt
   const [builtWith, setBuiltWith] = useState(readBuiltWith)
   const [copied, setCopied] = useState(false)
   const [manual, setManual] = useState(false)
+  const [imageCopied, setImageCopied] = useState(false)
+  const [imageFailed, setImageFailed] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
   if (!r) return null
 
@@ -43,6 +49,31 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
       // No clipboard (plain http, or refused): show the text selected instead.
       setManual(true)
       window.setTimeout(() => area.current?.select(), 0)
+    }
+  }
+  const download = async () => {
+    setImageFailed(false)
+    try {
+      const url = URL.createObjectURL(await receiptImage(r.run_id, builtWith))
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `orch-${r.run_id}.png`
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch {
+      setImageFailed(true)
+    }
+  }
+  const copyImage = async () => {
+    setImageFailed(false)
+    try {
+      // The promise, not the blob: Safari only allows the write while the
+      // click is still the current gesture.
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": receiptImage(r.run_id, builtWith) })])
+      setImageCopied(true)
+      window.setTimeout(() => setImageCopied(false), 1500)
+    } catch {
+      setImageFailed(true)
     }
   }
   const prsPassed = r.prs.filter((p) => p.ci_status === "success").length
@@ -107,11 +138,28 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
           />
           {t("receipt.built_with")}
         </label>
-        <Button type="button" size="sm" variant="outline" onClick={copy}>
-          {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />}
-          {copied ? t("common.copied") : t("receipt.copy")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={download}>
+            <Download className="h-4 w-4" aria-hidden />
+            {t("receipt.download_image")}
+          </Button>
+          {canCopyImage() ? (
+            <Button type="button" size="sm" variant="outline" onClick={copyImage}>
+              {imageCopied ? <Check className="h-4 w-4" aria-hidden /> : <ImageIcon className="h-4 w-4" aria-hidden />}
+              {imageCopied ? t("common.copied") : t("receipt.copy_image")}
+            </Button>
+          ) : null}
+          <Button type="button" size="sm" variant="outline" onClick={copy}>
+            {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />}
+            {copied ? t("common.copied") : t("receipt.copy")}
+          </Button>
+        </div>
       </div>
+      {imageFailed ? (
+        <p role="alert" className="border-t px-4 py-2 text-xs text-status-blocked">
+          {t("receipt.image_failed")}
+        </p>
+      ) : null}
       {manual ? (
         <div className="border-t px-4 py-3">
           <p className="mb-2 text-xs text-muted-foreground">{t("receipt.copy_manual")}</p>

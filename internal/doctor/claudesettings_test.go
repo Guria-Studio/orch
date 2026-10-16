@@ -59,3 +59,25 @@ func TestCheckClaudeDoneChannelIgnoresUnrelatedDenials(t *testing.T) {
 		t.Errorf("c = %+v, want ok", c)
 	}
 }
+
+// #361: a project routing to claude without orch's rules is warned, with the
+// command that adds them; broad rules count; a project without claude skips.
+func TestCheckClaudePermissions(t *testing.T) {
+	root := t.TempDir()
+	if c := CheckClaudePermissions(root, false); c.Status != StatusSkip {
+		t.Errorf("no claude: %+v, want skip", c)
+	}
+	c := CheckClaudePermissions(root, true)
+	if c.Status != StatusWarn || !strings.Contains(c.Remediation, ClaudePermissionsCommand) || !strings.Contains(c.Detail, "mcp__orch") {
+		t.Errorf("no settings: %+v", c)
+	}
+	writeClaudeSettings(t, root, "settings.json", `{"permissions":{"allow":["mcp__orch"]}}`)
+	writeClaudeSettings(t, root, "settings.local.json", `{"permissions":{"allow":["Bash(scripts/task-finish.sh:*)"]}}`)
+	if got := MissingOrchRules(root); len(got) != 1 || got[0] != "Bash(scripts/task-block.sh:*)" {
+		t.Errorf("missing = %v, want only task-block.sh (rules add up across both files)", got)
+	}
+	writeClaudeSettings(t, root, "settings.local.json", `{"permissions":{"allow":["Bash"]}}`)
+	if c := CheckClaudePermissions(root, true); c.Status != StatusOK {
+		t.Errorf("mcp__orch + Bash: %+v, want ok", c)
+	}
+}
