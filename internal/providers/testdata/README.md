@@ -144,6 +144,7 @@ printf '<prompt>' | codex exec --skip-git-repo-check --json \
 | `unknown-model.jsonl` | same, `-m no-such-model-xyz` | 1 |
 | `auth-error.jsonl` | captured before login, so every request 401s | 1 |
 | `truncated.jsonl` | `success.jsonl` cut at 260 bytes | — |
+| `tools.jsonl` | captured 2026-10-16, prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` in a scratch git repository holding `note.txt`, **no `-m`**; read by `activity_test.go` | 0 |
 
 `success.jsonl` was captured **without `-m`**, which is the one place these
 bytes and `CodexProvider.Argv` differ. Every model name in
@@ -159,6 +160,20 @@ capture carries **plain-text stderr interleaved among the JSONL**
 (`2026-…Z ERROR codex_api::endpoint::responses_websocket: …`). That is what
 `jsonlEvents` skipping unparseable lines is for; before this file, the only
 thing exercising it was a truncated final line.
+
+## `opencode/1.18.32/` — real capture
+
+Captured on 2026-10-16 with the same argv as below, in a scratch directory
+holding `note.txt` (`hello from orch`); read by `activity_test.go`:
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `tools.json` | `--model opencode/mimo-v2.6-flash-free` (2.5 was gone), prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` | 0 |
+
+Two `step_start`/`step_finish` pairs: the first holds a `read` and a `bash`
+`tool_use` (`step_finish` reason `tool-calls`), the second the answer
+(reason `stop`). One edit: the scratch directory's path, which opencode
+writes with and without its leading slash, is `/work/project`.
 
 ## `opencode/1.18.30/` — real capture
 

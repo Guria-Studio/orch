@@ -4,10 +4,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
 import { StatusBadge } from "@/components/StatusBadge"
 import { useTaskDetail } from "@/hooks/useTaskDetail"
 import { fmt, t } from "@/i18n"
+import { statusKey } from "@/lib/status"
 import type { Task } from "@/lib/types"
 
 export interface TaskDetailModalProps {
@@ -104,6 +106,18 @@ function TaskBody({ task }: { task: Task }) {
           </pre>
         </Section>
       ) : null}
+
+      {/* The last dispatch's steps, followed while the task runs. The model's
+          route names its provider: "claude/sonnet". */}
+      <Section title={t("activity.title")}>
+        <ActivityFeed
+          key={task.id}
+          taskId={task.id}
+          live={statusKey(task.status) === "in_progress"}
+          provider={task.model.split("/")[0]}
+          className="rounded-md bg-muted p-2"
+        />
+      </Section>
     </div>
   )
 }
