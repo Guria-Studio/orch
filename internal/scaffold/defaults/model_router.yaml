@@ -4,7 +4,7 @@
 # does an exact match; see AS-06).
 #
 # Fields (per orchestrator/models.py::RouteEntry):
-#   backend             : one of {claude, codex, opencode, gemini}
+#   backend             : one of {claude, codex, opencode, gemini, agy}
 #   cli_model           : native model string the chosen CLI expects
 #   tier                : one of {premium, standard, cheap} — drives semi gate
 #   is_premium          : cached tier == "premium" (denormalized for hot path)
