@@ -29,6 +29,7 @@ exec orch run --project-root done-proj
 # reaped, ending done in the database.
 env ORCH_FAKE_PROVIDER=$WORK/fake
 exec orch run --project-root todo-proj
+stderr '^estimate: ≈ 1 task · ≈ \$[0-9.]+ \(claude \$[0-9.]+\) · ≈ 10m with [0-9]+ slots \(critical path 10m\)$'
 exec orch tasks --project-root todo-proj --json
 stdout '"status":"done"'
 

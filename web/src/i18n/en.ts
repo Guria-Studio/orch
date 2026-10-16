@@ -62,6 +62,18 @@ export const en = {
   "now.slots": "{used} of {max} slots",
   "now.slots_unknown": { one: "{used} slot in use", other: "{used} slots in use" },
   "now.nothing_running": "Nothing is running. Agents appear here, with how long they have been at it, while a run dispatches them.",
+  "now.next_run": {
+    one: "Next run: ≈ {count} task · ≈ {cost} · ≈ {time} with {slots} slots",
+    other: "Next run: ≈ {count} tasks · ≈ {cost} · ≈ {time} with {slots} slots",
+  },
+  "now.next_run_basis": {
+    one: "From {count} past attempt in this project · confidence {confidence}",
+    other: "From {count} past attempts in this project · confidence {confidence}",
+  },
+  "now.next_run_rough": "No history yet — a rough guess",
+  "now.confidence.low": "low",
+  "now.confidence.medium": "medium",
+  "now.confidence.high": "high",
   "now.attempt": "attempt {attempt} of {max}",
   "now.attempt_n": "attempt {attempt}",
   "now.elapsed": "Running for {elapsed}",

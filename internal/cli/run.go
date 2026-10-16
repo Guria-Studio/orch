@@ -145,6 +145,8 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	worktreeMode := (opts.worktreeMode || cfg.Dispatch.WorktreeMode) && !opts.isolated
 	autoPR := cfg.VCS.AutoPR && !opts.isolated
 
+	noteEstimate(ctx, os.Stderr, backend, paths, cfg, queue, opts)
+
 	rtr := loadRouterTolerant(paths)
 	runID := opts.runID
 	if runID == "" {
@@ -266,6 +268,22 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		return withSilentExitCode(code)
 	}
 	return nil
+}
+
+// noteEstimate prints `orch estimate`'s first line before anything is
+// dispatched (#357). An estimate that cannot be made is not a reason to stop.
+func noteEstimate(ctx context.Context, w io.Writer, backend state.Backend, paths config.Paths, cfg config.Config,
+	queue *engine.TaskQueue, opts runOptions) {
+	tasks := queue.AllTasks()
+	for i := range tasks {
+		tasks[i].Status, _ = queue.Status(tasks[i].ID)
+	}
+	e, err := projectEstimate(ctx, backend, paths, cfg, tasks, opts.only, opts.maxTasks)
+	if err != nil {
+		return
+	}
+	lines := e.Lines()
+	_, _ = fmt.Fprintf(w, "estimate: %s\n", lines[0])
 }
 
 // noteOutgrownCI says, once a run ends, that the tasks may have just built
