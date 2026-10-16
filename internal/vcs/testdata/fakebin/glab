@@ -10,7 +10,7 @@
 #   mr view ...                          FAKE_GLAB_VIEW_STDOUT / _EXIT
 #   pipeline jobs ...                    FAKE_GLAB_JOBS_STDOUT / _EXIT
 #   pipeline trace ...                   FAKE_GLAB_TRACE_STDOUT / _EXIT
-#   mr merge ...                         FAKE_GLAB_MERGE_STDOUT / _EXIT
+#   mr merge ...                         FAKE_GLAB_MERGE_STDOUT / _EXIT / _STDERR
 
 if [ -n "$FAKE_GLAB_LOG" ]; then
   printf '%s\n' "glab $*" >>"$FAKE_GLAB_LOG"
@@ -38,6 +38,7 @@ case "$1 $2" in
     ;;
   "mr merge")
     printf '%s' "${FAKE_GLAB_MERGE_STDOUT:-}"
+    printf '%s' "${FAKE_GLAB_MERGE_STDERR:-}" >&2
     exit "${FAKE_GLAB_MERGE_EXIT:-0}"
     ;;
   *)
