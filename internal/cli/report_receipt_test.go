@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -49,6 +50,17 @@ func TestReportReceiptAgainstTheDemo(t *testing.T) {
 	}
 	if card := run("--svg", "--no-built-with"); strings.Contains(card, "Built with orch") {
 		t.Error("--svg --no-built-with still carries the mark")
+	}
+
+	for _, both := range [][]string{{"--svg", "--json"}, {"--svg", "--markdown"}, {"--json", "--markdown"}} {
+		root, _ := newRootCmd("test")
+		root.SetOut(&bytes.Buffer{})
+		root.SetErr(&bytes.Buffer{})
+		root.SetArgs(append([]string{"report", "receipt", "--project-root", paths.Root, "--project-id", paths.ID}, both...))
+		var ee *exitError
+		if err := root.Execute(); !errors.As(err, &ee) || ee.code != 2 {
+			t.Errorf("%v: err = %v, want exit 2", both, err)
+		}
 	}
 
 	var rec receipt.Receipt

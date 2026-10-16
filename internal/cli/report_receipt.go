@@ -51,7 +51,12 @@ func newReportReceiptCmd(flags *projectFlags) *cobra.Command {
 				}
 			}()
 
-			tf, _ := model.LoadTasksFile(paths.TasksJSON())
+			// Titles and the project name dress the receipt; the run is in the
+			// database. A tasks.json that does not load is said, not fatal.
+			tf, err := model.LoadTasksFile(paths.TasksJSON())
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] reading tasks.json: %v — tasks are named by id\n", err)
+			}
 			rec, err := receipt.Load(ctx, backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
 			if err != nil {
 				return err
