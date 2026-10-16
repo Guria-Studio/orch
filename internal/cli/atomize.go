@@ -144,7 +144,7 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&specsDir, "specs-dir", "",
-		"Directorio de specs .md (default: <project-root>/docs)")
+		"Directorio de specs .md (default: <project-root>/<spec_root>, \"specs\")")
 	cmd.Flags().StringVar(&file, "file", "",
 		"Sólo un archivo markdown (bypass del walk de --specs-dir)")
 	cmd.Flags().StringVar(&tasksJSONPath, "tasks-json", "",
