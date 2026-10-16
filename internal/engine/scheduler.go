@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -69,7 +70,9 @@ type SchedulerOptions struct {
 	UseTaskLocks bool
 	// Only narrows the candidate set to task ids matching this glob.
 	Only string
-	// MaxTasks caps how many dispatches one run performs. Zero means no cap.
+	// MaxTasks caps how many distinct tasks one run starts. Retries of a
+	// task already started (a failed attempt, a CI failure) do not count.
+	// Zero means no cap.
 	MaxTasks int
 	// StateDir is where logs and task locks live.
 	StateDir string
@@ -126,6 +129,10 @@ type Scheduler struct {
 	// the CI poller's filter. Without it a PR would be opened and never
 	// watched, so openPR refuses to leave one in that state.
 	CIRecorder PRRecorder
+	// PRs reads a dependency's pull request URL, so a dependency whose PR is
+	// already merged is not merged into its dependent's worktree again
+	// (#345). Nil, or VCS nil, hands every dependency to the worktree.
+	PRs TaskPRReader
 	// Comments reads a finished dependency's notes for the prompt's
 	// "Completed dependencies (context)" block. Nil falls back to whatever
 	// tasks.json carried, which since F-12 is nothing — see completedDeps.
@@ -142,8 +149,11 @@ type Scheduler struct {
 	// `orch status` can tell blocked-by-budget from not-ready-yet. Rewritten
 	// every tick, so it is always current.
 	deferReasons map[string]string
-	// dispatched counts successful spawns against MaxTasks.
+	// dispatched counts every successful spawn, retries included.
 	dispatched int
+	// dispatchedIDs is the tasks this run has started at least once, which
+	// is what MaxTasks bounds: a retry of one of them is not a new task.
+	dispatchedIDs map[string]bool
 	// draining is set when the operator answers "quit": no new dispatches,
 	// but the children already running are left to finish.
 	draining bool
@@ -211,6 +221,12 @@ type RecordBackend interface {
 	Transition(ctx context.Context, taskID string, to model.Status, note string) error
 }
 
+// TaskPRReader reads the pull request a task's work went up in; "" when it
+// has none.
+type TaskPRReader interface {
+	TaskPR(ctx context.Context, taskID string) (string, error)
+}
+
 // CommentReader reads a finished task's comment trail.
 //
 // Separate from RecordBackend rather than a method on it: the concurrency
@@ -227,17 +243,18 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		capacity = 1
 	}
 	return &Scheduler{
-		Queue:        q,
-		Routes:       routes,
-		Sems:         NewSems(opts.GlobalMax, opts.PerProvider),
-		Opts:         opts,
-		inFlight:     make(map[int]*InFlight),
-		deferred:     make(map[string]bool),
-		deferReasons: make(map[string]string),
-		done:         make(chan completion, capacity),
-		spentUSD:     make(map[string]float64),
-		ciRetryPR:    make(map[string]string),
-		now:          time.Now,
+		Queue:         q,
+		Routes:        routes,
+		Sems:          NewSems(opts.GlobalMax, opts.PerProvider),
+		Opts:          opts,
+		inFlight:      make(map[int]*InFlight),
+		deferred:      make(map[string]bool),
+		deferReasons:  make(map[string]string),
+		dispatchedIDs: make(map[string]bool),
+		done:          make(chan completion, capacity),
+		spentUSD:      make(map[string]float64),
+		ciRetryPR:     make(map[string]string),
+		now:           time.Now,
 	}
 }
 
@@ -292,8 +309,8 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 		Deferred: s.deferred,
 		Waiting:  s.retryQueueIDs(),
 	}) {
-		if s.Opts.MaxTasks > 0 && s.dispatched >= s.Opts.MaxTasks {
-			break
+		if !s.mayStart(task.ID) {
+			continue
 		}
 		if s.draining {
 			break
@@ -329,9 +346,23 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 		if ok {
 			started++
 			s.dispatched++
+			s.dispatchedIDs[task.ID] = true
 		}
 	}
 	return started, nil
+}
+
+// capReached reports whether --max-tasks has been spent on new tasks.
+func (s *Scheduler) capReached() bool {
+	return s.Opts.MaxTasks > 0 && len(s.dispatchedIDs) >= s.Opts.MaxTasks
+}
+
+// mayStart reports whether the ready set may hand taskID to a child: always
+// below the cap, and past it only for a task this run already started — one
+// a person or a failed write moved back to todo is still this run's work.
+// MaxTasks bounds new tasks; a retry is never one (#346).
+func (s *Scheduler) mayStart(taskID string) bool {
+	return !s.capReached() || s.dispatchedIDs[taskID]
 }
 
 // drainRetryQueue dispatches everything whose backoff has expired, and
@@ -347,9 +378,9 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 
 	for _, item := range s.retryQueue {
 		switch {
-		case s.draining,
-			s.Opts.MaxTasks > 0 && s.dispatched >= s.Opts.MaxTasks,
-			item.EarliestAt.After(now):
+		// No --max-tasks check: a retry, CI's included, is another
+		// attempt at a task already started, not a new one (#346).
+		case s.draining, item.EarliestAt.After(now):
 			remaining = append(remaining, item)
 			continue
 		}
@@ -363,6 +394,7 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 		if ok {
 			started++
 			s.dispatched++
+			s.dispatchedIDs[item.Task.ID] = true
 			continue
 		}
 		// Not dispatched. Requeue only if this was a capacity miss — if
@@ -486,7 +518,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// prevent.
 	workdir := s.Opts.Cwd
 	if s.Worktree != nil && s.Opts.WorktreeMode {
-		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), task.Dependencies...)
+		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.depsToMerge(ctx, task)...)
 		if err != nil {
 			release()
 			s.logger().Error("creating the worktree failed", "task", task.ID, "err", err)
@@ -638,6 +670,46 @@ func (s *Scheduler) blockAtDispatch(ctx context.Context, task model.Task, route 
 	}
 }
 
+// depsToMerge are the dependencies whose branches the worktree should merge
+// in: all of them, less those whose PR is merged (#345).
+//
+// A merged PR's work is in the base already. After a squash merge, merging
+// its branch again conflicts with the squashed commit that holds the same
+// changes, and the dependent blocked on it. Git alone cannot see that while
+// the branch is still on the remote; the forge can. A lookup that fails keeps
+// the dependency: the worktree still skips a branch the base contains or the
+// remote has deleted, and a merge it should not have tried is a clear error,
+// where a dependency silently left out is an agent missing code.
+func (s *Scheduler) depsToMerge(ctx context.Context, task model.Task) []string {
+	if s.PRs == nil || s.VCS == nil || len(task.Dependencies) == 0 {
+		return task.Dependencies
+	}
+	out := make([]string, 0, len(task.Dependencies))
+	for _, dep := range task.Dependencies {
+		url, err := s.PRs.TaskPR(ctx, dep)
+		if err != nil {
+			s.logger().Warn("reading a dependency's PR; merging its branch if the base lacks it",
+				"task", task.ID, "dep", dep, "err", err)
+		}
+		if url == "" {
+			out = append(out, dep)
+			continue
+		}
+		st, err := s.VCS.PRState(url)
+		if err != nil && !errors.Is(err, vcs.ErrPRStateUnsupported) {
+			s.logger().Warn("reading a dependency's PR state; merging its branch if the base lacks it",
+				"task", task.ID, "dep", dep, "pr", url, "err", err)
+		}
+		if err == nil && st == vcs.PRMerged {
+			s.logger().Info("not merging a dependency's branch: its PR is merged, so its work is in the base",
+				"task", task.ID, "dep", dep, "pr", url)
+			continue
+		}
+		out = append(out, dep)
+	}
+	return out
+}
+
 // completedDeps are the task's dependencies that are done, for the prompt's
 // "what came before" section.
 //
@@ -778,4 +850,19 @@ func (s *Scheduler) logger() *slog.Logger {
 // `<stateDir>/prompts/<id>.txt`, matching Python's layout.
 func PromptPathFor(stateDir, taskID string) string {
 	return filepath.Join(stateDir, "prompts", taskID+".txt")
+}
+
+// startableReady is the ready set less what --max-tasks holds back.
+func (s *Scheduler) startableReady(opts ReadyOpts) []model.Task {
+	ready := s.Queue.Ready(opts)
+	if !s.capReached() {
+		return ready
+	}
+	out := ready[:0:0]
+	for _, t := range ready {
+		if s.dispatchedIDs[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out
 }

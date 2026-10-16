@@ -31,6 +31,7 @@ package vcs
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrMergeFailed is MergePR's error when the CLI ran (and is authenticated)
@@ -40,6 +41,68 @@ import (
 // tell "merge genuinely didn't happen" apart from a *CLIError with
 // errors.Is/errors.As.
 var ErrMergeFailed = errors.New("vcs: merge did not succeed")
+
+// MergeError is MergePR's error when the CLI ran but the merge did not
+// happen, carrying what the CLI said and whether trying again can help.
+// errors.Is(err, ErrMergeFailed) holds for every MergeError, so a caller
+// that only cares "merged or not" is unaffected (#347).
+//
+// Before it existed every failure was the bare ErrMergeFailed, which threw
+// away gh's stderr: a PR left open by a base that had just moved read the
+// same as one with conflicts, and the log line said neither.
+type MergeError struct {
+	// Detail is the CLI's own stderr (trimmed), or what went wrong around it.
+	Detail string
+	// MergeState is GitHub's mergeStateStatus read after the failure
+	// (BEHIND, UNKNOWN, BLOCKED, DIRTY, ...), "" when it could not be read
+	// or the provider has no such thing.
+	MergeState string
+	// Retryable reports that the failure looks transient — mergeability
+	// still being computed after the base moved, the base changing under
+	// the merge, a required check re-running — so the same merge may
+	// succeed a little later. False for conflicts and drafts.
+	Retryable bool
+	// BranchUpdated reports that the PR was behind its base and MergePR
+	// brought it up to date (`gh pr update-branch`). Its head moved, so CI
+	// runs again; the merge is for after that run.
+	BranchUpdated bool
+}
+
+func (e *MergeError) Error() string {
+	msg := ErrMergeFailed.Error()
+	if e.MergeState != "" {
+		msg += " (merge state " + e.MergeState + ")"
+	}
+	if e.BranchUpdated {
+		msg += "; branch updated from its base, CI runs again"
+	}
+	if e.Detail != "" {
+		msg += ": " + e.Detail
+	}
+	return msg
+}
+
+// Is makes errors.Is(err, ErrMergeFailed) true for a *MergeError.
+func (e *MergeError) Is(target error) bool { return target == ErrMergeFailed }
+
+// maxMergeDetail bounds MergeError.Detail: gh's GraphQL errors can carry a
+// lot, and the detail ends up in an event and a log line.
+const maxMergeDetail = 500
+
+// mergeDetail is a CLI failure as MergeError.Detail shows it: the stderr,
+// trimmed, or the run error itself when there was no stderr to read.
+func mergeDetail(err error) string {
+	var re *runError
+	detail := ""
+	if errors.As(err, &re) {
+		detail = strings.TrimSpace(re.stderr)
+	}
+	if detail == "" && err != nil {
+		detail = err.Error()
+	}
+	detail = strings.Join(strings.Fields(detail), " ")
+	return truncate(detail, maxMergeDetail)
+}
 
 // CIState is a CI run's outcome as this package reports it — Python's
 // get_ci_status docstring's exact three values. A GitHub check conclusion
@@ -103,8 +166,9 @@ type Provider interface {
 	// merge-when-checks-pass instead of merging immediately (GitHub's
 	// `--auto`, GitLab's `--when-pipeline-succeeds`) — see the package doc
 	// comment for why these are parameters here when Python hardcodes them.
-	// Returns ErrMergeFailed (never a plain nil-vs-non-nil ambiguity) when
-	// the CLI ran but the merge itself didn't happen.
+	// Returns a *MergeError (errors.Is ErrMergeFailed; never a plain
+	// nil-vs-non-nil ambiguity) when the CLI ran but the merge itself didn't
+	// happen. One attempt: retrying, and when, is the caller's decision.
 	MergePR(prURL string, squash, auto bool) error
 }
 

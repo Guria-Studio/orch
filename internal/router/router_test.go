@@ -320,9 +320,22 @@ func TestInferEntry(t *testing.T) {
 			backend: model.BackendClaude, cliModel: "opus", wantTier: model.TierStandard},
 		{name: "a full claude id passes through", key: "claude/claude-fable-5-1",
 			backend: model.BackendClaude, cliModel: "claude-fable-5-1", wantTier: model.TierStandard},
-		// Nothing to map it to: written as is, and CLIModelWarning says so.
-		{name: "an unknown claude model is left alone", key: "claude/sonnet-9",
-			backend: model.BackendClaude, cliModel: "sonnet-9", wantTier: model.TierStandard},
+		// #348: `claude/opus-5-5` inferred `cli_model: opus-5-5` because the
+		// id was newer than orch's list, and the CLI 404s on it. A family
+		// name with a version gains the prefix whether or not orch has heard
+		// of that version.
+		{name: "a claude family newer than orch knows", key: "claude/opus-5-5",
+			backend: model.BackendClaude, cliModel: "claude-opus-5-5", wantTier: model.TierStandard},
+		{name: "a fable family without its prefix", key: "claude/fable-5-1",
+			backend: model.BackendClaude, cliModel: "claude-fable-5-1", wantTier: model.TierStandard},
+		{name: "the fable alias passes through", key: "claude/fable",
+			backend: model.BackendClaude, cliModel: "fable", wantTier: model.TierStandard},
+		// Not a claude family: nothing to map it to, written as is, and
+		// CLIModelWarning says so.
+		{name: "a non-claude model on the claude backend is left alone", key: "claude/gpt-5",
+			backend: model.BackendClaude, cliModel: "gpt-5", wantTier: model.TierStandard},
+		{name: "a family with no version is left alone", key: "claude/opus-latest",
+			backend: model.BackendClaude, cliModel: "opus-latest", wantTier: model.TierStandard},
 
 		// A wrong route is worse than no route: it dispatches somewhere.
 		{name: "a bare model name", key: "claude-sonnet-4-6", wantErr: true},
@@ -357,9 +370,18 @@ func TestCLIModelWarning(t *testing.T) {
 	claude := func(m string) model.RouteEntry {
 		return model.RouteEntry{Backend: model.BackendClaude, CLIModel: m}
 	}
-	for _, m := range []string{"sonnet", "claude-sonnet-5", "claude-haiku-4-5-20251001"} {
+	// #348: an alias, or any full `claude-…` id — including one newer than
+	// this binary — is what the CLI takes, and is not warned about.
+	for _, m := range []string{"sonnet", "opus", "haiku", "fable", "claude-sonnet-5",
+		"claude-haiku-4-5-20251001", "claude-opus-5-5", "claude-fable-6"} {
 		if w := CLIModelWarning("claude/x", claude(m)); w != "" {
-			t.Errorf("known id %q warned: %s", m, w)
+			t.Errorf("valid cli_model %q warned: %s", m, w)
+		}
+	}
+	// Neither: each of these is a 404 at dispatch.
+	for _, m := range []string{"opus-5-5", "sonnet-5", "gpt-5", "claude-", "Claude-opus-5", "claude opus"} {
+		if w := CLIModelWarning("claude/x", claude(m)); w == "" {
+			t.Errorf("invalid cli_model %q was not warned about", m)
 		}
 	}
 	// No list for codex (or opencode, gemini, agy): never warned about.
@@ -373,10 +395,20 @@ func TestCLIModelWarning(t *testing.T) {
 	if w != want {
 		t.Errorf("got  %q\nwant %q", w, want)
 	}
-	// Nothing to suggest: the known ids are listed instead.
-	if w := CLIModelWarning("claude/sonnet-9", claude("sonnet-9")); !strings.Contains(w, "'sonnet-9'") ||
-		!strings.Contains(w, "one of opus, sonnet, haiku, claude-fable-5-1") {
-		t.Errorf("got %q", w)
+	// The #348 value, with the fix it needs.
+	w = CLIModelWarning("claude/opus-5-5", claude("opus-5-5"))
+	want = "route 'claude/opus-5-5' has cli_model 'opus-5-5', which is not a known claude model id " +
+		"and will likely fail at dispatch — set it to 'claude-opus-5-5' in model_router.yaml"
+	if w != want {
+		t.Errorf("got  %q\nwant %q", w, want)
+	}
+	// Nothing to suggest: what the CLI accepts is said instead.
+	w = CLIModelWarning("claude/gpt-5", claude("gpt-5"))
+	want = "route 'claude/gpt-5' has cli_model 'gpt-5', which is not a known claude model id " +
+		"and will likely fail at dispatch — set it to a full claude-… id (e.g. 'claude-sonnet-4-6') " +
+		"or an alias (opus, sonnet, haiku, fable) in model_router.yaml"
+	if w != want {
+		t.Errorf("got  %q\nwant %q", w, want)
 	}
 }
 

@@ -447,3 +447,26 @@ func TestCIRetryReopenKeepsThePR(t *testing.T) {
 		t.Errorf("after the CI reopen: PRURL=%q CIAttempts=%d, want %q and 1", got.PRURL, got.CIAttempts, pr)
 	}
 }
+
+// TaskPR reads the PR the database recorded for a task, "" before there is
+// one, and an error for a task the database does not know — which the
+// scheduler treats as "keep the dependency" (#345).
+func TestStateRecorderTaskPR(t *testing.T) {
+	ctx := context.Background()
+	b := openBackend(t)
+	rec := StateRecorder{Backend: b}
+	const pr = "https://github.com/o/r/pull/41"
+
+	if got, err := rec.TaskPR(ctx, "B-020"); err != nil || got != "" {
+		t.Errorf("before a PR: TaskPR = %q, %v; want \"\", nil", got, err)
+	}
+	if err := b.SetTaskPR(ctx, "B-020", pr); err != nil {
+		t.Fatalf("SetTaskPR: %v", err)
+	}
+	if got, err := rec.TaskPR(ctx, "B-020"); err != nil || got != pr {
+		t.Errorf("TaskPR = %q, %v; want %q", got, err, pr)
+	}
+	if _, err := rec.TaskPR(ctx, "NOPE-1"); err == nil {
+		t.Error("TaskPR of an unknown task: want an error")
+	}
+}

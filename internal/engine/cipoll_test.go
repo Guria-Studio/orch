@@ -31,6 +31,9 @@ type fakeVCS struct {
 	logs         string
 	logsErr      error
 	mergeErr     error
+	// mergeErrs, when set, answers MergePR in order, one per call; past its
+	// end mergeErr answers. For the retry tests (#347).
+	mergeErrs []error
 	// merged records every MergePR call, so "did not merge" is assertable.
 	merged []string
 
@@ -90,6 +93,9 @@ func (v *fakeVCS) MergePR(prURL string, _, _ bool) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.merged = append(v.merged, prURL)
+	if n := len(v.merged); n <= len(v.mergeErrs) {
+		return v.mergeErrs[n-1]
+	}
 	return v.mergeErr
 }
 

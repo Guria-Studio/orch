@@ -60,39 +60,50 @@ stderr '\-\-tier must be one of premium, standard, cheap'
 # #266: a claude family written without its `claude-` prefix is mapped to
 # the id the CLI accepts, an alias passes through, and a suffix orch cannot
 # map is still written but warned about, naming the entry and the value.
+# #348: a family newer than orch (`opus-5-5`) is mapped too, not copied.
 exec orch router add-missing --yes --project-root famproj --project-id famproj
-stdout '\+ claude/opus.*cli_model=opus,'
+stdout '\+ claude/opus .*cli_model=opus,'
 stdout '\+ claude/sonnet-5.*cli_model=claude-sonnet-5,'
-stdout '\+ claude/sonnet-9.*cli_model=sonnet-9,'
-stdout 'warning: route ''claude/sonnet-9'' has cli_model ''sonnet-9'''
-! stdout 'warning: route ''claude/(opus|sonnet-5)'''
-stdout 'Added 3 entry\(ies\)'
+stdout '\+ claude/opus-5-5.*cli_model=claude-opus-5-5,'
+stdout '\+ claude/gpt-5.*cli_model=gpt-5,'
+stdout 'warning: route ''claude/gpt-5'' has cli_model ''gpt-5'''
+! stdout 'warning: route ''claude/(opus|sonnet-5|opus-5-5)'''
+stdout 'Added 4 entry\(ies\)'
 
 exec cat famproj/.orchestrator/model_router.yaml
 stdout 'cli_model: claude-sonnet-5$'
+stdout 'cli_model: claude-opus-5-5$'
 
 # router validate still passes (every task has a route) but warns about the
-# one the claude CLI would reject, in text and in --json.
+# one the claude CLI would reject, in text and in --json — and about the
+# hand-written `cli_model: opus-5-5` #348 found, naming the fix.
 exec orch router validate --project-root famproj --project-id famproj
 stdout 'model_router\.yaml covers every task model\.'
-stderr 'warning: route ''claude/sonnet-9'' has cli_model ''sonnet-9'''
-! stderr 'claude/(opus|sonnet-5)'
+stderr 'warning: route ''claude/gpt-5'' has cli_model ''gpt-5'''
+stderr 'warning: route ''claude/old'' has cli_model ''opus-5-5''.*set it to ''claude-opus-5-5'''
+! stderr 'route ''claude/(opus|sonnet-5|opus-5-5)'''
 
 exec orch router validate --json --project-root famproj --project-id famproj
-stdout '"ok":true,"warnings":\["route ''claude/sonnet-9'' has cli_model ''sonnet-9'''
+stdout '"ok":true,"warnings":\["route ''claude/gpt-5'' has cli_model ''gpt-5'''
 ! stderr .
 
 -- famproj/tasks.json --
 {"meta":{},"phases":[],"tasks":[
   {"id":"A","phase":0,"title":"A","model":"claude/sonnet-5","dependencies":[]},
   {"id":"B","phase":0,"title":"B","model":"claude/opus","dependencies":[]},
-  {"id":"C","phase":0,"title":"C","model":"claude/sonnet-9","dependencies":[]}
+  {"id":"C","phase":0,"title":"C","model":"claude/gpt-5","dependencies":[]},
+  {"id":"D","phase":0,"title":"D","model":"claude/opus-5-5","dependencies":[]},
+  {"id":"E","phase":0,"title":"E","model":"claude/old","dependencies":[]}
 ]}
 -- famproj/scripts/task-start.sh --
 #!/usr/bin/env bash
 exit 0
 -- famproj/.orchestrator/model_router.yaml --
-# empty router
+# The route #348 found: written before orch mapped the family.
+claude/old:
+  backend: claude
+  cli_model: opus-5-5
+  tier: premium
 
 -- abort.txt --
 n
