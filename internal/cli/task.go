@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -12,18 +13,18 @@ import (
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
-// newTaskCmd is the `orch task` parent. `set` is Python's; `note` steers a
-// task from outside the run (#356).
+// newTaskCmd is the `orch task` parent. `set` is Python's; `note` and `stop`
+// steer a task from outside the run (#356).
 func newTaskCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
 		Short: "Manual task mutations",
 	}
-	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags))
+	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags), newTaskStopCmd(flags))
 	return cmd
 }
 
-// openSteer opens the project's backend for `orch task note`.
+// openSteer opens the project's backend for `orch task note|stop`.
 func openSteer(cmd *cobra.Command, flags *projectFlags) (project.Steer, func() error, error) {
 	paths, cfg, err := loadProjectConfig(flags)
 	if err != nil {
@@ -37,7 +38,7 @@ func openSteer(cmd *cobra.Command, flags *projectFlags) (project.Steer, func() e
 		_ = closeDB()
 		return project.Steer{}, nil, fmt.Errorf("bootstrap: %w", err)
 	}
-	return project.Steer{Backend: backend}, closeDB, nil
+	return project.Steer{Backend: backend, StateDir: paths.StateDir(), Source: "cli"}, closeDB, nil
 }
 
 // steerErr maps the backend's errors onto `task set`'s exit codes.
@@ -73,6 +74,70 @@ func newTaskNoteCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
+}
+
+// stopWait is how long `orch task stop` waits for the run to answer.
+var stopWait = 15 * time.Second
+
+func newTaskStopCmd(flags *projectFlags) *cobra.Command {
+	var id, note string
+	var hold bool
+	cmd := &cobra.Command{
+		Use:   "stop --id ID [--hold] [--note TEXT]",
+		Short: "End a running task's attempt: hold it, or dispatch it again with your note",
+		Long: "Ask the running `orch run` to end the task's attempt now. With --hold the task\n" +
+			"is blocked (\"held by the operator\") until `orch task set --status todo`;\n" +
+			"without it the task is dispatched again at once, and the stopped attempt does\n" +
+			"not count against max_attempts. --note reaches that next attempt's prompt.\n" +
+			"With no `orch run` running it is a plain status change, and says so.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			steer, closeDB, err := openSteer(cmd, flags)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closeDB() }()
+			res, err := steer.Stop(cmd.Context(), id, hold, note)
+			if err != nil {
+				return steerErr(id, err)
+			}
+			out := cmd.OutOrStdout()
+			if _, err := fmt.Fprintln(out, res.Message); err != nil || !res.Requested {
+				return err
+			}
+			ev, ok := steer.WaitStopped(cmd.Context(), res, stopWait)
+			if !ok {
+				_, err = fmt.Fprintf(out, "the run has not answered yet; `orch events %s` shows it when it does\n", id)
+				return err
+			}
+			_, err = fmt.Fprintln(out, stopAnswer(id, ev))
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")
+	cmd.Flags().BoolVar(&hold, "hold", false, "Keep the task from being dispatched again (blocked)")
+	cmd.Flags().StringVar(&note, "note", "", "A note for the task's next attempt")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+// stopAnswer says what the run did with a stop request.
+func stopAnswer(id string, ev state.Event) string {
+	hold, _ := ev.Extra["hold"].(bool)
+	switch ev.Extra["stopped"] {
+	case "attempt":
+		if hold {
+			return fmt.Sprintf("stopped: %s's attempt ended; the task is held (blocked) — `orch task set --id %s --status todo` releases it", id, id)
+		}
+		return fmt.Sprintf("stopped: %s's attempt ended; it is dispatched again", id)
+	case "held":
+		return fmt.Sprintf("%s was not running; it is held (blocked)", id)
+	case "retry_now":
+		return fmt.Sprintf("%s was waiting to retry; it is dispatched now", id)
+	case "already_done":
+		return fmt.Sprintf("%s is already done; nothing to stop", id)
+	}
+	return fmt.Sprintf("%s was not running; nothing to stop", id)
 }
 
 // newTaskSetCmd ports `orch task set` (orchestrator/orch.py's

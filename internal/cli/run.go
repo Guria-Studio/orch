@@ -229,6 +229,8 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	// And adopts statuses a person or a failed write changed in the
 	// database while this run held another view (#255).
 	runner.Statuses = engine.StateRecorder{Backend: backend}
+	// And acts on the operator's stop requests (#356).
+	runner.Requests = backend
 
 	// The CI poller only has something to watch when a PR can exist.
 	if provider != nil {

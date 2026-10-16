@@ -151,7 +151,7 @@ func TestToolsListIsEveryTool(t *testing.T) {
 	want := []string{
 		"orch_block", "orch_budget", "orch_context", "orch_events",
 		"orch_get_task", "orch_list_tasks", "orch_report_finding", "orch_set_status",
-		"orch_task_note",
+		"orch_task_note", "orch_task_stop",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tools = %v\nwant   %v", got, want)

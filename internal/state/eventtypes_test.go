@@ -104,6 +104,9 @@ var goOnlyEventTypes = map[string]bool{
 	// A dispatch whose spec ref did not resolve in the agent's working dir
 	// (#341, #342); the task ran on its description.
 	"spec_ref_warning": true,
+	// The operator asked to stop a running task, and the run that stopped
+	// it (#356).
+	"operator_stop": true,
 }
 
 // The four names the plan's FR-STATE-7 listed are not event types.

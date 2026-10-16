@@ -81,6 +81,9 @@ type Options struct {
 	// ProjectID and ProjectRoot identify the project in `orch_context`.
 	ProjectID   string
 	ProjectRoot string
+	// StateDir is where `orch run` holds its run lock, which orch_task_stop
+	// reads to tell whether a run is there to ask.
+	StateDir string
 	// SpecRoot prefixes a task's specRef. Empty means prompt.DefaultSpecRoot.
 	SpecRoot string
 	// Budget answers `orch_budget`. Nil means no budgets.yaml, which the
@@ -181,6 +184,15 @@ func NewServer(opts Options) (*mcpsdk.Server, error) {
 			"in the prompt of the task's next attempt, under \"Operator notes\". Use it to " +
 			"steer a task (\"do not touch the migration\") without stopping it.",
 	}, s.taskNote)
+
+	mcpsdk.AddTool(srv, &mcpsdk.Tool{
+		Name: "orch_task_stop",
+		Description: "Stop a task's running attempt, on the operator's behalf. hold keeps it " +
+			"from being dispatched again (blocked, \"held by the operator\"); without hold it " +
+			"is dispatched again at once, with note in its prompt, and the stopped attempt " +
+			"does not count against max_attempts. With no orch run running it is a plain " +
+			"status change. Only when the operator asked for it.",
+	}, s.taskStop)
 
 	return srv, nil
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
@@ -144,6 +145,16 @@ func outcomeEvent(runID string, d Dispatch, o Outcome, ts string, attempt int) s
 	}
 	if len(o.Result.PermissionDenials) > 0 {
 		ev.Extra["permission_denials"] = o.Result.PermissionDenials
+	}
+	if o.Stopped {
+		// The run's answer to the operator's request, and the attempt's
+		// outcome in one row: cancelled, not failed.
+		ev.EventType = project.EventOperatorStop
+		ev.Extra["stopped"] = "attempt"
+		ev.Extra["hold"] = o.Held
+		ev.Extra["exit_code"] = o.Result.ExitCode
+		ev.Extra["pid"] = o.PID
+		return ev
 	}
 
 	switch {

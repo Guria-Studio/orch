@@ -170,6 +170,7 @@ var eventTypes = map[string]bool{
 	// database both binaries write to.
 	"sprint_done": true, "ci_no_checks": true, "pr_merged": true,
 	"budget_alert": true, "spec_ref_warning": true,
+	"operator_stop": true,
 }
 
 // OrphanRows reports rows whose project_id has no row in `projects`, keyed by
