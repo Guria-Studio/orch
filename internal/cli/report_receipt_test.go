@@ -44,6 +44,13 @@ func TestReportReceiptAgainstTheDemo(t *testing.T) {
 		t.Errorf("--no-built-with still carries the footer:\n%s", bare)
 	}
 
+	if card := run("--svg"); !strings.HasPrefix(card, "<svg") || !strings.Contains(card, ">16</text>") || !strings.Contains(card, "Built with orch") {
+		t.Errorf("--svg:\n%s", card)
+	}
+	if card := run("--svg", "--no-built-with"); strings.Contains(card, "Built with orch") {
+		t.Error("--svg --no-built-with still carries the mark")
+	}
+
 	var rec receipt.Receipt
 	if err := json.Unmarshal([]byte(run("--json", "--run", demo.RunID)), &rec); err != nil {
 		t.Fatalf("--json: %v", err)

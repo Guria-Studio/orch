@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -87,9 +88,34 @@ func TestReceiptBeforeAnyRun(t *testing.T) {
 	}
 }
 
+// The card is the same receipt, as an image, with the mark unless asked not to.
+func TestReceiptCard(t *testing.T) {
+	s := demoServer(t)
+	resp := get(t, s, "/api/receipt.svg")
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/svg+xml" {
+		t.Fatalf("status = %d, type = %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if !strings.HasPrefix(string(body), "<svg") || !strings.Contains(string(body), ">16</text>") || !strings.Contains(string(body), "Built with orch") {
+		t.Errorf("card = %s", body)
+	}
+
+	resp = get(t, s, "/api/receipt.svg?built_with=0")
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if strings.Contains(string(body), "Built with orch") {
+		t.Error("built_with=0 still carries the mark")
+	}
+
+	if resp := get(t, newReadServer(t, &fakeState{}), "/api/receipt.svg"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("before any run: status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestReceiptAndOnboardingAreGated(t *testing.T) {
 	s := newGatedServer(t, &fakeState{})
-	for _, path := range []string{"/api/receipt", "/api/onboarding"} {
+	for _, path := range []string{"/api/receipt", "/api/receipt.svg", "/api/onboarding"} {
 		if resp := get(t, s, path); resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s no token: status = %d, want 401", path, resp.StatusCode)
 		}

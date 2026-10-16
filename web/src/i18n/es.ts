@@ -92,6 +92,9 @@ export const es = {
   "receipt.built_with": "Agregar “Built with orch”",
   "receipt.copy": "Copiar como Markdown",
   "receipt.copy_manual": "El portapapeles no está disponible aquí. Selecciona el texto y cópialo.",
+  "receipt.download_image": "Descargar imagen",
+  "receipt.copy_image": "Copiar imagen",
+  "receipt.image_failed": "No se pudo generar la imagen. Inténtalo de nuevo o copia el Markdown.",
 
   "onboarding.title": "Hacia tu primera corrida",
   "onboarding.progress": "{done} de {total} requeridos",
