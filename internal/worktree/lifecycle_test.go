@@ -809,3 +809,137 @@ func TestChangedFilesLeavesOutTheDependencyMerge(t *testing.T) {
 		t.Errorf("ChangedFiles = %q, want only the task's own two files", got)
 	}
 }
+
+// ---- Leftovers from an earlier attempt (#345) --------------------------
+
+// #345 (1): an earlier attempt's worktree directory went away without `git
+// worktree remove` (a killed run, a cleaned-up disk), so git still listed it
+// and refused to delete its branch: `branch -D` failed, and `worktree add -b`
+// then failed with "a branch named 'orch/<id>' already exists".
+func TestCreateClearsALeftoverBranchWhoseWorktreeIsGone(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	stale := filepath.Join(t.TempDir(), "gone")
+	runGit(t, root, "worktree", "add", "-q", stale, "-b", m.BranchName("F0.5.T1"), "main")
+	if err := os.RemoveAll(stale); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := m.Create("F0.5.T1", "main")
+	if err != nil {
+		t.Fatalf("Create over a leftover branch with no live worktree: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("worktree not created: %v", err)
+	}
+}
+
+// A branch some live worktree still has checked out is somebody's work in
+// progress — most likely another orch run's (#344). Create refuses, names
+// where it is checked out, and leaves the branch alone.
+func TestCreateRefusesABranchALiveWorktreeStillUses(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	live := filepath.Join(t.TempDir(), "live")
+	runGit(t, root, "worktree", "add", "-q", live, "-b", m.BranchName("F0.5.T1"), "main")
+
+	_, err := m.Create("F0.5.T1", "main")
+	if err == nil {
+		t.Fatal("Create took a branch a live worktree has checked out")
+	}
+	if !strings.Contains(err.Error(), live) {
+		t.Errorf("the error does not say where the branch is checked out (%s): %v", live, err)
+	}
+	if _, statErr := os.Stat(live); statErr != nil {
+		t.Errorf("the live worktree was touched: %v", statErr)
+	}
+	if !branchExists(t, root, m.BranchName("F0.5.T1")) {
+		t.Error("the live worktree's branch was deleted")
+	}
+}
+
+// #345 (2): the dependency's PR was squash-merged and the base moved on over
+// the same lines; its branch, deleted on the remote, survived locally. Merging
+// that local branch conflicts with the squashed commit that already holds its
+// work. With a remote, a branch gone from it is a merged one: not merged again.
+func TestCreateSkipsADependencyBranchDeletedFromTheRemote(t *testing.T) {
+	root := newTestRepo(t)
+	remote := newBareRemote(t, root)
+	runGit(t, root, "push", "-q", "origin", "main")
+	m := NewManager(root, true)
+
+	depWT, err := m.Create("F0.2.T1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(depWT, "README.md"), []byte("dependency\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CommitPending("F0.2.T1", "F0.2.T1: orch auto-commit"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Push("F0.2.T1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Remove("F0.2.T1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The forge squash-merges the PR, deletes the branch, and main moves on.
+	other := filepath.Join(t.TempDir(), "other")
+	runGit(t, "", "clone", "-q", "-b", "main", remote, other)
+	runGit(t, other, "config", "user.email", "test@example.com")
+	runGit(t, other, "config", "user.name", "Test")
+	for _, content := range []string{"dependency\n", "later\n"} {
+		if err := os.WriteFile(filepath.Join(other, "README.md"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runGit(t, other, "commit", "-q", "-am", "on main: "+content)
+	}
+	runGit(t, other, "push", "-q", "origin", "main")
+	runGit(t, other, "push", "-q", "origin", "--delete", "orch/F0.2.T1")
+	if !branchExists(t, root, "orch/F0.2.T1") {
+		t.Fatal("setup: the local copy of the dependency branch should survive")
+	}
+
+	wt, err := m.Create("F0.3.T1", "main", "F0.2.T1")
+	if err != nil {
+		t.Fatalf("Create merged a dependency branch the remote no longer has: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(wt, "README.md")) // #nosec G304 -- a temp dir this test made
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "later\n" {
+		t.Errorf("README.md = %q, want main's %q", got, "later\n")
+	}
+}
+
+// The same squash-merge with the branch still on the remote cannot be told
+// apart by git alone; that is the engine's PR check. But a dependency branch
+// whose tip the base already contains (a merge commit, a fast-forward) is
+// skipped by git alone.
+func TestCreateSkipsADependencyTheBaseAlreadyContains(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	depWT, err := m.Create("F0.2.T1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(depWT, "dep.txt"), []byte("dep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CommitPending("F0.2.T1", "F0.2.T1: orch auto-commit"); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, root, "merge", "-q", "--ff-only", "orch/F0.2.T1")
+	runGit(t, root, "commit", "-q", "--allow-empty", "-m", "main moves on")
+
+	wt, err := m.Create("F0.3.T1", "main", "F0.2.T1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := runGit(t, wt, "log", "--merges", "--oneline"); strings.TrimSpace(out) != "" {
+		t.Errorf("a merge commit was made for a dependency the base contains:\n%s", out)
+	}
+}

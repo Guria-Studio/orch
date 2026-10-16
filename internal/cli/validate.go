@@ -46,9 +46,14 @@ type validatePayload struct {
 // Ported: config load, router load, tasks load — each tolerant, each
 // producing its own error entry on failure rather than aborting — then
 // `graph.Validate` (schema, dependencies, cycles, unresolved routes) once
-// tasks parse. Same exit-code convention as Python: 0 clean, 2 any error
-// (`graph.Validate` never emits a warning today, so 1 "warnings only" is
-// currently unreachable in Go — see below).
+// tasks parse. Same exit-code convention as Python: 0 clean, 1 warnings
+// only, 2 any error.
+//
+// Go only: the spec check (specProblems, #341/#342) reports, as
+// `spec.missing` warnings, every specRef whose file or heading is missing
+// from the working tree or from the base ref a task's worktree starts from.
+// It is the first check that emits a warning, so it is what makes exit 1
+// reachable.
 //
 // Deliberately NOT ported, all Python-only checks with no Go home yet:
 // `preflight.validate_config_shape` (config.yaml key/type shape),
@@ -77,7 +82,8 @@ func newValidateCmd(flags *projectFlags) *cobra.Command {
 
 			var problems []graph.Problem
 
-			if _, cfgErr := config.Load(paths.ConfigYAML, paths.Root); cfgErr != nil {
+			cfg, cfgErr := config.Load(paths.ConfigYAML, paths.Root)
+			if cfgErr != nil {
 				problems = append(problems, graph.Problem{
 					Field:    "config",
 					Kind:     "schema.config",
@@ -116,6 +122,9 @@ func newValidateCmd(flags *projectFlags) *cobra.Command {
 					routes = routerKeys
 				}
 				problems = append(problems, graph.Validate(tf.Tasks, routes)...)
+				if cfgErr == nil {
+					problems = append(problems, specProblems(paths.Root, cfg.Config.SpecRoot, cfg.Config.Dispatch.BaseBranch, tf.Tasks)...)
+				}
 			case errors.Is(tasksErr, os.ErrNotExist):
 				problems = append(problems, graph.Problem{
 					Field:       "tasks.json",

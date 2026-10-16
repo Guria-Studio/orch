@@ -344,7 +344,12 @@ func (r *Runner) recordSprintDone(ctx context.Context) {
 }
 
 // workIsDone reports the termination condition: nothing running, nothing
-// ready, no retry waiting out a backoff, and no PR of this run waiting on CI.
+// ready that this run may start, no retry waiting out a backoff, and no PR of
+// this run waiting on CI.
+//
+// "May start" is --max-tasks: once it is spent, the ready tasks it holds back
+// are the next run's, and counting them as work left kept a capped run up
+// forever (#346).
 //
 // The last one is Go's, not Python's. Without it a run whose remaining work
 // was all under review exited, the CI poller with it, and nothing finished
@@ -355,7 +360,7 @@ func (r *Runner) workIsDone(ctx context.Context) bool {
 	if len(s.InFlight()) > 0 || len(s.RetryQueue()) > 0 {
 		return false
 	}
-	if len(s.Queue.Ready(ReadyOpts{
+	if len(s.startableReady(ReadyOpts{
 		Only:     s.Opts.Only,
 		Deferred: s.deferred,
 	})) > 0 {
@@ -501,7 +506,7 @@ func (r *Runner) stallSummary(ctx context.Context) string {
 		reason := reasons[t.ID]
 		switch {
 		case reason != "":
-		case s.Opts.MaxTasks > 0 && s.dispatched >= s.Opts.MaxTasks:
+		case !s.mayStart(t.ID):
 			reason = "--max-tasks reached"
 		default:
 			reason = "no reason recorded"
@@ -531,7 +536,7 @@ func (r *Runner) permanentlyStuck() []string {
 	if len(s.InFlight()) > 0 || len(s.RetryQueue()) > 0 {
 		return nil
 	}
-	ready := s.Queue.Ready(ReadyOpts{Only: s.Opts.Only, Deferred: s.deferred})
+	ready := s.startableReady(ReadyOpts{Only: s.Opts.Only, Deferred: s.deferred})
 	if len(ready) == 0 {
 		return nil
 	}

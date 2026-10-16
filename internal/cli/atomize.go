@@ -99,6 +99,13 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("parse specs under %s: %w", specsRoot, err)
 			}
 
+			// Warn, never fail: the operator may be about to commit.
+			for _, w := range specGitWarnings(paths.Root, cfg.Dispatch.BaseBranch, parse) {
+				if _, err := fmt.Fprintln(cmd.ErrOrStderr(), w); err != nil {
+					return err
+				}
+			}
+
 			if listMode {
 				return renderAtomizeList(cmd, parse)
 			}

@@ -11,7 +11,8 @@
 #   pr checks ...                        FAKE_GH_CHECKS_STDOUT / _EXIT / _STDERR
 #   pr view ...                          FAKE_GH_VIEW_STDOUT / _EXIT
 #   run view ...                         FAKE_GH_RUNVIEW_STDOUT / _EXIT
-#   pr merge ...                         FAKE_GH_MERGE_STDOUT / _EXIT
+#   pr merge ...                         FAKE_GH_MERGE_STDOUT / _EXIT / _STDERR
+#   pr update-branch ...                 FAKE_GH_UPDATE_EXIT / _STDERR
 #   issue create ...                     FAKE_GH_ISSUE_CREATE_STDOUT / _EXIT
 #   issue list ...                       FAKE_GH_ISSUES_STDOUT / _EXIT,
 #                                        or FAKE_GH_ISSUES_FILE to serve a
@@ -56,7 +57,12 @@ case "$1 $2" in
     ;;
   "pr merge")
     printf '%s' "${FAKE_GH_MERGE_STDOUT:-}"
+    printf '%s' "${FAKE_GH_MERGE_STDERR:-}" >&2
     exit "${FAKE_GH_MERGE_EXIT:-0}"
+    ;;
+  "pr update-branch")
+    printf '%s' "${FAKE_GH_UPDATE_STDERR:-}" >&2
+    exit "${FAKE_GH_UPDATE_EXIT:-0}"
     ;;
   *)
     echo "fake gh: unhandled subcommand: $*" >&2

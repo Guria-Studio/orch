@@ -234,7 +234,7 @@ Usage:
 
 Flags:
   -h, --help            help for run
-      --max-tasks int   Stop after dispatching this many tasks; 0 means no limit
+      --max-tasks int   Start at most this many tasks (their retries do not count); 0 means no limit
       --mode string     auto dispatches everything ready; semi asks before each critical task (default "auto")
       --no-push         Skip pushing task branches — for a project with no remote
       --only string     Only dispatch tasks whose id matches this glob (dependencies still resolve across the whole DAG)
@@ -265,7 +265,11 @@ orch run --no-push
 success `orch` commits, pushes, and — if `vcs.auto_pr` is on — opens a PR
 into `dispatch.base_branch`, then leaves the task `in-progress` for the CI
 poller. A green CI check marks it `done` (and merges it too, if
-`github.auto_merge` is on); a red one gets one retry with the failing logs
+`github.auto_merge` is on — a merge refused because the base just moved is
+retried for a couple of minutes, and a PR behind its base is updated first,
+so dependents start from a base that has the code; a merge that never goes
+through is reported with gh's own error in the `pr_auto_merge_failed`
+event and the task's note); a red one gets one retry with the failing logs
 attached, then `blocked`. A run that opens a PR exits before polling that
 PR's CI — a run finishing green is noticed on the *next* `orch run`, same
 as Python.
