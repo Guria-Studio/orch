@@ -139,26 +139,26 @@ func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) 
 }
 
 // WaitStopped waits up to timeout for the run's answer to a request Stop
-// made, and returns it. ok is false when the run has not answered yet.
-func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Duration) (state.Event, bool) {
+// made, and returns it. ok is false when the run has not answered in time.
+func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Duration) (state.Event, bool, error) {
 	deadline := time.Now().Add(timeout)
 	for after := res.RequestID; ; {
 		events, err := s.Backend.EventsSince(ctx, after, 200)
 		if err != nil {
-			return state.Event{}, false
+			return state.Event{}, false, fmt.Errorf("reading the run's answer: %w", err)
 		}
 		for _, e := range events {
 			after = e.ID
 			if e.EventType == EventOperatorStop && e.TaskID == res.TaskID && e.Extra["stopped"] != nil {
-				return e, true
+				return e, true, nil
 			}
 		}
 		if time.Now().After(deadline) {
-			return state.Event{}, false
+			return state.Event{}, false, nil
 		}
 		select {
 		case <-ctx.Done():
-			return state.Event{}, false
+			return state.Event{}, false, ctx.Err()
 		case <-time.After(250 * time.Millisecond):
 		}
 	}

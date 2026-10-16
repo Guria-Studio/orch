@@ -174,3 +174,17 @@ func TestAStoppedChildThatAlreadyReportedDoneKeepsItsWork(t *testing.T) {
 		t.Errorf("finishes = %+v, want one, not stopped", f.backend.finishes)
 	}
 }
+
+// TestStopOnADoneTaskLeavesItDone: nothing to stop, and the answer says so.
+func TestStopOnADoneTaskLeavesItDone(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{{ID: "C-1", Phase: 1, Title: "t", Model: "claude/opus", Status: model.StatusDone}},
+		nil, SchedulerOptions{})
+	f.s.StopTask(context.Background(), "C-1", true)
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done", got)
+	}
+	last := f.backend.events[len(f.backend.events)-1]
+	if last.extra["stopped"] != "already_done" || len(f.backend.transitions) != 0 {
+		t.Errorf("answer = %+v, transitions = %+v", last, f.backend.transitions)
+	}
+}
