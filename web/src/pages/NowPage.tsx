@@ -1,5 +1,6 @@
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Hourglass, OctagonPause } from "lucide-react"
+import { AlertTriangle, ChevronDown, Hourglass, OctagonPause } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -27,14 +28,76 @@ import type { SprintBlocker } from "@/lib/types"
 // what is running this minute, what needs a person, and how the project and
 // its budget are pacing. Everything else is one destination away.
 
-function SectionHeading({ id, children, aside }: { id: string; children: React.ReactNode; aside?: React.ReactNode }) {
+// Which sections the operator folded, remembered per browser: the page is
+// watched for hours, and a section folded once should stay folded.
+const COLLAPSED_KEY = "orch_now_collapsed"
+
+function readCollapsed(): Set<string> {
+  try {
+    const v: unknown = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]")
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function useCollapsed(): [Set<string>, (id: string) => void] {
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]))
+      } catch {
+        // storage blocked: the fold still works for this visit
+      }
+      return next
+    })
+  return [collapsed, toggle]
+}
+
+// A section whose heading folds it. The aside stays visible while folded, so
+// a folded "Needs your attention" still shows its count.
+function Section({
+  id,
+  title,
+  aside,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  id: string
+  title: React.ReactNode
+  aside?: React.ReactNode
+  collapsed: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-3">
-      <h2 id={id} className="text-sm font-semibold tracking-[-0.01em]">
-        {children}
-      </h2>
-      {aside ? <span className="text-xs text-muted-foreground tabular-nums">{aside}</span> : null}
-    </div>
+    <section aria-labelledby={id}>
+      <div className={cn("flex items-baseline justify-between gap-3", !collapsed && "mb-3")}>
+        <h2 id={id} className="text-sm font-semibold tracking-[-0.01em]">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={!collapsed}
+            aria-controls={`${id}-body`}
+            className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform motion-reduce:transition-none", collapsed && "-rotate-90")}
+              aria-hidden
+            />
+            {title}
+          </button>
+        </h2>
+        {aside ? <span className="text-xs text-muted-foreground tabular-nums">{aside}</span> : null}
+      </div>
+      <div id={`${id}-body`} hidden={collapsed}>
+        {collapsed ? null : children}
+      </div>
+    </section>
   )
 }
 
@@ -142,6 +205,8 @@ export function NowPage() {
   const { data: tasks } = useTasks()
   const { data: receipt } = useReceipt()
   const onboarding = useOnboarding()
+  const [collapsed, toggle] = useCollapsed()
+  const fold = (id: string) => ({ id, collapsed: collapsed.has(id), onToggle: () => toggle(id) })
 
   if (isLoading) {
     return (
@@ -223,17 +288,15 @@ export function NowPage() {
             </p>
           ) : null}
 
-          <section aria-labelledby="now-working">
-            <SectionHeading
-              id="now-working"
-              aside={
-                data.slots.max > 0
-                  ? t("now.slots", { used: data.slots.used, max: data.slots.max })
-                  : t("now.slots_unknown", { used: data.slots.used, count: data.slots.used })
-              }
-            >
-              {t("now.working")}
-            </SectionHeading>
+          <Section
+            {...fold("now-working")}
+            title={t("now.working")}
+            aside={
+              data.slots.max > 0
+                ? t("now.slots", { used: data.slots.used, max: data.slots.max })
+                : t("now.slots_unknown", { used: data.slots.used, count: data.slots.used })
+            }
+          >
             {data.working.length > 0 ? (
               <ul className={cn(panel, "divide-y")}>
                 {data.working.map((d) => (
@@ -243,12 +306,9 @@ export function NowPage() {
             ) : (
               <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.nothing_running")}</p>
             )}
-          </section>
+          </Section>
 
-          <section aria-labelledby="now-attention">
-            <SectionHeading id="now-attention" aside={attentionCount > 0 ? attentionCount : undefined}>
-              {t("now.attention")}
-            </SectionHeading>
+          <Section {...fold("now-attention")} title={t("now.attention")} aside={attentionCount > 0 ? attentionCount : undefined}>
             {attentionCount > 0 ? (
               <ul className={cn(panel, "divide-y")}>
                 {data.attention.map((b) => (
@@ -272,19 +332,17 @@ export function NowPage() {
             ) : (
               <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.all_clear")}</p>
             )}
-          </section>
+          </Section>
         </div>
 
         <div className="min-w-0 space-y-8">
           {receipt?.receipt ? (
-            <section aria-labelledby="now-last-run">
-              <SectionHeading id="now-last-run">{t("now.last_run")}</SectionHeading>
+            <Section {...fold("now-last-run")} title={t("now.last_run")}>
               <RunReceipt payload={receipt} now={now} />
-            </section>
+            </Section>
           ) : null}
 
-          <section aria-labelledby="now-phases">
-            <SectionHeading id="now-phases">{t("now.phases")}</SectionHeading>
+          <Section {...fold("now-phases")} title={t("now.phases")}>
             <ul className={cn(panel, "space-y-3 p-4")}>
               {(phases ?? []).map((m) => (
                 <li key={m.phase} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3rem] items-center gap-3">
@@ -310,19 +368,17 @@ export function NowPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Section>
 
-          <section aria-labelledby="now-budget">
-            <SectionHeading
-              id="now-budget"
-              aside={
-                <Link to="/cost/budget" className="underline-offset-4 hover:text-foreground hover:underline">
-                  {t("now.budget_details")}
-                </Link>
-              }
-            >
-              {budget?.preset ? `${t("now.budget")} · ${budget.preset}` : t("now.budget")}
-            </SectionHeading>
+          <Section
+            {...fold("now-budget")}
+            title={budget?.preset ? `${t("now.budget")} · ${budget.preset}` : t("now.budget")}
+            aside={
+              <Link to="/cost/budget" className="underline-offset-4 hover:text-foreground hover:underline">
+                {t("now.budget_details")}
+              </Link>
+            }
+          >
             {budget?.available && budget.rows.length > 0 ? (
               <ul className={cn(panel, "divide-y")}>
                 {budget.rows.map((row) => (
@@ -332,7 +388,7 @@ export function NowPage() {
             ) : (
               <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.budget_off")}</p>
             )}
-          </section>
+          </Section>
         </div>
       </div>
     </div>
