@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hectorcanaimero/orch/internal/ci"
 	"io"
 	"os"
 	"time"
@@ -257,6 +258,11 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	code, err := runner.Run(ctx)
 	if err != nil {
 		return withExitCode(1, err)
+	}
+	// The tasks may have just built the code init's placeholder CI was
+	// waiting for (#363).
+	if ci.PlaceholderOutgrown(paths.Root) {
+		fmt.Fprintf(os.Stderr, "note: %s still checks nothing, and the repository now has a stack — `orch ci setup --force` proposes its real CI.\n", ci.WorkflowPath)
 	}
 	if code != 0 {
 		// The loop already said what it was doing on its way out;

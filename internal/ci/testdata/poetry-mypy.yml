@@ -10,6 +10,12 @@ on:
   push:
     branches: [dev]
 
+# A newer push to a pull request cancels the run it replaces (orch
+# force-pushes retries); runs on the base branch always finish.
+concurrency:
+  group: orch-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   python:
     name: python (poetry)
