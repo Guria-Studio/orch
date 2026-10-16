@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"slices"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -104,7 +105,12 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				Host:         cfg.VCS.Host,
 			})...)
 			checks = append(checks, doctor.CheckMCPConfig(paths.Root))
+			checks = append(checks, doctor.CheckCIStack(paths.Root))
+			if cfg.VCS.AutoPR {
+				checks = append(checks, doctor.CheckCIMinutes(paths.Root, repoVisibility))
+			}
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))
+			checks = append(checks, doctor.CheckClaudePermissions(paths.Root, slices.Contains(doctor.ReferencedBackends(tasks, rtr), "claude")))
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker()))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))

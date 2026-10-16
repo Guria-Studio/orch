@@ -395,3 +395,21 @@ func TestTierPickerListsOptionsAboveNotInline(t *testing.T) {
 		}
 	}
 }
+
+// What `orch init` offers after the scaffold: an empty line is the default
+// yes, anything else no, and input that ran out is a no.
+func TestConfirm(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want bool
+	}{{"\n", true}, {"y\n", true}, {"sí\n", true}, {"n\n", false}, {"later\n", false}, {"", false}} {
+		var out strings.Builder
+		got, err := NewWizardIO(strings.NewReader(tc.in), &out).Confirm("Add them?")
+		if err != nil || got != tc.want {
+			t.Errorf("Confirm(%q) = %v, %v; want %v", tc.in, got, err, tc.want)
+		}
+		if out.String() != "Add them? [Y/n] " {
+			t.Errorf("prompt = %q", out.String())
+		}
+	}
+}

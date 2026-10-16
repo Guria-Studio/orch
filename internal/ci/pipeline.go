@@ -24,6 +24,10 @@ type Options struct {
 	Checks     Checks
 	// Review adds an AI review job after the checks; nil adds none.
 	Review *Review
+	// Private leaves out the run on pushes to the base branch: GitHub bills a
+	// private repository's minutes, and that run re-checks what its pull
+	// request already did.
+	Private bool
 }
 
 // Job is one job of the pipeline, for one package.
@@ -97,6 +101,17 @@ func jobID(p Package) string {
 	return strings.ReplaceAll(p.Dir, "/", "-")
 }
 
+// Concurrency cancels a pull request's run when a newer push replaces it:
+// orch force-pushes a task's retries, and the superseded run would otherwise
+// go on to the end and bill for it. Pushes to the base branch are never
+// cancelled. Every workflow orch writes carries it.
+const Concurrency = `# A newer push to a pull request cancels the run it replaces (orch
+# force-pushes retries); runs on the base branch always finish.
+concurrency:
+  group: orch-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+`
+
 // Render writes the workflow for the jobs, or an error when there is nothing
 // to check: an empty workflow would pass every PR while checking nothing.
 func Render(jobs []Job, opts Options) ([]byte, error) {
@@ -112,9 +127,19 @@ func Render(jobs []Job, opts Options) ([]byte, error) {
 	b.WriteString("# orch never overwrites it unless asked to (--force).\n")
 	b.WriteString("#\n")
 	b.WriteString("# Runs on every pull request, which is what orch's auto-PR loop waits on\n")
-	b.WriteString("# (config.yaml `vcs:`), and on pushes to the base branch.\n")
-	b.WriteString("name: orch-ci\n\n")
-	b.WriteString("on:\n  pull_request:\n  push:\n    branches: [" + base + "]\n\n")
+	if opts.Private {
+		b.WriteString("# (config.yaml `vcs:`). Not on pushes to the base branch: this repository is\n")
+		b.WriteString("# private, GitHub bills its minutes, and that run would re-check what the\n")
+		b.WriteString("# pull request already did. Add `push: branches: [" + base + "]` under `on:` to\n")
+		b.WriteString("# check the base branch too.\n")
+		b.WriteString("name: orch-ci\n\n")
+		b.WriteString("on:\n  pull_request:\n\n")
+	} else {
+		b.WriteString("# (config.yaml `vcs:`), and on pushes to the base branch.\n")
+		b.WriteString("name: orch-ci\n\n")
+		b.WriteString("on:\n  pull_request:\n  push:\n    branches: [" + base + "]\n\n")
+	}
+	b.WriteString(Concurrency + "\n")
 	b.WriteString("jobs:\n")
 	ids := make([]string, 0, len(jobs))
 	for i, j := range jobs {

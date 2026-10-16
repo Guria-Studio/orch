@@ -16,7 +16,12 @@ import (
 	"github.com/hectorcanaimero/orch/internal/ci"
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
+
+// repoVisibility is vcs.RepoVisibility; a variable so tests do not ask
+// GitHub.
+var repoVisibility = vcs.RepoVisibility
 
 // workflowPath is where the pipeline goes, the file orch init also writes.
 var workflowPath = filepath.Join(".github", "workflows", "orch-ci.yml")
@@ -33,7 +38,7 @@ func newCICmd(flags *projectFlags, version string) *cobra.Command {
 			"`orch ci review` runs inside that pipeline: an AI review of the pull\n" +
 			"request with a coding-agent CLI (see its --help).",
 	}
-	cmd.AddCommand(newCIDetectCmd(flags), newCISetupCmd(flags, version), newCIReviewCmd())
+	cmd.AddCommand(newCIDetectCmd(flags), newCISetupCmd(flags, version), newCIReviewCmd(), newCIUsageCmd(flags))
 	return cmd
 }
 
@@ -204,7 +209,19 @@ func newCISetupCmd(flags *projectFlags, version string) *cobra.Command {
 			if base == "" {
 				base = projectBaseBranch(root, flags)
 			}
-			body, err := ci.Render(ci.Jobs(st, checks), ci.Options{BaseBranch: base, Checks: checks, Review: review})
+			// A private repository pays for every minute (#363): say so, and
+			// leave out the push run that re-checks a merged PR. Unknown (no gh,
+			// no remote yet) is treated as public.
+			private := false
+			if v, err := repoVisibility(root); err == nil && v != "" && v != "public" {
+				private = true
+				if !dryRun {
+					if _, err := fmt.Fprintf(out, "This repository is %s: GitHub bills its Actions minutes (%s), and orch opens one pull request per task. The workflow leaves out the run on pushes to %s; `orch ci usage` shows this month's minutes.\n", v, vcs.FreeMinutesNote, base); err != nil {
+						return err
+					}
+				}
+			}
+			body, err := ci.Render(ci.Jobs(st, checks), ci.Options{BaseBranch: base, Checks: checks, Review: review, Private: private})
 			if err != nil {
 				return withExitCode(1, err)
 			}

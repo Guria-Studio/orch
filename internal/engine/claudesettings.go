@@ -10,31 +10,45 @@ import (
 // working directory, lowest precedence first.
 var claudeSettingsFiles = []string{"settings.json", "settings.local.json"}
 
-// projectClaudeSettings returns the project root's claude settings that a
-// worktree does not have, merged into one JSON document for `--settings`.
+// projectClaudeSettings returns the project's claude settings for
+// `--settings`, merged into one JSON document.
 //
 // A repo that gitignores .claude/ (settings.local.json is ignored by default)
 // checks out worktrees without them, so an agent there ran with no
 // allow-list: under acceptEdits every Bash, web and MCP call was refused and
-// the run still succeeded (#231). A file the worktree already has is left
-// out — claude loads it itself, and passing it again would run its hooks
-// twice. Empty when there is nothing to add or the dispatch is in the root.
+// the run still succeeded (#231). Such a file is passed whole.
+//
+// A file the dispatch directory has is passed for its `permissions` only
+// (#361). Claude ignores a project file's allow rules in a directory nobody
+// accepted its trust dialog in, and every worktree is a new directory beside
+// the project — so the rules the operator wrote counted nowhere an agent
+// worked. `--settings` is honoured untrusted. The rest of that file claude
+// loads itself; passing it again would run its hooks twice. Empty when there
+// are no settings.
 func projectClaudeSettings(root, workdir string) string {
-	if root == "" || filepath.Clean(root) == filepath.Clean(workdir) {
+	if root == "" {
 		return ""
 	}
 	var merged map[string]any
 	for _, name := range claudeSettingsFiles {
-		if _, err := os.Stat(filepath.Join(workdir, ".claude", name)); err == nil {
-			continue
+		path, permsOnly := filepath.Join(root, ".claude", name), false
+		if own := filepath.Join(workdir, ".claude", name); fileExists(own) {
+			path, permsOnly = own, true
 		}
-		raw, err := os.ReadFile(filepath.Join(root, ".claude", name)) // #nosec G304 -- the project's own settings file
+		raw, err := os.ReadFile(path) // #nosec G304 -- the project's own settings file
 		if err != nil {
 			continue
 		}
 		var doc map[string]any
 		if json.Unmarshal(raw, &doc) != nil {
 			continue // claude would refuse it too; not orch's to fix
+		}
+		if permsOnly {
+			perms, ok := doc["permissions"]
+			if !ok {
+				continue
+			}
+			doc = map[string]any{"permissions": perms}
 		}
 		merged = mergeSettings(merged, doc)
 	}
@@ -46,6 +60,11 @@ func projectClaudeSettings(root, workdir string) string {
 		return ""
 	}
 	return string(out)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // mergeSettings layers src over dst the way claude layers settings files:

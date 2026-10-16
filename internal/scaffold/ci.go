@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/hectorcanaimero/orch/internal/ci"
 )
 
 // defaultTestCommand is the packaged config's `github.test_command`.
@@ -142,12 +144,13 @@ on:
   push:
     branches: [main]
 
+` + ci.Concurrency + `
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder - no stack detected
+      - name: ` + ci.PlaceholderStep + `
         run: echo "No test command yet. Edit .github/workflows/orch-ci.yml or run orch ci setup."
 `
 

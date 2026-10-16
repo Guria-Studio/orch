@@ -537,6 +537,9 @@ func (w *writer) workflow() {
 	// The command is config.yaml's `github.test_command` — the template's, or
 	// the one the repo's files imply — and the setup steps follow it.
 	wf := strings.ReplaceAll(string(body), "SETUP_STEPS", setupSteps(w.root, testCommand))
+	// The embedded template mirrors Python's; the cancel-superseded-runs
+	// block every orch workflow carries goes in here (#363).
+	wf = strings.Replace(wf, "\njobs:\n", "\n"+ci.Concurrency+"\njobs:\n", 1)
 	w.write(rel, []byte(strings.ReplaceAll(wf, "TEST_COMMAND", testCommand)), 0o600)
 }
 
