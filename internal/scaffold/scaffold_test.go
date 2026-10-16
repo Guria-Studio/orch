@@ -477,6 +477,8 @@ var defaultsDivergedFromPython = map[string]string{
 		"comment says the issues are public and under the operator's gh login; a config without the key stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count",
+	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
+		"entries route to",
 }
 
 // The three packaged defaults started as copies of Python's, so they get the

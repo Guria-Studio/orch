@@ -66,14 +66,17 @@ orch --help
 ### CLIs de IA que você precisa
 
 Pelo menos **uma** dessas no seu `PATH`, autenticada com uma assinatura
-ou API key — hoje o binário em Go só despacha para `claude`, o resto
-ainda é somente-Python (veja a linha de `run` em [`CLI.md`](CLI.md)):
+ou API key. orch despacha para as cinco, e um mesmo projeto pode
+misturá-las: cada task vai para a CLI à qual o seu modelo é roteado
+([§9](#9-o-roteador-de-modelos)):
 
 - **`claude`** — Claude Code CLI (Anthropic)
+- **`codex`** — Codex CLI (OpenAI)
+- **`gemini`** — Gemini CLI (Google)
+- **`opencode`** — OpenCode (qualquer provedor que esteja configurado)
+- **`agy`** — Antigravity (o gateway multi-modelo do Google)
 
-Uma task roteada para um backend que ainda não tem adapter em Go
-(`codex`, `opencode`, `gemini`, `agy`) é pulada no despacho com
-`backend-unavailable:<name>` em vez de bloquear toda a execução.
+Você só precisa das CLIs para as quais suas tasks são roteadas.
 
 Rode `orch doctor` a qualquer momento para ver o que está realmente
 acessível — veja [§13](#13-quando-algo-falha).
@@ -155,7 +158,7 @@ Flags:
   -h, --help                help for atomize
       --list                Modo listar: sólo imprime lo parseado, sin merge/diff
       --no-backup           No crear backup .bak-<ts> al escribir (default: sí crea)
-      --specs-dir string    Directorio de specs .md (default: <project-root>/docs)
+      --specs-dir string    Directorio de specs .md (default: <project-root>/<spec_root>, "specs")
       --tasks-json string   Path a tasks.json (default: <project-root>/tasks.json)
 ```
 
@@ -167,10 +170,10 @@ não um detalhe de tradução deste manual.)
 orch atomize
 
 # Só um arquivo
-orch atomize --file docs/f1-auth.md
+orch atomize --file specs/f1-auth.md
 
 # Apply — escreve tasks.json (com backup tasks.json.bak-<ts>, salvo --no-backup)
-orch atomize --file docs/f1-auth.md --apply
+orch atomize --file specs/f1-auth.md --apply
 ```
 
 **Garantias**: idempotente (rodar de novo com o mesmo spec não toca nos
@@ -437,6 +440,40 @@ diferença deliberada em relação ao Python, documentada em
 
 `model_router.yaml` mapeia o modelo declarado de uma task para um
 backend CLI, seu nome `cli_model`, e um tier de custo.
+
+**Usar várias IAs.** O `"model"` de uma task no `tasks.json` é uma
+chave do `model_router.yaml`, e essa entrada nomeia a CLI que a executa.
+Três tasks, três CLIs:
+
+```json
+"tasks": [
+  { "id": "T1", "model": "claude/claude-sonnet-4-6", ... },
+  { "id": "T2", "model": "codex/gpt-5.4", ... },
+  { "id": "T3", "model": "gemini/gemini-2.5-flash", ... }
+]
+```
+
+```yaml
+# .orchestrator/model_router.yaml — orch init already writes these entries
+claude/claude-sonnet-4-6:
+  backend: claude
+  cli_model: claude-sonnet-4-6
+  tier: standard
+  is_premium: false
+codex/gpt-5.4:
+  backend: codex
+  cli_model: gpt-5.4
+  tier: standard
+  is_premium: false
+gemini/gemini-2.5-flash:
+  backend: gemini
+  cli_model: gemini-2.5-flash
+  tier: cheap
+  is_premium: false
+```
+
+`orch router validate` verifica que cada task resolve para uma entrada,
+e `orch doctor` que cada CLI nomeada por essas entradas está instalada.
 
 ```bash
 # Toda task.model resolve para uma entrada do router?
