@@ -133,3 +133,44 @@ func TestStopHoldsATaskWaitingToRetry(t *testing.T) {
 		t.Errorf("answer = %+v", last)
 	}
 }
+
+// TestStopWithoutHoldRetriesAWaitingTaskNow: a redirect of a task waiting out
+// a backoff brings its retry forward instead of dropping it.
+func TestStopWithoutHoldRetriesAWaitingTaskNow(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")}, nil, SchedulerOptions{})
+	tk, _ := f.s.Queue.Task("C-1")
+	f.s.retryQueue = []RetryItem{{Task: tk, Attempt: 2, EarliestAt: f.r.now().Add(time.Hour)}}
+	f.s.StopTask(context.Background(), "C-1", false)
+	rq := f.s.RetryQueue()
+	if len(rq) != 1 || rq[0].Attempt != 2 || rq[0].EarliestAt.After(f.r.now()) {
+		t.Errorf("retry queue = %+v, want attempt 2 due now", rq)
+	}
+	last := f.backend.events[len(f.backend.events)-1]
+	if last.extra["stopped"] != "retry_now" {
+		t.Errorf("answer = %+v", last)
+	}
+}
+
+// TestAStoppedChildThatAlreadyReportedDoneKeepsItsWork: the agent reported
+// done before the stop reached it; the attempt is finished as what it was.
+func TestAStoppedChildThatAlreadyReportedDoneKeepsItsWork(t *testing.T) {
+	f := newRunnerFixture(t, []model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse()}, SchedulerOptions{})
+	ctx := context.Background()
+	if _, err := f.s.Refill(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for pid := range f.s.InFlight() {
+		f.s.stopping[pid] = true
+	}
+	f.backend.status["C-1"] = model.StatusDone
+	if _, err := f.s.DrainWait(ctx, 10*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done", got)
+	}
+	if len(f.backend.finishes) != 1 || f.backend.finishes[0].Stopped {
+		t.Errorf("finishes = %+v, want one, not stopped", f.backend.finishes)
+	}
+}
