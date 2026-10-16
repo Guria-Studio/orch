@@ -227,6 +227,18 @@ behalf; the prompt of the task's next attempt renders it under **Operator
 notes**. The same write as `orch task note` (see [`CLI.md`](CLI.md)). Returns
 `{task_id, message}`.
 
+### `orch_task_stop`
+
+`{task_id, hold?, note?}` — stops the task's running attempt on the
+operator's behalf: with an `orch run` on the project it writes the request
+that run acts on within a tick; with none it is a plain status change.
+`hold` blocks the task afterwards (`held by the operator`); without it the
+task is dispatched again at once, with `note` in its prompt, and the stopped
+attempt does not count against `max_attempts`. Returns `{task_id, requested,
+hold, from?, to?, message}` without waiting for the run. The same request as
+`orch task stop`. For the agent the operator is chatting with — Claude Code
+steering a run without leaving the chat — not for a dispatched agent.
+
 ---
 
 ## What it does not do
@@ -234,8 +246,8 @@ notes**. The same write as `orch task note` (see [`CLI.md`](CLI.md)). Returns
 - **No dispatching.** Nothing here starts a subprocess or spends money. The
   engine is driven by `orch run`, and an agent that could dispatch other
   agents is a different product.
-- **No writes outside the status**, except the operator's notes
-  (`orch_task_note`). Titles, descriptions,
+- **No writes outside the status**, except the operator's notes and stop
+  requests (`orch_task_note`, `orch_task_stop`). Titles, descriptions,
   dependencies and estimates live in `tasks.json`, which a human or `orch
   atomize` owns.
 - **No second view of the state.** The server shares one `state.Backend` with

@@ -70,6 +70,10 @@ type Outcome struct {
 	TimedOut bool
 	// LogPath is where the captured output landed.
 	LogPath string
+	// Stopped is true when the operator stopped the attempt (#356), and
+	// Held when they also held the task. A stopped attempt is cancelled, not
+	// failed: it is neither classified nor retried by the retry policy.
+	Stopped, Held bool
 }
 
 // Run spawns a dispatch, supervises it, and parses what it produced.

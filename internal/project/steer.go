@@ -3,19 +3,40 @@ package project
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/state"
 )
+
+// RunLockFile is the file under a project's state directory that one `orch
+// run` holds while it runs (engine.AcquireRunLock, #344).
+const RunLockFile = "run.lock"
 
 // OperatorAuthor is the author of everything the operator writes through
 // Steer.
 const OperatorAuthor = "operator"
 
-// Steer is how the operator steers a task (#356): a note for its agent. The
-// CLI and the MCP server both go through it.
+// HeldReason is the note on a task the operator stopped and held.
+const HeldReason = "held by the operator"
+
+// EventOperatorStop is the event a stop request is written as, and the event
+// the run that acted on it writes back (with `stopped` in its extra).
+const EventOperatorStop = "operator_stop"
+
+// Steer is how the operator steers a task (#356): a note for its agent, or a
+// stop. The CLI and the MCP server both go through it, so every
+// source writes the same request and only `orch run` touches processes.
 type Steer struct {
-	Backend state.Backend
+	Backend  state.Backend
+	StateDir string
+	// Source names who asked, in the request's extra: cli, mcp.
+	Source string
 }
 
 // Note records a note for the task's agent. It reaches the prompt of the
@@ -28,4 +49,141 @@ func (s Steer) Note(ctx context.Context, taskID, body string) error {
 	return s.Backend.AddNote(ctx, taskID, state.Note{
 		Author: OperatorAuthor, Body: body, Kind: state.NoteKindOperator,
 	})
+}
+
+// StopResult is what Stop did.
+type StopResult struct {
+	TaskID string `json:"task_id"`
+	// Requested is true when a running `orch run` was asked to stop the
+	// task; it acts on its next tick. RequestID is the event row after which
+	// its answer lands (see WaitStopped).
+	Requested bool  `json:"requested"`
+	RequestID int64 `json:"-"`
+	Hold      bool  `json:"hold"`
+	// From and To are the plain status change made when no run is running;
+	// equal when there was nothing to change.
+	From    model.Status `json:"from,omitempty"`
+	To      model.Status `json:"to,omitempty"`
+	Message string       `json:"message"`
+}
+
+// Stop ends the task's running attempt. hold keeps it from being dispatched
+// again (blocked, HeldReason; Unblock is `orch task set --status todo`);
+// without it the task is dispatched again, with note — when there is one —
+// in its prompt.
+//
+// With an `orch run` running it writes a request that run acts on. With none,
+// nothing is running, so it is a plain status change, and says so.
+func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) (StopResult, error) {
+	t, err := s.Backend.Task(ctx, taskID)
+	if err != nil {
+		return StopResult{}, err
+	}
+	if strings.TrimSpace(note) != "" {
+		if err := s.Note(ctx, taskID, note); err != nil {
+			return StopResult{}, err
+		}
+	}
+	res := StopResult{TaskID: taskID, Hold: hold, From: t.Status, To: t.Status}
+
+	if s.runLive(ctx, taskID) {
+		after, err := s.Backend.LatestEventID(ctx)
+		if err != nil {
+			return StopResult{}, err
+		}
+		// No run id: the request comes from outside any run. That also
+		// keeps the event dedup hash of the run's answer — written in the
+		// same second, for the same task and type, under the run's id —
+		// apart from this row's.
+		if err := s.Backend.AppendEvent(ctx, "", state.Event{
+			EventType: EventOperatorStop,
+			TaskID:    taskID,
+			TS:        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+			// pid is the requester's, so two requests in one second both
+			// land.
+			Extra: map[string]any{"hold": hold, "requested_by": s.Source, "pid": os.Getpid()},
+		}); err != nil {
+			return StopResult{}, err
+		}
+		res.Requested, res.RequestID = true, after
+		then := "dispatches it again"
+		if hold {
+			then = "holds it (blocked, \"" + HeldReason + "\")"
+		}
+		res.Message = fmt.Sprintf("stop requested: the running orch run ends %s's attempt and %s", taskID, then)
+		return res, nil
+	}
+
+	switch {
+	case hold:
+		res.To = model.StatusBlocked
+	case t.Status == model.StatusInProgress:
+		res.To = model.StatusTodo
+	default:
+		res.Message = fmt.Sprintf("no orch run is running and %s is %s: nothing to stop", taskID, t.Status)
+		return res, nil
+	}
+	body := HeldReason
+	if !hold {
+		body = "stopped by the operator"
+	}
+	if err := s.Backend.Transition(ctx, taskID, res.To, state.Note{Author: OperatorAuthor, Body: body}); err != nil {
+		return StopResult{}, err
+	}
+	res.Message = fmt.Sprintf("no orch run is running: %s %s -> %s", taskID, res.From, res.To)
+	return res, nil
+}
+
+// WaitStopped waits up to timeout for the run's answer to a request Stop
+// made, and returns it. ok is false when the run has not answered yet.
+func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Duration) (state.Event, bool) {
+	deadline := time.Now().Add(timeout)
+	for after := res.RequestID; ; {
+		events, err := s.Backend.EventsSince(ctx, after, 200)
+		if err != nil {
+			return state.Event{}, false
+		}
+		for _, e := range events {
+			after = e.ID
+			if e.EventType == EventOperatorStop && e.TaskID == res.TaskID && e.Extra["stopped"] != nil {
+				return e, true
+			}
+		}
+		if time.Now().After(deadline) {
+			return state.Event{}, false
+		}
+		select {
+		case <-ctx.Done():
+			return state.Event{}, false
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+// runLive reports whether an `orch run` may be acting on this project: one
+// holds the run lock, or (with --task-locks, which takes none) the task has a
+// dispatch whose process is alive.
+func (s Steer) runLive(ctx context.Context, taskID string) bool {
+	if f, err := os.Open(filepath.Join(s.StateDir, RunLockFile)); err == nil { // #nosec G304 -- the project's own state dir
+		defer func() { _ = f.Close() }()
+		// A shared, non-blocking flock fails only while a run holds its
+		// exclusive one.
+		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); errors.Is(err, syscall.EWOULDBLOCK) {
+			return true
+		} else if err == nil {
+			_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		}
+	}
+	rows, err := s.Backend.InFlightDispatches(ctx)
+	if err != nil {
+		return false
+	}
+	for _, d := range rows {
+		if d.TaskID == taskID && d.PID > 0 {
+			if err := syscall.Kill(d.PID, 0); err == nil || errors.Is(err, syscall.EPERM) {
+				return true
+			}
+		}
+	}
+	return false
 }

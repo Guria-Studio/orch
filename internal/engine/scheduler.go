@@ -172,6 +172,9 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
+	// stopping holds the children the operator asked to stop, by pid, and
+	// whether to hold their task after (#356).
+	stopping map[int]bool
 	// slots numbers the running tasks for ORCH_TASK_SLOT (#343).
 	slots *TaskSlots
 	// now is the clock, injectable so the backoff tests do not wait.
@@ -256,6 +259,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		done:          make(chan completion, capacity),
 		spentUSD:      make(map[string]float64),
 		ciRetryPR:     make(map[string]string),
+		stopping:      make(map[int]bool),
 		slots:         NewTaskSlots(),
 		now:           time.Now,
 	}
@@ -763,9 +767,9 @@ func (s *Scheduler) completedDeps(ctx context.Context, task model.Task) []model.
 }
 
 // operatorNotes are the notes the operator left for this task's agent
-// (#356), read at dispatch time, so a note written since the last attempt
-// reaches the next one. A read that fails costs the notes, not the
-// dispatch.
+// (#356), read at dispatch time: a note written while the task waited, or
+// with the stop that ended its last attempt, reaches the next one. A read
+// that fails costs the notes, not the dispatch.
 func (s *Scheduler) operatorNotes(ctx context.Context, taskID string) []string {
 	if s.Comments == nil {
 		return nil
