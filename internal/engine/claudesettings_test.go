@@ -10,8 +10,10 @@ import (
 
 // #231: a repo that gitignores .claude/ has no settings inside a worktree, so
 // the agent ran with no allow-list and every Bash call was denied. The root's
-// files are merged and handed over; one already in the worktree is left to
-// claude, which loads it itself (passing it twice would run its hooks twice).
+// files are merged and handed over. #361: one the dispatch directory has is
+// handed over for its permissions only — claude ignores them in an untrusted
+// directory, and loads the rest itself (passing it twice would run its hooks
+// twice).
 func TestProjectClaudeSettings(t *testing.T) {
 	const (
 		shared = `{"permissions":{"allow":["Bash(git status)"]},"env":{"A":"1"}}`
@@ -36,15 +38,27 @@ func TestProjectClaudeSettings(t *testing.T) {
 			wantEnv:   map[string]any{"A": "1"},
 		},
 		{
-			name:      "a file the worktree tracks is not passed again",
+			name:      "a file the worktree tracks passes its permissions only",
 			root:      map[string]string{"settings.json": shared, "settings.local.json": local},
 			worktree:  map[string]string{"settings.json": shared},
-			wantAllow: []any{"WebFetch"},
+			wantAllow: []any{"Bash(git status)", "WebFetch"},
 			wantDeny:  []any{"Bash(git push:*)"},
 		},
 		{
-			name:      "dispatching in the root adds nothing",
+			name:      "the worktree's own copy is the one read",
 			root:      map[string]string{"settings.json": shared},
+			worktree:  map[string]string{"settings.json": `{"permissions":{"allow":["mcp__orch"]}}`},
+			wantAllow: []any{"mcp__orch"},
+		},
+		{
+			name:      "dispatching in the root passes the permissions only",
+			root:      map[string]string{"settings.json": shared},
+			inRoot:    true,
+			wantAllow: []any{"Bash(git status)"},
+		},
+		{
+			name:      "a tracked file without permissions adds nothing",
+			root:      map[string]string{"settings.json": `{"hooks":{"Stop":[]}}`},
 			inRoot:    true,
 			wantEmpty: true,
 		},
@@ -73,7 +87,7 @@ func TestProjectClaudeSettings(t *testing.T) {
 			if !reflect.DeepEqual(perms["allow"], tt.wantAllow) {
 				t.Errorf("allow = %v, want %v", perms["allow"], tt.wantAllow)
 			}
-			if !reflect.DeepEqual(perms["deny"], tt.wantDeny) {
+			if deny, _ := perms["deny"].([]any); !reflect.DeepEqual(deny, tt.wantDeny) {
 				t.Errorf("deny = %v, want %v", perms["deny"], tt.wantDeny)
 			}
 			if env, _ := got["env"].(map[string]any); !reflect.DeepEqual(env, tt.wantEnv) {

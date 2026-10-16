@@ -219,6 +219,24 @@ func (w *WizardIO) readLine() (string, error) {
 	return w.in.Text(), nil
 }
 
+// Confirm asks one yes/no question, yes by default — for what `orch init`
+// offers once the project is written. Input that has run out is a no.
+func (w *WizardIO) Confirm(question string) (bool, error) {
+	_, _ = fmt.Fprint(w.out, question+" [Y/n] ") // see WizardIO.say
+	line, err := w.readLine()
+	if errors.Is(err, io.EOF) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "", "y", "yes", "s", "si", "sí":
+		return true, nil
+	}
+	return false, nil
+}
+
 // asker loops one question until the answer is acceptable.
 type asker struct{ io *WizardIO }
 

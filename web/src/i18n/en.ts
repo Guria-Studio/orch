@@ -98,6 +98,8 @@ export const en = {
   "onboarding.recheck": "Check again",
   "onboarding.providers": "A provider CLI is installed",
   "onboarding.providers.hint": "orch dispatches tasks to claude, codex, opencode, gemini or agy.",
+  "onboarding.claude_permissions": "Claude agents may use orch's tools",
+  "onboarding.claude_permissions.hint": "Claude refuses its agents orch's MCP tools and task scripts until .claude/settings.json allows them. The command shows the rules and asks first.",
   "onboarding.budget": "The budget guardrail is on",
   "onboarding.budget.hint": "Without budgets.yaml nothing rations provider usage.",
   "onboarding.tasks": "tasks.json has tasks",
