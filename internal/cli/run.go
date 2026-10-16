@@ -259,17 +259,21 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	// The tasks may have just built the code init's placeholder CI was
-	// waiting for (#363).
-	if ci.PlaceholderOutgrown(paths.Root) {
-		fmt.Fprintf(os.Stderr, "note: %s still checks nothing, and the repository now has a stack — `orch ci setup --force` proposes its real CI.\n", ci.WorkflowPath)
-	}
+	noteOutgrownCI(os.Stderr, paths.Root)
 	if code != 0 {
 		// The loop already said what it was doing on its way out;
 		// a second line here would be noise.
 		return withSilentExitCode(code)
 	}
 	return nil
+}
+
+// noteOutgrownCI says, once a run ends, that the tasks may have just built
+// the code init's placeholder CI was waiting for (#363).
+func noteOutgrownCI(w io.Writer, root string) {
+	if ci.PlaceholderOutgrown(root) {
+		_, _ = fmt.Fprintf(w, "note: %s still checks nothing, and the repository now has a stack — `orch ci setup --force` proposes its real CI.\n", ci.WorkflowPath)
+	}
 }
 
 // takeRunLock is the one-run-per-project lock, taken before anything is

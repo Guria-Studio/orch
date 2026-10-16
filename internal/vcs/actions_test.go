@@ -1,6 +1,7 @@
 package vcs
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -55,5 +56,36 @@ func TestRepoVisibility(t *testing.T) {
 	fakeGH(t, map[string]string{"repo view": "PRIVATE\n"})
 	if v, err := RepoVisibility("."); err != nil || v != "private" {
 		t.Errorf("visibility = %q, %v", v, err)
+	}
+}
+
+// gh failing at any step is an error that says which step.
+func TestActionsMinutesErrors(t *testing.T) {
+	since := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, failOn, want string
+	}{
+		{"listing the runs", "actions/runs?", "listing the workflow runs"},
+		{"reading a run's jobs", "runs/11/jobs", "reading the jobs of run 11"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			old := ghIn
+			t.Cleanup(func() { ghIn = old })
+			ghIn = func(_ string, args ...string) (string, error) {
+				if strings.Contains(strings.Join(args, " "), tc.failOn) {
+					return "", errors.New("HTTP 404")
+				}
+				return "11\tci\tpull_request\torch/A\n", nil
+			}
+			if _, err := ActionsMinutes(".", since); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("err = %v, want it to say %q", err, tc.want)
+			}
+		})
+	}
+	old := ghIn
+	t.Cleanup(func() { ghIn = old })
+	ghIn = func(string, ...string) (string, error) { return "", errors.New("no git remotes") }
+	if _, err := RepoVisibility("."); err == nil || !strings.Contains(err.Error(), "private") {
+		t.Errorf("visibility err = %v", err)
 	}
 }
