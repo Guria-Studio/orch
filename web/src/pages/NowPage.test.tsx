@@ -136,6 +136,26 @@ describe("NowPage", () => {
     expect(screen.getByText(/reported/)).toBeInTheDocument()
   })
 
+  it("folds a section from its heading, keeps its count visible, and remembers the fold", () => {
+    window.localStorage.removeItem("orch_now_collapsed")
+    const { unmount } = renderPage()
+    const toggle = screen.getByRole("button", { name: "Needs your attention" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    const attention = screen.getByRole("heading", { name: "Needs your attention" }).closest("section")!
+    expect(within(attention).queryByText(/needs a product decision/)).not.toBeInTheDocument()
+    expect(within(attention).getByText("2")).toBeInTheDocument()
+    expect(screen.getByText("POST /items")).toBeInTheDocument()
+
+    unmount()
+    renderPage()
+    expect(screen.getByRole("button", { name: "Needs your attention" })).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(screen.getByRole("button", { name: "Needs your attention" }))
+    expect(screen.getByText(/needs a product decision/)).toBeInTheDocument()
+    window.localStorage.removeItem("orch_now_collapsed")
+  })
+
   it("says so plainly when nothing runs and nothing needs attention", () => {
     state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [] }
     renderPage()
