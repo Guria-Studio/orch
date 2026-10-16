@@ -35,6 +35,9 @@ type Backend interface {
 	// Transition moves a task, enforcing the legal-transition table and
 	// recording note in the task's comments.
 	Transition(ctx context.Context, id string, to model.Status, note Note) error
+	// AddNote appends note to the task's comments without moving it.
+	// ErrTaskNotFound when it does not exist.
+	AddNote(ctx context.Context, id string, note Note) error
 
 	// StartRun opens a run, or leaves an existing one alone. `dispatches`
 	// has a foreign key onto `runs`, so this is RecordDispatch's
@@ -425,6 +428,36 @@ func (b *SQLite) Transition(ctx context.Context, id string, to model.Status, not
 	})
 }
 
+// AddNote appends a note to a task's comments and leaves everything else as
+// it was, updated_at included: CountDoneLastNDays reads that column, and a
+// note on a finished task must not count it as finished again.
+func (b *SQLite) AddNote(ctx context.Context, id string, note Note) error {
+	at := b.ts(note.At)
+	return b.inTx(ctx, func(tx *sql.Tx) error {
+		var status, commentsJSON string
+		err := tx.QueryRowContext(ctx,
+			`SELECT status, COALESCE(comments_json, '[]') FROM tasks_runtime
+			  WHERE project_id = ? AND task_id = ?`,
+			b.projectID, id).Scan(&status, &commentsJSON)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%q: %w", id, ErrTaskNotFound)
+		}
+		if err != nil {
+			return fmt.Errorf("read the comments of %q: %w", id, err)
+		}
+		comments, err := appendComment(commentsJSON, note, model.Status(status), at)
+		if err != nil {
+			return fmt.Errorf("append the note for %q: %w", id, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE tasks_runtime SET comments_json = ? WHERE project_id = ? AND task_id = ?`,
+			comments, b.projectID, id); err != nil {
+			return fmt.Errorf("write the note for %q: %w", id, err)
+		}
+		return nil
+	})
+}
+
 // appendComment adds the transition's note to the task's comment list.
 // An empty body records the status name, matching Python — the entry exists
 // to say WHEN something moved even when nobody said why.
@@ -445,9 +478,11 @@ func appendComment(existing string, note Note, to model.Status, at string) (stri
 	if author == "" {
 		author = "orch"
 	}
-	entry, err := json.Marshal(map[string]string{
-		"author": author, "body": body, "at": at,
-	})
+	fields := map[string]string{"author": author, "body": body, "at": at}
+	if note.Kind != "" {
+		fields["kind"] = note.Kind
+	}
+	entry, err := json.Marshal(fields)
 	if err != nil {
 		return "", err
 	}

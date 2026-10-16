@@ -566,6 +566,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		ReportFindings: s.Opts.Cfg.ReportFindings.Enabled,
 		ComposeProject: s.composeProject(task.ID),
 		Spec:           specState,
+		OperatorNotes:  s.operatorNotes(ctx, task.ID),
 	})
 	if err != nil {
 		release()
@@ -759,6 +760,22 @@ func (s *Scheduler) completedDeps(ctx context.Context, task model.Task) []model.
 		out = append(out, dep)
 	}
 	return out
+}
+
+// operatorNotes are the notes the operator left for this task's agent
+// (#356), read at dispatch time, so a note written since the last attempt
+// reaches the next one. A read that fails costs the notes, not the
+// dispatch.
+func (s *Scheduler) operatorNotes(ctx context.Context, taskID string) []string {
+	if s.Comments == nil {
+		return nil
+	}
+	comments, err := s.Comments.TaskComments(ctx, taskID)
+	if err != nil {
+		s.logger().Warn("reading the operator's notes for the prompt", "task", taskID, "err", err)
+		return nil
+	}
+	return prompt.OperatorNotes(comments)
 }
 
 // checkBudget consults the guardrail, and fails OPEN.

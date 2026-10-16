@@ -399,3 +399,61 @@ func containsLine(body, line string) bool {
 	}
 	return false
 }
+
+// TestOperatorNotesReachThePrompt pins the block an operator's notes add
+// (#356), after the dependencies and before the protocol. The golden is Go's
+// own: Python has no such block. The nextjs case has a dependency, so the
+// golden shows the two blocks in order.
+func TestOperatorNotesReachThePrompt(t *testing.T) {
+	cases := loadCases(t)
+	i := -1
+	for j, c := range cases.Cases {
+		if c.Golden == "nextjs-saas-f1t1.txt" {
+			i = j
+		}
+	}
+	if i < 0 {
+		t.Fatal("cases.json lost the nextjs case")
+	}
+	c := cases.Cases[i]
+	task := model.Task{ID: c.Task.ID, Title: c.Task.Title, Description: c.Task.Description,
+		Model: c.Task.Model, Files: c.Task.Files, SpecRef: c.Task.SpecRef}
+	var deps []model.Task
+	for _, d := range c.Deps {
+		deps = append(deps, model.Task{ID: d.ID, Comments: d.Comments})
+	}
+	comments := []json.RawMessage{
+		json.RawMessage(`{"author":"orch","body":"in-progress","at":"2026-01-01T09:00:00Z"}`),
+		json.RawMessage(`{"author":"operator","body":"do not touch the migration","at":"2026-01-01T09:05:00Z","kind":"operator_note"}`),
+		json.RawMessage(`{"author":"operator","body":"manual set via orch task set","at":"2026-01-01T09:06:00Z"}`),
+		json.RawMessage(`{"author":"operator","body":"  keep the sign-in page unstyled for now  ","at":"2026-01-01T09:07:00Z","kind":"operator_note"}`),
+	}
+	got, _ := Render(task, deps, c.Task.SpecRef, Options{
+		RunID: cases.RunID, ProjectRoot: cases.ProjectRoot, SpecRoot: c.SpecRoot,
+		OperatorNotes: OperatorNotes(comments),
+	})
+	path := filepath.Join("testdata", "go", "operator-notes.txt")
+	if *updateGoGoldens {
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+		return
+	}
+	if want := readGolden(t, "go", "operator-notes.txt"); got != want {
+		t.Errorf("rendered prompt differs from its golden.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+	// A note is an instruction to this task's agent, never what the task
+	// reported to the tasks after it.
+	if got := AgentComment(comments); got != "manual set via orch task set" {
+		t.Errorf("AgentComment = %q, want the last entry that is not orch's nor an operator note", got)
+	}
+}
+
+// TestOperatorNotesAreBounded keeps the newest five.
+func TestOperatorNotesAreBounded(t *testing.T) {
+	notes := []string{"n1", "n2", "n3", "n4", "n5", "n6", "n7"}
+	block := renderNotesBlock(notes)
+	if strings.Contains(block, "n2\n") || !strings.Contains(block, "  - n3\n") || !strings.Contains(block, "  - n7\n") {
+		t.Errorf("want n3..n7 only, got:\n%s", block)
+	}
+}

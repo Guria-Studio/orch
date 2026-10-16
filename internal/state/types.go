@@ -68,7 +68,17 @@ type Note struct {
 	// the SAME PR (#276). Everyone else resetting a task means the old PR is
 	// no longer its work, and the move clears it (#255).
 	KeepPR bool
+	// Kind marks a comment that is not a transition's trail. Empty for
+	// every transition; NoteKindOperator for an operator's note to the
+	// task's agent (#356), which the prompt renders and the dependency
+	// block skips.
+	Kind string
 }
+
+// NoteKindOperator is the `kind` of a note the operator wrote for a task's
+// agent: `orch task note`, `orch task stop --note`, orch_task_note and the
+// dashboard (#356).
+const NoteKindOperator = "operator_note"
 
 // Dispatch is one in-flight subprocess.
 type Dispatch struct {
