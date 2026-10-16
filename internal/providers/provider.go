@@ -99,7 +99,9 @@ type Result struct {
 	TokensOut           int
 
 	// Stdout is the captured log — stdout and stderr merged, because that is
-	// how the engine spawns children (dispatcher.py: `stderr=STDOUT`).
+	// how the engine spawns children (dispatcher.py: `stderr=STDOUT`). Claude's
+	// is the log minus its stream-json events, which are the agent's work
+	// rather than claude's verdict (see withoutStreamEvents).
 	Stdout string
 	// Stderr is populated only when the engine captures stderr separately.
 	// Both Python and the providers here leave it empty; Classify still

@@ -238,7 +238,7 @@ func TestReadOnlyArgv(t *testing.T) {
 		backend model.Backend
 		want    []string
 	}{
-		{model.BackendClaude, []string{"claude", "-p", "--output-format", "json", "--model", "m", "--add-dir", ".",
+		{model.BackendClaude, []string{"claude", "-p", "--output-format", "stream-json", "--verbose", "--model", "m", "--add-dir", ".",
 			"--permission-mode", "default", "--tools", "", "--strict-mcp-config"}},
 		{model.BackendCodex, []string{"codex", "exec", "--skip-git-repo-check", "--json", "-o", "/scratch/last.md", "-C", ".",
 			"--sandbox", "read-only", "-m", "m"}},
