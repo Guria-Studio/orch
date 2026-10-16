@@ -38,6 +38,8 @@ type fakeBackend struct {
 	status map[string]model.Status
 	// statusErr makes TaskStatus fail, for the conservative path.
 	statusErr error
+	// notes is every Transition's note, "<task>=<status>: <note>".
+	notes []string
 }
 
 func newFakeBackend() *fakeBackend {
@@ -94,9 +96,10 @@ func (b *fakeBackend) TaskStatus(_ context.Context, taskID string) (model.Status
 	return st, nil
 }
 
-func (b *fakeBackend) Transition(_ context.Context, taskID string, to model.Status, _ string) error {
+func (b *fakeBackend) Transition(_ context.Context, taskID string, to model.Status, note string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.notes = append(b.notes, taskID+"="+string(to)+": "+note)
 	b.transitions = append(b.transitions, struct {
 		taskID string
 		to     model.Status

@@ -789,19 +789,36 @@ func TestMCPConfigIsNeverOverwritten(t *testing.T) {
 // `pytest`) into every repo, so a Node or Go project's CI failed, or never
 // ran the tests at all. The workflow and `github.test_command` follow what
 // the repo is made of.
+//
+// #348: a repository with nothing in it yet still got Python — the fallback
+// for "no stack found" was the old default — and a pnpm repo whose root has
+// no `test` script got `pnpm test`, which fails. Every PR's CI went red and
+// orch spent retries on it.
 func TestWorkflowFollowsTheRepoStack(t *testing.T) {
 	cases := []struct {
 		name  string
-		files []string
+		files map[string]string
 		want  []string
 		test  string
 	}{
-		{"pnpm", []string{"package.json", "pnpm-lock.yaml"}, []string{"actions/setup-node", "pnpm install --frozen-lockfile"}, "pnpm test"},
-		{"npm", []string{"package.json"}, []string{"actions/setup-node", "npm install"}, "npm test"},
-		{"yarn", []string{"package.json", "yarn.lock"}, []string{"actions/setup-node", "yarn install --frozen-lockfile"}, "yarn test"},
-		{"go", []string{"go.mod"}, []string{"actions/setup-go", "go-version-file: go.mod"}, "go test ./..."},
-		{"python", []string{"pyproject.toml"}, []string{"actions/setup-python", "pip install -e .[dev]"}, "pytest"},
-		{"empty", nil, []string{"actions/setup-python"}, "pytest"},
+		{"pnpm monorepo", map[string]string{"package.json": "{}", "pnpm-lock.yaml": "", "pnpm-workspace.yaml": "packages: [apps/*]\n"},
+			[]string{"actions/setup-node", "pnpm install --frozen-lockfile"}, "pnpm -r --if-present test"},
+		{"pnpm", map[string]string{"package.json": "{}", "pnpm-lock.yaml": ""},
+			[]string{"actions/setup-node", "pnpm install --frozen-lockfile"}, "pnpm -r --if-present test"},
+		{"pnpm with a check script", map[string]string{"package.json": `{"scripts":{"check":"biome check ."}}`, "pnpm-lock.yaml": ""},
+			[]string{"actions/setup-node", "pnpm install --frozen-lockfile"}, "pnpm run check"},
+		{"npm", map[string]string{"package.json": "{}"},
+			[]string{"actions/setup-node", "npm install"}, "npm run test --if-present"},
+		{"yarn", map[string]string{"package.json": "{}", "yarn.lock": ""},
+			[]string{"actions/setup-node", "yarn install --frozen-lockfile"}, "yarn test"},
+		{"go", map[string]string{"go.mod": "module x\n"},
+			[]string{"actions/setup-go", "go-version-file: go.mod"}, "go test ./..."},
+		{"flutter", map[string]string{"pubspec.yaml": "name: x\n"},
+			[]string{"subosito/flutter-action", "flutter pub get"}, "flutter analyze && flutter test"},
+		{"python", map[string]string{"pyproject.toml": "{}"},
+			[]string{"actions/setup-python", "pip install -e .[dev]"}, "pytest"},
+		{"python requirements", map[string]string{"requirements.txt": ""},
+			[]string{"actions/setup-python"}, "pytest"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -809,8 +826,8 @@ func TestWorkflowFollowsTheRepoStack(t *testing.T) {
 			if err := os.MkdirAll(root, 0o750); err != nil {
 				t.Fatal(err)
 			}
-			for _, f := range tc.files {
-				if err := os.WriteFile(filepath.Join(root, f), []byte("{}\n"), 0o600); err != nil {
+			for f, body := range tc.files {
+				if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -820,16 +837,59 @@ func TestWorkflowFollowsTheRepoStack(t *testing.T) {
 			}
 
 			wf := readFile(t, res, ".github/workflows/orch-ci.yml")
-			for _, want := range append(tc.want, "run: "+tc.test) {
+			for _, want := range append(tc.want, "run: "+tc.test+"\n") {
 				if !strings.Contains(wf, want) {
 					t.Errorf("workflow is missing %q:\n%s", want, wf)
 				}
 			}
-			if tc.name != "python" && tc.name != "empty" && strings.Contains(wf, "python") {
+			if !strings.HasPrefix(tc.name, "python") && strings.Contains(wf, "python") {
 				t.Errorf("a %s repo got a Python workflow:\n%s", tc.name, wf)
 			}
-			if cfg := readFile(t, res, ".orchestrator/config.yaml"); !strings.Contains(cfg, "test_command: "+tc.test) {
+			if cfg := readFile(t, res, ".orchestrator/config.yaml"); !strings.Contains(cfg, "test_command: "+tc.test+" ") {
 				t.Errorf("config.yaml does not say test_command: %s", tc.test)
+			}
+		})
+	}
+}
+
+// #348: a repository with no stack orch can name — typically an empty one,
+// scaffolded before any code exists — gets a workflow that passes and says
+// to edit it, not a Python one that fails every PR. config.yaml's
+// test_command says the same: there is no command yet.
+func TestWorkflowForAnUnknownStackIsAPlaceholder(t *testing.T) {
+	res := scaffolded(t, "")
+	wf := readFile(t, res, ".github/workflows/orch-ci.yml")
+	for _, bad := range []string{"python", "pip install", "pytest"} {
+		if strings.Contains(wf, bad) {
+			t.Errorf("an empty repo's workflow mentions %q:\n%s", bad, wf)
+		}
+	}
+	for _, want := range []string{"actions/checkout", "orch ci setup", "run: echo "} {
+		if !strings.Contains(wf, want) {
+			t.Errorf("placeholder workflow is missing %q:\n%s", want, wf)
+		}
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(wf), &doc); err != nil {
+		t.Fatalf("the placeholder workflow is not YAML: %v\n%s", err, wf)
+	}
+	if cfg := readFile(t, res, ".orchestrator/config.yaml"); !strings.Contains(cfg, `test_command: ""`) {
+		t.Errorf("config.yaml still names a test command for a repo with none:\n%s", cfg)
+	}
+}
+
+// A Python template on an empty repo meant its `pytest`: the template is the
+// stack, said before the code exists. Only the packaged config's `pytest`
+// is a guess to replace.
+func TestPythonTemplateKeepsItsTestCommandOnAnEmptyRepo(t *testing.T) {
+	for _, tmpl := range []string{"python-api", "data-pipeline", "chatbot-whatsapp"} {
+		t.Run(tmpl, func(t *testing.T) {
+			res := scaffolded(t, tmpl)
+			wf := readFile(t, res, ".github/workflows/orch-ci.yml")
+			for _, want := range []string{"actions/setup-python", "run: pytest\n"} {
+				if !strings.Contains(wf, want) {
+					t.Errorf("workflow is missing %q:\n%s", want, wf)
+				}
 			}
 		})
 	}

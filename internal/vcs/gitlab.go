@@ -189,7 +189,10 @@ func (p *GitLabProvider) MergePR(prURL string, squash, auto bool) error {
 		if authErr := checkAuth("glab", p.env()); authErr != nil {
 			return authErr
 		}
-		return ErrMergeFailed
+		// glab's stderr is kept so the caller can say why (#347). GitLab
+		// has no equivalent of mergeStateStatus read here, so every failure
+		// is worth another try; the caller bounds how many.
+		return &MergeError{Detail: mergeDetail(err), Retryable: true}
 	}
 	return nil
 }

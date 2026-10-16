@@ -175,10 +175,24 @@ github:
 `orch init` writes `.github/workflows/orch-ci.yml` (never over an existing
 one) and fills `test_command` from what the repo is made of when the config
 still has the packaged `pytest`: `go.mod` → `go test ./...`; `package.json`
-→ `pnpm test` with `pnpm-lock.yaml`, `yarn test` with `yarn.lock`, else
-`npm test`. A template's own command is kept. The workflow's setup steps
-follow the command's first word (`go`, `pnpm`, `yarn`, `npm`; anything else
+→ its root `check` script if it has one, else `pnpm -r --if-present test`
+with `pnpm-lock.yaml`, `yarn test` with `yarn.lock`, else `npm run test
+--if-present`; `pubspec.yaml` → `flutter analyze && flutter test`;
+`pyproject.toml`, `requirements.txt` or `setup.py` → `pytest`. A repo with
+none of those (an empty one, scaffolded before its code) gets
+`test_command: ""` and a placeholder workflow that passes and says to edit it
+or run `orch ci setup` — not Python (#348). A template's own command is kept,
+including a Python template's `pytest`. The workflow's setup steps follow the
+command's first word (`go`, `pnpm`, `yarn`, `npm`, `flutter`; anything else
 gets Python). Both are plain files afterwards: edit them freely.
+
+With `auto_merge: true`, a green PR is merged before its task is finished,
+so dependents start from a base that has its code. A merge refused because
+the base just moved is retried (up to 5 attempts over about 2½ minutes); a PR
+behind a base that requires up-to-date branches is updated (`gh pr
+update-branch`) and merged once its CI passes again. One that never merges
+finishes the task with the PR open, and the `pr_auto_merge_failed` event
+carries gh's error (#347).
 
 ### `retry`
 

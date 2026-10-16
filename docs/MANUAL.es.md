@@ -267,7 +267,12 @@ procesos hijos de inmediato.
 tener éxito `orch` commitea, pushea, y — si `vcs.auto_pr` está activo —
 abre un PR hacia `dispatch.base_branch`, y deja la task en `in-progress`
 para que el poller de CI la termine. Un check de CI verde la marca `done`
-(y la mergea también, si `github.auto_merge` está activo); uno rojo recibe
+(y la mergea también, si `github.auto_merge` está activo — un merge
+rechazado porque la base acaba de moverse se reintenta durante un par de
+minutos, y un PR atrasado respecto de su base se actualiza primero, así las
+dependientes arrancan de una base que tiene el código; un merge que nunca
+entra se informa con el error del propio gh en el evento
+`pr_auto_merge_failed` y en la nota de la task); uno rojo recibe
 un reintento con los logs del fallo adjuntos, y después `blocked`. Una
 corrida que abre un PR termina antes de hacer polling sobre el CI de ese
 PR — una corrida que termina en verde se nota en el *próximo* `orch run`,

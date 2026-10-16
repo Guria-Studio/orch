@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -267,55 +268,68 @@ func InferEntry(key string, defaultTier model.Tier) (model.RouteEntry, error) {
 	}, nil
 }
 
-// knownCLIModels lists, per backend, the model ids its CLI accepts — as far as
-// orch knows. It exists because of #266: `claude/sonnet-5` inferred
-// `cli_model: sonnet-5`, which the claude CLI rejects with a 404, and every
-// task using it died at dispatch while validate and doctor were green.
+// What the claude CLI takes as `--model`: an alias it resolves to the current
+// model of a family, or a full `claude-…` id. #266 found `claude/sonnet-5`
+// inferring `cli_model: sonnet-5`, which the CLI rejects with a 404, and every
+// task using it died at dispatch while validate and doctor were green; #348
+// found the same with `opus-5-5`, because the fix then was a list of known
+// ids and `claude-opus-5-5` was newer than the list.
 //
-// Only claude is listed. The repo holds no reliable list for codex, opencode,
+// So claude is checked by shape, not by list: a model newer than this binary
+// must still dispatch, and the mistake that actually happens — the family
+// written without its `claude-` prefix — is a shape. Whether a well-formed id
+// names a model that exists is the CLI's to say; preflight stays offline.
+//
+// Only claude is checked. The repo holds no reliable rule for codex, opencode,
 // gemini or agy: their CLIs take provider-prefixed or gateway-specific ids that
 // change release to release, so checking them would only raise false warnings.
-// A backend missing from this map is never mapped or warned about.
-//
-// Keep it current when a model ships. An id missing here costs a warning, not a
-// failed dispatch. TestEveryPackagedClaudeModelIsKnown (here) and
-// TestEveryTemplateModelIsInferable (internal/templates) fail if the packaged
-// router or a template routes to one that is not listed.
-var knownCLIModels = map[model.Backend][]string{
-	model.BackendClaude: {
-		// Aliases the CLI resolves to the current model of the family.
-		"opus", "sonnet", "haiku",
-		// Current ids.
-		"claude-fable-5-1", "claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001",
-		// Earlier ids the packaged model_router.yaml and the templates route to.
-		"claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
-		"claude-sonnet-4-6", "claude-sonnet-4-5", "claude-haiku-4-5",
-	},
+// TestEveryPackagedClaudeModelIsKnown (here) and TestEveryTemplateModelIsInferable
+// (internal/templates) fail if the packaged router or a template routes to a
+// value this would warn about.
+var claudeAliases = []string{"opus", "sonnet", "haiku", "fable", "opusplan", "default"}
+
+// claudeAliasesShown are the aliases a warning suggests: the four families.
+const claudeAliasesShown = "opus, sonnet, haiku, fable"
+
+var (
+	// reClaudeID is a full claude model id: `claude-` and lowercase
+	// dash/dot-separated parts (`claude-opus-5-5`, `claude-haiku-4-5-20251001`).
+	reClaudeID = regexp.MustCompile(`^claude-[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
+	// reClaudeFamily is a family with a version and no prefix (`opus-5-5`,
+	// `sonnet-4-6`): the id people write, which the CLI does not take.
+	reClaudeFamily = regexp.MustCompile(`^(?:opus|sonnet|haiku|fable)-[0-9][a-z0-9]*(?:[-.][a-z0-9]+)*$`)
+)
+
+// validCLIModel reports whether the backend's CLI takes name as written. A
+// backend orch has no rule for always does.
+func validCLIModel(backend model.Backend, name string) bool {
+	if backend != model.BackendClaude {
+		return true
+	}
+	return slices.Contains(claudeAliases, name) || reClaudeID.MatchString(name)
 }
 
 // knownCLIModel maps the model half of a route key to an id the backend's CLI
-// accepts: a known id or alias is kept, and a claude family written without
-// its `claude-` prefix (`sonnet-5`) gains it. Anything else comes back
-// unchanged, for CLIModelWarning to flag.
+// accepts: an alias or a full id is kept, and a claude family written without
+// its `claude-` prefix (`sonnet-5`, `opus-5-5`) gains it. Anything else comes
+// back unchanged, for CLIModelWarning to flag.
 func knownCLIModel(backend model.Backend, name string) string {
-	if backend == model.BackendClaude && slices.Contains(knownCLIModels[backend], "claude-"+name) {
+	if backend == model.BackendClaude && reClaudeFamily.MatchString(name) {
 		return "claude-" + name
 	}
 	return name
 }
 
-// CLIModelWarning describes a route whose cli_model is not a known id for its
-// backend, or returns "" when it is known or the backend has no list.
+// CLIModelWarning describes a route whose cli_model its backend's CLI will
+// not take, or returns "" when it will or the backend is not checked.
 //
-// A warning and not an error: the list is orch's knowledge, not the CLI's, and
-// a model newer than this binary must still dispatch. No network call either —
-// preflight stays offline.
+// A warning and not an error: the rule is orch's knowledge, not the CLI's. No
+// network call either — preflight stays offline.
 func CLIModelWarning(key string, e model.RouteEntry) string {
-	known, listed := knownCLIModels[e.Backend]
-	if !listed || slices.Contains(known, e.CLIModel) {
+	if validCLIModel(e.Backend, e.CLIModel) {
 		return ""
 	}
-	fix := fmt.Sprintf("one of %s", strings.Join(known, ", "))
+	fix := "a full claude-… id (e.g. 'claude-sonnet-4-6') or an alias (" + claudeAliasesShown + ")"
 	if mapped := knownCLIModel(e.Backend, e.CLIModel); mapped != e.CLIModel {
 		fix = pyfmt.Quote(mapped)
 	}
