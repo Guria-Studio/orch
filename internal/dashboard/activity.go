@@ -3,6 +3,7 @@ package dashboard
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -82,12 +83,12 @@ func readActivity(path string, offset int64) (activityPayload, error) {
 		return out, nil
 	}
 	if err != nil {
-		return out, err
+		return out, fmt.Errorf("opening the dispatch log: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil {
-		return out, err
+		return out, fmt.Errorf("reading the dispatch log's size: %w", err)
 	}
 	out.Exists = true
 	size := info.Size()
@@ -100,7 +101,7 @@ func readActivity(path string, offset int64) (activityPayload, error) {
 	buf := make([]byte, min(size-offset, activityChunk))
 	n, err := f.ReadAt(buf, offset)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return out, err
+		return out, fmt.Errorf("reading the dispatch log at %d: %w", offset, err)
 	}
 	buf = buf[:n]
 	end := bytes.LastIndexByte(buf, '\n') + 1
