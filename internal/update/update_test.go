@@ -211,3 +211,45 @@ func TestCachePathIsUnderTheHomeOrchDirectory(t *testing.T) {
 		t.Errorf("CachePath = %q, want %q", got, want)
 	}
 }
+
+// The What's new page shows each release's notes whole, with its date.
+func TestParseReleasesKeepsNotesAndDate(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "releases-notes.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := parseReleases(data, "linux", "amd64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || got[0].Tag != "v0.16.0" || got[0].PublishedAt != "2026-09-26T22:04:53Z" {
+		t.Fatalf("releases = %+v", got)
+	}
+	if !strings.HasPrefix(got[0].Notes, "- A task's worktree now carries its unmerged dependencies") || len(got[0].Notes) < 2000 {
+		t.Errorf("v0.16.0 notes = %q…, want the whole body", got[0].Notes[:min(80, len(got[0].Notes))])
+	}
+}
+
+// A day-old cache written before the notes were kept is asked again: it would
+// leave the What's new page empty for the rest of its day.
+func TestCheckRefreshesACacheWithoutNotes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "update-check.json")
+	now := time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC)
+	if err := os.WriteFile(path, []byte(`{"checked_at":"2026-09-15T09:00:00Z","releases":[{"tag":"v0.13.0"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write(fixture(t))
+	}))
+	defer srv.Close()
+	for range 2 {
+		if _, err := Check(context.Background(), Client{API: srv.URL}, path, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if hits.Load() != 1 {
+		t.Errorf("GitHub was asked %d times, want once: the old cache, then the new one", hits.Load())
+	}
+}

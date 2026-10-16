@@ -10,3 +10,10 @@ It covers the cases the parser has to handle: a Go release with curated notes
 (v0.13.0), Go releases whose notes are empty (v0.12.x), and Python-line releases
 that ship a wheel instead of an `orch_<tag>_<os>_<arch>.tar.gz`, which must never
 be offered as an update. Do not edit it. Capture a new file instead.
+
+`releases-notes.json` is a second real response, captured on 2026-10-16 with
+gh 2.100.0, keeping `published_at` too, for the What's new page (#364): four
+Go releases (v0.13.1 to v0.16.0) with their full notes.
+
+    gh api 'repos/hectorcanaimero/orch/releases?per_page=4' \
+      --jq '[.[] | {tag_name, html_url, draft, prerelease, body, published_at, assets: [.assets[] | {name}]}]'

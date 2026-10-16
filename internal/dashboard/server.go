@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hectorcanaimero/orch/internal/update"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -48,6 +49,9 @@ type Server struct {
 	// portal and snapshot are Options.Portal and Options.Snapshot.
 	portal   fs.FS
 	snapshot func(ctx context.Context) (snapshot.Snapshot, error)
+	// version and releases are Options.Version and Options.Releases.
+	version  string
+	releases func(ctx context.Context) ([]update.Release, error)
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
@@ -146,6 +150,11 @@ type Options struct {
 	// /stakeholder/data.json — the same builder `orch publish` uses, passed
 	// in so this package never assembles one of its own.
 	Snapshot func(ctx context.Context) (snapshot.Snapshot, error)
+	// Version is the running orch's; Releases lists orch's releases for the
+	// What's new page (update.Check behind the CLI). nil Releases: update
+	// checks are off.
+	Version  string
+	Releases func(ctx context.Context) ([]update.Release, error)
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -171,6 +180,8 @@ func New(cfg Config, opts Options) (*Server, error) {
 		portal: opts.Portal,
 
 		snapshot: opts.Snapshot,
+		version:  opts.Version,
+		releases: opts.Releases,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,

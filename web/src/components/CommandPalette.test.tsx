@@ -24,6 +24,10 @@ vi.mock("@/hooks/useTasks", () => ({
   }),
 }))
 vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: { profile: "operator" } }) }))
+vi.mock("@/hooks/useReleases", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useReleases")>()),
+  useReleases: () => ({ data: undefined }),
+}))
 vi.mock("@/hooks/usePortfolio", () => ({
   usePortfolio: () => ({ data: undefined, error: undefined }),
   isPortfolioNavVisible: () => false,

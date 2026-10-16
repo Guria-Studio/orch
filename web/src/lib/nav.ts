@@ -11,6 +11,7 @@ import {
   Milestone,
   Radio,
   Send,
+  Sparkles,
   Wallet,
   Workflow,
 } from "lucide-react"
@@ -50,6 +51,7 @@ export const DESTINATIONS: NavDestination[] = [
     tabs: [
       { to: "/", label: "nav.now", route: "api_now", operatorOnly: true },
       { to: "/now/portfolio", label: "nav.portfolio", route: "api_portfolio", operatorOnly: true, portfolioGated: true },
+      { to: "/now/releases", label: "nav.releases", route: "api_releases", operatorOnly: true },
     ],
   },
   {
@@ -89,6 +91,7 @@ export const DESTINATIONS: NavDestination[] = [
 export const TAB_ICONS: Record<string, typeof Activity> = {
   "/": Activity,
   "/now/portfolio": LayoutGrid,
+  "/now/releases": Sparkles,
   "/work/list": ListIcon,
   "/work/kanban": KanbanSquare,
   "/work/graph": GitFork,

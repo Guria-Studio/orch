@@ -36,6 +36,10 @@ const (
 	MaxAge = 24 * time.Hour
 
 	defaultAPI = "https://api.github.com"
+
+	// cacheFormat is the update cache's layout: 1 keeps each release's notes
+	// and date.
+	cacheFormat = 1
 )
 
 // Release is one Go release of orch, as the notice needs it.
@@ -45,6 +49,10 @@ type Release struct {
 	Critical bool   `json:"critical"`
 	// Highlights are the first items of the release notes, one line each.
 	Highlights []string `json:"highlights"`
+	// Notes are the release notes whole, as Markdown, and PublishedAt when
+	// the release went out: what the dashboard's What's new page shows.
+	Notes       string `json:"notes"`
+	PublishedAt string `json:"published_at"`
 }
 
 // Client reads orch's releases.
@@ -55,12 +63,13 @@ type Client struct {
 }
 
 type apiRelease struct {
-	TagName    string `json:"tag_name"`
-	HTMLURL    string `json:"html_url"`
-	Draft      bool   `json:"draft"`
-	Prerelease bool   `json:"prerelease"`
-	Body       string `json:"body"`
-	Assets     []struct {
+	TagName     string `json:"tag_name"`
+	HTMLURL     string `json:"html_url"`
+	Draft       bool   `json:"draft"`
+	Prerelease  bool   `json:"prerelease"`
+	Body        string `json:"body"`
+	PublishedAt string `json:"published_at"`
+	Assets      []struct {
 		Name string `json:"name"`
 	} `json:"assets"`
 }
@@ -119,10 +128,12 @@ func parseReleases(body []byte, goos, goarch string) ([]Release, error) {
 			continue
 		}
 		out = append(out, Release{
-			Tag:        r.TagName,
-			URL:        r.HTMLURL,
-			Critical:   strings.Contains(r.Body, CriticalMarker),
-			Highlights: Highlights(r.Body, 3),
+			Tag:         r.TagName,
+			URL:         r.HTMLURL,
+			Critical:    strings.Contains(r.Body, CriticalMarker),
+			Highlights:  Highlights(r.Body, 3),
+			Notes:       r.Body,
+			PublishedAt: r.PublishedAt,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return Less(out[j].Tag, out[i].Tag) })
@@ -234,6 +245,10 @@ func Highlights(body string, max int) []string {
 type cache struct {
 	CheckedAt time.Time `json:"checked_at"`
 	Releases  []Release `json:"releases"`
+	// Format is cacheFormat when written. A cache from before the notes were
+	// kept (Format 0) answers the notice but not the What's new page, so it
+	// is read again rather than trusted for the rest of its day.
+	Format int `json:"format,omitempty"`
 }
 
 // CachePath is where checks are remembered: ~/.orch/update-check.json.
@@ -252,7 +267,7 @@ func CachePath() (string, error) {
 func Check(ctx context.Context, c Client, path string, now time.Time) ([]Release, error) {
 	var old cache
 	if data, err := os.ReadFile(path); err == nil { // #nosec G304 -- orch's own cache file
-		if json.Unmarshal(data, &old) == nil && now.Sub(old.CheckedAt) < MaxAge && !now.Before(old.CheckedAt) {
+		if json.Unmarshal(data, &old) == nil && now.Sub(old.CheckedAt) < MaxAge && !now.Before(old.CheckedAt) && old.Format == cacheFormat {
 			return old.Releases, nil
 		}
 	}
@@ -260,7 +275,7 @@ func Check(ctx context.Context, c Client, path string, now time.Time) ([]Release
 	if fetchErr != nil {
 		releases = old.Releases
 	}
-	if err := writeCache(path, cache{CheckedAt: now, Releases: releases}); err != nil && fetchErr == nil {
+	if err := writeCache(path, cache{CheckedAt: now, Releases: releases, Format: cacheFormat}); err != nil && fetchErr == nil {
 		return releases, err
 	}
 	return releases, fetchErr

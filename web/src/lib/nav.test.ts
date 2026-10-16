@@ -19,10 +19,11 @@ describe("visibleDestinations", () => {
   it("gives an operator the four destinations, Portfolio only when available", () => {
     const off = visibleDestinations({ isStakeholder: false, portfolioAvailable: false })
     expect(off.map((d) => d.id)).toEqual(["now", "work", "cost", "delivery"])
-    expect(shape(off).now).toEqual(["/"])
+    expect(shape(off).now).toEqual(["/", "/now/releases"])
     expect(shape(visibleDestinations({ isStakeholder: false, portfolioAvailable: true })).now).toEqual([
       "/",
       "/now/portfolio",
+      "/now/releases",
     ])
   })
 

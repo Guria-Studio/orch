@@ -179,6 +179,8 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Snapshot: func(ctx context.Context) (snapshot.Snapshot, error) {
 					return buildPublishSnapshot(ctx, paths, cfg, backend, portalRefresh, time.Now())
 				},
+				Version:  cmd.Root().Version,
+				Releases: dashboardReleases(),
 			})
 			if err != nil {
 				return err
