@@ -31,12 +31,14 @@ echo '<prompt>' | claude -p --output-format stream-json --verbose --model haiku 
 | File | How it was produced | Exit |
 |---|---|---|
 | `stream-success.jsonl` | prompt ``Read note.txt, then run `wc -l note.txt` with Bash, then reply with one short sentence saying what the file contains.`` | 0 |
+| `tool-errors.jsonl` | prompt ``Read missing.txt, then run `ls missing.txt` in the shell, then reply with one short sentence saying what happened.`` in an empty directory, `--allowedTools "Read,Bash(ls:*)"`: both tool results come back `is_error: true` | 0 |
 
 Eight lines: `system`/`init`, then `assistant` (a `Read` tool use), `user`
 (its result), `assistant` (a `Bash` tool use), `rate_limit_event`, `user`,
 `assistant` (the answer), and the envelope, `type: "result"`, with the same
-fields `--output-format json` printed alone. Two edits, both paths: the
-scratch directory is `/work/project` and the home directory `/home/user`.
+fields `--output-format json` printed alone. Two edits in each file, both
+paths: the scratch directory is `/work/project` and the home directory
+`/home/user`.
 
 `TestClaude2_1_301ParseKilledMidStream` cuts this file after its fifth line
 rather than reading a second capture: what a SIGKILL leaves is a prefix of
@@ -144,6 +146,8 @@ printf '<prompt>' | codex exec --skip-git-repo-check --json \
 | `unknown-model.jsonl` | same, `-m no-such-model-xyz` | 1 |
 | `auth-error.jsonl` | captured before login, so every request 401s | 1 |
 | `truncated.jsonl` | `success.jsonl` cut at 260 bytes | — |
+| `tool-errors.jsonl` | captured 2026-10-16, prompt ``Read missing.txt, then run `ls missing.txt` in the shell, then reply with one short sentence saying what happened.`` in an empty scratch git repository, **no `-m`**: `cat` exits 1, `ls` exits 2. Its first `error` item is codex warning about the operator's own skills, kept because that is what a real log carries | 0 |
+| `tools.jsonl` | captured 2026-10-16, prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` in a scratch git repository holding `note.txt`, **no `-m`**; read by `activity_test.go` | 0 |
 
 `success.jsonl` was captured **without `-m`**, which is the one place these
 bytes and `CodexProvider.Argv` differ. Every model name in
@@ -159,6 +163,21 @@ capture carries **plain-text stderr interleaved among the JSONL**
 (`2026-…Z ERROR codex_api::endpoint::responses_websocket: …`). That is what
 `jsonlEvents` skipping unparseable lines is for; before this file, the only
 thing exercising it was a truncated final line.
+
+## `opencode/1.18.32/` — real capture
+
+Captured on 2026-10-16 with the same argv as below, in a scratch directory
+holding `note.txt` (`hello from orch`); read by `activity_test.go`:
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `tool-errors.json` | same model, prompt ``Read missing.txt, then run `ls missing.txt` in the shell, then reply with one short sentence saying what happened.`` in an empty directory: the `read` is `status: "error"`; the `bash` call completes with its exit code in `metadata` | 0 |
+| `tools.json` | `--model opencode/mimo-v2.6-flash-free` (2.5 was gone), prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` | 0 |
+
+Two `step_start`/`step_finish` pairs: the first holds a `read` and a `bash`
+`tool_use` (`step_finish` reason `tool-calls`), the second the answer
+(reason `stop`). One edit: the scratch directory's path, which opencode
+writes with and without its leading slash, is `/work/project`, in both files.
 
 ## `opencode/1.18.30/` — real capture
 

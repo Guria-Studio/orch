@@ -1,5 +1,7 @@
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Hourglass, OctagonPause } from "lucide-react"
+import { AlertTriangle, ChevronDown, Hourglass, OctagonPause } from "lucide-react"
+import { ActivityFeed } from "@/components/ActivityFeed"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -38,28 +40,48 @@ function SectionHeading({ id, children, aside }: { id: string; children: React.R
   )
 }
 
+// An agent at work; opening the row follows what it is doing, live — the
+// work a dispatched agent does is otherwise invisible until it ends.
 function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
+  const [open, setOpen] = useState(false)
   const started = new Date(d.started_at).getTime()
   const attempt =
     d.max_attempts > 0 ? t("now.attempt", { attempt: d.attempt, max: d.max_attempts }) : t("now.attempt_n", { attempt: d.attempt })
+  const activityId = `activity-${d.task_id}`
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]">
-      <span className="hidden font-mono text-xs text-muted-foreground sm:block">{d.task_id}</span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium">{d.title}</span>
-        <span className="block truncate font-mono text-[11px] text-muted-foreground">
-          <span className="sm:hidden">{d.task_id} · </span>
-          {[d.provider, d.model, d.attempt > 1 || d.max_attempts > 0 ? attempt : null].filter(Boolean).join(" · ")}
-        </span>
-      </span>
-      <span
-        className="inline-flex items-center gap-2 font-mono text-sm tabular-nums text-status-running"
-        title={Number.isNaN(started) ? undefined : fmt.dateTime(d.started_at)}
-        aria-label={Number.isNaN(started) ? undefined : t("now.elapsed", { elapsed: formatElapsed(now - started) })}
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={activityId}
+        title={t("activity.show", { id: d.task_id })}
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]"
       >
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-running motion-reduce:animate-none" aria-hidden />
-        {Number.isNaN(started) ? "—" : formatElapsed(now - started)}
-      </span>
+        <span className="hidden font-mono text-xs text-muted-foreground sm:block">{d.task_id}</span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">{d.title}</span>
+          <span className="block truncate font-mono text-[11px] text-muted-foreground">
+            <span className="sm:hidden">{d.task_id} · </span>
+            {[d.provider, d.model, d.attempt > 1 || d.max_attempts > 0 ? attempt : null].filter(Boolean).join(" · ")}
+          </span>
+        </span>
+        <span
+          className="inline-flex items-center gap-2 font-mono text-sm tabular-nums text-status-running"
+          title={Number.isNaN(started) ? undefined : fmt.dateTime(d.started_at)}
+          aria-label={Number.isNaN(started) ? undefined : t("now.elapsed", { elapsed: formatElapsed(now - started) })}
+        >
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-running motion-reduce:animate-none" aria-hidden />
+          {Number.isNaN(started) ? "—" : formatElapsed(now - started)}
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform motion-reduce:transition-none", open && "rotate-180")}
+            aria-hidden
+          />
+        </span>
+      </button>
+      <div id={activityId} hidden={!open} className="border-t bg-muted/30 px-4 py-3">
+        {open ? <ActivityFeed taskId={d.task_id} live provider={d.provider} /> : null}
+      </div>
     </li>
   )
 }

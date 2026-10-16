@@ -51,6 +51,13 @@ vi.mock("@/hooks/useBudgetSummary", () => ({
   }),
 }))
 vi.mock("@/hooks/useTasks", () => ({ useTasks: () => ({ data: { tasks: [{ id: "F3.T1", title: "Cursor pagination" }] } }) }))
+const activityCalls: Array<[string | null, boolean]> = []
+vi.mock("@/hooks/useTaskActivity", () => ({
+  useTaskActivity: (taskId: string | null, live: boolean) => {
+    activityCalls.push([taskId, live])
+    return { steps: [{ kind: "tool", tool: "Edit", detail: "routes/items.ts" }], exists: true, loaded: true, failed: false }
+  },
+}))
 
 function base(): Now {
   return {
@@ -97,6 +104,18 @@ describe("NowPage", () => {
     expect(within(working).getByText("POST /items")).toBeInTheDocument()
     expect(within(working).getByText("claude · claude/sonnet · attempt 2 of 3")).toBeInTheDocument()
     expect(within(working).getByText("6:41")).toBeInTheDocument()
+  })
+
+  it("opens a working row onto what its agent is doing, followed live", () => {
+    activityCalls.length = 0
+    renderPage()
+    const row = screen.getByRole("button", { name: /POST \/items/ })
+    expect(row).toHaveAttribute("aria-expanded", "false")
+    expect(activityCalls).toHaveLength(0)
+    fireEvent.click(row)
+    expect(row).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByText("routes/items.ts")).toBeInTheDocument()
+    expect(activityCalls[0]).toEqual(["F2.T2", true])
   })
 
   it("lists blocked and budget-waiting tasks, and unblocking shows the command instead of doing it", () => {
