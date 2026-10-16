@@ -14,6 +14,34 @@ what the parser used to have to cope with.
 
 ---
 
+## `claude/2.1.301/` — real capture
+
+Captured on 2026-10-16 on this VPS in a scratch directory holding one file,
+`note.txt` (`hello from orch`), with the dispatch argv since claude streams
+(`--output-format stream-json --verbose`), the user's own settings, hooks and
+MCP servers kept out so none of them reaches the capture, and a tool grant
+narrow enough for the run to read and run one command:
+
+```
+echo '<prompt>' | claude -p --output-format stream-json --verbose --model haiku \
+    --setting-sources project --strict-mcp-config --add-dir . \
+    --permission-mode acceptEdits --allowedTools "Read,Bash(wc:*)" --max-budget-usd 0.1
+```
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `stream-success.jsonl` | prompt ``Read note.txt, then run `wc -l note.txt` with Bash, then reply with one short sentence saying what the file contains.`` | 0 |
+
+Eight lines: `system`/`init`, then `assistant` (a `Read` tool use), `user`
+(its result), `assistant` (a `Bash` tool use), `rate_limit_event`, `user`,
+`assistant` (the answer), and the envelope, `type: "result"`, with the same
+fields `--output-format json` printed alone. Two edits, both paths: the
+scratch directory is `/work/project` and the home directory `/home/user`.
+
+`TestClaude2_1_301ParseKilledMidStream` cuts this file after its fifth line
+rather than reading a second capture: what a SIGKILL leaves is a prefix of
+these bytes, and slicing the real ones keeps the test honest about which.
+
 ## `claude/2.1.272/` — real capture
 
 Captured on 2026-09-15 on this VPS in an empty directory, with the argv

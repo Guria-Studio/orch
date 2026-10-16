@@ -11,8 +11,11 @@ import (
 // ClaudeProvider adapts the `claude` CLI. Port of dispatcher.py's
 // ClaudeBackend.
 //
-// The CLI emits one JSON envelope on stdout under `--output-format json`.
-// A run counts as a success only when the process exited 0 AND the envelope
+// The CLI streams one JSON event per line under `--output-format stream-json`
+// — what the agent says and every tool it calls, as it happens, which is what
+// lets the dashboard follow a running task — and ends with the envelope it
+// used to print alone under `--output-format json`: `type: "result"`, same
+// fields. A run counts as a success only when the process exited 0 AND the envelope
 // says `is_error: false` AND `subtype: "success"` — all three, because 2.1.269
 // will happily exit non-zero with `subtype: "success"` on an API error (see
 // testdata/claude/2.1.269/unrecognized-model.log).
@@ -22,9 +25,12 @@ func (ClaudeProvider) Name() model.Backend { return model.BackendClaude }
 
 func (ClaudeProvider) PromptDelivery() PromptDelivery { return PromptStdin }
 
-// Argv returns the argv for `claude -p --output-format json ...`.
+// Argv returns the argv for `claude -p --output-format stream-json --verbose ...`.
 //
-// The order is the Python's, flag for flag. `--add-dir .` is the literal dot:
+// The order is the Python's, flag for flag, except the output format: Python
+// asked for `json`, which writes nothing until the run ends, so a dispatch
+// could not be followed while it ran. `stream-json` requires `--verbose`
+// under `-p`. `--add-dir .` is the literal dot:
 // the engine passes the real directory as the child's working directory, and
 // the flag grants explicit write access to it as defence in depth.
 //
@@ -42,7 +48,8 @@ func (ClaudeProvider) Argv(req Request) []string {
 	argv := []string{
 		"claude",
 		"-p",
-		"--output-format", "json",
+		"--output-format", "stream-json",
+		"--verbose",
 		"--model", req.Route.CLIModel,
 	}
 	if req.SessionID != "" {
@@ -70,7 +77,7 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 		return Result{
 			ExitCode:     exitCode,
 			Success:      false,
-			Stdout:       text,
+			Stdout:       withoutStreamEvents(text),
 			ErrorMessage: "could not parse claude JSON envelope",
 		}
 	}
@@ -94,7 +101,7 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 		CacheReadTokens:     usageInt(env, "cache_read_input_tokens"),
 		CacheCreationTokens: usageInt(env, "cache_creation_input_tokens"),
 		TokensOut:           tokensOut,
-		Stdout:              text,
+		Stdout:              withoutStreamEvents(text),
 		Text:                asString(env["result"]),
 		ErrorMessage:        errMsg,
 		PermissionDenials:   claudeDenials(env),
@@ -200,10 +207,12 @@ func (c ClaudeProvider) ExtractCost(output []byte) (cost float64, tokensIn, toke
 
 // parseClaudeEnvelope extracts the top-level JSON object from claude's output.
 //
-// The whole capture is the envelope on a clean run. When the CLI also wrote to
-// stderr — which the engine merges into the same stream — the blob as a whole
-// is not JSON, and the envelope is the last line that parses. Port of
-// _parse_claude_envelope, including that fallback.
+// The whole capture is the envelope on a clean `json` run. When the CLI also
+// wrote to stderr — which the engine merges into the same stream — the blob as
+// a whole is not JSON, and the envelope is the last line that parses. Port of
+// _parse_claude_envelope, including that fallback, which is also what reads a
+// `stream-json` run: its envelope is the last line. A stream event is never
+// the envelope, so a run killed before its `result` line has none.
 func parseClaudeEnvelope(output []byte) (map[string]any, bool) {
 	stripped := strings.TrimSpace(string(output))
 	if stripped == "" {
@@ -218,9 +227,36 @@ func parseClaudeEnvelope(output []byte) (map[string]any, bool) {
 		if line == "" {
 			continue
 		}
-		if obj, ok := decodeObject([]byte(line)); ok {
+		if obj, ok := decodeObject([]byte(line)); ok && !isStreamEvent(obj) {
 			return obj, true
 		}
 	}
 	return nil, false
+}
+
+// isStreamEvent reports a `stream-json` line other than the envelope. The
+// envelope says `type: "result"` in both output formats; agy's, which goes
+// through parseClaudeEnvelope too, has no `type` at all.
+func isStreamEvent(obj map[string]any) bool {
+	typ, ok := obj["type"].(string)
+	return ok && typ != "result"
+}
+
+// withoutStreamEvents is output minus its stream events: the envelope and any
+// line that is not JSON (stderr) stay. Result.Stdout feeds the classifier's
+// marker scan, and the events carry text that is not claude's verdict — a
+// `rate_limit_event` on every run, whatever the agent's tools printed.
+func withoutStreamEvents(output string) string {
+	if !strings.Contains(output, "\n") {
+		return output
+	}
+	lines := strings.SplitAfter(output, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if obj, ok := decodeObject([]byte(strings.TrimSpace(line))); ok && isStreamEvent(obj) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "")
 }
