@@ -59,6 +59,7 @@ func newMCPCmd(flags *projectFlags) *cobra.Command {
 				TasksJSON:   paths.TasksJSON(),
 				ProjectID:   paths.ID,
 				ProjectRoot: paths.Root,
+				StateDir:    paths.StateDir(),
 				SpecRoot:    cfg.SpecRoot,
 				Version:     cmd.Root().Version,
 			}

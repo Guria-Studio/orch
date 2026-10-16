@@ -94,6 +94,20 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	delete(s.inFlight, c.pid)
 
 	out := c.outcome
+	hold, stopped := s.stopping[c.pid]
+	delete(s.stopping, c.pid)
+	if stopped && s.taskStatusIs(ctx, entry.Task.ID, model.StatusDone) {
+		// The agent reported done before the stop reached it: its work
+		// stands.
+		s.logger().Info("the stopped task had already reported done; keeping it", "task", entry.Task.ID)
+		stopped = false
+	}
+	if stopped {
+		out.Stopped, out.Held = true, hold
+		out.Result.Success = false
+		out.Result.ErrorMessage = "stopped by the operator"
+		out.Failure = ""
+	}
 	s.spentUSD[entry.Task.ID] += out.Result.CostUSD
 
 	d := entry.Dispatch
@@ -111,7 +125,7 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	// state backend is asked rather than the wrapper believed — the same rule
 	// handleFailure applies to a done — and a blocked task's branch is not
 	// published: tidied as a failure, it is committed locally and no further.
-	agentBlocked := out.Result.Success && s.taskStatusIs(ctx, entry.Task.ID, model.StatusBlocked)
+	agentBlocked := !stopped && out.Result.Success && s.taskStatusIs(ctx, entry.Task.ID, model.StatusBlocked)
 	tidyOut := out
 	if agentBlocked {
 		tidyOut.Result.Success = false
@@ -129,6 +143,8 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	entry.Lock.Release()
 
 	switch {
+	case stopped:
+		return s.finishStopped(ctx, entry, hold)
 	case agentBlocked:
 		return s.keepAgentBlock(ctx, entry)
 	case !out.Result.Success:

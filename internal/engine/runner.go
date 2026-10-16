@@ -83,6 +83,9 @@ type Runner struct {
 	// Statuses is the database's view of each task, which this run adopts
 	// where it changed behind the run's back. Nil disables it.
 	Statuses StatusReader
+	// Requests is where the operator's stop requests are read from (#356).
+	// Nil disables them.
+	Requests StopRequests
 
 	// Signals, when non-nil, is used instead of installing real handlers —
 	// the tests drive it directly rather than signalling the test binary.
@@ -97,6 +100,8 @@ type Runner struct {
 	// whether the stall since then was already reported.
 	lastProgress time.Time
 	stallWarned  bool
+	// requestCursor is the last event id takeStopRequests has seen.
+	requestCursor int64
 	// lastBudgetAlert is when the budget alerts last read the windows.
 	lastBudgetAlert time.Time
 
@@ -140,6 +145,8 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 		s.logger().Warn("startup reconcile failed; continuing", "err", err)
 	}
 
+	r.startStopRequests(ctx)
+
 	lastReconcile := r.now()
 	r.lastProgress = r.now()
 	interrupted := false
@@ -168,6 +175,9 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 		if err != nil {
 			return 1, fmt.Errorf("reap: %w", err)
 		}
+		// After the reap, so a child that finished on its own is finished
+		// as what it was, not as stopped.
+		r.takeStopRequests(ctx)
 
 		// CI runs on its own interval, after the reap that may have just
 		// opened a PR. A sweep that cannot happen is logged and the loop
