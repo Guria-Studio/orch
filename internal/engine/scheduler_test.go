@@ -14,6 +14,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
 // ---- Fixtures ------------------------------------------------------------
@@ -801,5 +802,55 @@ func TestTaskLockSkipsATaskAnotherOrchOwns(t *testing.T) {
 		if e.Task.ID == "C-1" {
 			t.Error("dispatched a task another orch holds the lock on")
 		}
+	}
+}
+
+// prMap is a TaskPRReader over a fixed map; a task not in it has no PR.
+type prMap map[string]string
+
+func (m prMap) TaskPR(_ context.Context, id string) (string, error) { return m[id], nil }
+
+// TestDispatchLeavesOutDependenciesWhosePRMerged: #345. A dependency's PR was
+// squash-merged with its branch still on the remote; merging that branch into
+// the dependent's worktree conflicted with the squashed commit that already
+// holds the same work, and the dependent blocked. A dependency whose PR is
+// merged is in the base: its branch is not handed to the worktree to merge.
+func TestDispatchLeavesOutDependenciesWhosePRMerged(t *testing.T) {
+	merged, open := "https://github.com/o/r/pull/1", "https://github.com/o/r/pull/2"
+	done := func(id string) model.Task {
+		tk := task(id, 1, "claude/opus")
+		tk.Status = model.StatusDone
+		return tk
+	}
+	f := newReapFixture(t,
+		[]model.Task{done("D-1"), done("D-2"), done("D-3"), task("C-1", 1, "claude/opus", "D-1", "D-2", "D-3")},
+		map[string]fakeResponse{"C-1": okResponse()},
+		SchedulerOptions{WorktreeMode: true, BaseBranch: "main"})
+	wt := &recordingWorktree{dir: t.TempDir()}
+	v := &fakeVCS{prState: map[string]vcs.PRState{merged: vcs.PRMerged, open: vcs.PROpen}}
+	f.s.Worktree, f.s.VCS = wt, v
+	f.s.PRs = prMap{"D-1": merged, "D-2": open}
+
+	if _, err := f.s.Refill(context.Background()); err != nil {
+		t.Fatalf("Refill: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := f.s.DrainWait(context.Background(), 30*time.Second); err != nil {
+			t.Errorf("DrainWait: %v", err)
+		}
+	})
+
+	wt.mu.Lock()
+	got := wt.deps["C-1"]
+	wt.mu.Unlock()
+	if !equalStrings(got, []string{"D-2", "D-3"}) {
+		t.Errorf("deps handed to the worktree = %v, want [D-2 D-3]: D-1's PR is merged", got)
+	}
+	// D-3 has no PR, so the forge is asked about D-1 and D-2 only.
+	v.mu.Lock()
+	calls := v.prStateCalls
+	v.mu.Unlock()
+	if calls != 2 {
+		t.Errorf("PRState asked %d times, want 2", calls)
 	}
 }

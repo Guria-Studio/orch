@@ -506,6 +506,8 @@ type recordingWorktree struct {
 	dir       string
 	// changed is what ChangedFiles reports: the files the agent's work touched.
 	changed []string
+	// deps is what each Create was asked to merge in, by task.
+	deps map[string][]string
 }
 
 func (w *recordingWorktree) record(name string) {
@@ -542,8 +544,14 @@ func (w *recordingWorktree) RemoveAll(context.Context) error {
 	w.record("remove_all")
 	return nil
 }
-func (w *recordingWorktree) Create(_ context.Context, taskID, _ string, _ ...string) (string, error) {
+func (w *recordingWorktree) Create(_ context.Context, taskID, _ string, deps ...string) (string, error) {
 	w.record("create")
+	w.mu.Lock()
+	if w.deps == nil {
+		w.deps = map[string][]string{}
+	}
+	w.deps[taskID] = append([]string{}, deps...)
+	w.mu.Unlock()
 	if w.createErr != nil {
 		return "", w.createErr
 	}

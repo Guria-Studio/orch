@@ -45,7 +45,7 @@ func newRunCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().StringVar(&opts.mode, "mode", string(engine.ModeAuto),
 		"auto dispatches everything ready; semi asks before each critical task")
 	cmd.Flags().IntVar(&opts.maxTasks, "max-tasks", 0,
-		"Stop after dispatching this many tasks; 0 means no limit")
+		"Start at most this many tasks (their retries do not count); 0 means no limit")
 	cmd.Flags().StringVar(&opts.only, "only", "",
 		"Only dispatch tasks whose id matches this glob (dependencies still resolve across the whole DAG)")
 	cmd.Flags().BoolVar(&opts.taskLocks, "task-locks", false,
@@ -96,6 +96,12 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	if err != nil {
 		return withExitCode(1, err)
 	}
+
+	runLock, err := takeRunLock(opts, paths.StateDir())
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	defer runLock.Release()
 
 	backend := opts.backend
 	if backend == nil {
@@ -170,6 +176,9 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	// different question: what a finished dependency reported, for
 	// the prompt's context block.
 	scheduler.Comments = engine.NewStateRecorder(backend)
+	// And a dependency's PR, so one already merged is not merged into its
+	// dependent's worktree a second time (#345).
+	scheduler.PRs = engine.NewStateRecorder(backend)
 	// Built unconditionally: with no webhook configured it is a
 	// working no-op, so the engine never has to ask whether the
 	// operator wanted notifications.
@@ -255,6 +264,20 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		return withSilentExitCode(code)
 	}
 	return nil
+}
+
+// takeRunLock is the one-run-per-project lock, taken before anything is
+// opened or dispatched: two runs on a project adopt each other's writes and
+// dispatch the same tasks (#344).
+//
+// Not with --task-locks, whose whole promise is several orch instances
+// sharing one project, each taking a distinct set of tasks; the per-task
+// locks are what keeps those apart. A nil lock is safe to Release.
+func takeRunLock(opts runOptions, stateDir string) (*engine.RunLock, error) {
+	if opts.taskLocks {
+		return nil, nil
+	}
+	return engine.AcquireRunLock(stateDir)
 }
 
 // perDispatchCap is budget.per_dispatch_usd as the per-attempt cap claude

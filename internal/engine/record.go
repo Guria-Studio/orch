@@ -249,6 +249,15 @@ func (r StateRecorder) TaskComments(ctx context.Context, taskID string) ([]json.
 	return t.Comments, nil
 }
 
+// TaskPR reads the pull request URL recorded for a task; "" when it has none.
+func (r StateRecorder) TaskPR(ctx context.Context, taskID string) (string, error) {
+	t, err := r.Backend.Task(ctx, taskID)
+	if err != nil {
+		return "", err
+	}
+	return t.PRURL, nil
+}
+
 // Transition moves a task, recording who moved it and why.
 func (r StateRecorder) Transition(ctx context.Context, taskID string, to model.Status, note string) error {
 	// KeepPR: the engine's only move to todo is the CI retry, which works on

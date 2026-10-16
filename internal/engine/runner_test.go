@@ -1138,7 +1138,7 @@ func TestStallSummaryNamesWhatTheRunWaitsOn(t *testing.T) {
 			name:  "a ready task past --max-tasks",
 			task:  task("C-1", 1, "claude/opus"),
 			opts:  SchedulerOptions{MaxTasks: 1},
-			setup: func(f *runnerFixture) { f.s.dispatched = 1 },
+			setup: func(f *runnerFixture) { f.s.dispatched, f.s.dispatchedIDs["C-0"] = 1, true },
 			want:  "C-1 ready but not dispatched: --max-tasks reached",
 		},
 		{
@@ -1162,5 +1162,105 @@ func TestStallSummaryNamesWhatTheRunWaitsOn(t *testing.T) {
 				t.Errorf("summary = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// ---- --max-tasks (#346) --------------------------------------------------
+
+// TestMaxTasksDoesNotCountARetry: --max-tasks bounds new tasks, not attempts.
+// The cap used to gate the retry queue too, so with --max-tasks 1 the first
+// attempt's retry was never dispatched and the run waited on it forever.
+func TestMaxTasksDoesNotCountARetry(t *testing.T) {
+	f := newRunnerFixture(t,
+		[]model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": failResponse("503 service unavailable")},
+		SchedulerOptions{MaxTasks: 1})
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if f.s.Dispatched() != 2 {
+		t.Errorf("dispatched = %d, want 2 (the first attempt and its retry)", f.s.Dispatched())
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+		t.Errorf("status = %q, want blocked after the last attempt", got)
+	}
+}
+
+// TestMaxTasksExitsWithReadyWorkLeft: once the cap is spent and nothing is
+// running, the ready tasks the cap holds back are not work this run can do.
+// The loop used to count them as work left and never exit.
+func TestMaxTasksExitsWithReadyWorkLeft(t *testing.T) {
+	f := newRunnerFixture(t,
+		[]model.Task{task("C-1", 1, "claude/opus"), task("C-2", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse(), "C-2": okResponse()},
+		SchedulerOptions{MaxTasks: 1})
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if f.s.Dispatched() != 1 {
+		t.Errorf("dispatched = %d, want 1", f.s.Dispatched())
+	}
+	done, todo := 0, 0
+	for _, id := range []string{"C-1", "C-2"} {
+		switch st, _ := f.s.Queue.Status(id); st {
+		case model.StatusDone:
+			done++
+		case model.StatusTodo:
+			todo++
+		}
+	}
+	if done != 1 || todo != 1 {
+		t.Errorf("done = %d, todo = %d; want one task run and one left for the next run", done, todo)
+	}
+}
+
+// TestMaxTasksStillDispatchesACIRetry: the observed hang. The cap is spent on
+// C-1, whose PR then fails CI; the poller queues the re-dispatch, and the run
+// must start it rather than sit in `waiting on CI` forever.
+func TestMaxTasksStillDispatchesACIRetry(t *testing.T) {
+	url := "https://github.com/o/r/pull/1"
+	f := newRunnerFixture(t,
+		[]model.Task{
+			{ID: "C-1", Phase: 1, Title: "t", Model: "claude/opus", Status: model.StatusInProgress, EstimateHours: 1},
+			task("C-2", 1, "claude/opus"),
+		},
+		map[string]fakeResponse{"C-1": okResponse(), "C-2": okResponse()},
+		SchedulerOptions{MaxTasks: 1})
+	f.s.dispatched = 1
+	f.s.dispatchedIDs["C-1"] = true
+	v := &fakeVCS{status: map[string]vcs.CIState{url: vcs.CIFailure}}
+	ci := &fakeCIBackend{rows: []state.TaskRuntime{pendingRow("C-1", url, 0)}, counters: map[string]int{}}
+	f.r.CI = &CIPoller{Provider: v, Backend: ci, Worktree: &fakeCIWorktree{dir: t.TempDir()}, PollInterval: time.Second}
+
+	// The re-dispatch's push restarts CI, which goes green once it is reaped.
+	// Both flips happen between ticks: a refill is always followed by a
+	// sleep, so the poll never sees the old red after the retry started.
+	sleep := f.r.sleep
+	f.r.sleep = func(d time.Duration) {
+		sleep(d)
+		if f.s.Dispatched() < 2 {
+			return
+		}
+		v.mu.Lock()
+		v.status[url] = vcs.CIPending
+		if len(f.s.InFlight()) == 0 {
+			v.status[url] = vcs.CISuccess
+		}
+		v.mu.Unlock()
+	}
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if f.s.Dispatched() != 2 {
+		t.Errorf("dispatched = %d, want 2: the CI retry of C-1, and nothing new", f.s.Dispatched())
+	}
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+		t.Errorf("C-1 = %q, want done after its CI retry went green", got)
+	}
+	if got, _ := f.s.Queue.Status("C-2"); got != model.StatusTodo {
+		t.Errorf("C-2 = %q, want todo: the cap was already spent", got)
 	}
 }
