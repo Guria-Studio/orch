@@ -102,6 +102,8 @@ export const pt = {
   "onboarding.recheck": "Verificar de novo",
   "onboarding.providers": "Uma CLI de provedor está instalada",
   "onboarding.providers.hint": "O orch despacha tarefas para claude, codex, opencode, gemini ou agy.",
+  "onboarding.claude_permissions": "Os agentes do claude podem usar as ferramentas do orch",
+  "onboarding.claude_permissions.hint": "O claude nega aos agentes as ferramentas MCP e os scripts do orch até que .claude/settings.json os permita. O comando mostra as regras e pergunta antes.",
   "onboarding.budget": "O limite de orçamento está ativo",
   "onboarding.budget.hint": "Sem budgets.yaml nada raciona o uso dos provedores.",
   "onboarding.tasks": "tasks.json tem tarefas",

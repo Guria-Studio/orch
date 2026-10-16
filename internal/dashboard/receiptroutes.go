@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/budget"
@@ -121,13 +122,22 @@ func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 		providers.Done = false
 		providers.Detail = "model_router.yaml: " + rErr.Error()
 	}
-	for _, c := range checkBackends(doctor.ReferencedBackends(view.Tasks, rtr)) {
+	backends := doctor.ReferencedBackends(view.Tasks, rtr)
+	for _, c := range checkBackends(backends) {
 		if c.Status == doctor.StatusError {
 			providers.Done = false
 			providers.Detail = joinDetail(providers.Detail, c.Detail)
 		}
 	}
 	out.Items = append(out.Items, providers)
+	// Claude refuses its agents orch's own tools until the project allows
+	// them (#361); shown only to a project that routes tasks to claude.
+	if slices.Contains(backends, "claude") {
+		out.Items = append(out.Items, onboardingItem{
+			ID: "claude_permissions", Done: len(doctor.MissingOrchRules(s.paths.Root)) == 0,
+			Command: doctor.ClaudePermissionsCommand,
+		})
+	}
 
 	budgetItem := onboardingItem{ID: "budget", Done: true, Link: "/cost/budget"}
 	// The budget is config.yaml's to name; a config.yaml that does not load

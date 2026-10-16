@@ -79,6 +79,19 @@ A client that does otherwise should pass the project explicitly:
 "args": ["mcp", "--project-root", "/path/to/project"]
 ```
 
+### Letting claude's agents call them
+
+Claude refuses an agent a tool its settings do not allow, and hides a refused
+MCP tool rather than saying so. `orch claude-permissions` adds `mcp__orch` —
+and the two task scripts the dispatch prompt names as the other way to report
+— to `permissions.allow` in `.claude/settings.json`, after showing them and
+asking; `orch init`'s wizard asks the same question.
+
+Claude ignores a project file's allow rules in a directory nobody accepted its
+trust dialog in, and orch's worktrees are new directories beside the project.
+So for every claude dispatch the engine also passes the project's
+`permissions` through `--settings`, which claude honours either way (#361).
+
 `orch mcp` speaks JSON-RPC on stdin and stdout and writes nothing else to
 stdout — anything it printed there would be framed as a protocol message.
 Run it from a client, not from a terminal.
