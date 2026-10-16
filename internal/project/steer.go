@@ -77,19 +77,23 @@ type StopResult struct {
 func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) (StopResult, error) {
 	t, err := s.Backend.Task(ctx, taskID)
 	if err != nil {
-		return StopResult{}, err
+		return StopResult{}, fmt.Errorf("reading %s: %w", taskID, err)
 	}
 	if strings.TrimSpace(note) != "" {
 		if err := s.Note(ctx, taskID, note); err != nil {
-			return StopResult{}, err
+			return StopResult{}, fmt.Errorf("adding the note to %s: %w", taskID, err)
 		}
 	}
 	res := StopResult{TaskID: taskID, Hold: hold, From: t.Status, To: t.Status}
 
-	if s.runLive(ctx, taskID) {
+	live, err := s.runLive(ctx, taskID)
+	if err != nil {
+		return StopResult{}, err
+	}
+	if live {
 		after, err := s.Backend.LatestEventID(ctx)
 		if err != nil {
-			return StopResult{}, err
+			return StopResult{}, fmt.Errorf("reading the event log: %w", err)
 		}
 		// No run id: the request comes from outside any run. That also
 		// keeps the event dedup hash of the run's answer — written in the
@@ -103,7 +107,7 @@ func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) 
 			// land.
 			Extra: map[string]any{"hold": hold, "requested_by": s.Source, "pid": os.Getpid()},
 		}); err != nil {
-			return StopResult{}, err
+			return StopResult{}, fmt.Errorf("writing the stop request for %s: %w", taskID, err)
 		}
 		res.Requested, res.RequestID = true, after
 		then := "dispatches it again"
@@ -128,7 +132,7 @@ func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) 
 		body = "stopped by the operator"
 	}
 	if err := s.Backend.Transition(ctx, taskID, res.To, state.Note{Author: OperatorAuthor, Body: body}); err != nil {
-		return StopResult{}, err
+		return StopResult{}, fmt.Errorf("moving %s to %s: %w", taskID, res.To, err)
 	}
 	res.Message = fmt.Sprintf("no orch run is running: %s %s -> %s", taskID, res.From, res.To)
 	return res, nil
@@ -162,28 +166,29 @@ func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Dur
 
 // runLive reports whether an `orch run` may be acting on this project: one
 // holds the run lock, or (with --task-locks, which takes none) the task has a
-// dispatch whose process is alive.
-func (s Steer) runLive(ctx context.Context, taskID string) bool {
+// dispatch whose process is alive. An unreadable dispatch table is an error:
+// guessing "no run" would change the status behind a run's back.
+func (s Steer) runLive(ctx context.Context, taskID string) (bool, error) {
 	if f, err := os.Open(filepath.Join(s.StateDir, RunLockFile)); err == nil { // #nosec G304 -- the project's own state dir
 		defer func() { _ = f.Close() }()
 		// A shared, non-blocking flock fails only while a run holds its
 		// exclusive one.
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); errors.Is(err, syscall.EWOULDBLOCK) {
-			return true
+			return true, nil
 		} else if err == nil {
 			_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		}
 	}
 	rows, err := s.Backend.InFlightDispatches(ctx)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("reading the running dispatches: %w", err)
 	}
 	for _, d := range rows {
 		if d.TaskID == taskID && d.PID > 0 {
 			if err := syscall.Kill(d.PID, 0); err == nil || errors.Is(err, syscall.EPERM) {
-				return true
+				return true, nil
 			}
 		}
 	}
-	return false
+	return false, nil
 }
