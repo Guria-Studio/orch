@@ -30,12 +30,12 @@ const HeldReason = "held by the operator"
 const EventOperatorStop = "operator_stop"
 
 // Steer is how the operator steers a task (#356): a note for its agent, or a
-// stop. The CLI and the MCP server both go through it, so every
+// stop. The CLI, the MCP server and the dashboard all go through it, so every
 // source writes the same request and only `orch run` touches processes.
 type Steer struct {
 	Backend  state.Backend
 	StateDir string
-	// Source names who asked, in the request's extra: cli, mcp.
+	// Source names who asked, in the request's extra: cli, mcp, dashboard.
 	Source string
 }
 

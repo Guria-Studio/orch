@@ -15,6 +15,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/dashboard"
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/publish"
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
 	"github.com/hectorcanaimero/orch/internal/state"
@@ -181,6 +182,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				},
 				Version:  cmd.Root().Version,
 				Releases: dashboardReleases(),
+				Steer:    &project.Steer{Backend: backend, StateDir: paths.StateDir()},
 			})
 			if err != nil {
 				return err

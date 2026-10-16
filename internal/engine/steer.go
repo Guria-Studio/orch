@@ -11,7 +11,7 @@ import (
 )
 
 // StopRequests is where the loop reads the operator's stop requests (#356):
-// the event log, which `orch task stop` and orch_task_stop
+// the event log, which `orch task stop`, orch_task_stop and the dashboard
 // append to from their own processes. state.Backend satisfies it.
 type StopRequests interface {
 	LatestEventID(ctx context.Context) (int64, error)

@@ -11,7 +11,7 @@ import (
 )
 
 // The operator's two steering tools (#356). They go through project.Steer,
-// the same path as `orch task note|stop`.
+// the same path as `orch task note|stop` and the dashboard.
 
 func (s *server) steer() project.Steer {
 	return project.Steer{Backend: s.opts.Backend, StateDir: s.opts.StateDir, Source: "mcp"}
