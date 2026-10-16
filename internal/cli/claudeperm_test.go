@@ -78,14 +78,17 @@ func TestInitWizardOffersClaudePermissions(t *testing.T) {
 	if !strings.Contains(out, "Add them? [Y/n]") {
 		t.Fatalf("the wizard did not offer the claude rules:\n%s", out)
 	}
+	if strings.Contains(out, "orch claude-permissions --project-root") {
+		t.Errorf("the wizard both lists the command and asks:\n%s", out)
+	}
 	if m := doctor.MissingOrchRules(dir); len(m) != 0 {
 		t.Errorf("still missing %v after accepting:\n%s", m, out)
 	}
 
 	batch := filepath.Join(t.TempDir(), "batch")
 	out, _ = runOrch(t, "", "init", batch)
-	if strings.Contains(out, "Add them?") || fileExists(filepath.Join(batch, ".claude", "settings.json")) {
-		t.Errorf("batch init asked or wrote:\n%s", out)
+	if !strings.Contains(out, "orch claude-permissions --project-root") || strings.Contains(out, "Add them?") || fileExists(filepath.Join(batch, ".claude", "settings.json")) {
+		t.Errorf("batch init should list the command, not ask or write:\n%s", out)
 	}
 }
 

@@ -100,7 +100,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("scaffolding %s: %w", opts.Root, err)
 			}
 
-			printInitResult(cmd, res, opts)
+			printInitResult(cmd, res, opts, term != nil)
 			// The wizard asks; batch names the command in its next steps. A
 			// failure here is reported, but the project is already written.
 			if term != nil {
@@ -131,7 +131,10 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 // The router line comes first among the notes because it is the one that
 // changed: `orch init` now routes a template's own models, and saying so is
 // what stops an operator from wondering whether they still need to.
-func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options) {
+//
+// asks says the wizard will offer the claude rules right after, so the step
+// that names the command is left out.
+func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, asks bool) {
 	out := cmd.OutOrStdout()
 	// A failed write to stdout is not something this command can act on —
 	// the project is already scaffolded and the banner is the last thing it
@@ -168,9 +171,13 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 		say("  2. Preview the plan:")
 		say("       orch validate --project-root %s", res.Root)
 	}
-	say("  3. Let claude agents use orch's tools (it shows the rules and asks):")
-	say("       orch claude-permissions --project-root %s", res.Root)
-	say("  4. Run it:")
+	step := 3
+	if !asks {
+		say("  3. Let claude agents use orch's tools (it shows the rules and asks):")
+		say("       orch claude-permissions --project-root %s", res.Root)
+		step = 4
+	}
+	say("  %d. Run it:", step)
 	say("       orch run --project-root %s --mode semi", res.Root)
 	say("")
 	say("  If you change a task's `model` later, add its route:")
