@@ -118,6 +118,9 @@ dispatch:
   # Run in each fresh worktree before the agent starts, so its tests find
   # their dependencies, e.g. "pnpm install --frozen-lockfile" or "uv sync --frozen".
   worktree_setup: ""
+  # Give each task its own docker compose project (COMPOSE_PROJECT_NAME), so
+  # parallel tasks never recreate or remove each other's containers.
+  isolate_compose: true
 
 # Sprint F-4 — VCS integration (PR automation + CI polling).
 # Requires dispatch.worktree_mode: true to have any effect.

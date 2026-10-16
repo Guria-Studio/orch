@@ -125,6 +125,7 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	// Capacity comes back before the verdict, so a retry queued below can be
 	// picked up by the very next refill rather than waiting a tick.
 	s.Sems.Release(string(entry.Route.Backend))
+	s.slots.Release(entry.Task.ID)
 	entry.Lock.Release()
 
 	switch {

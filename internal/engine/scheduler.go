@@ -172,6 +172,8 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
+	// slots numbers the running tasks for ORCH_TASK_SLOT (#343).
+	slots *TaskSlots
 	// now is the clock, injectable so the backoff tests do not wait.
 	now func() time.Time
 }
@@ -254,6 +256,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		done:          make(chan completion, capacity),
 		spentUSD:      make(map[string]float64),
 		ciRetryPR:     make(map[string]string),
+		slots:         NewTaskSlots(),
 		now:           time.Now,
 	}
 }
@@ -489,8 +492,14 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// From here on, every failure path must give back both the slots and the
 	// lock, or the run leaks capacity until it deadlocks with nothing
 	// running.
+	//
+	// The slot is taken here, before the worktree, because worktree_setup
+	// runs with it too: a setup that starts containers must start the
+	// task's own (#343).
+	s.slots.Acquire(task.ID)
 	release := func() {
 		s.Sems.Release(backend)
+		s.slots.Release(task.ID)
 		lock.Release()
 	}
 
@@ -518,7 +527,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// prevent.
 	workdir := s.Opts.Cwd
 	if s.Worktree != nil && s.Opts.WorktreeMode {
-		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.depsToMerge(ctx, task)...)
+		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
 		if err != nil {
 			release()
 			s.logger().Error("creating the worktree failed", "task", task.ID, "err", err)
@@ -555,6 +564,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		// The invitation names orch_report_finding, which only files when
 		// the project opted in; otherwise it would ask for the impossible.
 		ReportFindings: s.Opts.Cfg.ReportFindings.Enabled,
+		ComposeProject: s.composeProject(task.ID),
 		Spec:           specState,
 	})
 	if err != nil {
@@ -580,7 +590,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		PromptPath: promptPath,
 		LogPath:    LogPathFor(s.Opts.StateDir, task.ID),
 		Cwd:        workdir,
-		Env:        childEnv(os.Environ(), s.Opts.Cwd, s.Opts.ProjectID),
+		Env:        withEnv(childEnv(os.Environ(), s.Opts.Cwd, s.Opts.ProjectID), s.taskEnv(task.ID)),
 		Timeout:    TimeoutFor(task.EstimateHours, s.Opts.TimeoutMultiplier),
 	}
 

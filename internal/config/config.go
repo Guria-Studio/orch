@@ -187,6 +187,10 @@ type Dispatch struct {
 	// WorktreeSetup is a shell command run inside each fresh worktree before
 	// the agent starts, e.g. `pnpm install --frozen-lockfile` (#324). Go only.
 	WorktreeSetup string `yaml:"worktree_setup"`
+	// IsolateCompose gives each dispatched task its own docker compose
+	// project (COMPOSE_PROJECT_NAME), so parallel worktrees do not recreate
+	// or remove each other's containers (#343). On by default. Go only.
+	IsolateCompose bool `yaml:"isolate_compose"`
 }
 
 // VCS drives PR creation and CI polling through the `gh` / `glab` CLIs.

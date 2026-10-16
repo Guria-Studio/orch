@@ -196,8 +196,8 @@ type specWorktree struct {
 	spec string
 }
 
-func (w *specWorktree) Create(ctx context.Context, taskID, base string, deps ...string) (string, error) {
-	path, err := w.recordingWorktree.Create(ctx, taskID, base, deps...)
+func (w *specWorktree) Create(ctx context.Context, taskID, base string, setupEnv []string, deps ...string) (string, error) {
+	path, err := w.recordingWorktree.Create(ctx, taskID, base, setupEnv, deps...)
 	if err != nil || w.spec == "" {
 		return path, err
 	}
