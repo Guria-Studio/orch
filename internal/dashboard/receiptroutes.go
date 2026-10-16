@@ -21,6 +21,7 @@ import (
 func (s *Server) receiptRoutes() []route {
 	return []route{
 		{pattern: "GET /api/receipt", name: "api_receipt", handler: s.handleReceipt},
+		{pattern: "GET /api/receipt.svg", name: "api_receipt_svg", handler: s.handleReceiptSVG},
 		{pattern: "GET /api/onboarding", name: "api_onboarding", handler: s.handleOnboarding},
 	}
 }
@@ -36,23 +37,8 @@ type receiptPayload struct {
 }
 
 func (s *Server) handleReceipt(w http.ResponseWriter, r *http.Request) {
-	if s.state == nil {
-		s.failRead(w, "receipt", errNoBackend)
-		return
-	}
-	view, err := s.loadView(r.Context())
-	if err != nil {
-		s.failRead(w, "receipt", err)
-		return
-	}
-	runID := r.URL.Query().Get("run")
-	rec, err := receipt.Load(r.Context(), s.state, runID, receipt.Titles(view.Tasks), s.pricing())
-	if err != nil {
-		s.failRead(w, "receipt", err)
-		return
-	}
-	if rec == nil && runID != "" {
-		writeJSON(w, http.StatusNotFound, errorPayload{Detail: "run not found: " + runID})
+	rec, _, ok := s.readReceipt(w, r)
+	if !ok {
 		return
 	}
 	out := receiptPayload{Receipt: rec, BuiltWith: receipt.BuiltWith}
@@ -60,6 +46,57 @@ func (s *Server) handleReceipt(w http.ResponseWriter, r *http.Request) {
 		out.Markdown = rec.Markdown()
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleReceiptSVG is the receipt as the image card `orch report receipt
+// --svg` prints; `?built_with=0` leaves the mark out. The page turns it into
+// the PNG a person downloads or copies.
+func (s *Server) handleReceiptSVG(w http.ResponseWriter, r *http.Request) {
+	rec, project, ok := s.readReceipt(w, r)
+	if !ok {
+		return
+	}
+	if rec == nil {
+		writeJSON(w, http.StatusNotFound, errorPayload{Detail: "no run has finished yet"})
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-store")
+	// Opened on its own the card is a document of this origin: no script, no
+	// fetch, whatever a task title holds.
+	w.Header().Set("Content-Security-Policy", "default-src 'none'")
+	// #nosec G705 -- receipt.SVG escapes every string it writes (TestCardContent)
+	_, _ = w.Write([]byte(rec.SVG(project, r.URL.Query().Get("built_with") != "0")))
+}
+
+// readReceipt loads the receipt `?run=` names (default: the latest finished
+// run) and the project's name. It has answered the request when ok is false;
+// a nil receipt with ok means no run has finished yet.
+func (s *Server) readReceipt(w http.ResponseWriter, r *http.Request) (*receipt.Receipt, string, bool) {
+	if s.state == nil {
+		s.failRead(w, "receipt", errNoBackend)
+		return nil, "", false
+	}
+	view, err := s.loadView(r.Context())
+	if err != nil {
+		s.failRead(w, "receipt", err)
+		return nil, "", false
+	}
+	runID := r.URL.Query().Get("run")
+	rec, err := receipt.Load(r.Context(), s.state, runID, receipt.Titles(view.Tasks), s.pricing())
+	if err != nil {
+		s.failRead(w, "receipt", err)
+		return nil, "", false
+	}
+	if rec == nil && runID != "" {
+		writeJSON(w, http.StatusNotFound, errorPayload{Detail: "run not found: " + runID})
+		return nil, "", false
+	}
+	project := view.ProjectName
+	if project == "" {
+		project = s.paths.ID
+	}
+	return rec, project, true
 }
 
 // onboardingItem is one step to a project's first run. Command is a shell

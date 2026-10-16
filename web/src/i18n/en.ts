@@ -88,6 +88,9 @@ export const en = {
   "receipt.built_with": "Add “Built with orch”",
   "receipt.copy": "Copy as Markdown",
   "receipt.copy_manual": "The clipboard is not available here. Select the text and copy it.",
+  "receipt.download_image": "Download image",
+  "receipt.copy_image": "Copy image",
+  "receipt.image_failed": "Could not make the image. Try again, or copy the Markdown.",
 
   "onboarding.title": "Get to your first run",
   "onboarding.progress": "{done} of {total} required",

@@ -92,6 +92,9 @@ export const pt = {
   "receipt.built_with": "Adicionar “Built with orch”",
   "receipt.copy": "Copiar como Markdown",
   "receipt.copy_manual": "A área de transferência não está disponível aqui. Selecione o texto e copie.",
+  "receipt.download_image": "Baixar imagem",
+  "receipt.copy_image": "Copiar imagem",
+  "receipt.image_failed": "Não foi possível gerar a imagem. Tente de novo ou copie o Markdown.",
 
   "onboarding.title": "Rumo à sua primeira execução",
   "onboarding.progress": "{done} de {total} obrigatórios",
