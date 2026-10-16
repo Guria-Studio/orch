@@ -3,22 +3,75 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
-// newTaskCmd is the `orch task` parent — only `set` exists, matching
-// Python's `_run_task_subcommand` dispatch (`if not args or args[0] not in
-// ("set",))`.
+// newTaskCmd is the `orch task` parent. `set` is Python's; `note` steers a
+// task from outside the run (#356).
 func newTaskCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
 		Short: "Manual task mutations",
 	}
-	cmd.AddCommand(newTaskSetCmd(flags))
+	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags))
+	return cmd
+}
+
+// openSteer opens the project's backend for `orch task note`.
+func openSteer(cmd *cobra.Command, flags *projectFlags) (project.Steer, func() error, error) {
+	paths, cfg, err := loadProjectConfig(flags)
+	if err != nil {
+		return project.Steer{}, nil, err
+	}
+	backend, closeDB, err := openBackend(cmd.Context(), paths, cfg)
+	if err != nil {
+		return project.Steer{}, nil, err
+	}
+	if err := backend.Bootstrap(cmd.Context(), loadDAG(paths)); err != nil {
+		_ = closeDB()
+		return project.Steer{}, nil, fmt.Errorf("bootstrap: %w", err)
+	}
+	return project.Steer{Backend: backend}, closeDB, nil
+}
+
+// steerErr maps the backend's errors onto `task set`'s exit codes.
+func steerErr(id string, err error) error {
+	switch {
+	case errors.Is(err, state.ErrTaskNotFound):
+		return withExitCode(1, fmt.Errorf("%s: %w", id, err))
+	case errors.Is(err, state.ErrIllegalTransition):
+		return withExitCode(3, fmt.Errorf("illegal transition: %w", err))
+	}
+	return err
+}
+
+func newTaskNoteCmd(flags *projectFlags) *cobra.Command {
+	var id string
+	cmd := &cobra.Command{
+		Use:   "note --id ID TEXT",
+		Short: "Leave a note for a task's agent; it reaches the prompt of the task's next attempt",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			steer, closeDB, err := openSteer(cmd, flags)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closeDB() }()
+			if err := steer.Note(cmd.Context(), id, strings.Join(args, " ")); err != nil {
+				return steerErr(id, err)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "task %s: note added; its next attempt's prompt carries it\n", id)
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")
+	_ = cmd.MarkFlagRequired("id")
 	return cmd
 }
 

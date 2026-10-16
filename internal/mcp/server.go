@@ -175,6 +175,13 @@ func NewServer(opts Options) (*mcpsdk.Server, error) {
 			"call again with confirm_new. Report once per finding, then carry on.",
 	}, s.reportFinding)
 
+	mcpsdk.AddTool(srv, &mcpsdk.Tool{
+		Name: "orch_task_note",
+		Description: "Leave a note for a task's agent, on the operator's behalf: it is shown " +
+			"in the prompt of the task's next attempt, under \"Operator notes\". Use it to " +
+			"steer a task (\"do not touch the migration\") without stopping it.",
+	}, s.taskNote)
+
 	return srv, nil
 }
 

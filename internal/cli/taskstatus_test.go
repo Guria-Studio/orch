@@ -75,6 +75,16 @@ func TestTaskStatusAndTaskSetExitCodes(t *testing.T) {
 			args: []string{"task", "set", "--id", "F0.T1", "--status", "blocked"},
 			want: 3,
 		},
+		{
+			name: "task note",
+			args: []string{"task", "note", "--id", "F2.T2", "do", "not", "touch", "the", "migration"},
+			want: 0,
+		},
+		{
+			name: "task note unknown task",
+			args: []string{"task", "note", "--id", "NOPE", "hi"},
+			want: 1,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

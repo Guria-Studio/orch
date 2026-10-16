@@ -220,6 +220,13 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
   Without it the prompt is unchanged.
 - Returns `{filed, url?, duplicate?, similar?, message}`.
 
+### `orch_task_note`
+
+`{task_id, note}` — leaves a note for the task's agent on the operator's
+behalf; the prompt of the task's next attempt renders it under **Operator
+notes**. The same write as `orch task note` (see [`CLI.md`](CLI.md)). Returns
+`{task_id, message}`.
+
 ---
 
 ## What it does not do
@@ -227,8 +234,10 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
 - **No dispatching.** Nothing here starts a subprocess or spends money. The
   engine is driven by `orch run`, and an agent that could dispatch other
   agents is a different product.
-- **No writes outside the status.** Titles, descriptions, dependencies and
-  estimates live in `tasks.json`, which a human or `orch atomize` owns.
+- **No writes outside the status**, except the operator's notes
+  (`orch_task_note`). Titles, descriptions,
+  dependencies and estimates live in `tasks.json`, which a human or `orch
+  atomize` owns.
 - **No second view of the state.** The server shares one `state.Backend` with
   the engine, so an agent asking "am I still in-progress?" gets the run loop's
   answer and not a stale copy.

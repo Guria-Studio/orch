@@ -46,6 +46,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 // DefaultSpecRoot is where `specRef` values are resolved from when config.yaml
@@ -89,6 +90,10 @@ type Options struct {
 	// as it always has; the other two say so on the line itself, so an agent
 	// is never told to READ FIRST a file it cannot open (#341, #342).
 	Spec SpecState
+
+	// OperatorNotes are what the operator told this task's agent, oldest
+	// first (#356): see OperatorNotes. Empty, the block is not rendered.
+	OperatorNotes []string
 }
 
 // SpecState is whether the spec ref was found where the agent will run.
@@ -148,6 +153,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"files":          renderFiles(task.Files),
 		"spec_ref_line":  specLine,
 		"deps_block":     renderDepsBlock(completedDeps),
+		"notes_block":    renderNotesBlock(opts.OperatorNotes),
 		"model":          task.Model,
 		"working_dir":    workingDir,
 		"compose_line":   composeLine(opts.ComposeProject),
@@ -282,6 +288,46 @@ func renderDepsBlock(completedDeps []model.Task) string {
 	return b.String()
 }
 
+// operatorNotesMax bounds the block: the newest notes win, each cut to the
+// dependency comments' cap. An operator steering a long task writes a few
+// lines, not a document.
+const operatorNotesMax = 5
+
+// renderNotesBlock lists what the operator told this task's agent, or
+// nothing. After the dependencies and before the protocol, so it is the last
+// thing the agent reads about the work itself.
+func renderNotesBlock(notes []string) string {
+	if len(notes) == 0 {
+		return ""
+	}
+	if len(notes) > operatorNotesMax {
+		notes = notes[len(notes)-operatorNotesMax:]
+	}
+	var b strings.Builder
+	b.WriteString("Operator notes (from the person running orch, newest last; where they and the\n")
+	b.WriteString("description disagree, follow the notes):\n")
+	for _, n := range notes {
+		fmt.Fprintf(&b, "  - %s\n", truncateRunes(strings.TrimSpace(n), depCommentMaxChars))
+	}
+	return b.String()
+}
+
+// OperatorNotes picks the operator's notes out of a task's own comment
+// trail, oldest first: the entries whose kind is state.NoteKindOperator.
+func OperatorNotes(comments []json.RawMessage) []string {
+	var out []string
+	for _, raw := range comments {
+		var c struct {
+			Kind string `json:"kind"`
+			Body string `json:"body"`
+		}
+		if json.Unmarshal(raw, &c) == nil && c.Kind == state.NoteKindOperator && strings.TrimSpace(c.Body) != "" {
+			out = append(out, c.Body)
+		}
+	}
+	return out
+}
+
 // EngineAuthor is the author on every note orch itself writes.
 //
 // `StateRecorder.Transition` hardcodes it, as does `sqlite_backend.py`'s
@@ -344,7 +390,9 @@ func LastComment(dep model.Task) string {
 func AgentComment(comments []json.RawMessage) string {
 	for i := len(comments) - 1; i >= 0; i-- {
 		author, body := commentFields(comments[i])
-		if author == EngineAuthor {
+		// An operator's note is an instruction to this task's agent, not
+		// what the task reported (#356).
+		if author == EngineAuthor || isOperatorNote(comments[i]) {
 			continue
 		}
 		if body != "" {
@@ -352,6 +400,13 @@ func AgentComment(comments []json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+func isOperatorNote(raw json.RawMessage) bool {
+	var c struct {
+		Kind string `json:"kind"`
+	}
+	return json.Unmarshal(raw, &c) == nil && c.Kind == state.NoteKindOperator
 }
 
 // commentFields pulls the author and the body out of one entry.
@@ -429,6 +484,9 @@ func truncateRunes(s string, n int) string {
 //   - **The compose line exists only when orch set the project** (#343). It
 //     follows the constraints and is empty with dispatch.isolate_compose
 //     off, so a project without it renders byte for byte as before.
+//   - **Operator notes exist only when the operator wrote one** (#356). They
+//     follow the dependency block, so a task without notes renders byte for
+//     byte as before; the goldens without notes are the proof.
 const template = `TASK_ID={id}
 You are executing task {id}.
 
@@ -437,7 +495,7 @@ Title: {title}
 Description: {description}
 Files you may write: {files}
 Spec ref (READ FIRST): {spec_ref_line}
-{deps_block}
+{deps_block}{notes_block}
 Coordination protocol:
 1. Read the spec ref for the exact acceptance criteria for {id}.
 2. Do the work. {id} is already in-progress — the orchestrator moved it before launching you.
