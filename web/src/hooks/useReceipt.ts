@@ -90,7 +90,7 @@ export function useReceipt() {
   })
 }
 
-export type OnboardingId = "providers" | "budget" | "tasks" | "vcs" | "tunnel" | "first_run"
+export type OnboardingId = "providers" | "claude_permissions" | "budget" | "tasks" | "vcs" | "tunnel" | "first_run"
 
 export interface OnboardingItem {
   id: OnboardingId

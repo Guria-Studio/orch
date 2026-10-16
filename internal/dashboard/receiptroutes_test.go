@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -189,5 +190,42 @@ func TestOnboarding(t *testing.T) {
 		if it.ID == "first_run" && !it.Done {
 			t.Errorf("first_run = %+v, want done", it)
 		}
+	}
+}
+
+// #361: a project routing to claude is walked through allowing orch's tools,
+// with the command that does it; the item is met once the rules are there.
+func TestOnboardingClaudePermissions(t *testing.T) {
+	saved := checkBackends
+	t.Cleanup(func() { checkBackends = saved })
+	checkBackends = func([]string) []doctor.Check { return nil }
+
+	s := demoServer(t)
+	item := func() (onboardingItem, bool) {
+		var got onboardingPayload
+		decode(t, get(t, s, "/api/onboarding"), &got)
+		for i, it := range got.Items {
+			if it.ID == "claude_permissions" {
+				if i == 0 || got.Items[i-1].ID != "providers" {
+					t.Errorf("claude_permissions is not right after providers: %+v", got.Items)
+				}
+				return it, true
+			}
+		}
+		return onboardingItem{}, false
+	}
+	it, ok := item()
+	if !ok || it.Done || it.Optional || it.Command != doctor.ClaudePermissionsCommand {
+		t.Fatalf("claude_permissions = %+v (present %v), want unmet with the command", it, ok)
+	}
+	dir := filepath.Join(s.paths.Root, ".claude")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"permissions":{"allow":["mcp__orch","Bash"]}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if it, _ := item(); !it.Done {
+		t.Errorf("with the rules: %+v, want done", it)
 	}
 }
