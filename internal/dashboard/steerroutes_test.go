@@ -121,3 +121,25 @@ func TestSteerEndpointsForTheLocalOperator(t *testing.T) {
 		t.Errorf("empty note = %d, want 400", rec.Code)
 	}
 }
+
+// A hold on a done task is an illegal move (409); a dashboard built without
+// Steer has no such routes (404).
+func TestSteerEndpointsConflictAndAbsence(t *testing.T) {
+	s, backend := newSteerServer(t, ProfileOperator, "")
+	if err := backend.Transition(context.Background(), "T-1", model.StatusDone, state.Note{}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := steerPost(t, s, "/api/task/T-1/stop", `{"hold":true}`, "127.0.0.1:50000", ""); rec.Code != http.StatusConflict {
+		t.Errorf("hold on a done task = %d, want 409: %s", rec.Code, rec.Body)
+	}
+
+	off, err := New(cfg(ProfileOperator, ""), Options{Static: spaHandler(t), State: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/task/T-1/stop", "/api/task/T-1/note"} {
+		if rec := steerPost(t, off, path, `{"note":"x"}`, "127.0.0.1:50000", ""); rec.Code != http.StatusNotFound {
+			t.Errorf("%s without Steer = %d, want 404", path, rec.Code)
+		}
+	}
+}

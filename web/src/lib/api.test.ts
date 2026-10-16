@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { apiClient, getPortfolio, PortfolioShapeError } from "@/lib/api"
+import { apiClient, getPortfolio, noteTask, PortfolioShapeError, stopTask } from "@/lib/api"
 import type { Portfolio } from "@/lib/types"
 
 // The agreed shape (coordination note in
@@ -88,5 +88,22 @@ describe("getPortfolio", () => {
     vi.spyOn(apiClient, "get").mockResolvedValueOnce({ data: { generated_at: "now" } })
 
     await expect(getPortfolio()).rejects.toBeInstanceOf(PortfolioShapeError)
+  })
+})
+
+describe("stopTask / noteTask", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("posts the body to the task's route, id encoded", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({ data: { message: "ok" } })
+    await stopTask("F1/T2", true, "wait")
+    expect(post).toHaveBeenCalledWith("/api/task/F1%2FT2/stop", { hold: true, note: "wait" })
+    await noteTask("F1.T2", "use uv")
+    expect(post).toHaveBeenLastCalledWith("/api/task/F1.T2/note", { note: "use uv" })
+  })
+
+  it("rejects with the server's detail", async () => {
+    vi.spyOn(apiClient, "post").mockRejectedValue({ response: { data: { detail: "loopback only" } } })
+    await expect(stopTask("F1.T2", false, "")).rejects.toThrow("loopback only")
   })
 })
