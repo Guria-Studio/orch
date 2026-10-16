@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,5 +70,21 @@ func TestReportReceiptAgainstTheDemo(t *testing.T) {
 	}
 	if rec.RunID != demo.RunID || rec.Finished {
 		t.Errorf("--run %s = %+v, want the unfinished live run", demo.RunID, rec)
+	}
+
+	// A tasks.json that does not load costs the titles, not the receipt.
+	if err := os.WriteFile(paths.TasksJSON(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root, _ := newRootCmd("test")
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"report", "receipt", "--svg", "--project-root", paths.Root, "--project-id", paths.ID})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("broken tasks.json: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "[warn] reading tasks.json") || !strings.Contains(out.String(), ">16</text>") {
+		t.Errorf("broken tasks.json: stderr %q, card has 16 done: %v", errOut.String(), strings.Contains(out.String(), ">16</text>"))
 	}
 }
