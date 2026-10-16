@@ -157,11 +157,13 @@ func TestParseNeverPanics(t *testing.T) {
 	}
 }
 
-// TestParseStdoutIsVerbatim: the engine hands Result.Stdout to the id-spoof
-// check, which greps it for the task-finish.sh marker. A parser that
-// normalised or truncated it would break that check silently.
+// TestParseStdoutIsVerbatim: Result.Stdout is the captured log, unnormalised
+// and untruncated — Classify reads its tail, and Python's id-spoof check
+// grepped it for the task-finish.sh marker. The one thing claude's Parse
+// drops is its own stream events (TestClaude2_1_301StreamEventsStayOutOfClassification);
+// a JSON line that is not one of them, and any noise around it, stays.
 func TestParseStdoutIsVerbatim(t *testing.T) {
-	out := "noise\n{\"type\":\"turn.completed\",\"usage\":{}}\n"
+	out := "noise\n{\"type\":\"result\",\"usage\":{}}\n{\"unrelated\":1}\n"
 	for _, p := range []Provider{ClaudeProvider{}} {
 		t.Run(string(p.Name()), func(t *testing.T) {
 			if got := p.Parse(0, []byte(out)).Stdout; got != out {

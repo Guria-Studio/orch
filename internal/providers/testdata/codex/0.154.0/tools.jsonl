@@ -1,0 +1,10 @@
+Reading prompt from stdin...
+{"type":"thread.started","thread_id":"01a1441f-a007-7470-abc5-4ff065cd671d"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll read `note.txt` and count its lines."}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'cat note.txt'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'cat note.txt'","aggregated_output":"hello from orch\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"/bin/bash -lc 'wc -l note.txt'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"/bin/bash -lc 'wc -l note.txt'","aggregated_output":"1 note.txt\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"The file contains one line: “hello from orch”."}}
+{"type":"turn.completed","usage":{"input_tokens":36628,"cached_input_tokens":30080,"cache_write_input_tokens":0,"output_tokens":84,"reasoning_output_tokens":0}}

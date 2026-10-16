@@ -46,7 +46,8 @@ func TestClaudeArgv(t *testing.T) {
 			req:  Request{Route: claudeRoute("opus")},
 			want: []string{
 				"claude", "-p",
-				"--output-format", "json",
+				"--output-format", "stream-json",
+				"--verbose",
 				"--model", "opus",
 				"--add-dir", ".",
 				"--permission-mode", "acceptEdits",
@@ -60,7 +61,8 @@ func TestClaudeArgv(t *testing.T) {
 			},
 			want: []string{
 				"claude", "-p",
-				"--output-format", "json",
+				"--output-format", "stream-json",
+				"--verbose",
 				"--model", "opus",
 				"--session-id", "3f2c9a10-7b4d-4e51-9c88-1d2e3f4a5b60",
 				"--add-dir", ".",
@@ -76,7 +78,8 @@ func TestClaudeArgv(t *testing.T) {
 			},
 			want: []string{
 				"claude", "-p",
-				"--output-format", "json",
+				"--output-format", "stream-json",
+				"--verbose",
 				"--model", "claude-haiku-4-5-20251001",
 				"--session-id", "s",
 				"--add-dir", ".",
@@ -97,7 +100,8 @@ func TestClaudeArgv(t *testing.T) {
 			},
 			want: []string{
 				"claude", "-p",
-				"--output-format", "json",
+				"--output-format", "stream-json",
+				"--verbose",
 				"--model", "opus",
 				"--add-dir", ".",
 				"--permission-mode", "acceptEdits",
@@ -113,7 +117,8 @@ func TestClaudeArgv(t *testing.T) {
 			},
 			want: []string{
 				"claude", "-p",
-				"--output-format", "json",
+				"--output-format", "stream-json",
+				"--verbose",
 				"--model", "opus",
 				"--add-dir", ".",
 				"--permission-mode", "acceptEdits",
@@ -167,6 +172,82 @@ func TestClaude2_1_270ParseReportsPermissionDenials(t *testing.T) {
 	}
 	if got := (ClaudeProvider{}).Parse(0, readFixture(t, "claude", "2.1.269", "success.json")).PermissionDenials; len(got) != 0 {
 		t.Errorf("an empty permission_denials gave %q", got)
+	}
+}
+
+// ---- Parse: real claude 2.1.301 stream-json capture ---------------------
+
+// TestClaude2_1_301ParseStreamSuccess pins the shape a dispatch leaves since
+// claude streams: one JSON event per line while the agent works (so the
+// dashboard can follow it), and the envelope Parse has always read as the
+// last line, `type: "result"`.
+func TestClaude2_1_301ParseStreamSuccess(t *testing.T) {
+	out := readFixture(t, "claude", "2.1.301", "stream-success.jsonl")
+	res := ClaudeProvider{}.Parse(0, out)
+
+	if !res.Success {
+		t.Fatalf("want success, got failure: %q", res.ErrorMessage)
+	}
+	if res.CostUSD != 0.0017807900000000002 {
+		t.Errorf("CostUSD = %v, want 0.0017807900000000002", res.CostUSD)
+	}
+	// 4 + 6920 cache writes + 28789 cache reads.
+	if res.TokensIn != 35713 || res.TokensOut != 217 {
+		t.Errorf("tokens in/out = %d/%d, want 35713/217", res.TokensIn, res.TokensOut)
+	}
+	if want := `note.txt is a one-line plain-text file containing the greeting "hello from orch".`; res.Text != want {
+		t.Errorf("Text = %q, want %q", res.Text, want)
+	}
+	cost, in, outTok := ClaudeProvider{}.ExtractCost(out)
+	if cost != res.CostUSD || in != res.TokensIn || outTok != res.TokensOut {
+		t.Errorf("ExtractCost = (%v,%d,%d) disagrees with Parse", cost, in, outTok)
+	}
+}
+
+// TestClaude2_1_301StreamEventsStayOutOfClassification: the classifier reads
+// the tail of Stdout for markers, and the stream carries text that is not
+// claude's verdict — a `rate_limit_event` on every run, and whatever the
+// agent's tools printed. Stdout keeps the envelope and any non-JSON line
+// (stderr) and drops the events, so a failure classifies as it did before.
+func TestClaude2_1_301StreamEventsStayOutOfClassification(t *testing.T) {
+	out := readFixture(t, "claude", "2.1.301", "stream-success.jsonl")
+	if !strings.Contains(string(out), `"type":"rate_limit_event"`) {
+		t.Fatal("fixture no longer carries a rate_limit_event")
+	}
+	res := ClaudeProvider{}.Parse(0, out)
+	if strings.Contains(res.Stdout, "rate_limit") || strings.Contains(res.Stdout, `"type":"assistant"`) {
+		t.Errorf("Stdout kept stream events: %.200q", res.Stdout)
+	}
+	if !strings.Contains(res.Stdout, `"type":"result"`) {
+		t.Error("Stdout lost the envelope")
+	}
+
+	failed := ClaudeProvider{}.Parse(1, append([]byte("[claude-code:unrecognized_model] {}\n"), out...))
+	if !strings.Contains(failed.Stdout, "unrecognized_model") {
+		t.Error("Stdout dropped a stderr line")
+	}
+}
+
+// TestClaude2_1_301ParseKilledMidStream: a run killed before its `result`
+// line leaves the events it had streamed. None of them is the envelope, so
+// this is the parser failure an empty log always was, not a run read off an
+// assistant message.
+func TestClaude2_1_301ParseKilledMidStream(t *testing.T) {
+	lines := strings.SplitAfter(string(readFixture(t, "claude", "2.1.301", "stream-success.jsonl")), "\n")
+	out := []byte(strings.Join(lines[:5], "")) // through the rate_limit_event
+	res := ClaudeProvider{}.Parse(-9, out)
+
+	if res.Success {
+		t.Fatal("a run with no result line is not a success")
+	}
+	if res.ErrorMessage != "could not parse claude JSON envelope" {
+		t.Errorf("ErrorMessage = %q", res.ErrorMessage)
+	}
+	if got := Classify(res); got != FailureParser {
+		t.Errorf("Classify = %q, want %q", got, FailureParser)
+	}
+	if cost, in, outTok := (ClaudeProvider{}).ExtractCost(out); cost != 0 || in != 0 || outTok != 0 {
+		t.Errorf("ExtractCost = (%v,%d,%d), want zeros", cost, in, outTok)
 	}
 }
 
@@ -283,8 +364,11 @@ func TestClaude2_1_269UnrecognizedModelMatchesBothMarkers(t *testing.T) {
 }
 
 // TestClaude2_1_269ParseKilledRun pins what a timed-out dispatch really
-// leaves behind: nothing. The CLI buffers the whole envelope and writes it
-// once at the end, so a SIGKILL mid-run yields an empty log, not a partial one.
+// leaves behind under `--output-format json`: nothing. The CLI buffers the
+// whole envelope and writes it once at the end, so a SIGKILL mid-run yields an
+// empty log, not a partial one. Under stream-json it is a prefix of events
+// instead (TestClaude2_1_301ParseKilledMidStream); a run killed before its
+// first event still leaves this.
 func TestClaude2_1_269ParseKilledRun(t *testing.T) {
 	out := readFixture(t, "claude", "2.1.269", "killed-empty.log")
 	if len(out) != 0 {
