@@ -1,6 +1,7 @@
 package estimate
 
 import (
+	"encoding/json"
 	"math"
 	"reflect"
 	"strings"
@@ -153,5 +154,28 @@ func TestLines(t *testing.T) {
 	want := "≈ 2 tasks · ≈ $3.20 (claude $2.40, codex $0.80) · ≈ 2h10m with 4 slots (critical path 1h30m)"
 	if l[0] != want || !strings.Contains(l[1], "37 past attempts") || !strings.Contains(l[1], "confidence: medium") {
 		t.Errorf("lines = %q", l)
+	}
+}
+
+// A project with nothing left to dispatch — a fresh `orch init` with no
+// tasks, or one whose every task is done — still answers `"tasks": []`. It
+// answered `null`, and the dashboard's Now page read `.tasks.length` off it
+// and rendered nothing at all: a black page on the two projects most likely
+// to be opened, the new one and the finished one.
+func TestComputeWithNothingToRunEncodesAnEmptyList(t *testing.T) {
+	for name, tasks := range map[string][]model.Task{
+		"no tasks":     nil,
+		"all done":     {{ID: "A", Status: model.StatusDone}},
+		"only blocked": {{ID: "A", Status: model.StatusBlocked}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw, err := json.Marshal(Compute(Input{Tasks: tasks}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(raw), `"tasks":[]`) {
+				t.Errorf("estimate = %s, want \"tasks\":[]", raw)
+			}
+		})
 	}
 }

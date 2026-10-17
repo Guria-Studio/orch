@@ -139,7 +139,9 @@ func runSet(in Input) []string {
 			}
 		}
 	}
-	var out []string
+	// Never nil: an empty run set encodes as [], which is what the dashboard
+	// reads `.length` off (a nil slice is `null` on the wire).
+	out := []string{}
 	for {
 		var wave []string
 		var rest []model.Task
