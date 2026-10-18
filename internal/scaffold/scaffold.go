@@ -64,13 +64,22 @@ type Options struct {
 	StateBackend string
 	BudgetPreset string
 	SpecRoot     string
+	// BaseBranch is the branch task worktrees start from: the repository's
+	// own, when `orch init` runs in one (#376 — `git init` names it master
+	// on many machines, and a project pointed at main never ran a task).
+	BaseBranch string
 	// TierDefaults is the wizard's per-tier model pick, stamped into
 	// tasks.json's meta block for downstream tools. Keys: premium, standard,
 	// cheap.
 	TierDefaults map[string]string
-	// NoReportFindings writes `report_findings.enabled: false`. The zero
-	// value writes true: a new project reports problems with orch itself,
-	// and says so (`--no-report-findings`, or "n" in the wizard, opts out).
+	// ReportFindings writes `report_findings.enabled: true`. The zero value
+	// writes false (#376): filing public issues under the operator's login is
+	// not the first thing to ask of someone who has seen nothing work yet, so
+	// a new project leaves it off and the first `orch run` that finishes a
+	// task offers it once (FindingsOfferPath).
+	ReportFindings bool
+	// NoReportFindings is the operator saying no outright
+	// (`--no-report-findings`): off, and never offered.
 	NoReportFindings bool
 }
 
@@ -88,6 +97,9 @@ type Result struct {
 	// Warnings are things the operator should see but that did not stop the
 	// scaffold.
 	Warnings []string
+	// SampleTask is the id of the task a blank project starts with, so the
+	// first `orch run` has something to show; empty when none was written.
+	SampleTask string
 }
 
 // ConflictError is a destination that already holds a file `orch init` writes.
@@ -172,6 +184,8 @@ func Run(opts Options) (Result, error) {
 	w.mkdir(filepath.Join(".orchestrator", "state"))
 	w.touch(filepath.Join(".orchestrator", "state", ".gitkeep"))
 	w.config()
+	// Before the workflow, which reads the base branch out of the config.
+	w.applyChoices(opts)
 	w.budgets()
 	w.routerStub()
 	w.softCopyShared(".gitignore", "gitignore.tmpl")
@@ -183,9 +197,11 @@ func Run(opts Options) (Result, error) {
 		w.mkdir(filepath.Join("openspec", "specs"))
 		w.copyShared(filepath.Join("openspec", "README.md"), "openspec/README.md")
 	}
-	w.applyChoices(opts)
 	w.reportFindings(opts)
 	w.stampTaskMeta(opts)
+	if opts.Template == "" {
+		res.SampleTask = w.sampleTask(opts.TierDefaults)
+	}
 	if w.err != nil {
 		return res, w.err
 	}
@@ -575,7 +591,7 @@ func (w *writer) applyChoices(opts Options) {
 	if w.err != nil {
 		return
 	}
-	if opts.StateBackend == "" && opts.BudgetPreset == "" && opts.SpecRoot == "" {
+	if opts.StateBackend == "" && opts.BudgetPreset == "" && opts.SpecRoot == "" && opts.BaseBranch == "" {
 		return
 	}
 
@@ -596,18 +612,21 @@ func (w *writer) applyChoices(opts Options) {
 	body = replaceOrAppend(body, reStateBackend, "", opts.StateBackend, false)
 	body = replaceOrAppend(body, reBudgetsPreset, "budgets_preset", opts.BudgetPreset, true)
 	body = replaceOrAppend(body, reSpecRoot, "spec_root", opts.SpecRoot, true)
+	body = replaceOrAppend(body, reBaseBranchValue, "", opts.BaseBranch, false)
 
 	w.write(rel, []byte(body), 0o600)
 }
 
 var (
-	reStateBackend  = regexp.MustCompile(`(?m)^(\s*backend:\s*)\S+`)
-	reBudgetsPreset = regexp.MustCompile(`(?m)^(budgets_preset:\s*)\S+`)
-	reSpecRoot      = regexp.MustCompile(`(?m)^(spec_root:\s*)\S+`)
+	reStateBackend    = regexp.MustCompile(`(?m)^(\s*backend:\s*)\S+`)
+	reBudgetsPreset   = regexp.MustCompile(`(?m)^(budgets_preset:\s*)\S+`)
+	reSpecRoot        = regexp.MustCompile(`(?m)^(spec_root:\s*)\S+`)
+	reBaseBranchValue = regexp.MustCompile(`(?m)^(\s+base_branch:\s*)\S+`)
 )
 
-// reportFindings writes `report_findings.enabled` — true unless the operator
-// opted out.
+// reportFindings writes `report_findings.enabled` — false unless the
+// operator opted in — and, unless they said no outright, leaves the marker
+// that has `orch run` offer it once a task has finished.
 //
 // The packaged default carries the block with its comment; a template's
 // config.yaml.tmpl does not, and a project from a template is as new as a
@@ -623,7 +642,10 @@ func (w *writer) reportFindings(opts Options) {
 		w.fail("read %s to set report_findings: %w", rel, err)
 		return
 	}
-	value := strconv.FormatBool(!opts.NoReportFindings)
+	value := strconv.FormatBool(opts.ReportFindings)
+	if !opts.ReportFindings && !opts.NoReportFindings {
+		w.write(filepath.Join(".orchestrator", FindingsOfferName), nil, 0o600)
+	}
 	body := string(raw)
 	if loc := reReportFindings.FindStringSubmatchIndex(body); loc != nil {
 		body = body[:loc[0]] + body[loc[2]:loc[3]] + value + body[loc[1]:]
@@ -729,4 +751,78 @@ func (w *writer) stampTaskMeta(opts Options) {
 		return
 	}
 	w.write(rel, append(out, '\n'), 0o600)
+}
+
+// FindingsOfferName is the marker, under .orchestrator/, that has the first
+// `orch run` to finish a task offer report_findings (#376). Only `orch init`
+// writes it, so a project that predates it is never asked.
+const FindingsOfferName = "report-findings.offer"
+
+// sampleTask gives a blank project one harmless task, so the first `orch run`
+// shows an agent at work instead of "no tasks" (#376). It runs on the
+// cheapest model of an installed CLI, routed with orch's own entry for it.
+// No model to give it, no task: the scaffold is complete without one.
+func (w *writer) sampleTask(tiers map[string]string) string {
+	if w.err != nil {
+		return ""
+	}
+	key, entry := "", packagedRoute{}
+	for _, tier := range []string{"cheap", "standard", "premium"} {
+		if e, ok := packagedRoutes()[tiers[tier]]; ok {
+			key, entry = tiers[tier], e
+			break
+		}
+	}
+	if key == "" {
+		return ""
+	}
+	const id = "F0.T1"
+	path := w.path("tasks.json")
+	tf, err := model.LoadTasksFile(path)
+	if err != nil {
+		w.fail("read tasks.json to add the sample task: %w", err)
+		return ""
+	}
+	if len(tf.Tasks) > 0 {
+		return ""
+	}
+	tf.Tasks = []model.Task{{
+		ID:    id,
+		Phase: 0,
+		Title: "Add a Getting started section to README.md",
+		Description: "Add a short \"Getting started\" section to README.md (create the file if it does not exist): " +
+			"what this project is, how to install what it needs and how to run it, from what the repository holds today. " +
+			"Change nothing else. This is orch's sample task: it shows an agent at work before you plan your own.",
+		Model:         key,
+		Reason:        "A small, safe first task on the cheapest model of a CLI you have installed.",
+		Status:        model.StatusTodo,
+		Dependencies:  []string{},
+		EstimateHours: 0.1,
+		Files:         []string{"README.md"},
+	}}
+	if err := model.SaveTasksFile(path, tf); err != nil {
+		w.fail("write the sample task: %w", err)
+		return ""
+	}
+
+	rel := filepath.Join(".orchestrator", "model_router.yaml")
+	if existing, err := router.Load(w.path(rel)); err != nil || hasKey(existing, key) {
+		// A router that does not load is reported by `orch doctor`; one that
+		// already routes the key needs nothing from here.
+		return id
+	}
+	body, err := os.ReadFile(w.path(rel)) // #nosec G304 -- the router this scaffold just wrote
+	if err != nil {
+		w.fail("read %s to route the sample task: %w", rel, err)
+		return ""
+	}
+	route := fmt.Sprintf("\n# The sample task's route, copied from orch's own router.\n%s:\n  backend: %s\n  cli_model: %s\n  tier: %s\n  is_premium: %t\n",
+		key, entry.Backend, entry.CLIModel, entry.Tier, entry.Tier == "premium")
+	w.write(rel, append(body, route...), 0o600)
+	return id
+}
+
+func hasKey(r router.Router, key string) bool {
+	_, ok := r[key]
+	return ok
 }

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -20,67 +22,84 @@ type session struct {
 	transcript string
 }
 
-func runWizard(t *testing.T, answers []string, args Options) session {
+// runWizard runs the wizard from a directory named dir (under a temp dir),
+// with only the CLIs in installed on PATH.
+func runWizard(t *testing.T, answers []string, args Options, advanced bool) session {
 	t.Helper()
+	return runWizardIn(t, "billing-api", []string{"claude", "codex"}, answers, args, advanced)
+}
+
+func runWizardIn(t *testing.T, dir string, installed, answers []string, args Options, advanced bool) session {
+	t.Helper()
+	cwd := filepath.Join(t.TempDir(), dir)
+	if err := os.Mkdir(cwd, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cwd)
+	fakeInstalled(t, installed...)
 	var out strings.Builder
 	in := strings.NewReader(strings.Join(answers, "\n") + "\n")
-	opts, confirmed, err := Wizard(NewWizardIO(in, &out), args)
+	opts, confirmed, err := Wizard(NewWizardIO(in, &out), args, advanced)
 	return session{opts: opts, confirmed: confirmed, err: err, transcript: out.String()}
 }
 
-// The happy path, accepting every default except the two with none.
-//
-// `project id` has no default — it is the one answer the wizard cannot guess —
-// and everything after it can be an empty line.
-func TestWizardAcceptsDefaults(t *testing.T) {
-	answers := []string{
-		"billing-api", // project id
-		"",            // project root → cwd/billing-api
-		"blank",       // template
-		"",            // state backend → sqlite
-		"",            // budget preset → the first
-		"",            // spec root → specs
+// fakeInstalled puts exactly these CLIs on the wizard's PATH.
+func fakeInstalled(t *testing.T, names ...string) {
+	t.Helper()
+	prev := lookPath
+	lookPath = func(name string) (string, error) {
+		if slices.Contains(names, name) {
+			return "/fake/bin/" + name, nil
+		}
+		return "", exec.ErrNotFound
 	}
-	// One line per tier the packaged router actually groups.
-	for range routerTierMapNonEmpty() {
-		answers = append(answers, "")
-	}
-	answers = append(answers, "", "", "") // sdd → n, report findings → y, proceed → y
+	t.Cleanup(func() { lookPath = prev })
+}
 
-	s := runWizard(t, answers, Options{})
+// #376: Enter through the whole wizard, in a fresh repo, gives a project that
+// runs. It used to refuse the first Enter ("project id: value required"),
+// scaffold into <cwd>/<id>, and default two tiers to agy, installed or not.
+func TestWizardEnterThroughGivesARunnableProject(t *testing.T) {
+	s := runWizardIn(t, "My Repo", []string{"claude", "codex"}, []string{"", "", ""}, Options{}, false)
 	if s.err != nil {
 		t.Fatalf("Wizard: %v\n%s", s.err, s.transcript)
 	}
 	if !s.confirmed {
-		t.Fatalf("the wizard did not reach the confirm gate:\n%s", s.transcript)
+		t.Fatalf("three Enters did not reach a confirmed scaffold:\n%s", s.transcript)
 	}
-	if s.opts.Name != "billing-api" {
-		t.Errorf("Name = %q, want billing-api", s.opts.Name)
+	if s.opts.Name != "my-repo" {
+		t.Errorf("Name = %q, want the directory's name as an id", s.opts.Name)
 	}
-	if filepath.Base(s.opts.Root) != "billing-api" {
-		t.Errorf("Root = %q, want it to end in the project id", s.opts.Root)
+	if cwd, _ := os.Getwd(); s.opts.Root != cwd {
+		t.Errorf("Root = %q, want the current directory %q", s.opts.Root, cwd)
 	}
-	if s.opts.Template != "" {
-		t.Errorf("Template = %q, want blank", s.opts.Template)
+	want := map[string]string{
+		"premium":  "claude/claude-opus-4-7",
+		"standard": "claude/claude-sonnet-4-6",
+		"cheap":    "claude/claude-haiku-4-5",
 	}
-	if s.opts.SDD {
-		t.Error("SDD defaulted to true")
+	for tier, m := range want {
+		if s.opts.TierDefaults[tier] != m {
+			t.Errorf("%s default = %q, want %q", tier, s.opts.TierDefaults[tier], m)
+		}
 	}
-	if s.opts.NoReportFindings {
-		t.Error("report findings defaulted to off")
+	if strings.Contains(s.transcript, "agy/") {
+		t.Errorf("the wizard offered agy, which is not installed:\n%s", s.transcript)
+	}
+	// Three questions: id, template, the gate.
+	if n := strings.Count(s.transcript, "): ") + strings.Count(s.transcript, "]: "); n != 3 {
+		t.Errorf("asked %d questions, want 3:\n%s", n, s.transcript)
+	}
+	// Not asked at all (#376): it is offered after a task has finished.
+	if strings.Contains(s.transcript, "PUBLIC") {
+		t.Errorf("the wizard asked about report_findings:\n%s", s.transcript)
 	}
 }
 
 // The gate is the point of the whole flow: a "no" returns without an error and
 // without options anyone should act on.
 func TestWizardAbortsAtTheGate(t *testing.T) {
-	answers := []string{"proj", "", "blank", "", "", ""}
-	for range routerTierMapNonEmpty() {
-		answers = append(answers, "")
-	}
-	answers = append(answers, "", "", "n") // sdd → n, report findings → y, proceed → n
-
-	s := runWizard(t, answers, Options{})
+	s := runWizard(t, []string{"", "", "n"}, Options{}, false)
 	if s.err != nil {
 		t.Fatalf("declining must not be an error: %v", s.err)
 	}
@@ -101,9 +120,9 @@ func TestSummaryShowsEveryChoiceBeforeTheGate(t *testing.T) {
 	for range routerTierMapNonEmpty() {
 		answers = append(answers, "")
 	}
-	answers = append(answers, "y", "n", "y") // sdd → y, report findings → n, proceed → y
+	answers = append(answers, "y", "y") // sdd → y, proceed → y
 
-	s := runWizard(t, answers, Options{})
+	s := runWizard(t, answers, Options{}, true)
 	if s.err != nil {
 		t.Fatalf("Wizard: %v\n%s", s.err, s.transcript)
 	}
@@ -116,7 +135,7 @@ func TestSummaryShowsEveryChoiceBeforeTheGate(t *testing.T) {
 	summary = summary[:gate]
 
 	for _, want := range []string{
-		"billing-api", "python-api", "file", "aggressive", "docs/specs",
+		"billing-api", "python-api", "file", "aggressive", "docs/specs", "claude/claude-sonnet-4-6",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Errorf("the summary omits %q:\n%s", want, summary)
@@ -131,14 +150,6 @@ func TestSummaryShowsEveryChoiceBeforeTheGate(t *testing.T) {
 	}
 	if !strings.Contains(summary, "openspec layout  yes") {
 		t.Error("the summary does not reflect the SDD answer")
-	}
-	// Filing public issues under the operator's login is the one answer here
-	// that reaches outside the machine, so it is on the screen they confirm.
-	if !strings.Contains(summary, "report findings  no") {
-		t.Errorf("the summary does not reflect the report findings answer:\n%s", summary)
-	}
-	if !s.opts.NoReportFindings {
-		t.Error("answering n did not turn report findings off")
 	}
 }
 
@@ -180,17 +191,11 @@ func TestBadAnswersAreReAsked(t *testing.T) {
 		"Billing API", // rejected: spaces and capitals
 		"billing/api", // rejected: slash
 		"billing-api", // accepted
-		"",            // root
 		"nope",        // rejected: not a template
 		"blank",
-		"",
+		"n",
 	}
-	for range routerTierMapNonEmpty() {
-		answers = append(answers, "")
-	}
-	answers = append(answers, "", "", "", "", "n")
-
-	s := runWizard(t, answers, Options{})
+	s := runWizard(t, answers, Options{}, false)
 	if s.err != nil {
 		t.Fatalf("Wizard: %v\n%s", s.err, s.transcript)
 	}
@@ -212,7 +217,7 @@ func TestBadAnswersAreReAsked(t *testing.T) {
 // to. That is the one outcome the gate exists to prevent, so it must not be
 // reachable by closing a pipe.
 func TestExhaustedInputIsAnErrorNotAConfirmation(t *testing.T) {
-	s := runWizard(t, []string{"billing-api"}, Options{})
+	s := runWizard(t, []string{"billing-api"}, Options{}, false)
 	if s.err == nil {
 		t.Fatal("expected an error when the answers ran out")
 	}
@@ -226,13 +231,7 @@ func TestExhaustedInputIsAnErrorNotAConfirmation(t *testing.T) {
 
 // An explicit --template is not asked about again.
 func TestExplicitTemplateSkipsThePicker(t *testing.T) {
-	answers := []string{"proj", "", "", "", ""}
-	for range routerTierMapNonEmpty() {
-		answers = append(answers, "")
-	}
-	answers = append(answers, "", "", "y")
-
-	s := runWizard(t, answers, Options{Template: "data-pipeline"})
+	s := runWizard(t, []string{"proj", "y"}, Options{Template: "data-pipeline"}, false)
 	if s.err != nil {
 		t.Fatalf("Wizard: %v\n%s", s.err, s.transcript)
 	}
@@ -241,6 +240,49 @@ func TestExplicitTemplateSkipsThePicker(t *testing.T) {
 	}
 	if strings.Contains(s.transcript, "Project templates:") {
 		t.Error("the picker was shown despite an explicit template")
+	}
+}
+
+// A directory name with nothing usable in it has no default: the operator is
+// asked, as before.
+func TestDefaultProjectID(t *testing.T) {
+	for dir, want := range map[string]string{
+		"billing-api": "billing-api",
+		"My Repo":     "my-repo",
+		"Fluent.App":  "fluent-app",
+		"__x__":       "x",
+		"日本":          "",
+	} {
+		if got := defaultProjectID(filepath.Join("/tmp", dir)); got != want {
+			t.Errorf("defaultProjectID(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}
+
+// Each tier's default comes from an installed CLI, the most preferred one
+// that has the tier; a tier none of them covers is left out.
+func TestTierDefaultsComeFromInstalledCLIs(t *testing.T) {
+	for _, tc := range []struct {
+		installed []string
+		want      map[string]string
+	}{
+		{nil, map[string]string{}},
+		{[]string{"claude"}, map[string]string{
+			"premium": "claude/claude-opus-4-7", "standard": "claude/claude-sonnet-4-6", "cheap": "claude/claude-haiku-4-5"}},
+		// codex has no cheap route; agy does.
+		{[]string{"codex", "agy"}, map[string]string{
+			"premium": "codex/gpt-5.6", "standard": "codex/gpt-5.4", "cheap": "agy/flash"}},
+	} {
+		got := TierDefaults(tc.installed)
+		if len(got) != len(tc.want) {
+			t.Errorf("TierDefaults(%v) = %v, want %v", tc.installed, got, tc.want)
+			continue
+		}
+		for tier, m := range tc.want {
+			if got[tier] != m {
+				t.Errorf("TierDefaults(%v)[%s] = %q, want %q", tc.installed, tier, got[tier], m)
+			}
+		}
 	}
 }
 
@@ -369,9 +411,9 @@ func TestTierPickerListsOptionsAboveNotInline(t *testing.T) {
 	for range tiers {
 		answers = append(answers, "")
 	}
-	answers = append(answers, "", "", "n")
+	answers = append(answers, "", "n")
 
-	s := runWizard(t, answers, Options{})
+	s := runWizard(t, answers, Options{}, true)
 	if s.err != nil {
 		t.Fatalf("Wizard: %v", s.err)
 	}

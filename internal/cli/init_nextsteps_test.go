@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +22,14 @@ func TestInitNextStepsOnlyNameCommandsThatExist(t *testing.T) {
 		{"from a template", []string{"--template", "nextjs-saas"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// claude installed, the planning skills not yet: every line init
+			// can print about the next steps is printed.
+			bin := t.TempDir()
+			if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o700); err != nil { // #nosec G306 -- an executable fake
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin)
+			t.Setenv("HOME", t.TempDir())
 			root, _ := newRootCmd("test")
 			var out bytes.Buffer
 			root.SetOut(&out)
@@ -43,8 +52,8 @@ func TestInitNextStepsOnlyNameCommandsThatExist(t *testing.T) {
 					t.Errorf("init tells the user to run `%s`: %s", inv, problem)
 				}
 			}
-			// Three next steps plus the router hint: an extractor that finds
-			// none would make this a test of nothing.
+			// orch run, install-skills, claude-permissions: an extractor that
+			// finds none would make this a test of nothing.
 			if checked < 3 {
 				t.Fatalf("found %d orch commands in init's output, want at least 3:\n%s", checked, out.String())
 			}

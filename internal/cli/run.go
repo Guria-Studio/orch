@@ -7,6 +7,9 @@ import (
 	"github.com/hectorcanaimero/orch/internal/ci"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -17,6 +20,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/notify"
 	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
 	"github.com/hectorcanaimero/orch/internal/worktree"
@@ -120,7 +124,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 
 	tasks := loadDAG(paths)
 	if len(tasks) == 0 {
-		return withExitCode(1, fmt.Errorf("no tasks in %s", paths.TasksJSON()))
+		return withExitCode(1, fmt.Errorf("no tasks in %s — plan them with: %s", paths.TasksJSON(), strings.Join(planSteps(), "  then  ")))
 	}
 	if err := backend.Bootstrap(ctx, tasks); err != nil {
 		return withExitCode(1, fmt.Errorf("bootstrap: %w", err))
@@ -144,6 +148,21 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 
 	worktreeMode := (opts.worktreeMode || cfg.Dispatch.WorktreeMode) && !opts.isolated
 	autoPR := cfg.VCS.AutoPR && !opts.isolated
+	if worktreeMode {
+		if problem := baseProblem(paths.Root, cfg.Dispatch.BaseBranch); problem != "" {
+			return withExitCode(1, errors.New("cannot start: "+problem))
+		}
+		// A repository with no remote has nowhere to push or open a PR
+		// (#376): the work stays on local branches, as doctor's vcs.remote
+		// says, instead of every task blocking on a push that cannot work.
+		if !hasGitRemote(paths.Root) {
+			opts.noPush = true
+			if autoPR {
+				autoPR = false
+				_, _ = fmt.Fprintln(os.Stderr, "note: this repository has no git remote — each task's work stays on its local orch/<task-id> branch, with no push and no pull request.")
+			}
+		}
+	}
 
 	noteEstimate(ctx, os.Stderr, backend, paths, cfg, queue, opts)
 
@@ -264,6 +283,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		return withExitCode(1, err)
 	}
 	noteOutgrownCI(os.Stderr, paths.Root)
+	offerReportFindings(ctx, os.Stderr, backend, paths.Root)
 	if code != 0 {
 		// The loop already said what it was doing on its way out;
 		// a second line here would be noise.
@@ -286,6 +306,30 @@ func noteEstimate(ctx context.Context, w io.Writer, backend state.Backend, paths
 	}
 	lines := e.Lines()
 	_, _ = fmt.Fprintf(w, "estimate: %s\n", lines[0])
+}
+
+// offerReportFindings is report_findings asked at the right moment (#376):
+// once, after a run in which a project `orch init` left the offer marker in
+// has a finished task. Anyone who has seen orch work can decide whether its
+// agents may file public issues about it.
+func offerReportFindings(ctx context.Context, w io.Writer, backend state.Backend, root string) {
+	marker := filepath.Join(root, ".orchestrator", scaffold.FindingsOfferName)
+	if _, err := os.Stat(marker); err != nil {
+		return
+	}
+	done, err := backend.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
+	if err != nil || len(done) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintln(w, "note: your agents can report problems with orch itself as public GitHub issues, under your gh login, "+
+		"to help fix them — set report_findings.enabled: true in .orchestrator/config.yaml to allow it. Asked once.")
+	_ = os.Remove(marker)
+}
+
+// hasGitRemote says whether root's repository has any remote to push to.
+func hasGitRemote(root string) bool {
+	out, err := exec.Command("git", "-C", root, "remote").Output() // #nosec G204 -- fixed git arguments; root is the project root
+	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 
 // noteOutgrownCI says, once a run ends, that the tasks may have just built

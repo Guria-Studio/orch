@@ -11,7 +11,7 @@ exec orch init batchproj --template python-api --project-name batchproj
 stdout '✓ orch project initialized at'
 stdout 'added 1 route\(s\) for the template''s tasks'
 stdout 'tier defaults to `standard`'
-stdout 'orch router add-missing --yes'
+stdout 'Next: run the tasks it came with'
 
 exists batchproj/tasks.json
 exists batchproj/AGENTS.md
@@ -24,10 +24,11 @@ exists batchproj/.github/workflows/orch-ci.yml
 # config.yaml, where `orch run` and `orch doctor` look for it.
 exists batchproj/.orchestrator/budgets.yaml
 
-# report_findings is on in a new project, and init says so where the operator
-# reads: it files public issues under their gh login.
-stdout 'report_findings is on'
-grep '^  enabled: true' batchproj/.orchestrator/config.yaml
+# report_findings is off in a new project (#376): the first run that finishes
+# a task offers it, through the marker init leaves.
+! stdout 'report_findings is on'
+grep '^  enabled: false' batchproj/.orchestrator/config.yaml
+exists batchproj/.orchestrator/report-findings.offer
 
 # The scaffolded project passes its own validator. This is the assertion the
 # Python side was missing. No errors; the two warnings are the template's
@@ -43,18 +44,39 @@ stdout 'warn\s+spec\.missing\s+F0\.T1\s+specRef\s+spec file specs/f0-foundation\
 ! grep '^\{\}$' batchproj/.orchestrator/model_router.yaml
 
 # ---- batch: a blank project --------------------------------------------
+# With no AI CLI on PATH there is no model for a sample task: the project is
+# empty, has no routes, and init says to install a CLI first.
+env FULLPATH=$PATH
+env PATH=$ORCH_BIN_DIR
 exec orch init blankproj
+stdout 'Next: install an AI CLI'
 exists blankproj/tasks.json
 exec orch validate --project-root blankproj --project-id blankproj
-
-# A blank project has no tasks, so it has no routes either — and must not
-# have been given guesses.
 ! stdout 'added .* route'
+# `orch run` on it says how to get tasks, not only that there are none.
+! exec orch run --project-root blankproj --project-id blankproj --skip-update-check
+stderr 'no tasks in .*tasks.json — plan them with: .*/orch-plan'
 
-# ---- batch: opting out of report_findings -------------------------------
+# With claude on PATH it starts with the sample task on claude's cheapest
+# model, routed, and init says to run it (#376).
+chmod 0755 bin/claude
+chmod 0755 bin/git
+env PATH=$WORK/bin:$ORCH_BIN_DIR
+exec orch init sampleproj
+stdout 'Next: watch an agent do the sample task \(F0\.T1\)'
+stdout 'orch run --project-root .*sampleproj'
+stdout 'claude "/orch-plan <what you want to build>"'
+grep '"model": "claude/claude-haiku-4-5"' sampleproj/tasks.json
+grep '"default_premium_model": "claude/claude-opus-4-7"' sampleproj/tasks.json
+! grep 'agy/' sampleproj/tasks.json
+exec orch validate --project-root sampleproj --project-id sampleproj
+exec orch router validate --project-root sampleproj --project-id sampleproj
+env PATH=$FULLPATH
+
+# ---- batch: saying no to report_findings outright -------------------------
 exec orch init quietproj --no-report-findings
 grep '^  enabled: false' quietproj/.orchestrator/config.yaml
-! stdout 'report_findings is on'
+! exists quietproj/.orchestrator/report-findings.offer
 
 # ---- the conflict gate -----------------------------------------------------
 ! exec orch init batchproj --template python-api
@@ -70,29 +92,65 @@ stderr 'unknown template'
 stderr 'nextjs-saas'
 ! exists otherproj
 
+# ---- the wizard: Enter through it, in a fresh repo (#376) -----------------
+#
+# Three questions — project id, template, the gate — each answered with an
+# empty line. The lines hold a single space: TrimSpace makes them Enter, and a
+# txtar file's trailing blank lines are not something to depend on. It used to
+# refuse the first Enter ("project id: value required") for ever.
+# A repository the way `git init` leaves it: no commit, and a branch that is
+# not necessarily main.
+exec git init -q -b trunk fresh-repo
+env PATH=$WORK/bin:$ORCH_BIN_DIR
+cd fresh-repo
+stdin $WORK/enter3.txt
+exec orch init
+stdout 'project id \(fresh-repo\)'
+stdout 'project root     .*fresh-repo$'
+stdout 'premium   model  claude/claude-opus-4-7'
+! stdout 'agy/'
+! stdout PUBLIC
+stdout '✓ orch project initialized at .*fresh-repo$'
+# The project is the current directory, not a fresh-repo/fresh-repo inside it.
+exists tasks.json
+! exists fresh-repo
+stdout 'orch run$'
+# Tasks branch from the repository's own branch, and init says the first
+# commit is missing; `orch run` refuses to start without it rather than block
+# the first task on git's "invalid reference".
+grep '^  base_branch: trunk' .orchestrator/config.yaml
+env PATH=$FULLPATH
+stdout 'First: each task branches from trunk, which has no commit yet: git add -A && git commit'
+! exec orch run --skip-update-check
+stderr 'cannot start: each task branches from trunk, which has no commit yet'
+cd $WORK
+
 # ---- the wizard: declining writes nothing ----------------------------------
 #
-# The answers are written out rather than left blank: a txtar file's trailing
-# blank lines are not something to depend on, and a miscounted blank would
+# The answers are written out rather than left blank: a miscounted blank would
 # feed the confirm gate its default — which is `y`, so the test would scaffold
 # a project while claiming to test the refusal.
-stdin decline.txt
+mkdir declined
+cd declined
+stdin $WORK/decline.txt
 exec orch init
 stdout 'About to scaffold:'
 stdout 'project id       wizardproj'
 stdout 'Aborted. Nothing written.'
-! exists wizardproj
+! exists tasks.json
 
+-- bin/claude --
+#!/bin/sh
+echo "2.1.0 (Claude Code)"
+-- bin/git --
+#!/bin/sh
+# The machine's git, on a PATH that otherwise holds only orch and the fake claude.
+PATH=$FULLPATH exec git "$@"
+-- enter3.txt --
+ 
+ 
+ 
 -- decline.txt --
 wizardproj
-wizardproj
 blank
-sqlite
-conservative
-specs
-agy/pro
-claude/claude-sonnet-4-6
-agy/flash
-n
-y
 n
