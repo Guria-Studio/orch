@@ -71,6 +71,13 @@ grep '"default_premium_model": "claude/claude-opus-4-7"' sampleproj/tasks.json
 ! grep 'agy/' sampleproj/tasks.json
 exec orch validate --project-root sampleproj --project-id sampleproj
 exec orch router validate --project-root sampleproj --project-id sampleproj
+# doctor reads the defaults init stamped: ok while claude is installed, a
+# warning naming it once claude is gone — with or without tasks.
+! exec orch doctor --project-root sampleproj --project-id sampleproj --json
+stdout '"name":"models.defaults_installed","status":"ok"'
+env PATH=$ORCH_BIN_DIR
+! exec orch doctor --project-root sampleproj --project-id sampleproj --json
+stdout '"name":"models.defaults_installed","status":"warn","detail":"default models need a CLI that is missing: premium claude/claude-opus-4-7 \(claude is not on PATH\)'
 env PATH=$FULLPATH
 
 # ---- batch: saying no to report_findings outright -------------------------
