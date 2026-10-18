@@ -70,6 +70,27 @@ func (AgyProvider) Parse(exitCode int, output []byte) Result {
 
 	success := exitCode == 0 && status == "SUCCESS"
 
+	// #383: headless agy refuses a command it has no allow rule for and lists
+	// it in denied_actions. With nothing else to say, it answers SUCCESS with
+	// an empty response — which is the refusal, not thinking-mode absorption.
+	var denied []string
+	if list, ok := payload["denied_actions"].([]any); ok {
+		for _, d := range list {
+			if obj, ok := d.(map[string]any); ok {
+				name := asString(obj["display_name"])
+				if name == "" {
+					name = asString(obj["action"])
+				}
+				denied = append(denied, name)
+			}
+		}
+	}
+	const commandDenied = "COMMAND_DENIED"
+	if success && strings.TrimSpace(response) == "" && len(denied) > 0 {
+		success = false
+		status = commandDenied
+	}
+
 	// Issue #86, thinking-mode absorption: a Gemini model with thinking on
 	// can report SUCCESS while every emitted token went to the internal
 	// reasoning buffer, leaving `response` empty. Left alone, orch retries
@@ -83,6 +104,9 @@ func (AgyProvider) Parse(exitCode int, output []byte) Result {
 	var errMsg string
 	if !success {
 		switch {
+		case status == commandDenied:
+			errMsg = "agy refused " + strings.Join(denied, ", ") + " without asking (headless mode) and ended the " +
+				"agent's turn; `orch agy-permissions` allows the report scripts, `--all-commands` every command (#383)"
 		case status == thinkingAbsorbed:
 			errMsg = fmt.Sprintf(
 				"agy returned SUCCESS but response is empty — model emitted %d "+
@@ -107,13 +131,14 @@ func (AgyProvider) Parse(exitCode int, output []byte) Result {
 	}
 
 	return Result{
-		ExitCode:     exitCode,
-		Success:      success,
-		TokensIn:     tokensIn,
-		TokensOut:    tokensOut,
-		Stdout:       text,
-		Text:         strings.TrimSpace(response),
-		ErrorMessage: errMsg,
+		ExitCode:          exitCode,
+		Success:           success,
+		TokensIn:          tokensIn,
+		TokensOut:         tokensOut,
+		Stdout:            text,
+		Text:              strings.TrimSpace(response),
+		ErrorMessage:      errMsg,
+		PermissionDenials: denied,
 	}
 }
 

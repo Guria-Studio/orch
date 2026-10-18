@@ -127,6 +127,10 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		if err := offerClaudePermissions(ask, out, root, false); err != nil {
 			return withExitCode(1, fmt.Errorf("the project is created, but its claude settings were not: %w", err))
 		}
+		// agy's rules live in the user's home, so --yes does not write them.
+		if err := offerAgyPermissionsIfInstalled(ask, out); err != nil {
+			return withExitCode(1, fmt.Errorf("the project is created, but agy's settings were not: %w", err))
+		}
 	}
 	scoped := *flags
 	scoped.root = root

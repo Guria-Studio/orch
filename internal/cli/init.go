@@ -125,6 +125,9 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				if err := offerClaudePermissions(term.Confirm, cmd.OutOrStdout(), res.Root, false); err != nil {
 					return fmt.Errorf("the project is initialized, but its claude settings were not: %w", err)
 				}
+				if err := offerAgyPermissionsIfInstalled(term.Confirm, cmd.OutOrStdout()); err != nil {
+					return fmt.Errorf("the project is initialized, but agy's settings were not: %w", err)
+				}
 			}
 			return nil
 		},
