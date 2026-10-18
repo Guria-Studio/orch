@@ -93,7 +93,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 			"install one — claude plans the work: https://docs.anthropic.com/en/docs/claude-code"))
 	}
 	if err := exec.Command("git", "-C", root, "rev-parse", "--git-dir").Run(); err != nil { // #nosec G204 -- fixed git subcommand on the project root
-		return withExitCode(1, fmt.Errorf("%s is not a git repository; orch gives each task its own branch — run `git init` there first", root))
+		return withExitCode(1, fmt.Errorf("%s is not a git repository (%w); orch gives each task its own branch — run `git init` there first", root, err))
 	}
 	say("✓ %s on PATH · git repository", strings.Join(installed, ", "))
 
@@ -315,7 +315,7 @@ func rerouteToInstalled(tf *model.TasksFile, rtr, packaged router.Router, instal
 // printStartEstimate prints the estimate of the whole plan and returns how
 // many tasks a run would dispatch. Status comes from the database: tasks.json
 // does not know it.
-func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer) (int, error) {
+func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer) (ready int, err error) {
 	paths, cfg, err := loadProjectConfig(flags)
 	if err != nil {
 		return 0, err
@@ -324,7 +324,11 @@ func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer)
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = closeDB() }()
+	defer func() {
+		if cerr := closeDB(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing the project database: %w", cerr)
+		}
+	}()
 	tasks, err := project.Load(ctx, backend, paths.TasksJSON())
 	if err != nil {
 		return 0, err
@@ -365,10 +369,14 @@ func runWithDashboard(cmd *cobra.Command, root string, say func(string, ...any))
 	if dash != nil {
 		if onTerminal(cmd.OutOrStdout()) {
 			say("The dashboard keeps serving; Ctrl-C stops it.")
-			_ = dash.Wait()
-		} else {
-			_ = dash.Process.Kill()
-			_ = dash.Wait()
+		} else if err := dash.Process.Kill(); err != nil {
+			say("! stopping the dashboard: %v", err)
+		}
+		// Ctrl-C or the kill ends it with a signal, which is how it is meant
+		// to end; only a wait that could not happen is worth saying.
+		var exited *exec.ExitError
+		if err := dash.Wait(); err != nil && !errors.As(err, &exited) {
+			say("! waiting for the dashboard: %v", err)
 		}
 	}
 	var exitErr *exec.ExitError

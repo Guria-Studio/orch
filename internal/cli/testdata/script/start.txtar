@@ -36,8 +36,9 @@ stdout '^→ claude plans it with /orch-plan'
 grep -count=1 '^/orch-plan a todo app$' $HOME/claude-args
 stdout '^↪ T2: opencode/glm-5.2 → claude/claude-sonnet-4-6 \(opencode is not on PATH\)$'
 ! stdout 'T1:'
-stdout '^✓ tasks.json: 2 tasks, DAG valid, every model routed$'
-stdout '^≈ 2 tasks · '
+stdout '^✓ model_router.yaml: added claude/claude-sonnet-4-5 \(tier standard; review it\)$'
+stdout '^✓ tasks.json: 3 tasks, DAG valid, every model routed$'
+stdout '^≈ 3 tasks · '
 stdout '^Next: orch run --max-tasks 2$'
 grep '"model": "claude/claude-sonnet-4-6"' tasks.json
 ! grep 'opencode/glm-5.2' tasks.json
@@ -49,7 +50,7 @@ grep '^  auto_pr: false' .orchestrator/config.yaml
 # Again, with tasks already there: no planning, and the skills are left as
 # they are.
 exec orch start --no-run 'another idea'
-stdout 'tasks.json already has 2 tasks: planning skipped'
+stdout 'tasks.json already has 3 tasks: planning skipped'
 ! stdout 'installed claude skills'
 grep -count=1 'orch-plan' $HOME/claude-args
 
@@ -57,6 +58,11 @@ grep -count=1 'orch-plan' $HOME/claude-args
 exec orch start --no-run --replan
 grep -count=2 'orch-plan' $HOME/claude-args
 grep '^/orch-plan plan the next work for this repository' $HOME/claude-args
+
+# Asked to run, the answer is no: nothing runs, and it says how to later.
+stdin $WORK/no.txt
+exec orch start
+stdout '^Run the first 2 now\? \[Y/n\] Nothing run. `orch run --max-tasks 2` when you are ready.$'
 cd $WORK
 
 # claude exits without writing a task: nothing to check or run.
@@ -67,6 +73,25 @@ cd noplan
 stderr 'claude finished without writing tasks to tasks.json'
 cd $WORK
 env FAKE_PLAN=$WORK/plan.json
+
+# A plan whose task depends on one that does not exist stops before any run.
+env FAKE_PLAN=$WORK/broken-plan.json
+exec git init -q broken
+cd broken
+! exec orch start --no-run 'a todo app'
+stdout '^✗ .*T9'
+stderr 'tasks.json has 1 problem'
+cd $WORK
+
+# Every task left in the backlog: nothing to run yet, and how to promote one.
+env FAKE_PLAN=$WORK/backlog-plan.json
+exec git init -q backlog
+cd backlog
+exec orch start --yes 'a todo app'
+stdout '^No task is todo yet: promote the ones to run with `orch task-status <id> todo`'
+! stdout 'dashboard:'
+cd $WORK
+env FAKE_PLAN=$WORK/run-plan.json
 
 # --yes runs the first tasks, with the dashboard up meanwhile: the plan's two
 # tasks go through the fake provider and end done. Not on a terminal, the
@@ -104,8 +129,24 @@ exit 0
 {"meta":{},"phases":[],"tasks":[]}
 -- fake/claude/_default.out --
 {"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}
+-- no.txt --
+n
 -- plan.json --
 {"meta":{},"phases":[],"tasks":[
   {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
-  {"id":"T2","phase":1,"title":"Todo API","model":"opencode/glm-5.2","status":"todo","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
+  {"id":"T2","phase":1,"title":"Todo API","model":"opencode/glm-5.2","status":"todo","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T3","phase":1,"title":"Todo docs","model":"claude/claude-sonnet-4-5","status":"todo","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
+]}
+-- run-plan.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T2","phase":1,"title":"Todo docs","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
+]}
+-- broken-plan.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":["T9"],"estimateHours":1.0,"files":[],"specRef":""}
+]}
+-- backlog-plan.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"backlog","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
 ]}
