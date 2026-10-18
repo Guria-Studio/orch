@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { describeLoadError } from "@/lib/errors"
 import { AlertTriangle, Maximize2, Minimize2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -12,7 +13,7 @@ import {
   useDebouncedValue,
   useTaskFilterParams,
 } from "@/components/TaskFiltersBar"
-import { TaskDetailModal } from "@/components/TaskDetailModal"
+import { taskPath } from "@/lib/nav"
 import { EmptyTasks } from "@/components/EmptyTasks"
 import { t } from "@/i18n"
 import { criticalPathMatters, STATUS } from "@/lib/status"
@@ -51,7 +52,8 @@ export function KanbanPage() {
   const [filters, setFilters] = useTaskFilterParams()
   const debouncedSearch = useDebouncedValue(filters.search, 250)
 
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const openTask = (id: string) => navigate(taskPath(id))
 
   // Sprint E-6: fullscreen the board region (not the page shell) so operators
   // can zoom the columns without losing the sidebar/nav on exit.
@@ -186,16 +188,11 @@ export function KanbanPage() {
               showCriticalPath={data ? criticalPathMatters(data.tasks) : false}
               tasks={grouped ? grouped[status] : []}
               taskStatusMap={taskStatusMap}
-              onCardClick={(id) => setOpenTaskId(id)}
+              onCardClick={openTask}
             />
           ))}
         </div>
       )}
-
-      <TaskDetailModal
-        taskId={openTaskId}
-        onClose={() => setOpenTaskId(null)}
-      />
     </div>
   )
 }

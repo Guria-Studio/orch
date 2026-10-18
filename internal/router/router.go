@@ -96,7 +96,12 @@ func Load(path string) (Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	return Parse(path, raw)
+}
 
+// Parse is Load for a router already in memory — the packaged default, say;
+// path only names it in errors.
+func Parse(path string, raw []byte) (Router, error) {
 	// Decoding into a node first keeps the file's key ORDER available, which
 	// matters for error messages: reporting the first bad row as the file
 	// reads is more useful than reporting whichever one a map happened to

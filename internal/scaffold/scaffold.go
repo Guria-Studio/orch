@@ -37,6 +37,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/templates"
+	"gopkg.in/yaml.v3"
 )
 
 // Options are the decisions a scaffold needs. The zero value scaffolds a blank
@@ -78,6 +79,9 @@ type Options struct {
 	// a new project leaves it off and the first `orch run` that finishes a
 	// task offers it once (FindingsOfferPath).
 	ReportFindings bool
+	// NoSampleTask leaves a blank project without the sample task — for
+	// `orch start`, which plans the real ones right away.
+	NoSampleTask bool
 	// NoReportFindings is the operator saying no outright
 	// (`--no-report-findings`): off, and never offered.
 	NoReportFindings bool
@@ -199,7 +203,7 @@ func Run(opts Options) (Result, error) {
 	}
 	w.reportFindings(opts)
 	w.stampTaskMeta(opts)
-	if opts.Template == "" {
+	if opts.Template == "" && !opts.NoSampleTask {
 		res.SampleTask = w.sampleTask(opts.TierDefaults)
 	}
 	if w.err != nil {
@@ -753,6 +757,17 @@ func (w *writer) stampTaskMeta(opts Options) {
 	w.write(rel, append(out, '\n'), 0o600)
 }
 
+// SampleTaskID is the id of the task a blank project starts with.
+const SampleTaskID = "F0.T1"
+
+const sampleTaskTitle = "Add a Getting started section to README.md"
+
+// OnlySampleTask reports whether tasks are just the sample task init wrote:
+// a project with nothing planned yet, as far as `orch start` is concerned.
+func OnlySampleTask(tasks []model.Task) bool {
+	return len(tasks) == 1 && tasks[0].ID == SampleTaskID && tasks[0].Title == sampleTaskTitle
+}
+
 // FindingsOfferName is the marker, under .orchestrator/, that has the first
 // `orch run` to finish a task offer report_findings (#376). Only `orch init`
 // writes it, so a project that predates it is never asked.
@@ -766,9 +781,14 @@ func (w *writer) sampleTask(tiers map[string]string) string {
 	if w.err != nil {
 		return ""
 	}
-	key, entry := "", packagedRoute{}
+	packaged, err := PackagedRouter()
+	if err != nil {
+		w.fail("%w", err)
+		return ""
+	}
+	key, entry := "", model.RouteEntry{}
 	for _, tier := range []string{"cheap", "standard", "premium"} {
-		if e, ok := packagedRoutes()[tiers[tier]]; ok {
+		if e, ok := packaged[tiers[tier]]; ok {
 			key, entry = tiers[tier], e
 			break
 		}
@@ -776,7 +796,7 @@ func (w *writer) sampleTask(tiers map[string]string) string {
 	if key == "" {
 		return ""
 	}
-	const id = "F0.T1"
+	const id = SampleTaskID
 	path := w.path("tasks.json")
 	tf, err := model.LoadTasksFile(path)
 	if err != nil {
@@ -789,7 +809,7 @@ func (w *writer) sampleTask(tiers map[string]string) string {
 	tf.Tasks = []model.Task{{
 		ID:    id,
 		Phase: 0,
-		Title: "Add a Getting started section to README.md",
+		Title: sampleTaskTitle,
 		Description: "Add a short \"Getting started\" section to README.md (create the file if it does not exist): " +
 			"what this project is, how to install what it needs and how to run it, from what the repository holds today. " +
 			"Change nothing else. This is orch's sample task: it shows an agent at work before you plan your own.",
@@ -816,8 +836,12 @@ func (w *writer) sampleTask(tiers map[string]string) string {
 		w.fail("read %s to route the sample task: %w", rel, err)
 		return ""
 	}
-	route := fmt.Sprintf("\n# The sample task's route, copied from orch's own router.\n%s:\n  backend: %s\n  cli_model: %s\n  tier: %s\n  is_premium: %t\n",
-		key, entry.Backend, entry.CLIModel, entry.Tier, entry.Tier == "premium")
+	route, err := yaml.Marshal(map[string]model.RouteEntry{key: entry})
+	if err != nil {
+		w.fail("encode the sample task's route: %w", err)
+		return ""
+	}
+	body = append(body, "\n# The sample task's route, copied from orch's own router.\n"...)
 	w.write(rel, append(body, route...), 0o600)
 	return id
 }

@@ -22,6 +22,7 @@ func TestSPAHandlerServesFilesAndFallsBackToTheShell(t *testing.T) {
 		{"/assets/index-abc123.js", "console.log", "a real file is served as itself"},
 		{"/kanban", "<!doctype html>", "a client-side route falls back to the shell"},
 		{"/deep/link/that/does/not/exist", "<!doctype html>", "however deep"},
+		{"/work/tasks/F6.1.T1", "<!doctype html>", "a task's page: the dots in its id do not make it a file (#374)"},
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))

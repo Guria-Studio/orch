@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -91,6 +92,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newMigrateCmd(flags))
 	root.AddCommand(newRouterCmd(flags))
 	root.AddCommand(newInitCmd(flags))
+	root.AddCommand(newStartCmd(flags))
 	root.AddCommand(newConfigCmd(flags))
 	root.AddCommand(newInstallSkillsCmd(flags))
 	root.AddCommand(newClaudePermissionsCmd(flags))
@@ -188,10 +190,12 @@ func reportTelemetry(matched *cobra.Command, flags *projectFlags, version string
 		command = strings.TrimSpace(strings.TrimPrefix(matched.CommandPath(), matched.Root().Name()))
 	}
 
-	telemetry.Reporter{
+	reporter := telemetry.Reporter{
 		Enabled:   true,
 		Endpoint:  res.Config.Telemetry.Endpoint,
 		InstallID: installID,
 		Version:   version,
-	}.Report(command, dur, success)
+	}
+	reporter.Report(command, dur, success)
+	reportOnboarding(context.Background(), paths, res.Config, reporter)
 }

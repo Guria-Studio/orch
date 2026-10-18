@@ -84,6 +84,12 @@ Run `orch doctor` any time to check what's actually reachable — see
 
 ## 2. Create a new project
 
+**The short way**: in a git repository, `orch start "what you want to build"` does
+this whole section and §3 for you — it scaffolds with the CLIs on your PATH,
+installs the planning skills, lets claude plan the idea with you (`/orch-plan`),
+checks and estimates the plan, and offers to run the first two tasks with the
+dashboard open. The rest of this section is the same path step by step.
+
 ```bash
 orch init ~/work/my-app --template python-api
 ```

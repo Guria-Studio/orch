@@ -55,7 +55,7 @@ exec orch validate --project-root blankproj --project-id blankproj
 ! stdout 'added .* route'
 # `orch run` on it says how to get tasks, not only that there are none.
 ! exec orch run --project-root blankproj --project-id blankproj --skip-update-check
-stderr 'no tasks in .*tasks.json — plan them with: .*/orch-plan'
+stderr 'no tasks in .*tasks.json — plan them with: orch start "<what you want to build>"'
 
 # With claude on PATH it starts with the sample task on claude's cheapest
 # model, routed, and init says to run it (#376).
@@ -65,7 +65,7 @@ env PATH=$WORK/bin:$ORCH_BIN_DIR
 exec orch init sampleproj
 stdout 'Next: watch an agent do the sample task \(F0\.T1\)'
 stdout 'orch run --project-root .*sampleproj'
-stdout 'claude "/orch-plan <what you want to build>"'
+stdout 'orch start "<what you want to build>"'
 grep '"model": "claude/claude-haiku-4-5"' sampleproj/tasks.json
 grep '"default_premium_model": "claude/claude-opus-4-7"' sampleproj/tasks.json
 ! grep 'agy/' sampleproj/tasks.json

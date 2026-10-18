@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/templates"
 	"gopkg.in/yaml.v3"
 )
@@ -88,21 +89,23 @@ func Wizard(term *WizardIO, args Options, advanced bool) (opts Options, confirme
 	// Informational only. A missing backend is something `orch doctor`
 	// reports and the operator installs later; refusing to scaffold over it
 	// would block a perfectly good project setup on a tool not needed yet.
-	installed := InstalledBackends()
 	term.say("AI CLIs on PATH:")
-	for _, name := range BackendPreference {
-		if path, lookErr := lookPath(name); lookErr == nil {
-			term.say(fmt.Sprintf("  %-10s ✓ %s", name, path))
-		} else {
-			term.say(fmt.Sprintf("  %-10s ✗ not on PATH", name))
+	any := false
+	for _, b := range router.BackendPreference {
+		mark := "✗ not on PATH"
+		if onPath(b) {
+			mark, any = "✓", true
 		}
+		term.say(fmt.Sprintf("  %-10s %s", b, mark))
 	}
-	if len(installed) == 0 {
+	if !any {
 		term.say("No AI CLI found. Install one (claude is the one orch knows best), then `orch doctor`.")
 	}
 	term.say("")
 
-	opts.TierDefaults = TierDefaults(installed)
+	if opts.TierDefaults, err = InstalledTierDefaults(onPath); err != nil {
+		return Options{}, false, err
+	}
 	if advanced {
 		if err := q.advanced(&opts); err != nil {
 			return Options{}, false, err
@@ -469,9 +472,13 @@ func budgetPresetNames() []string {
 // routerTierMap groups the packaged router's keys by tier, for the picker.
 func routerTierMap() map[string][]string {
 	out := map[string][]string{"premium": {}, "standard": {}, "cheap": {}}
-	for key, e := range packagedRoutes() {
-		if _, known := out[e.Tier]; known {
-			out[e.Tier] = append(out[e.Tier], key)
+	rtr, err := PackagedRouter()
+	if err != nil {
+		return out
+	}
+	for _, key := range rtr.Keys() {
+		if tier := string(rtr[key].Tier); out[tier] != nil {
+			out[tier] = append(out[tier], key)
 		}
 	}
 	for tier := range out {

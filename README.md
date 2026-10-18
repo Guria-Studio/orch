@@ -38,11 +38,14 @@ route it to — `claude`, `codex`, `opencode`, `gemini` or `agy` — in parallel
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
 orch dashboard --demo     # a full synthetic project; touches nothing of yours
-cd my-project
-orch init
-orch run
-orch dashboard --tunnel   # with `tunnel: enabled: true`: a tokenized link for your client
+cd my-project             # a git repository
+orch start "what you want to build"
 ```
+
+`orch start` sets the project up with the CLIs it finds, lets claude plan the
+idea with you (`/orch-plan`), checks and estimates the plan, and runs the first
+two tasks with the dashboard open. `orch init` + `orch run` is the same path
+step by step; `orch dashboard --tunnel` gives your client a tokenized link.
 
 `orch` is a single Go binary — no Python, no venv, no `pip`. See
 [Install](#install) below for the manual download, and the

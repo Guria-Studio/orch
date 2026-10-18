@@ -4,11 +4,12 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/hectorcanaimero/orch/internal/model"
 )
 
 // The wizard is driven by a scripted answer list and its whole transcript is
@@ -46,14 +47,9 @@ func runWizardIn(t *testing.T, dir string, installed, answers []string, args Opt
 // fakeInstalled puts exactly these CLIs on the wizard's PATH.
 func fakeInstalled(t *testing.T, names ...string) {
 	t.Helper()
-	prev := lookPath
-	lookPath = func(name string) (string, error) {
-		if slices.Contains(names, name) {
-			return "/fake/bin/" + name, nil
-		}
-		return "", exec.ErrNotFound
-	}
-	t.Cleanup(func() { lookPath = prev })
+	prev := onPath
+	onPath = func(b model.Backend) bool { return slices.Contains(names, string(b)) }
+	t.Cleanup(func() { onPath = prev })
 }
 
 // #376: Enter through the whole wizard, in a fresh repo, gives a project that
@@ -255,33 +251,6 @@ func TestDefaultProjectID(t *testing.T) {
 	} {
 		if got := defaultProjectID(filepath.Join("/tmp", dir)); got != want {
 			t.Errorf("defaultProjectID(%q) = %q, want %q", dir, got, want)
-		}
-	}
-}
-
-// Each tier's default comes from an installed CLI, the most preferred one
-// that has the tier; a tier none of them covers is left out.
-func TestTierDefaultsComeFromInstalledCLIs(t *testing.T) {
-	for _, tc := range []struct {
-		installed []string
-		want      map[string]string
-	}{
-		{nil, map[string]string{}},
-		{[]string{"claude"}, map[string]string{
-			"premium": "claude/claude-opus-4-7", "standard": "claude/claude-sonnet-4-6", "cheap": "claude/claude-haiku-4-5"}},
-		// codex has no cheap route; agy does.
-		{[]string{"codex", "agy"}, map[string]string{
-			"premium": "codex/gpt-5.6", "standard": "codex/gpt-5.4", "cheap": "agy/flash"}},
-	} {
-		got := TierDefaults(tc.installed)
-		if len(got) != len(tc.want) {
-			t.Errorf("TierDefaults(%v) = %v, want %v", tc.installed, got, tc.want)
-			continue
-		}
-		for tier, m := range tc.want {
-			if got[tier] != m {
-				t.Errorf("TierDefaults(%v)[%s] = %q, want %q", tc.installed, tier, got[tier], m)
-			}
 		}
 	}
 }

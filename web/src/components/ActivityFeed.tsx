@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef } from "react"
-import { AlertTriangle, CheckCircle2, MessageSquare, Play, Wrench } from "lucide-react"
+import { useLayoutEffect, useRef, useState } from "react"
+import { AlertTriangle, ArrowDown, CheckCircle2, MessageSquare, Play, Wrench } from "lucide-react"
 import { useTaskActivity, type ActivityStep } from "@/hooks/useTaskActivity"
 import { t } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -7,14 +7,17 @@ import { cn } from "@/lib/utils"
 // gemini and agy print one object when they finish: nothing to follow before.
 const NOT_STREAMED = new Set(["gemini", "agy"])
 
-function StepRow({ step }: { step: ActivityStep }) {
+// A one-line row truncates in a card; on the task's page (`wrap`) it wraps, so a
+// long tool call reads in full without the page scrolling sideways.
+function StepRow({ step, wrap }: { step: ActivityStep; wrap: boolean }) {
+  const long = wrap ? "whitespace-pre-wrap break-all" : "truncate"
   switch (step.kind) {
     case "tool":
       return (
         <li className="flex items-baseline gap-2">
           <Wrench className="h-3 w-3 shrink-0 translate-y-0.5 text-status-running" aria-hidden />
           <span className="shrink-0 font-medium text-foreground">{step.tool}</span>
-          <span className="min-w-0 truncate text-muted-foreground" title={step.detail}>
+          <span className={cn("min-w-0 text-muted-foreground", long)} title={step.detail}>
             {step.detail}
           </span>
         </li>
@@ -30,7 +33,7 @@ function StepRow({ step }: { step: ActivityStep }) {
       return (
         <li className="flex items-baseline gap-2 text-status-failed">
           <AlertTriangle className="h-3 w-3 shrink-0 translate-y-0.5" aria-hidden />
-          <span className="min-w-0 truncate" title={step.detail}>
+          <span className={cn("min-w-0", long)} title={step.detail}>
             {step.detail}
           </span>
         </li>
@@ -58,21 +61,31 @@ export function ActivityFeed({
   live,
   provider,
   className,
+  full = false,
 }: {
   taskId: string
   live: boolean
   provider?: string
   className?: string
+  // The task's own page: the feed fills the viewport and its rows wrap.
+  full?: boolean
 }) {
   const { steps, exists, loaded, failed } = useTaskActivity(taskId, live)
   const listRef = useRef<HTMLOListElement | null>(null)
 
   // Stay at the newest step, unless the operator scrolled up to read.
   const pinned = useRef(true)
+  const [behind, setBehind] = useState(false)
   useLayoutEffect(() => {
     const el = listRef.current
     if (el && pinned.current) el.scrollTop = el.scrollHeight
   }, [steps.length])
+  const jumpToLatest = () => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+    pinned.current = true
+    setBehind(false)
+  }
 
   let note: string | null = null
   if (failed) note = t("activity.load_failed")
@@ -91,13 +104,24 @@ export function ActivityFeed({
           onScroll={(e) => {
             const el = e.currentTarget
             pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 8
+            if (behind === pinned.current) setBehind(!pinned.current)
           }}
-          className="max-h-64 space-y-1 overflow-auto"
+          className={cn("space-y-1 overflow-auto", full ? "h-[calc(100dvh-12rem)] min-h-64" : "max-h-64")}
         >
           {steps.map((step, i) => (
-            <StepRow key={i} step={step} />
+            <StepRow key={i} step={step} wrap={full} />
           ))}
         </ol>
+      ) : null}
+      {live && behind ? (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          className="mt-2 inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 font-sans text-xs hover:bg-accent"
+        >
+          <ArrowDown className="h-3 w-3" aria-hidden />
+          {t("activity.jump_latest")}
+        </button>
       ) : null}
     </div>
   )

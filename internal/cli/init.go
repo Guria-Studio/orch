@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/templates"
 )
@@ -93,7 +93,11 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			if opts.TierDefaults == nil {
 				// Batch decides what the wizard would have: the models of the
 				// CLIs that are installed (#376).
-				opts.TierDefaults = scaffold.TierDefaults(scaffold.InstalledBackends())
+				tiers, err := scaffold.InstalledTierDefaults(router.OnPath)
+				if err != nil {
+					return err
+				}
+				opts.TierDefaults = tiers
 			}
 
 			res, err := scaffold.Run(opts)
@@ -112,6 +116,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("scaffolding %s: %w", opts.Root, err)
 			}
 
+			recordInitTemplate(res.Root, opts.Template)
 			printInitResult(cmd, res, opts, term != nil)
 			// The wizard asks; batch names the command in its next steps. A
 			// failure here is reported, but the project is already written.
@@ -211,26 +216,10 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	}
 }
 
-// planSteps is how init and an empty `orch run` say to plan the work: claude
-// runs the planning skills, which end in tasks.json. The one place to change
-// when `orch start` (#377) takes it over.
+// planSteps is how init and an empty `orch run` say to plan the work:
+// `orch start` (#377) installs the planning skills and has claude plan it.
 func planSteps() []string {
-	steps := []string{`claude "/orch-plan <what you want to build>"`}
-	if !planSkillsInstalled() {
-		steps = append([]string{"orch install-skills    # once: the /orch-plan … /orch-tasks skills"}, steps...)
-	}
-	return steps
-}
-
-// planSkillsInstalled says whether claude has the planning skills, where
-// `orch install-skills` puts them.
-func planSkillsInstalled() bool {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(filepath.Join(home, ".claude", "skills", "orch-plan", "SKILL.md"))
-	return err == nil
+	return []string{`orch start "<what you want to build>"`}
 }
 
 // repoBranch is the branch HEAD names in dir's repository — known even before
