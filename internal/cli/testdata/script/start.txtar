@@ -59,6 +59,30 @@ grep -count=2 'orch-plan' $HOME/claude-args
 grep '^/orch-plan plan the next work for this repository' $HOME/claude-args
 cd $WORK
 
+# claude exits without writing a task: nothing to check or run.
+env FAKE_PLAN=$WORK/empty-plan.json
+exec git init -q noplan
+cd noplan
+! exec orch start --no-run 'a todo app'
+stderr 'claude finished without writing tasks to tasks.json'
+cd $WORK
+env FAKE_PLAN=$WORK/plan.json
+
+# --yes runs the first tasks, with the dashboard up meanwhile: the plan's two
+# tasks go through the fake provider and end done. Not on a terminal, the
+# dashboard stops with the run instead of waiting for Ctrl-C.
+env ORCH_FAKE_PROVIDER=$WORK/fake
+exec git init -q runs
+cd runs
+exec orch start --yes 'a todo app'
+stdout 'Added mcp__orch'
+stdout '^→ dashboard: http://127\.0\.0\.1:[0-9]+$'
+! stdout 'keeps serving'
+exec orch tasks --json
+stdout '"id":"T1"[^}]*"status":"done"'
+stdout '"id":"T2"[^}]*"status":"done"'
+cd $WORK
+
 # codex alone can run tasks but cannot plan: planning needs claude.
 env PATH=$WORK/codexonly:$ORCH_BIN_DIR:/usr/bin:/bin
 exec git init -q nocl
@@ -76,6 +100,10 @@ exit 0
 -- codexonly/codex --
 #!/bin/sh
 exit 0
+-- empty-plan.json --
+{"meta":{},"phases":[],"tasks":[]}
+-- fake/claude/_default.out --
+{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}
 -- plan.json --
 {"meta":{},"phases":[],"tasks":[
   {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},

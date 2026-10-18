@@ -102,7 +102,10 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	_, tasksErr := os.Stat(filepath.Join(root, "tasks.json"))
 	_, orchErr := os.Stat(filepath.Join(root, ".orchestrator"))
 	if tasksErr != nil && orchErr != nil {
-		tiers := scaffold.InstalledTierDefaults(router.OnPath)
+		tiers, err := scaffold.InstalledTierDefaults(router.OnPath)
+		if err != nil {
+			return withExitCode(1, err)
+		}
 		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoReportFindings: true})
 		if err != nil {
 			return withExitCode(1, fmt.Errorf("scaffolding %s: %w", root, err))
@@ -336,16 +339,16 @@ func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer)
 
 // runWithDashboard starts `orch dashboard` in the background, prints where it
 // is, then runs the first tasks in the foreground. When the run ends the
-// dashboard keeps serving until Ctrl-C.
+// dashboard keeps serving until Ctrl-C — on a terminal; a script gets its
+// exit code instead of a process that never ends.
 func runWithDashboard(cmd *cobra.Command, root string, say func(string, ...any)) error {
-	self, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("finding the orch binary: %w", err)
-	}
+	// os.Args[0], not os.Executable: it is how this orch was invoked, found
+	// on PATH like any command, and also what a test harness named it.
+	self := os.Args[0]
 	dash := exec.Command(self, "dashboard", "--port", "0", "--project-root", root) // #nosec G204 -- this binary, fixed arguments
 	stdout, err := dash.StdoutPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("starting the dashboard: %w", err)
 	}
 	if err := dash.Start(); err != nil {
 		say("! the dashboard did not start (%v); the run goes on without it", err)
@@ -360,14 +363,31 @@ func runWithDashboard(cmd *cobra.Command, root string, say func(string, ...any))
 	run.Stdin, run.Stdout, run.Stderr = cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr()
 	runErr := run.Run()
 	if dash != nil {
-		say("The dashboard keeps serving; Ctrl-C stops it.")
-		_ = dash.Wait()
+		if onTerminal(cmd.OutOrStdout()) {
+			say("The dashboard keeps serving; Ctrl-C stops it.")
+			_ = dash.Wait()
+		} else {
+			_ = dash.Process.Kill()
+			_ = dash.Wait()
+		}
 	}
 	var exitErr *exec.ExitError
 	if errors.As(runErr, &exitErr) {
 		return withExitCode(exitErr.ExitCode(), errors.New("orch run failed"))
 	}
-	return runErr
+	if runErr != nil {
+		return fmt.Errorf("running the first tasks: %w", runErr)
+	}
+	return nil
+}
+
+func onTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	st, err := f.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
 // dashboardURL reads the dashboard's banner for its URL, then drains the rest
