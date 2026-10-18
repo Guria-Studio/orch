@@ -16,11 +16,10 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { TaskDetailModal } from "@/components/TaskDetailModal"
 import { useTasks } from "@/hooks/useTasks"
 import { LANGS, LANGUAGE_NAMES, getLanguage, setLanguage, t, type MessageKey } from "@/i18n"
 import { fuzzyScore } from "@/lib/fuzzy"
-import { TAB_ICONS, type NavDestination } from "@/lib/nav"
+import { TAB_ICONS, taskPath, type NavDestination } from "@/lib/nav"
 import { STATUS, statusMeta } from "@/lib/status"
 import { FILTERED_PAGES, GO_KEYS, isMac } from "@/lib/shortcuts"
 import { nextTheme, useTheme } from "@/lib/theme"
@@ -85,18 +84,18 @@ export interface CommandPaletteProps {
 
 /** ⌘K / Ctrl+K: go to a page, find a task, filter the work, copy a command. */
 export function CommandPalette(props: CommandPaletteProps) {
-  const [taskId, setTaskId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const openTask = (id: string) => navigate(taskPath(id))
   const canSeeTasks = !props.isStakeholder && props.destinations.some((d) => d.tabs.some((tab) => tab.to === "/work/list"))
   return (
     <>
       {props.open ? (
         canSeeTasks ? (
-          <PaletteWithTasks {...props} onOpenTask={setTaskId} />
+          <PaletteWithTasks {...props} onOpenTask={openTask} />
         ) : (
-          <Palette {...props} tasks={[]} canFilter={false} onOpenTask={setTaskId} />
+          <Palette {...props} tasks={[]} canFilter={false} onOpenTask={openTask} />
         )
       ) : null}
-      {taskId ? <TaskDetailModal taskId={taskId} onClose={() => setTaskId(null)} /> : null}
     </>
   )
 }

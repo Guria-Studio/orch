@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { useNavigate } from "react-router-dom"
 import { AlertTriangle, ChevronDown, ChevronUp, GitBranch, LayoutGrid, LayoutList, Lock, Route } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,7 +9,7 @@ import { Explain } from "@/components/Explain"
 import { LiveStatusPill } from "@/components/LiveStatusPill"
 import { StatusBadge } from "@/components/StatusBadge"
 import { TaskCard } from "@/components/TaskCard"
-import { TaskDetailModal } from "@/components/TaskDetailModal"
+import { taskPath } from "@/lib/nav"
 import {
   TaskFiltersBar,
   toTaskFilters,
@@ -70,7 +71,8 @@ export function ListPage() {
 
   const { data, isLoading, isError, error } = useTasks(backendFilters)
   const { status: streamStatus, lastEventAt } = useEventStream()
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const openTask = (id: string) => navigate(taskPath(id))
 
   const { sort, toggleSort, sortedRows } = useTableSort<Task>({
     column: "phase",
@@ -201,7 +203,7 @@ export function ListPage() {
                   key={task.id}
                   task={task}
                   taskStatusMap={taskStatusMap}
-                  onClick={setOpenTaskId}
+                  onClick={openTask}
                   showStatus
                   showCriticalPath={showCriticalPath}
                 />
@@ -250,7 +252,7 @@ export function ListPage() {
                       (id) => taskStatusMap[id] !== undefined && taskStatusMap[id] !== "done",
                     )
                     return (
-                      <TableRow key={task.id} className="h-11 cursor-pointer" onClick={() => setOpenTaskId(task.id)}>
+                      <TableRow key={task.id} className="h-11 cursor-pointer" onClick={() => openTask(task.id)}>
                         <TableCell className="text-muted-foreground">{task.phase}</TableCell>
                         <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">{task.id}</TableCell>
                         <TableCell className="max-w-0" title={task.title}>
@@ -296,8 +298,6 @@ export function ListPage() {
           </Table>
         </div>
       )}
-
-      <TaskDetailModal taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
     </div>
   )
 }
