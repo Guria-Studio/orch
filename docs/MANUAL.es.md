@@ -85,6 +85,13 @@ alcanzable — ver [§13](#13-cuando-algo-falla).
 
 ## 2. Crear un proyecto nuevo
 
+**El camino corto**: en un repositorio git, `orch start "lo que querés construir"`
+hace toda esta sección y la §3 por vos — crea el proyecto con las CLIs de tu
+PATH, instala los skills de planificación, deja que claude planifique la idea
+con vos (`/orch-plan`), valida y estima el plan, y ofrece correr las dos
+primeras tareas con el dashboard abierto. El resto de la sección es el mismo
+camino paso a paso.
+
 ```bash
 orch init ~/work/my-app --template python-api
 ```

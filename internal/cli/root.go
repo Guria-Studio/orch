@@ -91,6 +91,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newMigrateCmd(flags))
 	root.AddCommand(newRouterCmd(flags))
 	root.AddCommand(newInitCmd(flags))
+	root.AddCommand(newStartCmd(flags))
 	root.AddCommand(newConfigCmd(flags))
 	root.AddCommand(newInstallSkillsCmd(flags))
 	root.AddCommand(newClaudePermissionsCmd(flags))
