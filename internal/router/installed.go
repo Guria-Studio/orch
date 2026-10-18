@@ -6,9 +6,9 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 )
 
-// backendPreference is the order a route is picked in when several backends
+// BackendPreference is every backend, in the order a route is picked in when several backends
 // are installed: the CLIs most people have first.
-var backendPreference = []model.Backend{
+var BackendPreference = []model.Backend{
 	model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy,
 }
 
@@ -20,11 +20,11 @@ func OnPath(b model.Backend) bool {
 }
 
 // ForTier is the route key of tier whose backend installed accepts — by
-// backendPreference, then by key — or "" when no installed backend has a
+// BackendPreference, then by key — or "" when no installed backend has a
 // route of that tier (#377).
 func (r Router) ForTier(tier model.Tier, installed func(model.Backend) bool) string {
 	keys := r.Keys()
-	for _, b := range backendPreference {
+	for _, b := range BackendPreference {
 		if !installed(b) {
 			continue
 		}

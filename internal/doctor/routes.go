@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/model"
@@ -39,4 +40,38 @@ func CheckRoutes(tasks []model.Task, r router.Router) Check {
 		}
 	}
 	return Check{Name: name, Status: StatusOK, Detail: fmt.Sprintf("%d task(s) resolve", len(tasks))}
+}
+
+// CheckDefaultModels reports tier defaults (tasks.json's
+// meta.default_<tier>_model) whose CLI is not on PATH. It needs no tasks: a
+// fresh project has none, and #376 found init defaulting two tiers to agy on
+// a machine without it while every other check said ok. backendOf names the
+// backend a model key routes to, "" when nothing knows.
+func CheckDefaultModels(defaults map[string]string, backendOf func(string) string) Check {
+	const name = "models.defaults_installed"
+	if len(defaults) == 0 {
+		return Check{Name: name, Status: StatusSkip, Detail: "tasks.json names no default models"}
+	}
+	var missing []string
+	for _, tier := range []string{"premium", "standard", "cheap"} {
+		key := defaults[tier]
+		if key == "" {
+			continue
+		}
+		backend := backendOf(key)
+		if backend == "" {
+			backend, _, _ = strings.Cut(key, "/")
+		}
+		if _, err := exec.LookPath(backend); err != nil {
+			missing = append(missing, fmt.Sprintf("%s %s (%s is not on PATH)", tier, key, backend))
+		}
+	}
+	if len(missing) > 0 {
+		return Check{
+			Name: name, Status: StatusWarn,
+			Detail:      "default models need a CLI that is missing: " + strings.Join(missing, "; "),
+			Remediation: "Install that CLI, or set meta.default_<tier>_model in tasks.json to a model of one you have.",
+		}
+	}
+	return Check{Name: name, Status: StatusOK, Detail: fmt.Sprintf("%d default model(s), each on an installed CLI", len(defaults))}
 }

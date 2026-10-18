@@ -67,10 +67,14 @@ func TestClaudePermissionsYesDoesNotAsk(t *testing.T) {
 // names the command (TestInitNextStepsOnlyNameCommandsThatExist checks it
 // resolves).
 func TestInitWizardOffersClaudePermissions(t *testing.T) {
+	// The wizard scaffolds into the current directory (#376).
 	dir := filepath.Join(t.TempDir(), "wiz")
-	// Project id, root, template; every other answer and the final offer take
-	// their default.
-	answers := "wiz\n" + dir + "\nblank\n" + strings.Repeat("\n", 30)
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	// Project id, template; the gate and the final offer take their default.
+	answers := "wiz\nblank\n" + strings.Repeat("\n", 30)
 	out, err := runOrch(t, answers, "init")
 	if err != nil {
 		t.Fatalf("init: %v\n%s", err, out)

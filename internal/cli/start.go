@@ -106,7 +106,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		if err != nil {
 			return withExitCode(1, err)
 		}
-		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoReportFindings: true})
+		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoReportFindings: true, NoSampleTask: true})
 		if err != nil {
 			return withExitCode(1, fmt.Errorf("scaffolding %s: %w", root, err))
 		}
@@ -141,7 +141,8 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	}
 
 	switch {
-	case len(tf.Tasks) == 0 || replan:
+	// A project holding only init's sample task has nothing planned yet (#376).
+	case len(tf.Tasks) == 0 || scaffold.OnlySampleTask(tf.Tasks) || replan:
 		if !router.OnPath(model.BackendClaude) {
 			return withExitCode(1, errors.New("planning needs claude (Claude Code) on PATH: "+
 				"https://docs.anthropic.com/en/docs/claude-code — or write specs/ by hand and `orch atomize --apply`"))
@@ -164,7 +165,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		if tf, err = model.LoadTasksFile(paths.TasksJSON()); err != nil {
 			return withExitCode(1, err)
 		}
-		if len(tf.Tasks) == 0 {
+		if len(tf.Tasks) == 0 || scaffold.OnlySampleTask(tf.Tasks) {
 			return withExitCode(1, errors.New("claude finished without writing tasks to tasks.json; run `orch start` again to keep planning"))
 		}
 	case idea != "":

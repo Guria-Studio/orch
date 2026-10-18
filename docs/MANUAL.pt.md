@@ -100,7 +100,8 @@ orch init ~/work/my-app --template python-api
 $ orch init --help
 Scaffold a new orch project.
 
-With no arguments, asks a short series of questions and shows everything it is about to write before writing any of it.
+With no arguments, asks three questions (project id, template, confirm) and shows everything it is about to write before writing any of it; --advanced asks the rest.
+The project goes in the current directory, with the default models of the AI CLIs on PATH.
 With a path or any of the flags below, scaffolds directly.
 
 Templates: chatbot-whatsapp, data-pipeline, expo-mobile, nextjs-saas, python-api
@@ -109,17 +110,23 @@ Usage:
   orch init [PATH] [flags]
 
 Flags:
+      --advanced              Also ask the project root, state backend, budget preset, spec root, tier models and openspec layout
       --force                 Overwrite an existing project's files
   -h, --help                  help for init
-      --no-report-findings    Write report_findings.enabled: false (agents do not file public issues about orch)
+      --no-report-findings    Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)
       --project-name string   Name used in generated files; default = the directory name
       --sdd                   Also scaffold the openspec/ layout
       --template string       Project template (chatbot-whatsapp, data-pipeline, expo-mobile, nextjs-saas, python-api); omit for a blank project
 ```
 
-Rode sem argumentos e, em vez disso, ele faz uma série curta de perguntas
-(template, nome do projeto, layout de SDD), mostrando tudo o que vai
-escrever antes de escrever qualquer coisa:
+Rode **sem argumentos**, no diretório do seu projeto, e ele faz três
+perguntas — project id (padrão: o nome do diretório), template (padrão:
+blank) e a confirmação —, então dar Enter em todas deixa um projeto que roda.
+Ele escreve no **diretório atual**, escolhe os modelos padrão entre as CLIs de
+IA que encontra no `PATH` (primeiro claude, depois codex, gemini, opencode,
+agy) e grava a branch do seu repositório como `dispatch.base_branch`.
+`orch init --advanced` pergunta também o root, o backend de estado, o preset
+de orçamento, o spec root, os modelos por tier e o layout openspec.
 
 ```bash
 orch init
@@ -132,11 +139,25 @@ Isso escreve `.orchestrator/config.yaml`, `.orchestrator/model_router.yaml`,
 intocado num re-`init`, `--force` incluso, já que pode já listar outros
 servidores MCP do projeto.
 
-Um projeto novo vem com `report_findings.enabled: true`: os agentes podem
+Um projeto novo vem com `report_findings.enabled: false`. Os agentes podem
 abrir issues **públicas** sobre o orch em hectorcanaimero/orch com o seu login
-do `gh` ([`DOGFOODING.md`](DOGFOODING.md)). O wizard pergunta antes e o modo
-batch avisa no final; `--no-report-findings` (ou `enabled: false` depois)
-desliga.
+do `gh` ([`DOGFOODING.md`](DOGFOODING.md)), e isso não é a primeira coisa a
+perguntar: o primeiro `orch run` que termina uma task oferece, uma vez.
+`--no-report-findings` é um não definitivo e nunca é oferecido.
+
+Um projeto em branco começa com **uma task de exemplo**, `F0.T1` ("Add a
+Getting started section to README.md"), no modelo mais barato de uma CLI
+instalada, para que o primeiro `orch run` mostre um agente trabalhando. Cada
+task parte de um commit, então primeiro faça commit do que o init escreveu —
+o init avisa quando o repositório não tem nenhum:
+
+```bash
+git add -A && git commit -m "orch init"
+orch run
+```
+
+Sem remote do git, o trabalho fica na branch local `orch/<task-id>` de cada
+task: sem push nem pull request.
 
 Um projeto com template (`--template`) já vem com tasks reais e roteadas
 em `tasks.json` — `orch tasks` funciona na hora, sem precisar atomizar

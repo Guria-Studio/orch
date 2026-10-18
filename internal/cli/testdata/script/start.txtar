@@ -65,6 +65,17 @@ exec orch start
 stdout '^Run the first 2 now\? \[Y/n\] Nothing run. `orch run --max-tasks 2` when you are ready.$'
 cd $WORK
 
+# A project `orch init` made holds only its sample task (#376): that is
+# nothing planned yet, so start plans.
+exec git init -q afterinit
+exec orch init afterinit
+grep '"id": "F0.T1"' afterinit/tasks.json
+cd afterinit
+exec orch start --no-run 'a todo app'
+stdout '^→ claude plans it with /orch-plan'
+! stdout 'planning skipped'
+cd $WORK
+
 # claude exits without writing a task: nothing to check or run.
 env FAKE_PLAN=$WORK/empty-plan.json
 exec git init -q noplan

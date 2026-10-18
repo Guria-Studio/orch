@@ -76,7 +76,12 @@ stdout '=== Atomizer diff ==='
 # fence fix, `orch atomize --apply` with no --file over a fresh project
 # imported that example as two real tasks — invisible until bug 18 made
 # specs/ (rather than a nonexistent docs/) the root actually scanned.
+# No AI CLI on PATH, so init writes no sample task (#376) and the project
+# starts empty, as this case needs.
+env FULLPATH=$PATH
+env PATH=$ORCH_BIN_DIR
 exec orch init blankproj
+env PATH=$FULLPATH
 exec orch atomize --apply --project-root blankproj --project-id blankproj
 stdout 'Specs escaneados: 1 archivos, 0 tasks encontradas'
 exec cat blankproj/tasks.json

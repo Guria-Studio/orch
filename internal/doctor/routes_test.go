@@ -1,6 +1,8 @@
 package doctor
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,5 +64,36 @@ func TestCheckRoutesErrorsOnUnresolved(t *testing.T) {
 	}
 	if c.Remediation == "" {
 		t.Errorf("expected a remediation hint")
+	}
+}
+
+// #376: a default model whose CLI is missing is flagged with no tasks at all,
+// which is the state a fresh `orch init` leaves.
+func TestCheckDefaultModelsFlagsAMissingCLI(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o700); err != nil { // #nosec G306 -- an executable fake
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	backendOf := func(key string) string {
+		if key == "opencode-go/kimi-k3" {
+			return "opencode"
+		}
+		return ""
+	}
+
+	got := CheckDefaultModels(map[string]string{"standard": "claude/claude-sonnet-4-6", "cheap": "agy/flash"}, backendOf)
+	if got.Status != StatusWarn || !strings.Contains(got.Detail, "cheap agy/flash (agy is not on PATH)") {
+		t.Errorf("got %+v, want a warning naming agy", got)
+	}
+	got = CheckDefaultModels(map[string]string{"cheap": "opencode-go/kimi-k3"}, backendOf)
+	if got.Status != StatusWarn || !strings.Contains(got.Detail, "opencode is not on PATH") {
+		t.Errorf("got %+v, want the router's backend, not the key's prefix", got)
+	}
+	if got := CheckDefaultModels(map[string]string{"standard": "claude/claude-sonnet-4-6"}, backendOf); got.Status != StatusOK {
+		t.Errorf("got %+v, want ok", got)
+	}
+	if got := CheckDefaultModels(nil, backendOf); got.Status != StatusSkip {
+		t.Errorf("got %+v, want skip", got)
 	}
 }

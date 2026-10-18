@@ -7,12 +7,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/templates"
 	"gopkg.in/yaml.v3"
 )
@@ -30,10 +30,16 @@ import (
 
 // Wizard asks the questions and returns the Options they describe.
 //
+// Three by default (#376): the project id, the template and the confirm gate.
+// Everything else takes the value a new project should have — the current
+// directory, models of the CLIs that are installed — and `advanced` asks
+// about it too: root, state backend, budget preset, spec root, the three tier
+// models, openspec.
+//
 // `confirmed` is false when the operator declined at the gate — not an error:
 // answering "no" to "shall I write this?" is the gate working. The caller
 // exits 0 and says nothing was written.
-func Wizard(term *WizardIO, args Options) (opts Options, confirmed bool, err error) {
+func Wizard(term *WizardIO, args Options, advanced bool) (opts Options, confirmed bool, err error) {
 	if term == nil {
 		return Options{}, false, errors.New("wizard: no input or output")
 	}
@@ -45,25 +51,31 @@ func Wizard(term *WizardIO, args Options) (opts Options, confirmed bool, err err
 
 	opts = args
 
-	projectID, err := q.ask("project id", "", nil, validateProjectID)
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.Name = projectID
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		// Not recoverable by asking again: without a working directory there
 		// is no sensible default to offer, and a relative one would scaffold
 		// somewhere the operator did not choose.
-		return Options{}, false, fmt.Errorf("resolving the current directory for the default project root: %w", err)
+		return Options{}, false, fmt.Errorf("resolving the current directory: %w", err)
 	}
-	rootDefault := filepath.Join(cwd, projectID)
-	root, err := q.ask("project root", rootDefault, nil, validateProjectRoot)
+
+	projectID, err := q.ask("project id", defaultProjectID(cwd), nil, validateProjectID)
 	if err != nil {
 		return Options{}, false, err
 	}
-	opts.Root = root
+	opts.Name = projectID
+
+	// The directory the operator is in, the way the README says to use it
+	// (`cd my-project && orch init`). It used to be <cwd>/<id>: a project
+	// inside the project.
+	opts.Root = cwd
+	if advanced {
+		root, aerr := q.ask("project root", cwd, nil, validateProjectRoot)
+		if aerr != nil {
+			return Options{}, false, aerr
+		}
+		opts.Root = root
+	}
 
 	// An explicit --template already answered this; do not ask twice.
 	if opts.Template == "" {
@@ -77,66 +89,28 @@ func Wizard(term *WizardIO, args Options) (opts Options, confirmed bool, err err
 	// Informational only. A missing backend is something `orch doctor`
 	// reports and the operator installs later; refusing to scaffold over it
 	// would block a perfectly good project setup on a tool not needed yet.
+	term.say("AI CLIs on PATH:")
+	any := false
+	for _, b := range router.BackendPreference {
+		mark := "✗ not on PATH"
+		if onPath(b) {
+			mark, any = "✓", true
+		}
+		term.say(fmt.Sprintf("  %-10s %s", b, mark))
+	}
+	if !any {
+		term.say("No AI CLI found. Install one (claude is the one orch knows best), then `orch doctor`.")
+	}
 	term.say("")
-	term.say("Detected backends on PATH:")
-	for _, name := range []string{"claude", "codex", "opencode"} {
-		if path, lookErr := exec.LookPath(name); lookErr == nil {
-			term.say(fmt.Sprintf("  %-10s ✓ %s", name, path))
-		} else {
-			term.say(fmt.Sprintf("  %-10s ✗ not on PATH", name))
+
+	if opts.TierDefaults, err = InstalledTierDefaults(onPath); err != nil {
+		return Options{}, false, err
+	}
+	if advanced {
+		if err := q.advanced(&opts); err != nil {
+			return Options{}, false, err
 		}
 	}
-	term.say("(missing backends can be installed later — `orch doctor` verifies)")
-	term.say("")
-
-	backend, err := q.ask("state backend", "sqlite", []string{"sqlite", "file"}, nil)
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.StateBackend = backend
-	if backend == "file" {
-		term.say("  → file backend: JSONL + JSON in state/. Legacy — kept for")
-		term.say("    pre-v0.11 projects and removed in the next major.")
-	} else {
-		term.say("  → sqlite backend selected — single orch.db file with WAL journaling.")
-	}
-	term.say("")
-
-	presets := budgetPresetNames()
-	preset, err := q.ask("budget preset", presets[0], presets, nil)
-	if err != nil {
-		return Options{}, false, err
-	}
-
-	opts.BudgetPreset = preset
-
-	specRoot, err := q.ask("spec root (relative to project root)", "specs", nil, nil)
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.SpecRoot = specRoot
-
-	tiers, err := q.tiers()
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.TierDefaults = tiers
-
-	sdd, err := q.ask("scaffold openspec/ layout for SDD?", "n", []string{"y", "n"}, nil)
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.SDD = sdd == "y"
-
-	term.say("")
-	term.say("Agents can report problems with orch itself (bugs, missing features) as")
-	term.say("PUBLIC GitHub issues on hectorcanaimero/orch, filed under your gh login.")
-	report, err := q.ask("Let agents report problems with orch itself as public GitHub issues under your gh login?",
-		"y", []string{"y", "n"}, nil)
-	if err != nil {
-		return Options{}, false, err
-	}
-	opts.NoReportFindings = report == "n"
 
 	// H-7: everything in one screen, before anything is written.
 	//
@@ -145,24 +119,27 @@ func Wizard(term *WizardIO, args Options) (opts Options, confirmed bool, err err
 	// the defaults were is worse than no summary: it is wrong exactly when it
 	// matters, which is after somebody edits a template.
 	wt, autoPR, autoMerge := vcsFlagsFor(opts.Template)
-	term.say("")
 	term.say("About to scaffold:")
 	term.say(fmt.Sprintf("  project id       %s", projectID))
 	term.say(fmt.Sprintf("  project root     %s", opts.Root))
 	term.say(fmt.Sprintf("  template         %s", orBlank(opts.Template)))
-	term.say(fmt.Sprintf("  state backend    %s", backend))
-	term.say(fmt.Sprintf("  budget preset    %s", preset))
-	term.say(fmt.Sprintf("  spec root        %s", specRoot))
+	if advanced {
+		term.say(fmt.Sprintf("  state backend    %s", opts.StateBackend))
+		term.say(fmt.Sprintf("  budget preset    %s", opts.BudgetPreset))
+		term.say(fmt.Sprintf("  spec root        %s", opts.SpecRoot))
+		term.say(fmt.Sprintf("  openspec layout  %s", yesNo(opts.SDD)))
+	}
 	term.say(fmt.Sprintf("  worktree mode    %s", yesNo(wt)))
 	term.say(fmt.Sprintf("  auto PR          %s", yesNo(autoPR)))
 	term.say(fmt.Sprintf("  auto merge       %s", yesNo(autoMerge)))
 	for _, tier := range []string{"premium", "standard", "cheap"} {
-		if m := tiers[tier]; m != "" {
+		if m := opts.TierDefaults[tier]; m != "" {
 			term.say(fmt.Sprintf("  %-9s model  %s", tier, m))
 		}
 	}
-	term.say(fmt.Sprintf("  openspec layout  %s", yesNo(opts.SDD)))
-	term.say(fmt.Sprintf("  report findings  %s", yesNo(!opts.NoReportFindings)))
+	if !advanced {
+		term.say("  (`orch init --advanced` also asks the root, state backend, budget preset, spec root and models)")
+	}
 	term.say("")
 
 	proceed, err := q.ask("Proceed with scaffolding?", "y", []string{"y", "n"}, nil)
@@ -176,6 +153,53 @@ func Wizard(term *WizardIO, args Options) (opts Options, confirmed bool, err err
 	}
 	return opts, true, nil
 }
+
+// advanced asks what the default wizard decides by itself.
+func (a *asker) advanced(opts *Options) error {
+	backend, err := a.ask("state backend", "sqlite", []string{"sqlite", "file"}, nil)
+	if err != nil {
+		return err
+	}
+	opts.StateBackend = backend
+	if backend == "file" {
+		a.io.say("  → file backend: JSONL + JSON in state/. Legacy — kept for")
+		a.io.say("    pre-v0.11 projects and removed in the next major.")
+	}
+
+	presets := budgetPresetNames()
+	def := presets[0]
+	if contains(presets, "conservative") {
+		def = "conservative" // what the packaged config writes
+	}
+	if opts.BudgetPreset, err = a.ask("budget preset", def, presets, nil); err != nil {
+		return err
+	}
+	if opts.SpecRoot, err = a.ask("spec root (relative to project root)", "specs", nil, nil); err != nil {
+		return err
+	}
+	if opts.TierDefaults, err = a.tiers(opts.TierDefaults); err != nil {
+		return err
+	}
+	sdd, err := a.ask("scaffold openspec/ layout for SDD?", "n", []string{"y", "n"}, nil)
+	if err != nil {
+		return err
+	}
+	opts.SDD = sdd == "y"
+	a.io.say("")
+	return nil
+}
+
+// defaultProjectID is the directory's name as a valid project id, or "" when
+// nothing of it survives (the operator is asked then, with no default).
+func defaultProjectID(dir string) string {
+	id := strings.Trim(reNotIDChar.ReplaceAllString(strings.ToLower(filepath.Base(dir)), "-"), "-_")
+	if validateProjectID(id) != nil {
+		return ""
+	}
+	return id
+}
+
+var reNotIDChar = regexp.MustCompile(`[^a-z0-9_-]+`)
 
 // WizardIO is the wizard's terminal: a line source and a place to print.
 //
@@ -318,7 +342,7 @@ func (a *asker) template() (string, error) {
 	}
 	a.io.say("")
 	a.io.say("Project templates:")
-	a.io.say("  blank          Empty tasks.json — you fill it in yourself.")
+	a.io.say("  blank          One sample task to see an agent work; then plan your own.")
 	choices := []string{"blank"}
 	for _, t := range list {
 		a.io.say(fmt.Sprintf("  %-14s %s", t.Name, t.Description))
@@ -336,12 +360,12 @@ func (a *asker) template() (string, error) {
 }
 
 // tiers asks for a default model per tier, offering the routes the packaged
-// router already groups that way.
+// router already groups that way, with the installed CLIs' pick as default.
 //
 // Informational: the answers go into tasks.json's meta block, not into the
 // router. A tier with no routes is skipped rather than asked about with an
 // empty list.
-func (a *asker) tiers() (map[string]string, error) {
+func (a *asker) tiers(defaults map[string]string) (map[string]string, error) {
 	byTier := routerTierMap()
 	out := map[string]string{}
 	for _, tier := range []string{"premium", "standard", "cheap"} {
@@ -354,13 +378,16 @@ func (a *asker) tiers() (map[string]string, error) {
 		for _, opt := range options {
 			a.io.say("  - " + opt)
 		}
-		picked, err := a.ask(fmt.Sprintf("  default %s model", tier), options[0], options, nil)
+		def := defaults[tier]
+		if def == "" {
+			def = options[0]
+		}
+		picked, err := a.ask(fmt.Sprintf("  default %s model", tier), def, options, nil)
 		if err != nil {
 			return nil, err
 		}
 		out[tier] = picked
 	}
-	a.io.say("")
 	return out, nil
 }
 
@@ -445,19 +472,13 @@ func budgetPresetNames() []string {
 // routerTierMap groups the packaged router's keys by tier, for the picker.
 func routerTierMap() map[string][]string {
 	out := map[string][]string{"premium": {}, "standard": {}, "cheap": {}}
-	raw, err := packagedDefault("model_router.yaml")
+	rtr, err := PackagedRouter()
 	if err != nil {
 		return out
 	}
-	var entries map[string]struct {
-		Tier string `yaml:"tier"`
-	}
-	if err := yaml.Unmarshal(raw, &entries); err != nil {
-		return out
-	}
-	for key, e := range entries {
-		if _, known := out[e.Tier]; known {
-			out[e.Tier] = append(out[e.Tier], key)
+	for _, key := range rtr.Keys() {
+		if tier := string(rtr[key].Tier); out[tier] != nil {
+			out[tier] = append(out[tier], key)
 		}
 	}
 	for tier := range out {
