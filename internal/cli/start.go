@@ -345,7 +345,7 @@ func runWithDashboard(cmd *cobra.Command, root string, say func(string, ...any))
 	// os.Args[0], not os.Executable: it is how this orch was invoked, found
 	// on PATH like any command, and also what a test harness named it.
 	self := os.Args[0]
-	dash := exec.Command(self, "dashboard", "--port", "0", "--project-root", root) // #nosec G204 -- this binary, fixed arguments
+	dash := exec.Command(self, "dashboard", "--port", "0", "--project-root", root) // #nosec G204 G702 -- this orch, as it was invoked, with fixed arguments
 	stdout, err := dash.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("starting the dashboard: %w", err)
@@ -359,7 +359,7 @@ func runWithDashboard(cmd *cobra.Command, root string, say func(string, ...any))
 		say("! the dashboard did not say where it listens; `orch dashboard` opens it")
 	}
 
-	run := exec.CommandContext(cmd.Context(), self, "run", "--max-tasks", strconv.Itoa(startFirstRun), "--project-root", root) // #nosec G204 -- this binary, fixed arguments
+	run := exec.CommandContext(cmd.Context(), self, "run", "--max-tasks", strconv.Itoa(startFirstRun), "--project-root", root) // #nosec G204 G702 -- this orch, as it was invoked, with fixed arguments
 	run.Stdin, run.Stdout, run.Stderr = cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr()
 	runErr := run.Run()
 	if dash != nil {
