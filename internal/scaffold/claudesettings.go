@@ -21,12 +21,22 @@ import (
 // checks out, and the engine passes its permissions to every claude dispatch
 // (#361).
 func AllowOrchTools(root string) ([]string, error) {
-	missing := doctor.MissingOrchRules(root)
+	return addAllowRules(filepath.Join(root, ".claude", "settings.json"), doctor.MissingOrchRules(root))
+}
+
+// AllowAgyTools adds the rules that are missing to agy's settings file at
+// path, the same way (#383).
+func AllowAgyTools(path string, rules []string) ([]string, error) {
+	return addAllowRules(path, doctor.MissingAgyRules(path, rules))
+}
+
+// addAllowRules appends missing to permissions.allow in the JSON settings
+// file at path, creating it when there is none.
+func addAllowRules(path string, missing []string) ([]string, error) {
 	if len(missing) == 0 {
 		return nil, nil
 	}
-	path := filepath.Join(root, ".claude", "settings.json")
-	raw, err := os.ReadFile(path) // #nosec G304 -- the project's own settings file
+	raw, err := os.ReadFile(path) // #nosec G304 -- a CLI's settings file, named by the caller
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		raw = []byte("{}")

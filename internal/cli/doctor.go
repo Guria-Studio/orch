@@ -125,6 +125,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			}
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))
 			checks = append(checks, doctor.CheckClaudePermissions(paths.Root, slices.Contains(doctor.ReferencedBackends(tasks, rtr), "claude")))
+			checks = append(checks, doctor.CheckAgyPermissions(agySettingsPath(), slices.Contains(doctor.ReferencedBackends(tasks, rtr), "agy")))
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker()))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))

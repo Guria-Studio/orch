@@ -120,6 +120,23 @@ func TestAgyParseRealUnknownAgent(t *testing.T) {
 	}
 }
 
+// agy 1.4.2 headless refuses a shell command it has no allow rule for, and
+// answers SUCCESS with an empty response (#383). The attempt fails, and the
+// reason names the refusal, not thinking-mode absorption.
+func TestAgyParseRealCommandDenied(t *testing.T) {
+	out := readFixture(t, "agy", "1.4.2", "command-denied.json")
+	res := AgyProvider{}.Parse(0, out)
+	if res.Success {
+		t.Fatal("a run whose command was refused is not a success")
+	}
+	if len(res.PermissionDenials) != 1 || res.PermissionDenials[0] != "RunCommand" {
+		t.Errorf("PermissionDenials = %q, want [RunCommand]", res.PermissionDenials)
+	}
+	if !strings.Contains(res.ErrorMessage, "agy-permissions") || strings.Contains(res.ErrorMessage, "thinking") {
+		t.Errorf("ErrorMessage = %q, want it to name the refusal and orch agy-permissions", res.ErrorMessage)
+	}
+}
+
 func TestAgyParseRealSuccess142(t *testing.T) {
 	out := readFixture(t, "agy", "1.4.2", "success.json")
 	res := AgyProvider{}.Parse(0, out)
