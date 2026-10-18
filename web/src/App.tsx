@@ -19,6 +19,7 @@ import { PacePage } from "@/pages/PacePage"
 import { PortfolioPage } from "@/pages/PortfolioPage"
 import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
+import { TaskPage } from "@/pages/TaskPage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
 const queryClient = new QueryClient({
@@ -75,6 +76,7 @@ export function AppRoutes() {
         {Object.entries(PAGES).map(([path, element]) => (
           <Route key={path} path={path} element={element} />
         ))}
+        <Route path="/work/tasks/:id" element={<TaskPage />} />
       </Route>
       {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
         <Route key={from} path={from} element={<Redirect to={to} />} />

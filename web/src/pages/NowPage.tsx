@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { AlertTriangle, ChevronDown, Hourglass, OctagonPause } from "lucide-react"
 import { ActivityFeed } from "@/components/ActivityFeed"
+import { TaskLink } from "@/pages/TaskPage"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -142,7 +143,14 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
         </span>
       </button>
       <div id={activityId} hidden={!open} className="border-t bg-muted/30 px-4 py-3">
-        {open ? <ActivityFeed taskId={d.task_id} live provider={d.provider} /> : null}
+        {open ? (
+          <>
+            <TaskLink id={d.task_id} className="mb-2 inline-block text-xs text-primary underline-offset-4 hover:underline">
+              {t("task.open_page", { id: d.task_id })}
+            </TaskLink>
+            <ActivityFeed taskId={d.task_id} live provider={d.provider} />
+          </>
+        ) : null}
       </div>
     </li>
   )
