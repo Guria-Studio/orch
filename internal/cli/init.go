@@ -100,6 +100,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("scaffolding %s: %w", opts.Root, err)
 			}
 
+			recordInitTemplate(res.Root, opts.Template)
 			printInitResult(cmd, res, opts, term != nil)
 			// The wizard asks; batch names the command in its next steps. A
 			// failure here is reported, but the project is already written.

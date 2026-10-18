@@ -114,6 +114,12 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker()))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))
+			if o, err := readOnboarding(context.Background(), paths, cfg); err == nil {
+				checks = append(checks, doctor.CheckOnboarding(o))
+			} else {
+				checks = append(checks, doctor.Check{Name: "onboarding.progress", Status: doctor.StatusSkip,
+					Detail: fmt.Sprintf("could not read the project's progress: %v", err)})
+			}
 
 			doctor.SortByName(checks)
 			payload := buildDoctorPayload(paths, cfg, checks)

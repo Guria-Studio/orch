@@ -59,6 +59,28 @@ the command finishes:
   handed above (an HTTP request necessarily has a source IP; this package
   puts nothing extra there beyond the JSON body).
 
+## Onboarding milestones (#378)
+
+Besides the per-command event, three **milestones** say how far a project got
+from `orch init` to an agent finishing a task. Each is sent **at most once per
+project**, with telemetry on, and only once the collector accepts it (a 2xx);
+one reached while telemetry was off or the collector down goes out on a later
+command. `.orchestrator/state/onboarding.json` records which went out, and
+the template `orch init` scaffolded.
+
+| `event` | Sent when | Extra field |
+|---|---|---|
+| `project_init` | the project exists | `template`: the template name, `blank`, or `unknown` for a project initialized before orch recorded it |
+| `first_dispatch` | the project's first task went to an agent | `backend`: `claude`, `codex`, `opencode`, `gemini` or `agy` |
+| `first_task_done` | an agent first finished a task successfully | none |
+
+A milestone carries `install_id`, `version`, `os`, `arch`, `event` and, where
+the table says so, `backend` or `template`. Nothing else, and none of the
+"never sent" list above.
+
+`orch doctor` shows the same progress as `onboarding.progress`, from the same
+state, whether telemetry is on or not.
+
 ## The install id
 
 Generated once and stored at `~/.orch/install_id` (mode `0600`) the first

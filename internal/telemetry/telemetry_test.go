@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -143,4 +146,45 @@ func TestDoNotTrack(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A milestone carries exactly the documented keys (docs/TELEMETRY.md), and
+// says whether the collector took it: the caller marks a milestone sent only
+// then (#378).
+func TestReportMilestoneSendsTheDocumentedKeysAndSaysWhetherItLanded(t *testing.T) {
+	ct := &capturingTransport{}
+	r := Reporter{Enabled: true, Endpoint: "http://example.invalid/collect", InstallID: "i-1", Version: "v1", Transport: ct}
+	if !r.ReportMilestone(MilestoneFirstDispatch, "claude", "") {
+		t.Fatal("ReportMilestone = false on a 200, want true")
+	}
+	var got map[string]any
+	if err := json.Unmarshal(ct.bodies[0], &got); err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]string, 0, len(got))
+	for k := range got {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if want := []string{"arch", "backend", "event", "install_id", "os", "version"}; !reflect.DeepEqual(keys, want) {
+		t.Errorf("keys = %v, want %v", keys, want)
+	}
+	if got["event"] != "first_dispatch" || got["backend"] != "claude" {
+		t.Errorf("milestone = %v", got)
+	}
+
+	off := Reporter{Enabled: false, Endpoint: "http://example.invalid/collect", Transport: failingTransport{t}}
+	if off.ReportMilestone(MilestoneProjectInit, "", "blank") {
+		t.Error("a disabled reporter said the milestone landed")
+	}
+	down := Reporter{Enabled: true, Endpoint: "http://example.invalid/collect", Transport: statusTransport(http.StatusServiceUnavailable)}
+	if down.ReportMilestone(MilestoneProjectInit, "", "blank") {
+		t.Error("a 503 counted as delivered")
+	}
+}
+
+type statusTransport int
+
+func (s statusTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: int(s), Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 }
