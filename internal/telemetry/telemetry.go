@@ -13,6 +13,9 @@
 //   - a random per-installation id (~/.orch/install_id, see InstallID) that
 //     ties events together without identifying a person or a project
 //
+// Plus, at most once per project, three onboarding milestones (#378) —
+// see Milestone.
+//
 // Never a file path, a prompt, a task id, or a project id/name — none of
 // that reaches this package in the first place; Reporter has no field for
 // any of it. See docs/TELEMETRY.md for this same list as shipped
@@ -97,19 +100,7 @@ type Reporter struct {
 // safe to call unconditionally on every invocation: a disabled Reporter,
 // an unset endpoint, or a network failure all just mean nothing was sent.
 func (r Reporter) Report(command string, duration time.Duration, success bool) {
-	endpoint := r.Endpoint
-	if endpoint == "" {
-		endpoint = defaultEndpoint
-	}
-	if !r.Enabled || endpoint == "" {
-		return
-	}
-	log := r.Logger
-	if log == nil {
-		log = slog.Default()
-	}
-
-	body, err := json.Marshal(Event{
+	r.post(Event{
 		InstallID:  r.InstallID,
 		Version:    r.Version,
 		OS:         runtime.GOOS,
@@ -118,9 +109,65 @@ func (r Reporter) Report(command string, duration time.Duration, success bool) {
 		DurationMS: duration.Milliseconds(),
 		Success:    success,
 	})
+}
+
+// The onboarding milestones (#378), each sent at most once per project: the
+// project exists, its first task went to an agent, an agent first finished a
+// task. Together they say how many installs reach a working agent.
+const (
+	MilestoneProjectInit   = "project_init"
+	MilestoneFirstDispatch = "first_dispatch"
+	MilestoneFirstTaskDone = "first_task_done"
+)
+
+// Milestone is exactly what one milestone report sends: Event's identity
+// fields, which milestone, and for first_dispatch the backend it went to
+// (claude, codex…), for project_init the template (or "blank"). Like Event,
+// nothing about the project itself.
+type Milestone struct {
+	InstallID string `json:"install_id"`
+	Version   string `json:"version"`
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
+	Event     string `json:"event"`
+	Backend   string `json:"backend,omitempty"`
+	Template  string `json:"template,omitempty"`
+}
+
+// ReportMilestone sends one milestone and reports whether the collector
+// accepted it (a 2xx), so the caller marks it sent only then: a milestone
+// reached while telemetry was off or unreachable goes out the next time it
+// can.
+func (r Reporter) ReportMilestone(event, backend, template string) bool {
+	return r.post(Milestone{
+		InstallID: r.InstallID,
+		Version:   r.Version,
+		OS:        runtime.GOOS,
+		Arch:      runtime.GOARCH,
+		Event:     event,
+		Backend:   backend,
+		Template:  template,
+	})
+}
+
+// post sends v as JSON, best-effort, and reports whether a 2xx came back.
+func (r Reporter) post(v any) bool {
+	endpoint := r.Endpoint
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
+	if !r.Enabled || endpoint == "" {
+		return false
+	}
+	log := r.Logger
+	if log == nil {
+		log = slog.Default()
+	}
+
+	body, err := json.Marshal(v)
 	if err != nil {
 		log.Debug("telemetry: encode event", "err", err)
-		return
+		return false
 	}
 
 	timeout := r.Timeout
@@ -133,7 +180,7 @@ func (r Reporter) Report(command string, duration time.Duration, success bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		log.Debug("telemetry: build request", "err", err)
-		return
+		return false
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -146,7 +193,7 @@ func (r Reporter) Report(command string, duration time.Duration, success bool) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Debug("telemetry: send event", "err", err)
-		return
+		return false
 	}
 	// The response body is never read — there is nothing in a 2xx/4xx/5xx
 	// body this best-effort ping would act on — so closing is the only
@@ -154,4 +201,5 @@ func (r Reporter) Report(command string, duration time.Duration, success bool) {
 	// differently: the event either reached the collector or it didn't,
 	// and this process is done with the connection either way.
 	_ = resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
