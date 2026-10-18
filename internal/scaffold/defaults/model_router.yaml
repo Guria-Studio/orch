@@ -282,14 +282,14 @@ opencode-go/qwen3.6-plus:
 
 agy/pro:
   backend: agy
-  cli_model: gemini-3.1-pro-high
+  cli_model: gemini-4-argon-high
   tier: premium
   is_premium: true
-  fallback_cli_model: gemini-3.7-flash-medium
+  fallback_cli_model: gemini-3.8-flash-medium
 
 agy/flash:
   backend: agy
-  cli_model: gemini-3.7-flash-medium
+  cli_model: gemini-3.8-flash-medium
   tier: cheap
   is_premium: false
 

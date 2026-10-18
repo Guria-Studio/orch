@@ -20,16 +20,16 @@ func (AgyProvider) Name() model.Backend { return model.BackendAgy }
 // PromptDelivery is PromptArg: the prompt is the value of `--print`.
 func (AgyProvider) PromptDelivery() PromptDelivery { return PromptArg }
 
-// agyDefaultAgent is the persona a route gets when it names none.
-//
-// Issue #88: agy's own default agent is the coordinator, which delegates to a
-// sub-agent instead of executing in-process. It returns a "subagent launched"
-// message, never calls task-finish.sh, and orch marks every dispatch failed.
-// `executor` runs the prompt directly, which is what the orch protocol wants.
-const agyDefaultAgent = "executor"
-
-// Argv returns the argv for `agy --output-format json --agent <a> --model <m>
+// Argv returns the argv for `agy --output-format json [--agent <a>] --model <m>
 // [--effort <e>] --print <prompt>`.
+//
+// `--agent` is passed only when the route names one. Issue #88 sent
+// `--agent executor` on every dispatch, because agy 1.2's default persona was
+// a coordinator that delegated instead of executing. agy 1.4 has no
+// `executor` ("unknown agent \"executor\" (no custom agents are
+// available)", testdata/agy/1.4.2/unknown-agent.json) and its default runs
+// the prompt in-process, edits included, so a hard-coded agent failed every
+// dispatch (#382).
 //
 // `--print` MUST stay last: its value is the prompt, parsed positionally, so
 // any flag after it is swallowed into the prompt text.
@@ -42,17 +42,11 @@ const agyDefaultAgent = "executor"
 // Gemini models require an effort tier, while suffix-baked ones
 // (`gemini-3.7-flash-high`) reject it.
 func (AgyProvider) Argv(req Request) []string {
-	agent := agyDefaultAgent
+	argv := []string{"agy", "--output-format", "json"}
 	if req.Route.Agent != nil && *req.Route.Agent != "" {
-		agent = *req.Route.Agent
+		argv = append(argv, "--agent", *req.Route.Agent)
 	}
-
-	argv := []string{
-		"agy",
-		"--output-format", "json",
-		"--agent", agent,
-		"--model", req.Route.CLIModel,
-	}
+	argv = append(argv, "--model", req.Route.CLIModel)
 	if req.Route.Effort != nil && *req.Route.Effort != "" {
 		argv = append(argv, "--effort", *req.Route.Effort)
 	}

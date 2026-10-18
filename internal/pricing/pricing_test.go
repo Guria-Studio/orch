@@ -34,6 +34,13 @@ func loadGolden(t *testing.T) pricingGolden {
 	return g
 }
 
+// goOnlyModels are rows the embedded table has and the last Python release's
+// does not, each with the reason. Every other row must match Python's.
+var goOnlyModels = map[string]string{
+	"gemini-4-argon-high":     "#382: agy 1.4's premium model, which agy/pro routes to now",
+	"gemini-3.8-flash-medium": "#382: agy 1.4's cheap model, which agy/flash routes to now",
+}
+
 // The embedded pricing.yaml is compared against the table PYTHON loads, not
 // against the file it was copied from. A copied data file is a file that
 // drifts, and this is the only thing that would notice.
@@ -42,9 +49,14 @@ func TestEmbeddedTableMatchesPython(t *testing.T) {
 	table := Load("")
 
 	got := table.Models()
-	if len(got) != len(golden.Table) {
-		t.Fatalf("the embedded table has %d models, Python's has %d: %v",
-			len(got), len(golden.Table), got)
+	if len(got) != len(golden.Table)+len(goOnlyModels) {
+		t.Fatalf("the embedded table has %d models, Python's has %d and %d are Go only: %v",
+			len(got), len(golden.Table), len(goOnlyModels), got)
+	}
+	for model := range goOnlyModels {
+		if !table.Has(model) {
+			t.Errorf("goOnlyModels lists %q, which the embedded table does not have", model)
+		}
 	}
 	for model, want := range golden.Table {
 		if !table.Has(model) {

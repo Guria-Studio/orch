@@ -15,15 +15,15 @@ func strptr(s string) *string { return &s }
 
 func TestAgyArgv(t *testing.T) {
 	argv := AgyProvider{}.Argv(Request{
-		Route:      agyRoute("gemini-3.7-flash-medium"),
+		Route:      agyRoute("gemini-3.8-flash-medium"),
 		PromptText: "do the thing",
 	})
 
+	// No --agent: agy 1.4 has no "executor" and refuses it (#382).
 	want := []string{
 		"agy",
 		"--output-format", "json",
-		"--agent", "executor",
-		"--model", "gemini-3.7-flash-medium",
+		"--model", "gemini-3.8-flash-medium",
 		"--print", "do the thing",
 	}
 	if len(argv) != len(want) {
@@ -59,20 +59,18 @@ func TestAgyArgvRouteOverrides(t *testing.T) {
 	tests := []struct {
 		name       string
 		route      model.RouteEntry
-		wantAgent  string
+		wantAgent  string // "" = no --agent at all
 		wantEffort bool
 	}{
 		{
-			name:      "no agent means executor",
-			route:     agyRoute("m"),
-			wantAgent: agyDefaultAgent,
+			name:  "no agent means no --agent",
+			route: agyRoute("m"),
 		},
 		{
 			name: "an empty agent is not an agent",
 			route: model.RouteEntry{
 				Backend: model.BackendAgy, CLIModel: "m", Agent: strptr(""),
 			},
-			wantAgent: agyDefaultAgent,
 		},
 		{
 			name: "the route wins when it names one",
@@ -86,22 +84,50 @@ func TestAgyArgvRouteOverrides(t *testing.T) {
 			route: model.RouteEntry{
 				Backend: model.BackendAgy, CLIModel: "m", Effort: strptr("low"),
 			},
-			wantAgent: agyDefaultAgent, wantEffort: true,
+			wantEffort: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			argv := AgyProvider{}.Argv(Request{Route: tt.route, PromptText: "p"})
+			got := ""
 			for i, a := range argv {
-				if a == "--agent" && argv[i+1] != tt.wantAgent {
-					t.Errorf("--agent %q, want %q", argv[i+1], tt.wantAgent)
+				if a == "--agent" {
+					got = argv[i+1]
 				}
+			}
+			if got != tt.wantAgent {
+				t.Errorf("--agent %q, want %q (argv %q)", got, tt.wantAgent, argv)
 			}
 			if got := contains(argv, "--effort"); got != tt.wantEffort {
 				t.Errorf("--effort present = %v, want %v (argv %q)",
 					got, tt.wantEffort, argv)
 			}
 		})
+	}
+}
+
+// agy 1.4.2 refuses the "executor" agent orch used to send on every dispatch
+// (#382): a failure, with agy's own reason kept for the operator.
+func TestAgyParseRealUnknownAgent(t *testing.T) {
+	out := readFixture(t, "agy", "1.4.2", "unknown-agent.json")
+	res := AgyProvider{}.Parse(1, out)
+	if res.Success {
+		t.Fatal("an unknown agent is not a success")
+	}
+	if !strings.Contains(string(out), `unknown agent \"executor\"`) {
+		t.Fatalf("fixture drifted: %q", out)
+	}
+}
+
+func TestAgyParseRealSuccess142(t *testing.T) {
+	out := readFixture(t, "agy", "1.4.2", "success.json")
+	res := AgyProvider{}.Parse(0, out)
+	if !res.Success || strings.TrimSpace(res.Stdout) == "" && res.TokensIn == 0 {
+		t.Fatalf("agy 1.4.2 success not read: %+v", res)
+	}
+	if res.TokensIn == 0 {
+		t.Errorf("TokensIn = 0, want the envelope's input_tokens")
 	}
 }
 

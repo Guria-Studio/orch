@@ -46,9 +46,8 @@ type RouteEntry struct {
 	EscalationModel *string `yaml:"escalation_model,omitempty"`
 
 	// Backend-specific extras (agy — issues #87/#88). Agent is agy's
-	// `--agent <role>` selector; internal/providers/agy.go defaults it to
-	// "executor" when the route leaves it unset (the default coordinator
-	// persona delegates instead of executing). Effort is agy's
+	// `--agent <role>` selector, passed only when set: agy 1.4 has no
+	// "executor" persona and its default executes in-process (#382). Effort is agy's
 	// `--effort {low,medium,high}` for base-name Gemini models that
 	// require it; left nil when the cli_model already encodes effort as a
 	// suffix (e.g. "gemini-3.7-flash-high").

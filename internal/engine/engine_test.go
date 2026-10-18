@@ -214,6 +214,38 @@ func (echoStdinProvider) Parse(exitCode int, output []byte) providers.Result {
 	return providers.Result{ExitCode: exitCode, Success: exitCode == 0, Stdout: string(output)}
 }
 
+// TestRunPassesThePromptAsAnArgument is the PromptArg half (#382): gemini and
+// agy take the prompt as an argument, and a normal run handed them "" — agy
+// answered "empty prompt" on every attempt. The scheduler only renders the
+// prompt to a file; Spawn reads it into the request for these providers.
+func TestRunPassesThePromptAsAnArgument(t *testing.T) {
+	d := claudeDispatch(t, "B-022")
+	d.PromptPath = promptFile(t, "TASK_ID=B-022\nhello as an argument\n")
+	d.Provider = echoArgProvider{}
+	t.Setenv(FakeProviderEnv, "") // the echo provider is the fake here
+
+	out, err := Run(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !out.Result.Success {
+		t.Fatalf("the echo child should have exited 0: %q", out.Result.ErrorMessage)
+	}
+	if logged := ReadLog(d.LogPath); !strings.Contains(logged, "hello as an argument") {
+		t.Errorf("the prompt did not reach the child's argv; log = %q", logged)
+	}
+}
+
+// echoArgProvider runs `echo <prompt>`, the way agy runs `--print <prompt>`.
+type echoArgProvider struct{}
+
+func (echoArgProvider) Name() model.Backend                      { return model.BackendAgy }
+func (echoArgProvider) PromptDelivery() providers.PromptDelivery { return providers.PromptArg }
+func (echoArgProvider) Argv(req providers.Request) []string      { return []string{"echo", req.PromptText} }
+func (echoArgProvider) Parse(exitCode int, output []byte) providers.Result {
+	return providers.Result{ExitCode: exitCode, Success: exitCode == 0, Stdout: string(output)}
+}
+
 // ---- Failure classes -----------------------------------------------------
 
 func TestRunClassifiesFailures(t *testing.T) {
