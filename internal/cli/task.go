@@ -20,7 +20,8 @@ func newTaskCmd(flags *projectFlags) *cobra.Command {
 		Use:   "task",
 		Short: "Manual task mutations",
 	}
-	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags), newTaskStopCmd(flags), newTaskSalvageCmd(flags))
+	cmd.AddCommand(newTaskSetCmd(flags), newTaskAddCmd(flags), newTaskEditCmd(flags),
+		newTaskNoteCmd(flags), newTaskStopCmd(flags), newTaskSalvageCmd(flags))
 	return cmd
 }
 
@@ -156,20 +157,32 @@ func stopAnswer(id string, ev state.Event) string {
 // snapshot.PhaseMilestones), which a task already carries in tasks.json, so
 // there is nothing for the flag to ever write.
 func newTaskSetCmd(flags *projectFlags) *cobra.Command {
-	var id, status, modelFlag, backendFlag string
+	var id, status, modelFlag string
 	cmd := &cobra.Command{
 		Use:   "set",
-		Short: "Set a task's status (model and backend overrides are not implemented)",
+		Short: "Set a task's status, or its model",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if modelFlag == "" && backendFlag == "" && status == "" {
-				return withExitCode(1, errors.New(
-					"at least one of --model, --status, --backend is required"))
+			if modelFlag == "" && status == "" {
+				return withExitCode(1, errors.New("at least one of --model, --status is required"))
 			}
-			if modelFlag != "" || backendFlag != "" {
-				return fmt.Errorf(
-					"--model/--backend are not implemented yet — " +
-						"state.Backend has no method to write tasks_definition " +
-						"(see go-migration-notes.md); only --status works today")
+			// The model is the task's definition, in tasks.json, changed the
+			// way `task edit` changes it (#390). The route names the backend.
+			if modelFlag != "" {
+				e, closeDB, err := openTaskEditor(cmd, flags)
+				if err != nil {
+					return err
+				}
+				_, err = e.Update(cmd.Context(), id, project.TaskPatch{Model: &modelFlag})
+				_ = closeDB()
+				if err != nil {
+					return editErr(id, err)
+				}
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "task %s: model -> %s\n", id, modelFlag); err != nil {
+					return err
+				}
+				if status == "" {
+					return nil
+				}
 			}
 
 			ctx := cmd.Context()
@@ -206,9 +219,8 @@ func newTaskSetCmd(flags *projectFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")
-	cmd.Flags().StringVar(&modelFlag, "model", "", "Override the model for this task (not implemented yet)")
+	cmd.Flags().StringVar(&modelFlag, "model", "", "Set the task's model in tasks.json: a model_router.yaml key, which names the backend")
 	cmd.Flags().StringVar(&status, "status", "", "Set the task status (e.g. done, in-progress, blocked)")
-	cmd.Flags().StringVar(&backendFlag, "backend", "", "Override the backend for this task (not implemented yet)")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
 }

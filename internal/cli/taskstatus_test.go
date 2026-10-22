@@ -1,7 +1,9 @@
 package cli_test
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hectorcanaimero/orch/internal/cli"
@@ -117,13 +119,53 @@ func TestTaskStatusAndTaskSetExitCodes(t *testing.T) {
 	}
 }
 
-func TestTaskSetUnimplementedFlagsError(t *testing.T) {
-	_, common := newTestProject(t)
-	for _, flag := range []string{"--model", "--backend"} {
-		args := append([]string{"task", "set", "--id", "F0.T1", flag, "x"}, common...)
-		if rc := cli.Run("test", args); rc == 0 {
-			t.Errorf("task set %s: rc = 0, want non-zero (not implemented)", flag)
+// #390: `task set --model` changes the task's model in tasks.json and the
+// database; `task add` and `task edit` go through the same TaskEditor. A
+// model with no route is refused and writes nothing, and --backend is gone
+// (the route names the backend).
+func TestTaskSetModelAddAndEdit(t *testing.T) {
+	root, common := newTestProject(t)
+	router := filepath.Join(root, ".orchestrator", "model_router.yaml")
+	if err := os.WriteFile(router, []byte("codex/gpt-5.6-codex:\n  backend: codex\n  cli_model: gpt-5.6-codex\n  tier: standard\n  is_premium: false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) int { return cli.Run("test", append(args, common...)) }
+	tasksJSON := func() string {
+		b, err := os.ReadFile(filepath.Join(root, "tasks.json")) // #nosec G304 -- a temp copy of the fixture
+		if err != nil {
+			t.Fatal(err)
 		}
+		return string(b)
+	}
+
+	if rc := run("task", "set", "--id", "F0.T1", "--model", "codex/gpt-5.6-codex"); rc != 0 {
+		t.Fatalf("task set --model: rc = %d", rc)
+	}
+	if !strings.Contains(tasksJSON(), `"model": "codex/gpt-5.6-codex"`) {
+		t.Errorf("tasks.json does not carry the new model:\n%s", tasksJSON())
+	}
+	before := tasksJSON()
+	if rc := run("task", "set", "--id", "F0.T1", "--model", "gemini/nope"); rc != 1 {
+		t.Errorf("an unrouted model: rc = %d, want 1", rc)
+	}
+	if tasksJSON() != before {
+		t.Error("a refused model changed tasks.json")
+	}
+	if rc := run("task", "set", "--id", "F0.T1", "--backend", "codex"); rc == 0 {
+		t.Error("--backend is still accepted")
+	}
+
+	if rc := run("task", "add", "--id", "F9.T1", "--title", "new work", "--model", "codex/gpt-5.6-codex", "--deps", "F0.T1", "--estimate", "2"); rc != 0 {
+		t.Fatalf("task add: rc = %d", rc)
+	}
+	if rc := run("task", "edit", "--id", "F9.T1", "--title", "renamed work"); rc != 0 {
+		t.Fatalf("task edit: rc = %d", rc)
+	}
+	if got := tasksJSON(); !strings.Contains(got, `"id": "F9.T1"`) || !strings.Contains(got, `"title": "renamed work"`) {
+		t.Errorf("tasks.json after add and edit:\n%s", got)
+	}
+	if rc := run("task", "edit", "--id", "F9.T1"); rc != 1 {
+		t.Errorf("an edit with nothing to change: rc = %d, want 1", rc)
 	}
 }
 
