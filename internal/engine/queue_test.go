@@ -367,3 +367,61 @@ func TestSelfDependencyErrorIsTheWholeMessage(t *testing.T) {
 		t.Errorf("err =\n  %q\nwant\n  %q", err.Error(), want)
 	}
 }
+
+// TestReloadTakesTheNewDefinitionsAndKeepsTheStatuses is v0.22's reload: the
+// queue takes tasks.json as it is now — a new task, an edited one, one
+// removed — while every task it already knew keeps the status this run gave
+// it, and a task that is running keeps the definition it was dispatched with.
+func TestReloadTakesTheNewDefinitionsAndKeepsTheStatuses(t *testing.T) {
+	a, b, c := task("A", 1, "claude/opus"), task("B", 1, "claude/opus"), task("C", 1, "claude/opus")
+	q, err := NewTaskQueue([]model.Task{a, b, c})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkDone("A"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkInFlight("B"); err != nil {
+		t.Fatal(err)
+	}
+
+	a2, b2 := a, b
+	a2.Title, b2.Model = "A renamed", "codex/gpt-5.6-codex"
+	d := task("D", 2, "claude/opus")
+	d.Dependencies = []string{"A"}
+	added, err := q.Reload([]model.Task{a2, b2, d}) // C removed, D new
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added != 1 {
+		t.Errorf("added = %d, want 1", added)
+	}
+	if got, _ := q.Task("A"); got.Title != "A renamed" {
+		t.Errorf("A = %+v, want the new title", got)
+	}
+	if st, _ := q.Status("A"); st != model.StatusDone {
+		t.Errorf("A status = %q, want done kept", st)
+	}
+	if got, _ := q.Task("B"); got.Model != "claude/opus" {
+		t.Errorf("the running B took the new model %q", got.Model)
+	}
+	if st, _ := q.Status("B"); st != model.StatusInProgress {
+		t.Errorf("B status = %q, want in-progress kept", st)
+	}
+	if _, ok := q.Task("C"); ok {
+		t.Error("C, removed from tasks.json and not running, is still queued")
+	}
+	if ready := q.Ready(ReadyOpts{}); len(ready) != 1 || ready[0].ID != "D" {
+		t.Errorf("ready = %v, want the new D (its dependency A is done)", ready)
+	}
+
+	// A tasks.json the run could not walk is refused and changes nothing.
+	cyc1, cyc2 := task("X", 1, "claude/opus"), task("Y", 1, "claude/opus")
+	cyc1.Dependencies, cyc2.Dependencies = []string{"Y"}, []string{"X"}
+	if _, err := q.Reload([]model.Task{a2, b2, cyc1, cyc2}); err == nil {
+		t.Error("a cycle was accepted")
+	}
+	if _, ok := q.Task("D"); !ok {
+		t.Error("a refused reload changed the queue")
+	}
+}

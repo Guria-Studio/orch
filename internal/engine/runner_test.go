@@ -1264,3 +1264,31 @@ func TestMaxTasksStillDispatchesACIRetry(t *testing.T) {
 		t.Errorf("C-2 = %q, want todo: the cap was already spent", got)
 	}
 }
+
+// TestRunTakesATaskAddedWhileItRuns is v0.22: a task added to tasks.json
+// while the run is going — here, one depending on the task already running —
+// is dispatched by the same run, instead of waiting for the next one.
+func TestRunTakesATaskAddedWhileItRuns(t *testing.T) {
+	f := newRunnerFixture(t,
+		[]model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse(), "C-2": okResponse()},
+		SchedulerOptions{})
+	calls := 0
+	f.r.ReloadTasks = func(context.Context) ([]model.Task, bool, error) {
+		calls++
+		if calls != 2 {
+			return nil, false, nil
+		}
+		return []model.Task{task("C-1", 1, "claude/opus"), task("C-2", 1, "claude/opus", "C-1")}, true, nil
+	}
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, _ := f.s.Queue.Status("C-2"); got != model.StatusDone {
+		t.Errorf("C-2 = %q, want done by the same run", got)
+	}
+	if f.s.Dispatched() != 2 {
+		t.Errorf("dispatched = %d, want 2", f.s.Dispatched())
+	}
+}

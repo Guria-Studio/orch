@@ -94,6 +94,44 @@ func NewTaskQueue(tasks []model.Task) (*TaskQueue, error) {
 	return q, nil
 }
 
+// Reload takes tasks.json as it is now (v0.22): new tasks join with their
+// seeded status, edited ones take their new definition, and ones no longer
+// in the file leave. Every task the queue already knew keeps the status this
+// run gave it, and a running task keeps the definition it was dispatched
+// with, and stays even if the file dropped it. A set the run could not walk
+// (a cycle, a missing dependency) is refused and the queue is unchanged.
+// Returns how many tasks are new.
+func (q *TaskQueue) Reload(tasks []model.Task) (int, error) {
+	merged := make([]model.Task, 0, len(tasks))
+	seen := map[string]bool{}
+	for _, t := range tasks {
+		seen[t.ID] = true
+		if q.status[t.ID] == model.StatusInProgress {
+			t = q.byID[t.ID]
+		}
+		merged = append(merged, t)
+	}
+	for id, st := range q.status {
+		if !seen[id] && st == model.StatusInProgress {
+			merged = append(merged, q.byID[id])
+		}
+	}
+	next, err := NewTaskQueue(merged)
+	if err != nil {
+		return 0, err
+	}
+	added := 0
+	for id := range next.status {
+		if st, known := q.status[id]; known {
+			next.status[id] = st
+		} else {
+			added++
+		}
+	}
+	*q = *next
+	return added, nil
+}
+
 // Hydrate overwrites the seeded statuses with the backend's, for the tasks
 // the backend knows about.
 //
