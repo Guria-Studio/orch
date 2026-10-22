@@ -119,7 +119,7 @@ internal/
   publish/           — stakeholder snapshot (snapshot/), the static site of `orch publish --to dir|git`, and `--to cloud` (cloud.go + credentials.go, ~/.orch/credentials; contract in docs/CLOUD.md, Worker in the orch-cloud repo); `orch cloud setup` (cloudsetup.go) drives a pinned `npx wrangler` to deploy the Worker's built copy in cloudworker/ (regenerate per its README); embeds the stakeholder bundle
   report/            — `orch report pdf`
   mcp/               — MCP stdio server (orch_* tools; docs/MCP.md)
-  skills/            — embedded skills (orch + the planning pipeline orch-plan/prd/arch/spec/tasks, G6.5, and orch-tdd for test-first work) + `orch install-skills`; internal/cli/skills_contract_test.go checks them against the command tree and the atomize parser
+  skills/            — embedded skills (orch + the planning pipeline orch-plan/prd/arch/spec/tasks, G6.5, orch-tdd for test-first work, orch-e2e for browser-explored Playwright specs) + `orch install-skills`; internal/cli/skills_contract_test.go checks them against the command tree and the atomize parser
   templates/         — embedded project templates
   scaffold/          — `orch init`: batch, wizard, confirm gate (not `init`: that name needs an alias everywhere)
   doctor/            — `orch doctor` checks

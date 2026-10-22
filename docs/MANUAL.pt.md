@@ -598,9 +598,10 @@ orch install-skills --dry-run                # preview primeiro
 `~/.claude/skills`. `codex`/`opencode` não têm mecanismo próprio de
 skills, então recebem uma seção claramente delimitada e substituível de
 forma idempotente no `AGENTS.md` do projeto; `cursor` recebe um arquivo
-`.cursor/rules/<name>.mdc`. Sete skills vêm embutidos no binário: `orch-tdd`,
+`.cursor/rules/<name>.mdc`. Oito skills vêm embutidos no binário: `orch-tdd`,
 como um agente trabalha uma tarefa com os testes primeiro (vermelho, verde,
-limpar), `orch`, o manual de operação para um agente dentro de um projeto, e o pipeline de
+limpar); `orch-e2e`, como um agente percorre o app rodando num navegador e
+deixa specs do Playwright; `orch`, o manual de operação para um agente dentro de um projeto, e o pipeline de
 planejamento — `orch-plan` executa `orch-prd` (ideia → `docs/prd/`),
 `orch-arch` (→ `docs/arch/`), `orch-spec` (→ `specs/`, no formato exato
 que `orch atomize` lê) e `orch-tasks` (→ `tasks.json` via
