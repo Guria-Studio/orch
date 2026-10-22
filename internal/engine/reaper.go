@@ -37,7 +37,7 @@ type completion struct {
 // own children, so a `wait4(-1)` sweep like Python's would race it. The
 // channel is buffered to the concurrency ceiling so a supervisor never blocks
 // on a reaper that is busy.
-func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned) {
+func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 	exitCode, reason, timedOut := sp.Wait(d.Timeout)
 	duration := time.Since(sp.StartedAt)
 
@@ -60,7 +60,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned) {
 			out.Failure = providers.Classify(out.Result)
 		}
 	}
-	s.verifyOutcome(d, &out)
+	s.verifyOutcome(d, attempt, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
 }
@@ -120,6 +120,8 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 				"task", entry.Task.ID, "err", err)
 		}
 	}
+
+	s.recordE2E(ctx, entry, out.E2E)
 
 	// The agent may have blocked the task itself (orch_block, task-block.sh)
 	// and then exited cleanly, which the wrapper reports as a success. The

@@ -23,15 +23,20 @@ type scriptedVerifier struct {
 	answers []string
 	dirs    []string
 	envs    [][]string
+	// e2e is returned with every answer; artifacts records each call's
+	// ArtifactsDir.
+	e2e       *E2ESummary
+	artifacts []string
 }
 
-func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) string {
+func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) VerifyResult {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.dirs = append(v.dirs, req.Dir)
 	v.envs = append(v.envs, req.Env)
+	v.artifacts = append(v.artifacts, req.ArtifactsDir)
 	i := min(len(v.dirs), len(v.answers)) - 1
-	return v.answers[i]
+	return VerifyResult{Failure: v.answers[i], E2E: v.e2e}
 }
 
 // verifyFixture is a reap fixture over a real repository with a bare
@@ -173,5 +178,40 @@ func TestNoVerifierPushesAsBefore(t *testing.T) {
 	}
 	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
 		t.Errorf("status = %q, want done", got)
+	}
+}
+
+// TestE2EResultsAreRecordedPerAttempt: each verified attempt's E2E run is an
+// e2e_report event with its counts and report, the one the dashboard lists,
+// and every attempt keeps its files in a directory of its own.
+func TestE2EResultsAreRecordedPerAttempt(t *testing.T) {
+	v := &scriptedVerifier{answers: []string{"1 of 3 E2E tests failed", ""}, e2e: &E2ESummary{Passed: 2, Failed: 1, Report: "/state/report.json"}}
+	f, _ := verifyFixture(t, v, 2)
+
+	f.runOnce(t)
+	f.runOnce(t)
+
+	var reports []map[string]any
+	f.backend.mu.Lock()
+	for _, e := range f.backend.events {
+		if e.taskID == "C-1" && e.eventType == EventE2EReport {
+			reports = append(reports, e.extra)
+		}
+	}
+	f.backend.mu.Unlock()
+	if len(reports) != 2 {
+		t.Fatalf("e2e_report events = %v, want one per attempt", reports)
+	}
+	for i, r := range reports {
+		if r["attempt"] != i+1 || r["passed"] != 2 || r["failed"] != 1 || r["report"] != "/state/report.json" {
+			t.Errorf("e2e_report %d = %v", i+1, r)
+		}
+	}
+	want := []string{
+		E2EArtifactsDir(f.s.Opts.StateDir, f.s.Opts.RunID, "C-1", 1),
+		E2EArtifactsDir(f.s.Opts.StateDir, f.s.Opts.RunID, "C-1", 2),
+	}
+	if !slices.Equal(v.artifacts, want) {
+		t.Errorf("artifacts dirs = %v, want %v", v.artifacts, want)
 	}
 }

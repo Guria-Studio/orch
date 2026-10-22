@@ -659,7 +659,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	delete(s.deferReasons, task.ID)
 
 	// One supervisor per child, posting to the reaper when it finishes.
-	go s.supervise(sp.PID, d, sp)
+	go s.supervise(sp.PID, d, sp, attempt)
 
 	if s.Backend != nil {
 		if err := s.Backend.RecordDispatchAndEvent(ctx, s.Opts.RunID, d, sp, attempt); err != nil {

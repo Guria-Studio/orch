@@ -78,6 +78,8 @@ type Outcome struct {
 	// work (verify.enabled), for the agent's next attempt. Empty when the
 	// work passed or was not verified.
 	VerifyFailure string
+	// E2E is the attempt's E2E run, when the verify collected one.
+	E2E *E2ESummary
 }
 
 // Run spawns a dispatch, supervises it, and parses what it produced.

@@ -352,7 +352,7 @@ var knownKeys = map[string]bool{
 	"portal.documents":        true,
 	"verify.enabled":          true, "verify.commands": true, "verify.review": true,
 	"verify.reviewer": true, "verify.review_model": true, "verify.checklist": true,
-	"verify.max_attempts": true, "verify.timeout_s": true, "verify.e2e": true,
+	"verify.max_attempts": true, "verify.timeout_s": true, "verify.e2e": true, "verify.e2e_report": true,
 	"verify.app.start": true, "verify.app.url": true, "verify.app.stop": true,
 	"verify.app.ready_timeout_s": true,
 }

@@ -614,6 +614,7 @@ verify:
     stop: ""            # e.g. docker compose down -v --remove-orphans
     ready_timeout_s: 120
   e2e: []               # run against the app, with ORCH_APP_URL set
+  e2e_report: ""        # Playwright's JSON report, relative to the worktree
   max_attempts: 2
   timeout_s: 600
 ```
@@ -650,6 +651,36 @@ that does not start, or never answers, is sent back like a failing test. If
 the cause is the machine and not the change, the agent can block the task and
 say so. `e2e` without `app` runs too, for a suite that starts its own server
 (Playwright's `webServer`).
+
+**E2E results.** With `e2e_report` set to the file Playwright's JSON reporter
+writes, verify reads it after the E2E commands, pass or fail, and keeps the
+attempt's results under
+`.orchestrator/state/<project>/e2e/<run>/<task>/attempt-<n>/`. That
+directory holds a `report.json` in orch's own shape and the files each test
+left: screenshots, videos, traces. Each attempt is recorded as an
+`e2e_report` event with its counts. When the tests fail, the agent is told
+which ones, where they failed (`file:line`), the step each one was in, the
+first lines of the error, and the screenshot and trace it left in the
+worktree, instead of the raw output. Playwright's report is removed from the
+worktree after reading, so it is never committed. Keep `test-results/`
+gitignored, as `npm init playwright` does. A recipe:
+
+```ts
+// playwright.config.ts
+export default defineConfig({
+  reporter: [['line'], ['json', { outputFile: 'e2e-report.json' }]],
+  use: {
+    baseURL: process.env.ORCH_APP_URL,
+    screenshot: 'only-on-failure', video: 'retain-on-failure', trace: 'retain-on-failure',
+  },
+});
+```
+
+```yaml
+verify:
+  e2e: [pnpm exec playwright test]
+  e2e_report: e2e-report.json
+```
 
 Work that fails is not pushed. The task goes back to its agent in the same
 worktree, with the failure in `.orch-ci-feedback.md` and the prompt telling it

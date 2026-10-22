@@ -1,0 +1,239 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/capture/node_modules/@playwright/test/cli.js",
+      "test"
+    ],
+    "configFile": "/capture/playwright.config.ts",
+    "rootDir": "/capture/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/capture/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/capture/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/capture/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "/capture/tests",
+        "snapshotDir": "/capture/tests",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 30000,
+        "use": {
+          "screenshot": "only-on-failure",
+          "video": "retain-on-failure",
+          "trace": "retain-on-failure"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "line",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "e2e-report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 8,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "shop.spec.ts",
+      "file": "shop.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "checkout",
+          "file": "shop.spec.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "shows the cart",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 388,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-22T20:11:00.367Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f3cfbb30272ae2b01352-cf2d73e91437d654a9c2",
+              "file": "shop.spec.ts",
+              "line": 4,
+              "column": 7
+            },
+            {
+              "title": "pays with a card",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1186,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#r')\nExpected: \u001b[32m\"Pago aprobado\"\u001b[39m\nReceived: \u001b[31m\"Error 500\"\u001b[39m\nTimeout:  1000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" locator('#r') with timeout 1000ms\u001b[22m\n\u001b[2m  - waiting for locator('#r')\u001b[22m\n\u001b[2m    11 × locator resolved to <p id=\"r\">Error 500</p>\u001b[22m\n\u001b[2m       - unexpected value \"Error 500\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#r')\nExpected: \u001b[32m\"Pago aprobado\"\u001b[39m\nReceived: \u001b[31m\"Error 500\"\u001b[39m\nTimeout:  1000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" locator('#r') with timeout 1000ms\u001b[22m\n\u001b[2m  - waiting for locator('#r')\u001b[22m\n\u001b[2m    11 × locator resolved to <p id=\"r\">Error 500</p>\u001b[22m\n\u001b[2m       - unexpected value \"Error 500\"\u001b[22m\n\n    at /capture/tests/shop.spec.ts:13:38",
+                        "location": {
+                          "file": "/capture/tests/shop.spec.ts",
+                          "column": 38,
+                          "line": 13
+                        },
+                        "snippet": "  11 |       await page.getByRole('button', { name: 'Pagar' }).click();\n  12 |     });\n> 13 |     await expect(page.locator('#r')).toHaveText('Pago aprobado', { timeout: 1000 });\n     |                                      ^\n  14 |   });\n  15 | });\n  16 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/capture/tests/shop.spec.ts",
+                            "column": 38,
+                            "line": 13
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#r')\nExpected: \u001b[32m\"Pago aprobado\"\u001b[39m\nReceived: \u001b[31m\"Error 500\"\u001b[39m\nTimeout:  1000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" locator('#r') with timeout 1000ms\u001b[22m\n\u001b[2m  - waiting for locator('#r')\u001b[22m\n\u001b[2m    11 × locator resolved to <p id=\"r\">Error 500</p>\u001b[22m\n\u001b[2m       - unexpected value \"Error 500\"\u001b[22m\n\n\n  11 |       await page.getByRole('button', { name: 'Pagar' }).click();\n  12 |     });\n> 13 |     await expect(page.locator('#r')).toHaveText('Pago aprobado', { timeout: 1000 });\n     |                                      ^\n  14 |   });\n  15 | });\n  16 |\n    at /capture/tests/shop.spec.ts:13:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "steps": [
+                        {
+                          "title": "click Pagar",
+                          "duration": 78
+                        }
+                      ],
+                      "startTime": "2026-10-22T20:11:01.179Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/capture/test-results/shop-checkout-pays-with-a-card/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/capture/test-results/shop-checkout-pays-with-a-card/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/capture/test-results/shop-checkout-pays-with-a-card/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/capture/test-results/shop-checkout-pays-with-a-card/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/capture/tests/shop.spec.ts",
+                        "column": 38,
+                        "line": 13
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "f3cfbb30272ae2b01352-71c825f2ee7614ab6b9b",
+              "file": "shop.spec.ts",
+              "line": 8,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-22T20:11:00.036Z",
+    "duration": 2390.4799999999996,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}
