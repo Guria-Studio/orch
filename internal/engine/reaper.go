@@ -2,8 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -189,6 +193,11 @@ func (s *Scheduler) tidyWorktree(ctx context.Context, entry *InFlight, out Outco
 		return false, ""
 	}
 	id := entry.Task.ID
+
+	// The CI logs a retry was given are for the agent, not the PR.
+	if err := os.Remove(filepath.Join(entry.Dispatch.Cwd, CIFeedbackFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		s.logger().Error("worktree: removing the CI feedback file failed", "task", id, "err", err)
+	}
 
 	// Commit first: without it the branch is empty and Remove then discards
 	// whatever the agent wrote (Sprint F-6, issue #60).
