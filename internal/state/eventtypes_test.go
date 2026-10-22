@@ -111,6 +111,8 @@ var goOnlyEventTypes = map[string]bool{
 	"verify_failed": true,
 	// An attempt's E2E results, collected by the local verify (verify.e2e_report).
 	"e2e_report": true,
+	// Work an earlier attempt committed, accepted with `orch task salvage --accept` (#391).
+	"salvage_accepted": true,
 }
 
 // The four names the plan's FR-STATE-7 listed are not event types.

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // PurgeOrphanBranch best-effort deletes the local branch for taskID's
@@ -32,7 +33,9 @@ func (m *Manager) PurgeOrphanBranch(taskID string) error {
 }
 
 // clearLeftoverBranch deletes orch/<taskID> when an earlier attempt left it
-// behind and nothing uses it, so `git worktree add -b` can create it afresh.
+// behind and nothing uses it, so `git worktree add -b` can create it afresh —
+// unless it holds commits that neither start nor any remote has, which are
+// renamed to a salvage branch instead (#391).
 //
 // PurgeOrphanBranch alone was not enough (#345): when the earlier attempt's
 // worktree directory vanished without `git worktree remove` — a killed run, a
@@ -44,7 +47,7 @@ func (m *Manager) PurgeOrphanBranch(taskID string) error {
 // A branch a worktree that does exist still has checked out is somebody's
 // work in progress — most likely another `orch run` on the same project
 // (#344) — and is left alone: Create fails, naming where it is checked out.
-func (m *Manager) clearLeftoverBranch(taskID string) error {
+func (m *Manager) clearLeftoverBranch(taskID, start string) error {
 	branch := m.BranchName(taskID)
 	if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
 		return nil // no branch: the ordinary first dispatch
@@ -60,6 +63,20 @@ func (m *Manager) clearLeftoverBranch(taskID string) error {
 	if at := worktreeUsing(list, branch); at != "" {
 		return fmt.Errorf("worktree: branch %s is still checked out at %s; another orch run may be working on %s — "+
 			"stop it, or run `git worktree remove %s` if nothing is", branch, at, taskID, at)
+	}
+	// Commits neither the new start nor any remote has are the only copy of
+	// an earlier attempt's work — one whose task ended blocked before a push
+	// (#391). They are kept under a salvage name instead of deleted.
+	if out, err := m.run(taskID, "git", "rev-list", "--count", branch, "--not", start, "--remotes"); err == nil {
+		if n := strings.TrimSpace(out); n != "" && n != "0" {
+			salvage := branch + SalvageMarker + time.Now().UTC().Format("20060102T150405Z")
+			if _, err := m.run(taskID, "git", "branch", "-m", branch, salvage); err != nil {
+				return fmt.Errorf("worktree: keeping the earlier attempt's work on %s: %w", branch, err)
+			}
+			slog.Warn("worktree: kept an earlier attempt's unpushed commits instead of deleting them; review them with `orch task salvage`",
+				"task_id", taskID, "commits", n, "branch", salvage)
+			return nil
+		}
 	}
 	if err := m.PurgeOrphanBranch(taskID); err != nil {
 		return fmt.Errorf("worktree: deleting the leftover branch %s: %w", branch, err)
@@ -145,11 +162,12 @@ func (m *Manager) CreateWithEnv(taskID, baseBranch string, setupEnv []string, de
 		return "", errors.Join(err, cleanupErr)
 	}
 
-	if err := m.clearLeftoverBranch(taskID); err != nil {
+	start := m.startPoint(taskID, baseBranch)
+	if err := m.clearLeftoverBranch(taskID, start); err != nil {
 		return "", errors.Join(err, cleanupErr)
 	}
 
-	if _, err := m.run(taskID, "git", "worktree", "add", wtPath, "-b", m.BranchName(taskID), m.startPoint(taskID, baseBranch)); err != nil {
+	if _, err := m.run(taskID, "git", "worktree", "add", wtPath, "-b", m.BranchName(taskID), start); err != nil {
 		return "", errors.Join(err, cleanupErr)
 	}
 	for _, dep := range deps {
@@ -483,4 +501,20 @@ func overrideEnv(base, vars []string) []string {
 		}
 	}
 	return append(out, vars...)
+}
+
+// SalvageMarker sits between a task's branch name and a timestamp on a branch
+// that keeps an earlier attempt's unpushed work (#391):
+// orch/<id>-salvage-20261022T213000Z.
+const SalvageMarker = "-salvage-"
+
+// SalvageTaskID is the task a salvage branch belongs to, and whether branch
+// is one. It takes the short name (`orch/F0.1.T5-salvage-…`).
+func SalvageTaskID(branch string) (string, bool) {
+	rest, ok := strings.CutPrefix(branch, "orch/")
+	if !ok {
+		return "", false
+	}
+	id, _, found := strings.Cut(rest, SalvageMarker)
+	return id, found && id != ""
 }

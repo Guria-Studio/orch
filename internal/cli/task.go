@@ -20,7 +20,7 @@ func newTaskCmd(flags *projectFlags) *cobra.Command {
 		Use:   "task",
 		Short: "Manual task mutations",
 	}
-	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags), newTaskStopCmd(flags))
+	cmd.AddCommand(newTaskSetCmd(flags), newTaskNoteCmd(flags), newTaskStopCmd(flags), newTaskSalvageCmd(flags))
 	return cmd
 }
 
