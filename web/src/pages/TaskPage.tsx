@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { AlertTriangle, ArrowLeft } from "lucide-react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -163,6 +163,89 @@ function TaskContext({ task }: { task: Task }) {
   )
 }
 
+const SPLIT_KEY = "orch.taskSplit"
+const SPLIT_DEFAULT = 70
+const SPLIT_MIN = 20
+const SPLIT_STEP = 5
+
+const clampSplit = (n: number) => Math.min(100 - SPLIT_MIN, Math.max(SPLIT_MIN, Math.round(n)))
+
+function storedSplit(): number {
+  try {
+    const n = Number(window.localStorage.getItem(SPLIT_KEY))
+    return n ? clampSplit(n) : SPLIT_DEFAULT
+  } catch {
+    return SPLIT_DEFAULT
+  }
+}
+
+/**
+ * The details beside the activity, 70/30 by default (#404), with a handle
+ * between them: drag it, or focus it and use the arrow keys; a double click
+ * puts it back. Each side keeps 20%. The split is this browser's, kept in
+ * localStorage. Below lg the two stack, as they always did, with no handle.
+ */
+function SplitGrid({ children }: { children: [ReactNode, ReactNode] }) {
+  const [split, setSplitState] = useState(storedSplit)
+  const grid = useRef<HTMLDivElement>(null)
+  const setSplit = (n: number) => {
+    const next = clampSplit(n)
+    setSplitState(next)
+    try {
+      window.localStorage.setItem(SPLIT_KEY, String(next))
+    } catch {
+      // A browser that keeps nothing still resizes; it just forgets.
+    }
+  }
+  const drag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const box = grid.current?.getBoundingClientRect()
+    if (!box || box.width === 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent) => setSplit(((ev.clientX - box.left) / box.width) * 100)
+    const up = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+  }
+  const keys: Record<string, number> = { ArrowLeft: -SPLIT_STEP, ArrowRight: SPLIT_STEP }
+  const [details, activity] = children
+  return (
+    <div
+      ref={grid}
+      className="grid gap-6 lg:grid-cols-[minmax(0,var(--details))_auto_minmax(0,var(--activity))] lg:gap-0"
+      style={{ "--details": `${split}fr`, "--activity": `${100 - split}fr` } as CSSProperties}
+    >
+      {details}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("task.resize")}
+        aria-valuemin={SPLIT_MIN}
+        aria-valuemax={100 - SPLIT_MIN}
+        aria-valuenow={split}
+        tabIndex={0}
+        onPointerDown={drag}
+        onDoubleClick={() => setSplit(SPLIT_DEFAULT)}
+        onKeyDown={(e) => {
+          if (keys[e.key]) {
+            e.preventDefault()
+            setSplit(split + keys[e.key])
+          } else if (e.key === "Home" || e.key === "Enter") {
+            e.preventDefault()
+            setSplit(SPLIT_DEFAULT)
+          }
+        }}
+        className="group hidden cursor-col-resize touch-none px-2 focus-visible:outline-none lg:flex lg:justify-center"
+      >
+        <span className="h-full w-px bg-border transition-colors group-hover:bg-primary/60 group-focus-visible:w-0.5 group-focus-visible:bg-primary" />
+      </div>
+      {activity}
+    </div>
+  )
+}
+
 /**
  * A task's own page (#374): /work/tasks/<id>. The activity feed is the main
  * area, with its own scroll, followed live while the task runs; the context
@@ -202,7 +285,7 @@ export function TaskPage() {
             <p className="font-mono text-xs text-muted-foreground">{data.id}</p>
             <h1 className="text-xl font-semibold leading-snug">{data.title}</h1>
           </header>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+          <SplitGrid>
             <aside className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-auto">
               <TaskContext task={data} />
             </aside>
@@ -220,7 +303,7 @@ export function TaskPage() {
                 full
               />
             </section>
-          </div>
+          </SplitGrid>
         </>
       ) : null}
     </div>
