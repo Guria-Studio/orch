@@ -259,6 +259,28 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	runner.Statuses = engine.StateRecorder{Backend: backend}
 	// And acts on the operator's stop requests (#356).
 	runner.Requests = backend
+	// And takes tasks.json again when it changes (v0.22): a task added or
+	// edited — by `orch task add|edit`, the dashboard or a hand edit — joins
+	// this run. Checked by modification time, so an unchanged file costs a
+	// stat per tick.
+	tasksMod := fileModTime(paths.TasksJSON())
+	runner.ReloadTasks = func(ctx context.Context) ([]model.Task, bool, error) {
+		mod := fileModTime(paths.TasksJSON())
+		if mod.Equal(tasksMod) {
+			return nil, false, nil
+		}
+		// Before reading: a file broken mid-edit is reported once, and read
+		// again when it next changes.
+		tasksMod = mod
+		tf, err := model.LoadTasksFile(paths.TasksJSON())
+		if err != nil {
+			return nil, false, err
+		}
+		if err := backend.Bootstrap(ctx, tf.Tasks); err != nil {
+			return nil, false, err
+		}
+		return tf.Tasks, true, nil
+	}
 
 	// The CI poller only has something to watch when a PR can exist.
 	if provider != nil {
@@ -412,4 +434,13 @@ func newBudgetGate(paths config.Paths, cfg config.Config, backend state.Backend)
 	}
 	bcfg.UnreportedDispatchTokens = cfg.TypicalDispatchToken
 	return budget.NewGate(backend, bcfg)
+}
+
+// fileModTime is path's modification time, zero when it cannot be read.
+func fileModTime(path string) time.Time {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }

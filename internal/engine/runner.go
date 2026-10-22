@@ -86,6 +86,10 @@ type Runner struct {
 	// Requests is where the operator's stop requests are read from (#356).
 	// Nil disables them.
 	Requests StopRequests
+	// ReloadTasks returns tasks.json's tasks when the file changed since it
+	// last looked, and whether it did (v0.22): a task added or edited while
+	// the run is going joins it. Nil disables it.
+	ReloadTasks func(ctx context.Context) ([]model.Task, bool, error)
 
 	// Signals, when non-nil, is used instead of installing real handlers —
 	// the tests drive it directly rather than signalling the test binary.
@@ -194,6 +198,9 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 		}
 
 		if !s.Draining() {
+			if r.reloadTasks(ctx) {
+				progressed = true
+			}
 			started, err := s.Refill(ctx)
 			if err != nil {
 				return 1, fmt.Errorf("refill: %w", err)
@@ -377,6 +384,33 @@ func (r *Runner) workIsDone(ctx context.Context) bool {
 		return false
 	}
 	return !r.waitingOnCI(ctx)
+}
+
+// reloadTasks takes tasks.json again when it changed, before the refill
+// that may dispatch what it added. A file the run cannot read or walk is
+// logged and the run keeps the tasks it had: a half-finished edit by hand
+// must not end a run. Reports whether the queue changed.
+func (r *Runner) reloadTasks(ctx context.Context) bool {
+	if r.ReloadTasks == nil {
+		return false
+	}
+	s := r.Scheduler
+	tasks, changed, err := r.ReloadTasks(ctx)
+	if err != nil {
+		s.logger().Warn("tasks.json changed but could not be read; keeping the tasks this run had", "err", err)
+		return false
+	}
+	if !changed {
+		return false
+	}
+	added, err := s.Queue.Reload(tasks)
+	if err != nil {
+		s.logger().Warn("tasks.json changed into a DAG this run cannot walk; keeping the tasks it had", "err", err)
+		return false
+	}
+	s.logger().Info("tasks.json changed; this run takes it", "tasks", len(tasks), "new", added)
+	r.adoptStatuses(ctx)
+	return true
 }
 
 // adoptStatuses takes the database's status for every task this run is not
