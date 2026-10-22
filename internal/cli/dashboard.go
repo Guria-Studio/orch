@@ -183,6 +183,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Version:  cmd.Root().Version,
 				Releases: dashboardReleases(),
 				Steer:    &project.Steer{Backend: backend, StateDir: paths.StateDir()},
+				Editor:   &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
 			})
 			if err != nil {
 				return err

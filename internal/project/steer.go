@@ -138,6 +138,40 @@ func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) 
 	return res, nil
 }
 
+// ErrRunOwnsTask is a move only `orch run` makes: starting a task, or
+// finishing one that is running. 409 on the dashboard.
+var ErrRunOwnsTask = errors.New("only orch run starts or finishes a running task")
+
+// Move puts a task in another column of the board (v0.22): the dashboard's
+// drag and its status picker. Blocking needs a reason, which becomes the
+// task's note. A running task is not moved behind its run's back: to todo or
+// blocked it is a Stop (redirect or hold), and nothing moves a task into
+// in-progress or a running one to done but `orch run`.
+func (s Steer) Move(ctx context.Context, taskID string, to model.Status, note string) (StopResult, error) {
+	note = strings.TrimSpace(note)
+	if to == model.StatusBlocked && note == "" {
+		return StopResult{}, errors.New("blocking a task needs a reason")
+	}
+	t, err := s.Backend.Task(ctx, taskID)
+	if err != nil {
+		return StopResult{}, fmt.Errorf("reading %s: %w", taskID, err)
+	}
+	if to == model.StatusInProgress && t.Status != to {
+		return StopResult{}, fmt.Errorf("%s: %w", taskID, ErrRunOwnsTask)
+	}
+	if t.Status == model.StatusInProgress && to != model.StatusInProgress {
+		if to != model.StatusTodo && to != model.StatusBlocked {
+			return StopResult{}, fmt.Errorf("%s is running: %w; stop it first", taskID, ErrRunOwnsTask)
+		}
+		return s.Stop(ctx, taskID, to == model.StatusBlocked, note)
+	}
+	if err := s.Backend.Transition(ctx, taskID, to, state.Note{Author: OperatorAuthor, Body: note}); err != nil {
+		return StopResult{}, err
+	}
+	return StopResult{TaskID: taskID, From: t.Status, To: to,
+		Message: fmt.Sprintf("%s %s -> %s", taskID, t.Status, to)}, nil
+}
+
 // WaitStopped waits up to timeout for the run's answer to a request Stop
 // made, and returns it. ok is false when the run has not answered in time.
 func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Duration) (state.Event, bool, error) {
