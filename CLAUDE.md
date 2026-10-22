@@ -107,6 +107,7 @@ internal/
   budget/            — per-provider guardrails
   pricing/           — pricing.yaml for spend estimates
   estimate/          — `orch estimate`: what the next run would dispatch, cost and take, from past spend
+  verify/            — local verify before the push (verify.enabled): repo checks + read-only review by another provider; the engine sees it as its Verifier interface
   state/             — SQLite backend, the single source of truth
   engine/            — dispatch loop: refill, reaper, scheduler, run loop, CI poller
   project/           — what CLI and dashboard share: tasks.json hydrated with state

@@ -585,6 +585,42 @@ resolves outside the project is ignored, a file over 256 KB is skipped, and
 the whole set stops at 2 MB. `documents: []` publishes none. Specs name tasks
 (`### F1.1.T1`), so drop `specs/f*.md` if those should stay internal.
 
+### `verify` — new
+
+```yaml
+verify:
+  enabled: true         # absent = false
+  commands: []          # [] = what `orch ci setup` detects
+  review: true
+  reviewer: ""          # "" = another installed provider than the task's
+  review_model: ""
+  checklist: ""         # "" = .orch/review.md, then .github/orch-review.md, then the built-in one
+  max_attempts: 2
+  timeout_s: 600
+```
+
+A local gate between an agent's clean exit and the push, in the task's own
+worktree. **Worktree mode only**: without `dispatch.worktree_mode` orch prints
+a note and verifies nothing.
+
+1. **Commands.** Each runs at the worktree root through `sh -c`, in order,
+   bounded by `timeout_s`. `commands: []` runs what `orch ci setup` detects:
+   install, lint, typecheck, test and build, per package, where the repository
+   has them. A detected command whose tool is not installed is skipped.
+2. **Review.** With `review: true`, after the commands pass, a provider reads
+   the task's diff against the base, read-only, and applies the checklist,
+   the same review `orch ci review` runs. The default reviewer is the first
+   installed of claude, gemini, codex and opencode that did not write the
+   task. Only a blocking finding fails the work. A review that cannot complete
+   (no other provider, a provider that is down, an answer that does not
+   parse) is logged and the work passes.
+
+Work that fails is not pushed. The task goes back to its agent in the same
+worktree, with the failure in `.orch-ci-feedback.md` and the prompt telling it
+to read that file first. After `max_attempts` send-backs, the task is blocked
+with the failure as its reason. Each send-back is a `verify_failed` event.
+Without the block, or with `enabled: false`, a clean exit is pushed as before.
+
 ### Misc
 
 ```yaml

@@ -2,12 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -64,6 +60,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned) {
 			out.Failure = providers.Classify(out.Result)
 		}
 	}
+	s.verifyOutcome(d, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
 }
@@ -130,15 +127,23 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	// handleFailure applies to a done — and a blocked task's branch is not
 	// published: tidied as a failure, it is committed locally and no further.
 	agentBlocked := !stopped && out.Result.Success && s.taskStatusIs(ctx, entry.Task.ID, model.StatusBlocked)
+	// Work the local verify failed is not published either. While the agent
+	// has send-backs left its worktree is kept as it is, for the retry.
+	verifyFailed := !stopped && !agentBlocked && out.Result.Success && out.VerifyFailure != ""
+	sendBack := verifyFailed && s.verifyAttempts[entry.Task.ID] < s.verifyMax()
 	tidyOut := out
-	if agentBlocked {
+	if agentBlocked || verifyFailed {
 		tidyOut.Result.Success = false
 	}
 	if denied := out.Result.PermissionDenials; len(denied) > 0 {
 		s.logger().Warn("the CLI denied tool calls; `orch doctor` says how to allow them if the task needs them",
 			"task", entry.Task.ID, "denied", strings.Join(denied, ", "))
 	}
-	prOpened, noPR := s.tidyWorktree(ctx, entry, tidyOut)
+	var prOpened bool
+	var noPR string
+	if !sendBack {
+		prOpened, noPR = s.tidyWorktree(ctx, entry, tidyOut)
+	}
 
 	// Capacity comes back before the verdict, so a retry queued below can be
 	// picked up by the very next refill rather than waiting a tick.
@@ -151,6 +156,10 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		return s.finishStopped(ctx, entry, hold)
 	case agentBlocked:
 		return s.keepAgentBlock(ctx, entry)
+	case sendBack:
+		return s.sendBack(ctx, entry, out)
+	case verifyFailed:
+		return s.blockTask(ctx, entry, verifyBlockReason(out.VerifyFailure), out)
 	case !out.Result.Success:
 		return s.handleFailure(ctx, entry, out)
 	case prOpened:
@@ -194,16 +203,9 @@ func (s *Scheduler) tidyWorktree(ctx context.Context, entry *InFlight, out Outco
 	}
 	id := entry.Task.ID
 
-	// The CI logs a retry was given are for the agent, not the PR.
-	if err := os.Remove(filepath.Join(entry.Dispatch.Cwd, CIFeedbackFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		s.logger().Error("worktree: removing the CI feedback file failed", "task", id, "err", err)
-	}
-
 	// Commit first: without it the branch is empty and Remove then discards
 	// whatever the agent wrote (Sprint F-6, issue #60).
-	if err := s.Worktree.CommitPending(ctx, id); err != nil {
-		s.logger().Error("worktree: commit failed", "task", id, "err", err)
-	}
+	s.commitWork(ctx, id, entry.Dispatch.Cwd)
 
 	// Push only on success — incomplete work does not get published. The
 	// work is committed locally either way. Without auto_pr a push failure

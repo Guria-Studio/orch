@@ -107,6 +107,8 @@ var goOnlyEventTypes = map[string]bool{
 	// The operator asked to stop a running task, and the run that stopped
 	// it (#356).
 	"operator_stop": true,
+	// The local verify sent a task back to its agent (verify.enabled).
+	"verify_failed": true,
 }
 
 // The four names the plan's FR-STATE-7 listed are not event types.
