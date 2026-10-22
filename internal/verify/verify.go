@@ -11,13 +11,13 @@ package verify
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -40,6 +40,9 @@ type Verifier struct {
 	// Base is the branch tasks start from; the review reads the diff against
 	// it (origin/<Base> when there is one, as the worktree started there).
 	Base string
+	// RequireTests sends back a change that touches no test file
+	// (dispatch.tdd).
+	RequireTests bool
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -54,6 +57,11 @@ type Verifier struct {
 // turn it off.
 func (v Verifier) Verify(ctx context.Context, taskID string, writer model.Backend, dir string) string {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
+	if v.RequireTests {
+		if failure := v.requireTests(ctx, taskID, dir); failure != "" {
+			return failure
+		}
+	}
 	for _, c := range v.commands(taskID, dir) {
 		if out, err := run(ctx, dir, c, timeout); err != nil {
 			return fmt.Sprintf("orch's local verify ran `%s` in your working dir and it failed (%v):\n\n```\n%s\n```\n",
@@ -160,22 +168,71 @@ func (v Verifier) reviewer(writer model.Backend) model.Backend {
 	return ""
 }
 
-// diff is what the task changed, against origin/<Base> when the remote has
-// it and <Base> otherwise.
+// diff is what the task changed, against its base.
 func (v Verifier) diff(ctx context.Context, dir string) (string, error) {
+	return ci.Diff(ctx, dir, v.baseRef(ctx, dir))
+}
+
+// baseRef is origin/<Base> when the clone has it, as the worktree started
+// there, and <Base> otherwise.
+func (v Verifier) baseRef(ctx context.Context, dir string) string {
 	base := v.Base
 	if base == "" {
 		base = "main"
 	}
-	d, err := ci.Diff(ctx, dir, "origin/"+base)
-	if err == nil {
-		return d, nil
+	if _, err := run(ctx, dir, "git rev-parse --verify --quiet "+shellQuote("origin/"+base+"^{commit}"), time.Minute); err == nil {
+		return "origin/" + base
 	}
-	d, err2 := ci.Diff(ctx, dir, base)
-	if err2 != nil {
-		return "", errors.Join(err, err2)
+	return base
+}
+
+// requireTests sends back a change that touches no test file. An empty
+// change passes here: the other checks decide what nothing means.
+func (v Verifier) requireTests(ctx context.Context, taskID, dir string) string {
+	out, err := run(ctx, dir, "git diff --name-only --merge-base "+shellQuote(v.baseRef(ctx, dir))+" --", time.Minute)
+	if err != nil {
+		slog.Warn("verify: listing the changed files failed; not checking for tests", "task", taskID, "err", err)
+		return ""
 	}
-	return d, nil
+	var changed []string
+	for _, f := range strings.Split(out, "\n") {
+		if f = strings.TrimSpace(f); f != "" {
+			changed = append(changed, f)
+		}
+	}
+	if len(changed) == 0 || slices.ContainsFunc(changed, IsTestFile) {
+		return ""
+	}
+	if len(changed) > 10 {
+		changed = append(changed[:10], "…")
+	}
+	return "dispatch.tdd is on, and your change touches no test file (it changes " + strings.Join(changed, ", ") + "). " +
+		"Write a test for each acceptance criterion with the framework the repository already uses, " +
+		"see it fail for the expected reason, then make it pass.\n"
+}
+
+// IsTestFile reports whether a path, as git prints it, is a test by the
+// naming conventions of the ecosystems orch detects: Go's _test.go, the
+// .test./.spec. of JavaScript and TypeScript, pytest's test_*.py and
+// *_test.py, the *Test/*Tests classes of the JVM and .NET, and any file under
+// a tests/, test/, __tests__/ or spec/ directory.
+func IsTestFile(p string) bool {
+	base := path.Base(p)
+	stem := strings.TrimSuffix(base, path.Ext(base))
+	switch {
+	case strings.HasSuffix(base, "_test.go"),
+		strings.Contains(base, ".test."), strings.Contains(base, ".spec."),
+		strings.HasSuffix(base, ".py") && (strings.HasPrefix(base, "test_") || strings.HasSuffix(stem, "_test")),
+		strings.HasSuffix(stem, "Test"), strings.HasSuffix(stem, "Tests"):
+		return true
+	}
+	for _, dir := range strings.Split(path.Dir(p), "/") {
+		switch dir {
+		case "tests", "test", "__tests__", "spec":
+			return true
+		}
+	}
+	return false
 }
 
 // checklist is the configured file, else .orch/review.md, else

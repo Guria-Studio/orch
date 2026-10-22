@@ -332,7 +332,7 @@ var knownKeys = map[string]bool{
 	"dashboard.summary_language":          true,
 	"dashboard.language":                  true,
 	"dispatch.worktree_mode":              true, "dispatch.base_branch": true,
-	"dispatch.worktree_setup": true, "dispatch.isolate_compose": true,
+	"dispatch.worktree_setup": true, "dispatch.isolate_compose": true, "dispatch.tdd": true,
 	"vcs.provider": true, "vcs.host": true, "vcs.auto_pr": true,
 	"vcs.ci_max_retries": true, "vcs.ci_poll_interval_s": true,
 	"github.test_command": true, "github.auto_merge": true,

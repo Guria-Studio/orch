@@ -219,6 +219,10 @@ type Dispatch struct {
 	// project (COMPOSE_PROJECT_NAME), so parallel worktrees do not recreate
 	// or remove each other's containers (#343). On by default. Go only.
 	IsolateCompose bool `yaml:"isolate_compose"`
+	// TDD tells every dispatched agent to work test-first (the orch-tdd
+	// skill), and has the local verify send back a change that touches no
+	// test file. Off by default. Go only.
+	TDD bool `yaml:"tdd"`
 }
 
 // VCS drives PR creation and CI polling through the `gh` / `glab` CLIs.
