@@ -52,6 +52,34 @@ type Config struct {
 	Sync                 Sync           `yaml:"sync"`
 	ReportFindings       ReportFindings `yaml:"report_findings"`
 	Portal               Portal         `yaml:"portal"`
+	Verify               Verify         `yaml:"verify"`
+}
+
+// Verify checks an agent's work in its worktree after it exits cleanly and
+// before orch pushes it: the repository's own checks, then a read-only review
+// by another provider. A failure sends the task back to its agent with what
+// failed; only work that passes is pushed. Worktree mode only. Off when the
+// block is absent.
+type Verify struct {
+	Enabled bool `yaml:"enabled"`
+	// Commands run in order at the worktree root, each through `sh -c`.
+	// Empty means what `orch ci setup` detects: install, lint, typecheck,
+	// test and build, per package, where the repository has them.
+	Commands []string `yaml:"commands"`
+	// Review runs the LLM review after the commands pass.
+	Review bool `yaml:"review"`
+	// Reviewer is the backend that reviews. Empty means the first installed
+	// one of claude, gemini, codex, opencode that is not the task's own.
+	Reviewer    string `yaml:"reviewer"`
+	ReviewModel string `yaml:"review_model"`
+	// Checklist is the review's markdown checklist, relative to the project
+	// root. Empty means .orch/review.md, then .github/orch-review.md, then
+	// the built-in one.
+	Checklist string `yaml:"checklist"`
+	// MaxAttempts is how many times a task is sent back before it is blocked.
+	MaxAttempts int `yaml:"max_attempts"`
+	// TimeoutS bounds each command, and the review.
+	TimeoutS int `yaml:"timeout_s"`
 }
 
 // Portal configures what the client portal (`orch publish`) shows beyond the

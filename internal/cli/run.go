@@ -23,6 +23,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/hectorcanaimero/orch/internal/verify"
 	"github.com/hectorcanaimero/orch/internal/worktree"
 )
 
@@ -223,6 +224,11 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		wm.Setup = cfg.Dispatch.WorktreeSetup
 		wtManager = engine.NewWorktreeManager(wm)
 		scheduler.Worktree = wtManager
+		if cfg.Verify.Enabled {
+			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch}
+		}
+	} else if cfg.Verify.Enabled {
+		_, _ = fmt.Fprintln(os.Stderr, "note: verify.enabled needs dispatch.worktree_mode; the work is not verified before it is published")
 	}
 
 	var provider vcs.Provider

@@ -74,6 +74,10 @@ type Outcome struct {
 	// Held when they also held the task. A stopped attempt is cancelled, not
 	// failed: it is neither classified nor retried by the retry policy.
 	Stopped, Held bool
+	// VerifyFailure is what the local verify found wrong with a clean exit's
+	// work (verify.enabled), for the agent's next attempt. Empty when the
+	// work passed or was not verified.
+	VerifyFailure string
 }
 
 // Run spawns a dispatch, supervises it, and parses what it produced.

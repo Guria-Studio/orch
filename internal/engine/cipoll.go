@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/model"
@@ -588,7 +586,7 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 		EarliestAt: s.now(),
 	})
 	s.ciRetryPR[row.ID] = row.PRURL
-	s.ciRetryWorktree[row.ID] = wtPath
+	s.retryWorktree[row.ID] = wtPath
 	p.emit(ctx, s, EventCIRedispatch, row, map[string]any{"pr_url": row.PRURL})
 	return true
 }
@@ -599,12 +597,7 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 const CIFeedbackFile = ".orch-ci-feedback.md"
 
 func writeCIFeedback(worktreePath, ciLogs string) error {
-	path := filepath.Join(worktreePath, CIFeedbackFile)
-	body := "# CI Failure — Please fix\n\n```\n" + ciLogs + "\n```\n"
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
+	return writeFeedback(worktreePath, "CI Failure — Please fix", "```\n"+ciLogs+"\n```\n")
 }
 
 // transitionThroughTodo moves a task to `to`, hopping through `todo` first

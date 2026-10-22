@@ -137,6 +137,9 @@ type Scheduler struct {
 	// "Completed dependencies (context)" block. Nil falls back to whatever
 	// tasks.json carried, which since F-12 is nothing — see completedDeps.
 	Comments CommentReader
+	// Verifier checks a clean exit's work in its worktree before the push
+	// (verify.enabled). Nil, or worktree mode off, verifies nothing.
+	Verifier Verifier
 	// Log receives the operator-facing lines. Nil uses slog's default.
 	Log *slog.Logger
 
@@ -172,9 +175,12 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
-	// ciRetryWorktree is the worktree the poller rebuilt for a CI retry, by
-	// task, with the failing logs in it; the retry's dispatch runs there.
-	ciRetryWorktree map[string]string
+	// retryWorktree is the worktree a retry runs in, by task, with the
+	// feedback file saying what failed: the one the poller rebuilt for a CI
+	// retry, or the one a failed local verify kept.
+	retryWorktree map[string]string
+	// verifyAttempts counts each task's local verify send-backs.
+	verifyAttempts map[string]int
 	// stopping holds the children the operator asked to stop, by pid, and
 	// whether to hold their task after (#356).
 	stopping map[int]bool
@@ -251,21 +257,22 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		capacity = 1
 	}
 	return &Scheduler{
-		Queue:           q,
-		Routes:          routes,
-		Sems:            NewSems(opts.GlobalMax, opts.PerProvider),
-		Opts:            opts,
-		inFlight:        make(map[int]*InFlight),
-		deferred:        make(map[string]bool),
-		deferReasons:    make(map[string]string),
-		dispatchedIDs:   make(map[string]bool),
-		done:            make(chan completion, capacity),
-		spentUSD:        make(map[string]float64),
-		ciRetryPR:       make(map[string]string),
-		ciRetryWorktree: make(map[string]string),
-		stopping:        make(map[int]bool),
-		slots:           NewTaskSlots(),
-		now:             time.Now,
+		Queue:          q,
+		Routes:         routes,
+		Sems:           NewSems(opts.GlobalMax, opts.PerProvider),
+		Opts:           opts,
+		inFlight:       make(map[int]*InFlight),
+		deferred:       make(map[string]bool),
+		deferReasons:   make(map[string]string),
+		dispatchedIDs:  make(map[string]bool),
+		done:           make(chan completion, capacity),
+		spentUSD:       make(map[string]float64),
+		ciRetryPR:      make(map[string]string),
+		retryWorktree:  make(map[string]string),
+		verifyAttempts: make(map[string]int),
+		stopping:       make(map[int]bool),
+		slots:          NewTaskSlots(),
+		now:            time.Now,
 	}
 }
 
@@ -775,24 +782,25 @@ func (s *Scheduler) completedDeps(ctx context.Context, task model.Task) []model.
 // (#356), read at dispatch time: a note written while the task waited, or
 // with the stop that ended its last attempt, reaches the next one. A read
 // that fails costs the notes, not the dispatch.
-// taskWorktree is where task's agent runs. A CI retry runs in the worktree
-// the poller rebuilt from its PR's branch, with the failing logs in it, or
-// rebuilds it again when an earlier attempt of the retry was tidied away:
-// Create would branch afresh from the base and delete both, sending the agent
-// back in blind to redo the task over its own PR.
+// taskWorktree is where task's agent runs. A retry with feedback runs in the
+// worktree that holds its earlier work and the feedback file: the one the
+// poller rebuilt from a CI retry's PR branch, or the one a failed local
+// verify kept. A CI retry whose worktree an earlier attempt tidied away is
+// rebuilt again. Create would branch afresh from the base and delete both,
+// sending the agent back in blind to redo the task.
 func (s *Scheduler) taskWorktree(ctx context.Context, task model.Task) (string, error) {
-	if s.ciRetryPR[task.ID] == "" {
-		return s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
-	}
-	path, ok := s.ciRetryWorktree[task.ID]
-	delete(s.ciRetryWorktree, task.ID)
-	if ok && fileExists(path) {
+	path, ok := s.retryWorktree[task.ID]
+	delete(s.retryWorktree, task.ID)
+	switch {
+	case ok && fileExists(path):
 		return path, nil
+	case s.ciRetryPR[task.ID] != "":
+		return s.Worktree.Recreate(ctx, task.ID)
 	}
-	return s.Worktree.Recreate(ctx, task.ID)
+	return s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
 }
 
-// feedbackFileIn names the CI feedback file when workdir has one.
+// feedbackFileIn names the feedback file when workdir has one.
 func feedbackFileIn(workdir string) string {
 	if fileExists(filepath.Join(workdir, CIFeedbackFile)) {
 		return CIFeedbackFile
