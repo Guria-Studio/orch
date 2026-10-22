@@ -593,8 +593,10 @@ orch install-skills --dry-run                # preview first
 `codex`/`opencode` have no skills mechanism of their own, so they get a
 clearly-delimited, idempotently-replaceable section appended to the
 project's `AGENTS.md` instead; `cursor` gets a `.cursor/rules/<name>.mdc`
-file. Seven skills ship embedded in the binary: `orch-tdd`, how an agent
-works a task test-first (red, green, clean), and `orch`, the operating
+file. Eight skills ship embedded in the binary: `orch-tdd`, how an agent
+works a task test-first (red, green, clean); `orch-e2e`, how an agent
+explores a running app in a browser and leaves Playwright specs; and `orch`,
+the operating
 manual for an agent working inside a project, and the planning pipeline —
 `orch-plan` runs `orch-prd` (idea → `docs/prd/`), `orch-arch`
 (→ `docs/arch/`), `orch-spec` (→ `specs/`, in the exact format

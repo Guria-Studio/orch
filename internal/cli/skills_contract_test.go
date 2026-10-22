@@ -19,7 +19,7 @@ import (
 // the command tree, the atomize parser, the default router — and
 // internal/skills is a leaf that imports none of it.
 
-// G6.5 names six skills, and orch-tdd is the seventh. List walks whatever
+// G6.5 names six skills; orch-tdd and orch-e2e came after. List walks whatever
 // the embed matched, so a missing directory would not fail anything else: it
 // would just install one skill fewer, silently.
 func TestTheSkillsAreEmbedded(t *testing.T) {
@@ -31,7 +31,7 @@ func TestTheSkillsAreEmbedded(t *testing.T) {
 	for _, s := range all {
 		got = append(got, s.Name)
 	}
-	want := []string{"orch", "orch-arch", "orch-plan", "orch-prd", "orch-spec", "orch-tasks", "orch-tdd"}
+	want := []string{"orch", "orch-arch", "orch-e2e", "orch-plan", "orch-prd", "orch-spec", "orch-tasks", "orch-tdd"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("embedded skills = %v, want %v", got, want)
 	}
@@ -358,4 +358,35 @@ func findSub(cmd *cobra.Command, name string) *cobra.Command {
 		}
 	}
 	return nil
+}
+
+// The E2E task orch-spec tells a phase with screens to end with goes through
+// the real parser too: with a phase header of its own, its one task parses
+// with its dependencies and both files, and nothing warns.
+func TestTheOrchSpecE2ETaskAtomizesCleanly(t *testing.T) {
+	s, ok := skills.Get("orch-spec")
+	if !ok {
+		t.Fatal("orch-spec is not embedded")
+	}
+	_, rest, ok := strings.Cut(s.Content, "## End-to-end tests for a phase with screens")
+	if !ok {
+		t.Fatal("orch-spec lost its E2E section")
+	}
+	example, ok := fencedBlock(rest, "markdown")
+	if !ok {
+		t.Fatal("the E2E section has no ```markdown example")
+	}
+	spec := "---\ntype: spec\nproject_id: sample-project\nphase: 2\n---\n\n# F2 — Checkout\n\n" + example
+	res := atomize.ParseText(spec, filepath.Join("specs", "f2-checkout.md"), "specs", "sample-project")
+	if len(res.Warnings) != 0 {
+		t.Errorf("the E2E example produces parser warnings: %v", res.Warnings)
+	}
+	if len(res.Tasks) != 1 {
+		t.Fatalf("parsed %d tasks, want the one E2E task: %+v", len(res.Tasks), res.Tasks)
+	}
+	task := res.Tasks[0]
+	if task.ID != "F2.9.T1" || !reflect.DeepEqual(task.Dependencies, []string{"F2.2.T1", "F2.3.T1"}) || len(task.Files) != 2 ||
+		!strings.Contains(task.Description, "Done when:") || !strings.Contains(task.Description, "orch-e2e") {
+		t.Errorf("E2E task = %+v", task)
+	}
 }

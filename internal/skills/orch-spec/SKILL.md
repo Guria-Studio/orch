@@ -159,6 +159,39 @@ Everything between the task header and its first field bullet is the
 - **Nothing field-like inside code fences.** The parser skips fenced blocks
   entirely — a task written inside one is not imported.
 
+
+## End-to-end tests for a phase with screens
+
+A phase that ships something a person clicks through ends with **one E2E
+task**, in its own package, depending on the tasks that build those screens.
+Its agent brings the app up, explores it in a browser and leaves Playwright
+specs (the `orch-e2e` skill); orch's local verify then runs those specs on
+every later task.
+
+```markdown
+## F2.9 — Package: e2e
+
+### F2.9.T1 — E2E: checkout flows
+
+Cover the checkout flows docs/prd/002-checkout.md promises, in a real browser
+against the running app, following the orch-e2e skill.
+
+Done when: these tests pass in `tests/e2e/checkout.spec.ts` — a cart shows
+its items and total; paying with a valid card shows the receipt; a declined
+card shows the decline and keeps the cart.
+
+- **Model**: claude/claude-sonnet-4-6
+- **Estimate**: 3h
+- **Reason**: Browser exploration and flaky-free specs need a capable model.
+- **Dependencies**: F2.2.T1, F2.3.T1
+- **Files**:
+  - `tests/e2e/checkout.spec.ts`
+  - `playwright.config.ts`
+```
+
+One E2E task per phase, not per screen: the flows cross screens, and one agent
+holding the whole phase writes fewer, steadier tests. A phase with no UI (an
+API, a CLI) gets none — its integration tests are its tasks' own.
 ## Check before handing off
 
 ```bash
