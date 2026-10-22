@@ -112,6 +112,10 @@ export function useEventStream(
         setLastEventAt(new Date())
         // Always refresh the task list.
         void qcRef.current.invalidateQueries({ queryKey: ["tasks"] })
+        // A collected E2E run is a new row on the Tests page.
+        if (payload.event_type === "e2e_report") {
+          void qcRef.current.invalidateQueries({ queryKey: ["tests"] })
+        }
         // If the event references a specific task, refresh its detail too.
         if (typeof payload.task_id === "string" && payload.task_id.length > 0) {
           void qcRef.current.invalidateQueries({

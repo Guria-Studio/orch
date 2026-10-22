@@ -361,7 +361,9 @@ ones waiting on a budget window (with the `orch task set` command that
 unblocks each — the dashboard only reads), phases and the budget window.
 **Work** holds List, Kanban, Graph, Phases and Pace as tabs sharing one set of
 filters in the URL; **Cost** holds Budget and Metrics; **Delivery** holds the
-client summary, CI and Share (the tunnel). **Logs** opens as a panel over any
+client summary, CI, Tests (each E2E run the local verify made, with what a
+failing test left: error, step, screenshot, video, trace) and Share (the
+tunnel). **Logs** opens as a panel over any
 page. Old addresses (`/kanban`, `/budget`, `/tunnel`…) redirect to their new
 place. **⌘K** (Ctrl+K) searches pages, tasks and filters and copies CLI
 commands; `g` then `n`/`w`/`c`/`d` changes destination, `/` searches the task

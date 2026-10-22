@@ -364,7 +364,8 @@ y las que esperan una ventana de budget (con el comando `orch task set` que
 destraba cada una — el dashboard solo lee), las fases y la ventana de budget.
 **Work** reúne List, Kanban, Graph, Phases y Pace como pestañas que comparten
 los filtros en la URL; **Cost** reúne Budget y Metrics; **Delivery**, el resumen
-para el cliente, CI y Share (el túnel). **Logs** se abre como panel sobre
+para el cliente, CI, Tests (cada corrida E2E del verify local, con lo que dejó
+un test que falló: error, paso, captura, video, traza) y Share (el túnel). **Logs** se abre como panel sobre
 cualquier página. Las direcciones viejas (`/kanban`, `/budget`, `/tunnel`…)
 redirigen a su lugar nuevo. **⌘K** (Ctrl+K) busca páginas, tasks y filtros y
 copia comandos de la CLI; `g` y luego `n`/`w`/`c`/`d` cambia de destino, `/`

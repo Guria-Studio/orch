@@ -32,6 +32,8 @@ var severityByEvent = map[string]string{
 	"id_spoof_detected": "err",
 	"flock_contention":  "err",
 	"reconciled":        "info",
+	"verify_failed":     "warn",
+	"e2e_report":        "info",
 }
 
 // iconByEvent is the short marker at the head of the human line. ASCII on
@@ -49,6 +51,8 @@ var iconByEvent = map[string]string{
 	"id_spoof_detected": "SPOOF",
 	"flock_contention":  "LOCK",
 	"reconciled":        "RECON",
+	"verify_failed":     "VERIFY",
+	"e2e_report":        "E2E",
 }
 
 // eventPayload is one formatted event.
@@ -149,6 +153,15 @@ func eventTail(etype string, extra map[string]any) string {
 			return ""
 		}
 		return " (" + reason + ")"
+	case "verify_failed":
+		if attempt := extraRaw(extra, "attempt"); attempt != "" {
+			return fmt.Sprintf(" (send-back %s)", attempt)
+		}
+		return ""
+	case "e2e_report":
+		passed, _ := extraInt(extra, "passed")
+		failed, _ := extraInt(extra, "failed")
+		return fmt.Sprintf(" (%d passed, %d failed)", passed, failed)
 	case "retry":
 		if attempt := extraRaw(extra, "attempt"); attempt != "" {
 			return fmt.Sprintf(" (attempt %s)", attempt)
