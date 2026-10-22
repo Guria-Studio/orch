@@ -24,7 +24,19 @@ const defaultVerifyMaxAttempts = 2
 // implementation; it cannot live here because it reviews through internal/ci,
 // which imports this package.
 type Verifier interface {
-	Verify(ctx context.Context, taskID string, writer model.Backend, dir string) string
+	Verify(ctx context.Context, req VerifyRequest) string
+}
+
+// VerifyRequest is one clean exit's work to verify.
+type VerifyRequest struct {
+	TaskID string
+	// Writer is the backend that did the work; the review picks another.
+	Writer model.Backend
+	// Dir is the task's worktree, with the work committed.
+	Dir string
+	// Env is the agent's own environment: the task's ORCH_TASK_SLOT and
+	// COMPOSE_PROJECT_NAME, so the checks and the app run as the task's.
+	Env []string
 }
 
 // verifies reports whether a clean exit's work is checked before the push.
@@ -42,7 +54,9 @@ func (s *Scheduler) verifyOutcome(d Dispatch, out *Outcome) {
 	}
 	ctx := context.Background()
 	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
-	out.VerifyFailure = s.Verifier.Verify(ctx, d.Req.TaskID, d.Req.Route.Backend, d.Cwd)
+	out.VerifyFailure = s.Verifier.Verify(ctx, VerifyRequest{
+		TaskID: d.Req.TaskID, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
+	})
 }
 
 // commitWork commits what the agent left in its worktree, minus the feedback

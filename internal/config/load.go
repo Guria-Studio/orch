@@ -87,7 +87,7 @@ func Defaults() Config {
 		Publish: Publish{IntervalS: 60, To: "dir", Dir: "public", GitBranch: "gh-pages"},
 		Sync:    Sync{IssuesLabel: DefaultSyncIssuesLabel},
 		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
-		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600},
+		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 	}
 }
 
@@ -352,7 +352,9 @@ var knownKeys = map[string]bool{
 	"portal.documents":        true,
 	"verify.enabled":          true, "verify.commands": true, "verify.review": true,
 	"verify.reviewer": true, "verify.review_model": true, "verify.checklist": true,
-	"verify.max_attempts": true, "verify.timeout_s": true,
+	"verify.max_attempts": true, "verify.timeout_s": true, "verify.e2e": true,
+	"verify.app.start": true, "verify.app.url": true, "verify.app.stop": true,
+	"verify.app.ready_timeout_s": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so
