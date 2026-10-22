@@ -662,7 +662,9 @@ left: screenshots, videos, traces. Each attempt is recorded as an
 which ones, where they failed (`file:line`), the step each one was in, the
 first lines of the error, and the screenshot and trace it left in the
 worktree, instead of the raw output. Playwright's report is removed from the
-worktree after reading, so it is never committed. Keep `test-results/`
+worktree after reading, so it is never committed. The dashboard's
+**Delivery → Tests** page shows every run, newest first, with each failing
+test's evidence. Keep `test-results/`
 gitignored, as `npm init playwright` does. A recipe:
 
 ```ts

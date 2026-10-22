@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LEGACY_REDIRECTS } from "@/lib/nav"
 import { BudgetPage } from "@/pages/BudgetPage"
 import { CIPage } from "@/pages/CIPage"
+import { TestsPage } from "@/pages/TestsPage"
 import { GraphPage } from "@/pages/GraphPage"
 import { KanbanPage } from "@/pages/KanbanPage"
 import { ListPage } from "@/pages/ListPage"
@@ -45,6 +46,7 @@ const PAGES: Record<string, ReactNode> = {
   "/cost/metrics": <MetricsPage />,
   "/delivery/summary": <StakeholderSummaryPage />,
   "/delivery/ci": <CIPage />,
+  "/delivery/tests": <TestsPage />,
   "/delivery/share": <TunnelPage />,
 }
 

@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   FileText,
+  FlaskConical,
   GitFork,
   KanbanSquare,
   LayoutGrid,
@@ -82,6 +83,7 @@ export const DESTINATIONS: NavDestination[] = [
     tabs: [
       { to: "/delivery/summary", label: "nav.summary", route: "stakeholder_summary_json" },
       { to: "/delivery/ci", label: "nav.ci", route: "api_ci", operatorOnly: true },
+      { to: "/delivery/tests", label: "nav.tests", route: "api_tests", operatorOnly: true },
       { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true },
     ],
   },
@@ -101,6 +103,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/cost/metrics": BarChart3,
   "/delivery/summary": FileText,
   "/delivery/ci": Workflow,
+  "/delivery/tests": FlaskConical,
   "/delivery/share": Radio,
 }
 
@@ -118,6 +121,7 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/budget": "/cost/budget",
   "/metrics": "/cost/metrics",
   "/ci": "/delivery/ci",
+  "/tests": "/delivery/tests",
   "/tunnel": "/delivery/share",
   "/portfolio": "/now/portfolio",
   "/summary": "/delivery/summary",
