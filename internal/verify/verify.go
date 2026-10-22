@@ -57,25 +57,24 @@ type Verifier struct {
 // does not parse) is logged and passes, as `orch ci review` without
 // --blocking does. A gate that blocks on its own breakage teaches people to
 // turn it off.
-func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) string {
+func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.VerifyResult {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
 	if v.RequireTests {
 		if failure := v.requireTests(ctx, req.TaskID, req.Dir); failure != "" {
-			return failure
+			return engine.VerifyResult{Failure: failure}
 		}
 	}
 	for _, c := range v.commands(req.TaskID, req.Dir) {
 		if out, err := run(ctx, req.Dir, req.Env, c, timeout); err != nil {
-			return commandFailed(c, err, out, "")
+			return engine.VerifyResult{Failure: commandFailed(c, err, out, "")}
 		}
 	}
-	if failure := v.e2e(ctx, req, timeout); failure != "" {
-		return failure
+	res := v.e2e(ctx, req, timeout)
+	if res.Failure != "" || !v.Cfg.Review {
+		return res
 	}
-	if !v.Cfg.Review {
-		return ""
-	}
-	return v.review(ctx, req.TaskID, req.Writer, req.Dir, timeout)
+	res.Failure = v.review(ctx, req.TaskID, req.Writer, req.Dir, timeout)
+	return res
 }
 
 func commandFailed(command string, err error, out, context string) string {
@@ -88,9 +87,10 @@ func commandFailed(command string, err error, out, context string) string {
 // whatever happened. An app that does not start or never answers is sent
 // back like a failing test: most often it is the change that broke it, and
 // when it is the machine instead, the agent can block the task and say so.
-func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout time.Duration) string {
+func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout time.Duration) engine.VerifyResult {
 	app := v.Cfg.App
 	env := req.Env
+	appURL := ""
 	if app.Start != "" {
 		if app.Stop != "" {
 			defer func() {
@@ -101,7 +101,7 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 			}()
 		}
 		if out, err := run(ctx, req.Dir, req.Env, app.Start, timeout); err != nil {
-			return "The task's app did not start. " + commandFailed(app.Start, err, out, "")
+			return engine.VerifyResult{Failure: "The task's app did not start. " + commandFailed(app.Start, err, out, "")}
 		}
 		if app.URL != "" {
 			url, err := expandURL(ctx, req.Dir, req.Env, app.URL)
@@ -110,19 +110,44 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 			} else {
 				ready := time.Duration(app.ReadyTimeoutS) * time.Second
 				if err := waitReady(ctx, url, ready); err != nil {
-					return fmt.Sprintf("orch's local verify started the task's app with `%s`, and it never answered at %s (%v). "+
-						"Check that the change still builds and serves.\n", app.Start, url, err)
+					return engine.VerifyResult{Failure: fmt.Sprintf("orch's local verify started the task's app with `%s`, and it never answered at %s (%v). "+
+						"Check that the change still builds and serves.\n", app.Start, url, err)}
 				}
 				env = withVar(env, "ORCH_APP_URL="+url)
+				appURL = url
 			}
 		}
 	}
+	report := ""
+	if v.Cfg.E2EReport != "" {
+		// A report left by an earlier attempt must not pass for this one's.
+		report = filepath.Join(req.Dir, filepath.FromSlash(v.Cfg.E2EReport))
+		_ = os.Remove(report)
+	}
+	var res engine.VerifyResult
 	for _, c := range v.Cfg.E2E {
 		if out, err := run(ctx, req.Dir, env, c, timeout); err != nil {
-			return commandFailed(c, err, out, " against the running app")
+			res.Failure = commandFailed(c, err, out, " against the running app")
+			break
 		}
 	}
-	return ""
+	if report == "" || len(v.Cfg.E2E) == 0 {
+		return res
+	}
+	rep, err := collectE2E(report, req.Dir, req.ArtifactsDir, req.TaskID, appURL)
+	if err != nil {
+		slog.Warn("verify: the E2E report could not be read; keeping the command's verdict", "task", req.TaskID, "err", err)
+		return res
+	}
+	res.E2E = &engine.E2ESummary{
+		Passed: rep.Stats.Passed, Failed: rep.Stats.Failed, Flaky: rep.Stats.Flaky, Skipped: rep.Stats.Skipped,
+		Report: filepath.Join(req.ArtifactsDir, ReportFile),
+	}
+	if res.Failure != "" && (rep.Stats.Failed > 0 || len(rep.Errors) > 0) {
+		// The report says it better than the command's output.
+		res.Failure = "orch's local verify ran the E2E tests. " + rep.failureSummary()
+	}
+	return res
 }
 
 // expandURL has the shell expand verify.app.url with the task's environment,

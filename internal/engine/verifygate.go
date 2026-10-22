@@ -15,6 +15,10 @@ import (
 // EventVerifyFailed records a local verify that sent a task back to its agent.
 const EventVerifyFailed = "verify_failed"
 
+// EventE2EReport records the E2E results of one verified attempt: the counts,
+// and the report the dashboard opens.
+const EventE2EReport = "e2e_report"
+
 // defaultVerifyMaxAttempts is verify.max_attempts when it is unset or below 1.
 const defaultVerifyMaxAttempts = 2
 
@@ -24,7 +28,23 @@ const defaultVerifyMaxAttempts = 2
 // implementation; it cannot live here because it reviews through internal/ci,
 // which imports this package.
 type Verifier interface {
-	Verify(ctx context.Context, req VerifyRequest) string
+	Verify(ctx context.Context, req VerifyRequest) VerifyResult
+}
+
+// VerifyResult is the verdict on one attempt's work.
+type VerifyResult struct {
+	// Failure is what failed, written for the agent's next attempt; empty
+	// when the work passes.
+	Failure string
+	// E2E summarises the E2E run, when verify.e2e_report collected one.
+	E2E *E2ESummary
+}
+
+// E2ESummary is an E2E run in counts, and where its full report is.
+type E2ESummary struct {
+	Passed, Failed, Flaky, Skipped int
+	// Report is the report file, under ArtifactsDir.
+	Report string
 }
 
 // VerifyRequest is one clean exit's work to verify.
@@ -37,6 +57,9 @@ type VerifyRequest struct {
 	// Env is the agent's own environment: the task's ORCH_TASK_SLOT and
 	// COMPOSE_PROJECT_NAME, so the checks and the app run as the task's.
 	Env []string
+	// ArtifactsDir is where this attempt's E2E report and the files its
+	// tests left are kept, under the state directory.
+	ArtifactsDir string
 }
 
 // verifies reports whether a clean exit's work is checked before the push.
@@ -48,15 +71,38 @@ func (s *Scheduler) verifies() bool {
 // supervising goroutine: tests and a review take minutes, and the run loop
 // must not wait on them. The work is committed first, so the review reads it
 // as the diff the push would publish.
-func (s *Scheduler) verifyOutcome(d Dispatch, out *Outcome) {
+func (s *Scheduler) verifyOutcome(d Dispatch, attempt int, out *Outcome) {
 	if !out.Result.Success || !s.verifies() {
 		return
 	}
 	ctx := context.Background()
 	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
-	out.VerifyFailure = s.Verifier.Verify(ctx, VerifyRequest{
+	res := s.Verifier.Verify(ctx, VerifyRequest{
 		TaskID: d.Req.TaskID, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
+		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, d.Req.TaskID, attempt),
 	})
+	out.VerifyFailure, out.E2E = res.Failure, res.E2E
+}
+
+// E2EArtifactsDir is where one attempt's E2E report and files are kept:
+// <state>/e2e/<run>/<task>/attempt-<n>.
+func E2EArtifactsDir(stateDir, runID, taskID string, attempt int) string {
+	return filepath.Join(stateDir, "e2e", runID, taskID, fmt.Sprintf("attempt-%d", attempt))
+}
+
+// recordE2E records an attempt's E2E results, whatever its verdict.
+func (s *Scheduler) recordE2E(ctx context.Context, entry *InFlight, e *E2ESummary) {
+	if e == nil || s.Backend == nil {
+		return
+	}
+	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventE2EReport, entry.Task.ID,
+		string(entry.Route.Backend), map[string]any{
+			"attempt": entry.Attempt,
+			"passed":  e.Passed, "failed": e.Failed, "flaky": e.Flaky, "skipped": e.Skipped,
+			"report": e.Report,
+		}); err != nil {
+		s.logger().Error("recording the E2E report failed", "task", entry.Task.ID, "err", err)
+	}
 }
 
 // commitWork commits what the agent left in its worktree, minus the feedback

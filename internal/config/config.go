@@ -80,6 +80,10 @@ type Verify struct {
 	// it while it runs, with ORCH_APP_URL set.
 	App VerifyApp `yaml:"app"`
 	E2E []string  `yaml:"e2e"`
+	// E2EReport is the Playwright JSON report the E2E commands write,
+	// relative to the worktree. Set, verify keeps the results and what the
+	// tests left (screenshots, videos, traces) under the state directory.
+	E2EReport string `yaml:"e2e_report"`
 	// MaxAttempts is how many times a task is sent back before it is blocked.
 	MaxAttempts int `yaml:"max_attempts"`
 	// TimeoutS bounds each command, and the review.
