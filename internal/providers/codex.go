@@ -49,6 +49,10 @@ func (CodexProvider) Argv(req Request) []string {
 		"--approve-for-me",
 		"-m", req.Route.CLIModel,
 	}
+	// The route's effort, else the user's ~/.codex/config.toml decides (#388).
+	if e := req.Route.Effort; e != nil && *e != "" {
+		argv = append(argv, "-c", fmt.Sprintf("model_reasoning_effort=%q", *e))
+	}
 	// --approve-for-me's workspace-write sandbox lets the agent write its
 	// worktree and /tmp only; the project's orch.db is elsewhere (#387).
 	for _, dir := range req.WritableDirs {

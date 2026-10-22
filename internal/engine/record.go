@@ -70,17 +70,23 @@ func RecordStart(ctx context.Context, b state.Backend, runID string, d Dispatch,
 
 	// Python emits backend, pid, cli_model and attempt on this event; the
 	// dashboard's in-flight view reads pid, and the dedup hash uses it.
+	extra := map[string]any{
+		"pid":       sp.PID,
+		"cli_model": d.Req.Route.CLIModel,
+		"attempt":   attempt,
+	}
+	// The effort the agent ran at, when the route set one (#388). Without
+	// it the CLI's own default applies, which orch cannot know.
+	if e := d.Req.Route.Effort; e != nil && *e != "" {
+		extra["effort"] = *e
+	}
 	if err := b.AppendEvent(ctx, runID, state.Event{
 		RunID:     runID,
 		EventType: EventDispatch,
 		TaskID:    d.Req.TaskID,
 		Backend:   string(d.Req.Route.Backend),
 		TS:        utcSecond(sp.StartedAt),
-		Extra: map[string]any{
-			"pid":       sp.PID,
-			"cli_model": d.Req.Route.CLIModel,
-			"attempt":   attempt,
-		},
+		Extra:     extra,
 	}); err != nil {
 		return fmt.Errorf("append dispatch event for %s: %w", d.Req.TaskID, err)
 	}

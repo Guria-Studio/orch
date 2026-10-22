@@ -144,3 +144,12 @@ func TestVerifyEventsReadInTheLog(t *testing.T) {
 		t.Errorf("e2e_report = %q, want %q", report.Human, want)
 	}
 }
+
+// A dispatch's effort shows on its log line when the route set one (#388).
+func TestDispatchLineNamesTheEffort(t *testing.T) {
+	got := formatEvent(state.Event{EventType: "dispatch", TaskID: "C-1", TS: "2026-10-22T20:00:00Z",
+		Extra: map[string]any{"cli_model": "gpt-5.6-codex", "effort": "low", "attempt": float64(1)}})
+	if want := "[20:00:00] -> C-1 dispatch -> gpt-5.6-codex (effort low)"; got.Human != want {
+		t.Errorf("dispatch = %q, want %q", got.Human, want)
+	}
+}
