@@ -26,7 +26,7 @@ import (
 // drop "<name>/SKILL.md" in a new directory beside them — nothing else in
 // this package needs to change, since List walks whatever the embed pattern
 // matched rather than naming skills individually. What does need changing
-// is the list in internal/cli's TestTheSixSkillsAreEmbedded, which also
+// is the list in internal/cli's TestTheSkillsAreEmbedded, which also
 // checks every skill against the command tree and the atomize parser.
 //
 //go:embed */SKILL.md

@@ -457,3 +457,27 @@ func TestOperatorNotesAreBounded(t *testing.T) {
 		t.Errorf("want n3..n7 only, got:\n%s", block)
 	}
 }
+
+// TestTDDLineReachesThePrompt pins the test-first constraint dispatch.tdd
+// adds, first of the conditional constraints. The golden is Go's own: Python
+// has no such line. Off, every other golden is the proof nothing moved.
+func TestTDDLineReachesThePrompt(t *testing.T) {
+	cases := loadCases(t)
+	c := cases.Cases[0]
+	task := model.Task{ID: c.Task.ID, Title: c.Task.Title, Description: c.Task.Description,
+		Model: c.Task.Model, Files: c.Task.Files, SpecRef: c.Task.SpecRef}
+	got, _ := Render(task, nil, c.Task.SpecRef, Options{
+		RunID: cases.RunID, ProjectRoot: cases.ProjectRoot, SpecRoot: c.SpecRoot,
+		TDD: true, ComposeProject: "orch-demo-c-1",
+	})
+	path := filepath.Join("testdata", "go", "tdd.txt")
+	if *updateGoGoldens {
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+		return
+	}
+	if want := readGolden(t, "go", "tdd.txt"); got != want {
+		t.Errorf("rendered prompt differs from its golden.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}

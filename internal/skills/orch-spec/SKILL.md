@@ -65,8 +65,9 @@ Sign-in, sessions and the user model everything else depends on.
 Define the User and Session types and their validation, exactly as the
 Interfaces section of docs/arch/001-auth.md fixes them. No persistence.
 
-Done when: both types exist with constructors that reject an empty email
-and an expired session, and unit tests cover each rejection.
+Done when: these tests pass in `src/auth/types.test.ts` — an empty email is
+rejected; an expired session is rejected; a valid user and session are
+accepted.
 
 - **Model**: claude/claude-sonnet-4-6
 - **Estimate**: 2h
@@ -84,7 +85,9 @@ Implement sign-in against the User type from F1.1.T1: verify the password
 hash, create a Session, return it as the JSON body the Interfaces section
 describes. Wrong credentials answer 401 with no hint of which part was wrong.
 
-Done when: integration tests cover success, wrong password, unknown email.
+Done when: these tests pass in `src/api/session.test.ts` — the right password
+answers 200 with a session; a wrong password answers 401; an unknown email
+answers 401 with the same body as a wrong password.
 
 - **Model**: claude/claude-sonnet-4-6
 - **Estimate**: 4h
@@ -133,6 +136,12 @@ Everything between the task header and its first field bullet is the
 - **The description is the whole brief.** What to build, which contract to
   honour (cite the architecture section), and a *Done when* an agent can check
   by running something. "Implement auth" is not a task.
+- **Done when is a list of tests.** Name each behaviour that proves the task —
+  one test per behaviour, edge cases included — and the test file they go in,
+  and list that file under **Files**. With `dispatch.tdd` on, the agent writes
+  them first (the `orch-tdd` skill) and the local verify sends back a change
+  that touches no test file. A task with nothing to test (docs, config) says
+  so instead.
 - **Dependencies are real, and only real.** A task depends on another only if
   it needs that task's output to start. Missing ones make orch run tasks in
   the wrong order; spurious ones serialise work that could run in parallel.

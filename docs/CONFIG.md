@@ -90,7 +90,20 @@ dispatch:
   base_branch: main
   worktree_setup: ""     # e.g. "pnpm install --frozen-lockfile"
   isolate_compose: true  # each task gets its own docker compose project
+  tdd: false             # agents work test-first
 ```
+
+**`tdd`** (default `false`, Go only) makes every task test-first. The
+dispatch prompt gains one constraint: write each acceptance criterion's test
+with the repository's own framework, see it fail for the expected reason, then
+write the least code that makes it pass, and name the tests in the done note.
+That is the `orch-tdd` skill (`orch install-skills`) in four lines, so it
+reaches agents that never installed it. With [`verify`](#verify--new) on, a
+change that touches no test file is sent back to its agent before anything
+runs. A test file is one named the way its ecosystem names tests
+(`*_test.go`, `*.test.ts`, `*.spec.tsx`, `test_*.py`, `*Test.java`, …) or
+under a `tests/`, `test/`, `__tests__/` or `spec/` directory. Off, the prompt
+is unchanged.
 
 **`worktree_setup`** is a shell command orch runs inside each fresh worktree
 before the agent starts, and again when a CI retry recreates it. A worktree is

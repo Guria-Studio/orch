@@ -95,6 +95,10 @@ type Options struct {
 	// first (#356): see OperatorNotes. Empty, the block is not rendered.
 	OperatorNotes []string
 
+	// TDD adds the test-first constraint (dispatch.tdd). Off, the prompt is
+	// byte-identical to the one without the feature.
+	TDD bool
+
 	// FeedbackFile names the file in the working dir that says why the
 	// previous attempt was rejected — the CI logs a CI retry leaves there.
 	// Empty, the block is not rendered.
@@ -162,6 +166,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"feedback_block": feedbackBlock(opts.FeedbackFile),
 		"model":          task.Model,
 		"working_dir":    workingDir,
+		"tdd_line":       tddLine(opts.TDD),
 		"compose_line":   composeLine(opts.ComposeProject),
 		"findings_block": findingsBlock(opts.ReportFindings),
 	}), warnings
@@ -226,6 +231,18 @@ func Write(task model.Task, completedDeps []model.Task, specRef string, opts Opt
 		return "", warnings, fmt.Errorf("write prompt %s: %w", path, err)
 	}
 	return path, warnings, nil
+}
+
+// tddLine is the test-first constraint (dispatch.tdd), or nothing. It is the
+// orch-tdd skill in four lines, for the agents that never installed it.
+func tddLine(on bool) string {
+	if !on {
+		return ""
+	}
+	return "- Work test-first, one acceptance criterion at a time: write its test with the\n" +
+		"  framework the repository already uses, run it and see it fail for the expected\n" +
+		"  reason, then write the least code that makes it pass. Never weaken or skip an\n" +
+		"  existing test. Name the tests and what they prove in your done note.\n"
 }
 
 // composeLine tells the agent the docker compose project orch put it in
@@ -505,6 +522,8 @@ func truncateRunes(s string, n int) string {
 //   - **Operator notes exist only when the operator wrote one** (#356). They
 //     follow the dependency block, so a task without notes renders byte for
 //     byte as before; the goldens without notes are the proof.
+//   - **The test-first line exists only with dispatch.tdd on**, first of
+//     the conditional constraints, under the same rule.
 //   - **The feedback block exists only on a retry that left a feedback
 //     file** (the CI logs). It follows the notes, under the same rule.
 const template = `TASK_ID={id}
@@ -541,4 +560,4 @@ Constraints:
   manifest and lockfile of the package you work in for a dependency the task
   needs — edit it, and name each such file and why in your done note.
 - Report progress through one of the two channels above only.
-{compose_line}{findings_block}`
+{tdd_line}{compose_line}{findings_block}`

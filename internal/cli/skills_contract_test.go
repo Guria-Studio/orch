@@ -19,10 +19,10 @@ import (
 // the command tree, the atomize parser, the default router — and
 // internal/skills is a leaf that imports none of it.
 
-// G6.5 names six skills. List walks whatever the embed matched, so a missing
-// directory would not fail anything else: it would just install one skill
-// fewer, silently.
-func TestTheSixSkillsAreEmbedded(t *testing.T) {
+// G6.5 names six skills, and orch-tdd is the seventh. List walks whatever
+// the embed matched, so a missing directory would not fail anything else: it
+// would just install one skill fewer, silently.
+func TestTheSkillsAreEmbedded(t *testing.T) {
 	all, err := skills.List()
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +31,7 @@ func TestTheSixSkillsAreEmbedded(t *testing.T) {
 	for _, s := range all {
 		got = append(got, s.Name)
 	}
-	want := []string{"orch", "orch-arch", "orch-plan", "orch-prd", "orch-spec", "orch-tasks"}
+	want := []string{"orch", "orch-arch", "orch-plan", "orch-prd", "orch-spec", "orch-tasks", "orch-tdd"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("embedded skills = %v, want %v", got, want)
 	}
@@ -258,7 +258,7 @@ func TestEmbeddedSkillsOnlyNameCommandsThatExist(t *testing.T) {
 		}
 	}
 	// A regression in orchInvocations that finds nothing would turn this into
-	// a test of nothing; the six skills carry far more than this.
+	// a test of nothing; the skills carry far more than this.
 	if checked < 30 {
 		t.Errorf("found only %d orch invocations across %d skills — is the extractor broken?", checked, len(all))
 	}

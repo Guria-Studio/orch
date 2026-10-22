@@ -582,6 +582,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		ComposeProject: s.composeProject(task.ID),
 		Spec:           specState,
 		OperatorNotes:  s.operatorNotes(ctx, task.ID),
+		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
 	})
 	if err != nil {

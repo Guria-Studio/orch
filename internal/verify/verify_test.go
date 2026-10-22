@@ -186,3 +186,67 @@ func write(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestIsTestFile(t *testing.T) {
+	tests := map[string]bool{
+		"internal/auth/login_test.go":  true,
+		"src/auth/login.test.ts":       true,
+		"web/src/Button.spec.tsx":      true,
+		"tests/test_login.py":          true,
+		"app/login_test.py":            true,
+		"src/test/java/LoginTest.java": true,
+		"Auth.Tests/LoginTests.cs":     true,
+		"src/__tests__/login.js":       true,
+		"crates/auth/tests/login.rs":   true,
+		"spec/login_spec.rb":           true,
+		"internal/auth/login.go":       false,
+		"src/auth/login.ts":            false,
+		"app/testing_utils.py":         false,
+		"docs/testing.md":              false,
+		"src/contest/entry.ts":         false,
+	}
+	for path, want := range tests {
+		if got := IsTestFile(path); got != want {
+			t.Errorf("IsTestFile(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+// With dispatch.tdd on, a change with no test in it goes back to the agent,
+// before any command runs; one with a test goes on to the commands.
+func TestVerifyRequiresATestWhenTDDIsOn(t *testing.T) {
+	dir := branchWithWork(t) // adds store.go only
+	v := Verifier{Cfg: config.Verify{Commands: []string{"touch commands-ran"}, TimeoutS: 10}, Base: "main", RequireTests: true}
+
+	got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir)
+	if !strings.Contains(got, "touches no test file") || !strings.Contains(got, "store.go") {
+		t.Errorf("Verify = %q, want the missing test reported with the changed files", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "commands-ran")); err == nil {
+		t.Error("the commands ran on a change that was already sent back")
+	}
+
+	write(t, filepath.Join(dir, "store_test.go"), "package store\n")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "test")
+	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir); got != "" {
+		t.Errorf("Verify = %q, want a pass once a test is in the change", got)
+	}
+
+	v.RequireTests = false
+	gitIn(t, dir, "rm", "-q", "store_test.go")
+	gitIn(t, dir, "commit", "-q", "-m", "no test")
+	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir); got != "" {
+		t.Errorf("Verify = %q, want no test requirement with dispatch.tdd off", got)
+	}
+}
+
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	// #nosec G204 -- this test's own fixed git subcommands.
+	cmd := exec.Command("git", append([]string{"-c", "user.email=t@example.test", "-c", "user.name=t"}, args...)...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}

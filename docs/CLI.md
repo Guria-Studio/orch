@@ -33,7 +33,8 @@ flags Python does unless a difference is called out.
   against this binary in `internal/cli/skills_contract_test.go`: every
   `orch …` invocation must resolve to a real command and flag, and
   `orch-spec`'s example spec must go through the real atomize parser with no
-  warnings.
+  warnings. A seventh, `orch-tdd`, came later: how an agent works a task
+  test-first (see `dispatch.tdd` in [`CONFIG.md`](CONFIG.md)).
 - **G4.5 — landed**: `doctor` (narrower than Python — see its table row).
   `internal/doctor`'s checks (the package) landed earlier; this is the
   `orch doctor` command surface on top of them, wired separately.

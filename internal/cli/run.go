@@ -225,7 +225,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		wtManager = engine.NewWorktreeManager(wm)
 		scheduler.Worktree = wtManager
 		if cfg.Verify.Enabled {
-			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch}
+			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD}
 		}
 	} else if cfg.Verify.Enabled {
 		_, _ = fmt.Fprintln(os.Stderr, "note: verify.enabled needs dispatch.worktree_mode; the work is not verified before it is published")
