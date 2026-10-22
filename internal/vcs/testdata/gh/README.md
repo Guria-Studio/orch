@@ -85,3 +85,13 @@ Capture against **settled** objects of this repository — a merged PR, closed
 issues — so the states do not change under the test. If `gh` gains or renames a field,
 add a directory for the new version rather than editing these — the point of
 the path is that a reader can tell which CLI produced what.
+
+## `2.101.0/`
+
+Captured with `gh version 2.101.0 (2026-09-15)` against this repository, for
+the PR a retry finds already open on its branch (#386).
+
+| file | what it is |
+|---|---|
+| `pr-list-head.json` | `gh pr list --head fix/387-codex-state-dir --state all --json url --limit 1` — one PR (#409) for the branch; `--state open` prints the same shape |
+| `pr-list-none.json` | `gh pr list --head no-such-branch-xyz --state open --json url --limit 1` — no PR for the branch: `[]` |
