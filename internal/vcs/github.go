@@ -70,13 +70,32 @@ func (p *GitHubProvider) CreatePR(head, base, title, body string) (string, error
 		if authErr := checkAuth("gh", nil); authErr != nil {
 			return "", authErr
 		}
-		return "", nil
+		// gh refuses a branch that already has an open PR. A retry pushes to
+		// the branch its first attempt opened one from, so that PR — now
+		// carrying the retry's commit — is the one to watch (#386).
+		return p.openPRFor(head), nil
 	}
 	url := strings.TrimSpace(out)
 	if url == "" {
 		return "", nil
 	}
 	return url, nil
+}
+
+// openPRFor is the URL of head's open pull request, or "" when it has none
+// or gh cannot say.
+func (p *GitHubProvider) openPRFor(head string) string {
+	out, err := run("gh", nil, "pr", "list", "--head", head, "--state", "open", "--json", "url", "--limit", "1")
+	if err != nil {
+		return ""
+	}
+	var prs []struct {
+		URL string `json:"url"`
+	}
+	if json.Unmarshal([]byte(out), &prs) != nil || len(prs) == 0 {
+		return ""
+	}
+	return prs[0].URL
 }
 
 // githubChecksRow is one entry of `gh pr checks --json name,state,bucket`.

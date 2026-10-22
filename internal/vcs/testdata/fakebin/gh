@@ -10,6 +10,7 @@
 #   pr create ...                        FAKE_GH_CREATE_STDOUT / _EXIT
 #   pr checks ...                        FAKE_GH_CHECKS_STDOUT / _EXIT / _STDERR
 #   pr view ...                          FAKE_GH_VIEW_STDOUT / _EXIT
+#   pr list ...                          FAKE_GH_PRLIST_STDOUT / _EXIT
 #   run view ...                         FAKE_GH_RUNVIEW_STDOUT / _EXIT
 #   pr merge ...                         FAKE_GH_MERGE_STDOUT / _EXIT / _STDERR
 #   pr update-branch ...                 FAKE_GH_UPDATE_EXIT / _STDERR
@@ -34,6 +35,10 @@ case "$1 $2" in
     printf '%s' "${FAKE_GH_CHECKS_STDOUT:-}"
     printf '%s' "${FAKE_GH_CHECKS_STDERR:-}" >&2
     exit "${FAKE_GH_CHECKS_EXIT:-0}"
+    ;;
+  "pr list")
+    printf '%s' "${FAKE_GH_PRLIST_STDOUT:-[]}"
+    exit "${FAKE_GH_PRLIST_EXIT:-0}"
     ;;
   "pr view")
     printf '%s' "${FAKE_GH_VIEW_STDOUT:-}"

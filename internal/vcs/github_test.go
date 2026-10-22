@@ -45,6 +45,45 @@ func TestGitHubCreatePRReturnsEmptyOnOrdinaryFailure(t *testing.T) {
 	}
 }
 
+// TestGitHubCreatePRReturnsTheBranchsOpenPR is #386: a retry pushes to the
+// branch its first attempt opened a PR from, so `gh pr create` refuses — the
+// branch already has one — and that PR, now carrying the retry's commit, is
+// the one to watch. It used to come back empty, which the engine reads as
+// "no PR was opened" and blocks a task whose work is on an open PR.
+func TestGitHubCreatePRReturnsTheBranchsOpenPR(t *testing.T) {
+	withFakeBin(t)
+	log := ghLog(t)
+	t.Setenv("FAKE_GH_CREATE_EXIT", "1")
+	t.Setenv("FAKE_GH_AUTH_EXIT", "0")
+	t.Setenv("FAKE_GH_PRLIST_STDOUT", readCapture(t, "2.101.0", "pr-list-head.json"))
+
+	url, err := NewGitHubProvider().CreatePR("fix/387-codex-state-dir", "main", "title", "body")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url != "https://github.com/hectorcanaimero/orch/pull/409" {
+		t.Errorf("url = %q, want the branch's open PR", url)
+	}
+	if got := readLog(t, log); !strings.Contains(got, "pr list --head fix/387-codex-state-dir --state open --json url --limit 1") {
+		t.Errorf("gh was not asked for the branch's open PR: %s", got)
+	}
+
+	// No PR on the branch either: still empty, as an ordinary failure was.
+	t.Setenv("FAKE_GH_PRLIST_STDOUT", readCapture(t, "2.101.0", "pr-list-none.json"))
+	if url, err := NewGitHubProvider().CreatePR("t1", "main", "title", "body"); err != nil || url != "" {
+		t.Errorf("no PR anywhere: url = %q, err = %v; want empty", url, err)
+	}
+}
+
+func readCapture(t *testing.T, version, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "gh", version, name)) // #nosec G304 -- a capture under testdata
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 func TestGitHubCreatePRReturnsCLIErrorWhenNotAuthenticated(t *testing.T) {
 	withFakeBin(t)
 	t.Setenv("FAKE_GH_CREATE_EXIT", "1")
