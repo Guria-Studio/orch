@@ -487,3 +487,24 @@ func TestCodexArgvForwardsTheRouteEffort(t *testing.T) {
 		t.Error("a route with no effort overrides codex's config")
 	}
 }
+
+// TestCodexParseCountsCachedInput is #389: codex reports cached_input_tokens
+// (part of input_tokens, as OpenAI counts them) on turn.completed, and the
+// parser dropped it. CacheReadTokens stayed 0 for every codex dispatch, so
+// the budget gate weighed cached input like fresh input and tripped early.
+func TestCodexParseCountsCachedInput(t *testing.T) {
+	for _, tc := range []struct {
+		fixture                 string
+		in, cacheRead, cacheNew int
+	}{
+		{"success.jsonl", 18345, 12160, 0},
+		{"tools.jsonl", 36628, 30080, 0},
+		{"tool-errors.jsonl", 38906, 31232, 0},
+	} {
+		res := CodexProvider{}.Parse(0, readFixture(t, "codex", "0.154.0", tc.fixture))
+		if res.TokensIn != tc.in || res.CacheReadTokens != tc.cacheRead || res.CacheCreationTokens != tc.cacheNew {
+			t.Errorf("%s: in=%d cacheRead=%d cacheNew=%d, want %d %d %d", tc.fixture,
+				res.TokensIn, res.CacheReadTokens, res.CacheCreationTokens, tc.in, tc.cacheRead, tc.cacheNew)
+		}
+	}
+}

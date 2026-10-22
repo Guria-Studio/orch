@@ -103,7 +103,7 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 	}
 
 	success := exitCode == 0 && !hasError && terminalOK
-	cost, tokensIn, tokensOut := sumCodexUsage(events)
+	u := sumCodexUsage(events)
 
 	var errMsg string
 	if !success {
@@ -111,14 +111,16 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 	}
 
 	return Result{
-		ExitCode:     exitCode,
-		Success:      success,
-		CostUSD:      cost,
-		TokensIn:     tokensIn,
-		TokensOut:    tokensOut,
-		Stdout:       text,
-		Text:         codexText(events),
-		ErrorMessage: errMsg,
+		ExitCode:            exitCode,
+		Success:             success,
+		CostUSD:             u.cost,
+		TokensIn:            u.in,
+		CacheReadTokens:     u.cacheRead,
+		CacheCreationTokens: u.cacheWrite,
+		TokensOut:           u.out,
+		Stdout:              text,
+		Text:                codexText(events),
+		ErrorMessage:        errMsg,
 	}
 }
 
@@ -139,7 +141,8 @@ func codexText(events []event) string {
 // ExtractCost reports the token counts in a captured codex log. Port of
 // extract_cost; see sumCodexUsage on why the USD figure is always zero.
 func (CodexProvider) ExtractCost(output []byte) (cost float64, tokensIn, tokensOut int) {
-	return sumCodexUsage(jsonlEvents(output))
+	u := sumCodexUsage(jsonlEvents(output))
+	return u.cost, u.in, u.out
 }
 
 func codexFailureMessage(events []event, exitCode int) string {
@@ -209,13 +212,22 @@ func codexErrorMessage(ev event) string {
 	return ev.raw
 }
 
+// codexUsage is a run's token counts. in is every input token, as codex's
+// input_tokens counts them: cacheRead (cached_input_tokens) and cacheWrite
+// (cache_write_input_tokens) are part of it, not added to it (#389).
+type codexUsage struct {
+	cost                           float64
+	in, cacheRead, cacheWrite, out int
+}
+
 // sumCodexUsage sums the token counts on every `turn.completed` event.
 //
 // cost is always 0: codex's JSONL reports tokens but no USD figure, so the
 // per-dispatch budget gate does not apply to it. Estimating a price from
 // tokens would need the model's rate card, which lives in the dashboard's
 // pricing.yaml — the same arrangement Python leaves a note about.
-func sumCodexUsage(events []event) (cost float64, tokensIn, tokensOut int) {
+func sumCodexUsage(events []event) codexUsage {
+	var u codexUsage
 	for _, ev := range events {
 		if ev.eventType() != "turn.completed" {
 			continue
@@ -224,8 +236,10 @@ func sumCodexUsage(events []event) (cost float64, tokensIn, tokensOut int) {
 		if !ok {
 			continue
 		}
-		tokensIn += toInt(usage["input_tokens"])
-		tokensOut += toInt(usage["output_tokens"])
+		u.in += toInt(usage["input_tokens"])
+		u.cacheRead += toInt(usage["cached_input_tokens"])
+		u.cacheWrite += toInt(usage["cache_write_input_tokens"])
+		u.out += toInt(usage["output_tokens"])
 	}
-	return 0, tokensIn, tokensOut
+	return u
 }
