@@ -476,7 +476,9 @@ var defaultsDivergedFromPython = map[string]string{
 		"feat/report-findings-new-projects: `report_findings.enabled` is true in a new project, and its " +
 		"comment says the issues are public and under the operator's gh login; a config without the key stays off. " +
 		"#376: back to `enabled: false` — asking a new user to file public issues before anything has worked is " +
-		"the wrong first question; the first `orch run` that finishes a task offers it",
+		"the wrong first question; the first `orch run` that finishes a task offers it. " +
+		"feat/verify-default: a new project gets a `verify:` block with the local verify on (#398); " +
+		"a config without the block stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count",
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
@@ -1058,5 +1060,36 @@ func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
 	}
 	if tmpl.SampleTask != "" {
 		t.Error("a template project, which has its own tasks, got the sample task")
+	}
+}
+
+// A new project verifies its tasks' work before it is pushed — blank or from
+// any template, whose config.yaml.tmpl carries no verify block — in worktree
+// mode, which the verify needs. Read back through config.Load, the way `orch
+// run` reads it, and with no unknown-key warning.
+func TestInitTurnsTheLocalVerifyOn(t *testing.T) {
+	for _, template := range []string{"", "python-api", "nextjs-saas", "chatbot-whatsapp", "data-pipeline", "expo-mobile"} {
+		t.Run("template="+template, func(t *testing.T) {
+			res, err := Run(Options{Root: filepath.Join(t.TempDir(), "proj"), Template: template, Now: fixedNow})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			loaded, err := config.Load(filepath.Join(res.Root, ".orchestrator", "config.yaml"), res.Root)
+			if err != nil {
+				t.Fatalf("config.Load: %v", err)
+			}
+			c := loaded.Config
+			if !c.Verify.Enabled || !c.Verify.Review || !c.Dispatch.WorktreeMode {
+				t.Errorf("verify.enabled=%v review=%v worktree_mode=%v, want all true", c.Verify.Enabled, c.Verify.Review, c.Dispatch.WorktreeMode)
+			}
+			for _, w := range loaded.Warnings {
+				if strings.Contains(w, "verify") {
+					t.Errorf("config.Load warns about the verify block: %s", w)
+				}
+			}
+			if body := readFile(t, res, ".orchestrator/config.yaml"); strings.Count(body, "\nverify:") != 1 {
+				t.Errorf("want exactly one verify block:\n%s", body)
+			}
+		})
 	}
 }

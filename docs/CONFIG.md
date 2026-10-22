@@ -602,7 +602,7 @@ the whole set stops at 2 MB. `documents: []` publishes none. Specs name tasks
 
 ```yaml
 verify:
-  enabled: true         # absent = false
+  enabled: true         # what `orch init` writes; absent = false
   commands: []          # [] = what `orch ci setup` detects
   review: true
   reviewer: ""          # "" = another installed provider than the task's
@@ -618,6 +618,13 @@ verify:
   max_attempts: 2
   timeout_s: 600
 ```
+
+**On in new projects, off when the block is absent**: `orch init` writes
+`enabled: true` and `review: true`, blank or from a template, and a config
+without the block (any project from before) stays off, so upgrading orch never
+starts running checks and reviews on a project that did not ask. With it on,
+`orch ci setup` adds no AI review job unless you pass `--review`, because the
+same diff is already reviewed before the push.
 
 A local gate between an agent's clean exit and the push, in the task's own
 worktree. **Worktree mode only**: without `dispatch.worktree_mode` orch prints

@@ -162,7 +162,9 @@ func newCISetupCmd(flags *projectFlags, version string) *cobra.Command {
 			"Gemini, OpenAI or OpenRouter and the model you choose: at the prompt, or with\n" +
 			"--review, --review-model and --review-blocking. The review runs after the\n" +
 			"checks pass and comments on the PR; it writes " + ci.ChecklistPath + " when\n" +
-			"the repository has none, and names the secret to set.",
+			"the repository has none, and names the secret to set. A project with\n" +
+			"verify.enabled is not asked: orch's local verify already reviews each task\n" +
+			"before it is pushed, so the review job is added only with --review.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := ciRoot(flags)
@@ -191,10 +193,16 @@ func newCISetupCmd(flags *projectFlags, version string) *cobra.Command {
 				if checks, err = askChecks(in, out, st, checks); err != nil {
 					return err
 				}
-				if !cmd.Flags().Changed("review") {
+				if !cmd.Flags().Changed("review") && !localVerifyOn(root) {
 					if reviewProvider, reviewModel, reviewBlocking, err = askReview(in, out); err != nil {
 						return err
 					}
+				}
+			}
+			if !cmd.Flags().Changed("review") && localVerifyOn(root) {
+				if _, err := fmt.Fprintln(out, "No AI review job: orch's local verify (verify.enabled) already reviews each task's work\n"+
+					"before it is pushed. Pass --review to add one to the pipeline anyway."); err != nil {
+					return err
 				}
 			}
 			review, err := ci.NewReview(reviewProvider, reviewModel, reviewBlocking)
@@ -288,6 +296,15 @@ func newCISetupCmd(flags *projectFlags, version string) *cobra.Command {
 	f.StringVar(&reviewModel, "review-model", "", "Model for the review (defaults per provider; OpenRouter needs openrouter/<vendor>/<model>)")
 	f.BoolVar(&reviewBlocking, "review-blocking", false, "Fail the PR's checks when the review finds a blocking problem")
 	return cmd
+}
+
+// localVerifyOn reports whether the project at root reviews each task's work
+// itself before the push (verify.enabled, #398): the pipeline then needs no
+// review job of its own, which would review the same diff again on the
+// Actions runner with an API key. A config that cannot be read reads as off.
+func localVerifyOn(root string) bool {
+	loaded, err := config.Load(filepath.Join(root, ".orchestrator", "config.yaml"), root)
+	return err == nil && loaded.Config.Verify.Enabled
 }
 
 // finishReviewSetup writes the review checklist when the repository has none

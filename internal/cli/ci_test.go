@@ -276,3 +276,34 @@ func TestFinishReviewSetupReportsAnUncheckablePath(t *testing.T) {
 		t.Errorf("err = %v, want one saying the checklist could not be checked", err)
 	}
 }
+
+// A project whose local verify reviews each task gets no review job unless
+// it asks for one with --review, and is told why.
+func TestCISetupLeavesTheReviewToTheLocalVerify(t *testing.T) {
+	files := map[string]string{".orchestrator/config.yaml": "dispatch:\n  worktree_mode: true\nverify:\n  enabled: true\n"}
+	for k, v := range pnpmApp {
+		files[k] = v
+	}
+	root := ciRepo(t, files)
+
+	out, err := runRoot(t, "dev", "ci", "setup", "--dry-run", "--project-root", root)
+	if err != nil {
+		t.Fatalf("setup: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "No AI review job: orch's local verify (verify.enabled)") || strings.Contains(out, "orch ci review") {
+		t.Errorf("with verify on, want the note and no review job:\n%s", out)
+	}
+
+	out, err = runRoot(t, "dev", "ci", "setup", "--dry-run", "--review", "gemini", "--project-root", root)
+	if err != nil {
+		t.Fatalf("setup --review: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "No AI review job") || !strings.Contains(out, "orch ci review --provider gemini") {
+		t.Errorf("--review asks for the job anyway; want it and no note:\n%s", out)
+	}
+
+	plain := ciRepo(t, pnpmApp)
+	if out, _ := runRoot(t, "dev", "ci", "setup", "--dry-run", "--project-root", plain); strings.Contains(out, "No AI review job") {
+		t.Errorf("a project without verify got the note:\n%s", out)
+	}
+}
