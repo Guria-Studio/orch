@@ -189,6 +189,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		Only:              opts.only,
 		MaxTasks:          opts.maxTasks,
 		StateDir:          paths.StateDir(),
+		DBDir:             filepath.Dir(paths.SQLitePath(cfg)),
 		Cwd:               paths.Root,
 		ProjectID:         paths.ID,
 		RunID:             runID,

@@ -215,3 +215,36 @@ func TestE2EResultsAreRecordedPerAttempt(t *testing.T) {
 		t.Errorf("artifacts dirs = %v, want %v", v.artifacts, want)
 	}
 }
+
+// TestDispatchGrantsTheDatabaseDir is #387's engine half: every dispatch asks
+// its provider to let the agent write the directory that holds orch.db, which
+// is outside a worktree and, with state.sqlite_path, may be outside the state
+// dir too. Without DBDir it is the state dir, where the database lives by
+// default.
+func TestDispatchGrantsTheDatabaseDir(t *testing.T) {
+	for _, tc := range []struct {
+		name, dbDir string
+		want        func(stateDir string) string
+	}{
+		{"database elsewhere", "/srv/orch-db", func(string) string { return "/srv/orch-db" }},
+		{"default layout", "", func(stateDir string) string { return stateDir }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newReapFixture(t,
+				[]model.Task{task("C-1", 1, "claude/opus")},
+				map[string]fakeResponse{"C-1": okResponse()},
+				SchedulerOptions{DBDir: tc.dbDir})
+			if _, err := f.s.Refill(context.Background()); err != nil {
+				t.Fatalf("Refill: %v", err)
+			}
+			t.Cleanup(func() { _, _ = f.s.DrainWait(context.Background(), 30*time.Second) })
+			var got []string
+			for _, e := range f.s.inFlight {
+				got = e.Dispatch.Req.WritableDirs
+			}
+			if want := []string{tc.want(f.s.Opts.StateDir)}; !slices.Equal(got, want) {
+				t.Errorf("WritableDirs = %v, want %v", got, want)
+			}
+		})
+	}
+}
