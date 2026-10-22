@@ -171,6 +171,14 @@ The rolling-window guardrail per provider: `tokens_used`, `token_budget`,
 the dashboard renders. `enabled: false` with an empty `providers` object when
 the project has no `budgets.yaml` — see [`CONFIG.md`](CONFIG.md).
 
+### `orch_run_status`
+
+`{}` — the latest run: `run_id`, `status`, `mode`, `started_at`, `updated_at`,
+and `working`, the dispatches of that run still in flight: `task_id`, `title`,
+`backend`, `attempt`, `started_at`. `counts` is every task by status, zeroes
+included, with `total`. `run` is `null` before any run was recorded. Read-only:
+it is how a chat shows what the run is doing right now without a terminal.
+
 ### `orch_events`
 
 `{task_id?, limit?}` — the run's event log, oldest first. `limit` defaults to
