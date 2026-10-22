@@ -87,6 +87,9 @@ func TestRecordStart(t *testing.T) {
 	if got := ev.Extra["pid"]; !numericEquals(got, 4242) {
 		t.Errorf("extra pid = %v (%T), want 4242", got, got)
 	}
+	if _, ok := ev.Extra["effort"]; ok {
+		t.Errorf("a route with no effort recorded one: %v", ev.Extra)
+	}
 	if got := ev.Extra["cli_model"]; got != "claude-haiku-4-5-20251001" {
 		t.Errorf("extra cli_model = %v", got)
 	}
@@ -468,5 +471,25 @@ func TestStateRecorderTaskPR(t *testing.T) {
 	}
 	if _, err := rec.TaskPR(ctx, "NOPE-1"); err == nil {
 		t.Error("TaskPR of an unknown task: want an error")
+	}
+}
+
+// The dispatch event says what effort the agent ran at, when the route set
+// one (#388): the CLI's own default otherwise, which orch cannot know.
+func TestRecordStartNamesTheRouteEffort(t *testing.T) {
+	ctx := context.Background()
+	b := openBackend(t)
+	d := recordDispatch("B-021")
+	high := "high"
+	d.Req.Route.Effort = &high
+	if err := RecordStart(ctx, b, "run-1", d, &Spawned{PID: 4243, StartedAt: time.Now()}, 1); err != nil {
+		t.Fatalf("RecordStart: %v", err)
+	}
+	events, err := b.Events(ctx, "B-021", 0)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	if len(events) != 1 || events[0].Extra["effort"] != "high" {
+		t.Errorf("dispatch event = %+v, want effort high", events)
 	}
 }

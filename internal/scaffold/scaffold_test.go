@@ -484,7 +484,8 @@ var defaultsDivergedFromPython = map[string]string{
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
 		"entries route to. #382: agy 1.4 accepts neither gemini-3.1-pro-high nor gemini-3.7-flash-medium " +
 		"(\"not recognized as a known model\"); agy/pro and agy/flash route to gemini-4-argon-high and " +
-		"gemini-3.8-flash-medium, both run against agy 1.4.2 (router/testdata/packaged.golden.json edited to match)",
+		"gemini-3.8-flash-medium, both run against agy 1.4.2 (router/testdata/packaged.golden.json edited to match). " +
+		"#388: the header documents the optional `effort` field, which codex now honours",
 }
 
 // The three packaged defaults started as copies of Python's, so they get the

@@ -120,6 +120,9 @@ func eventTail(etype string, extra map[string]any) string {
 		if m := extraString(extra, "cli_model"); m != "" {
 			tail = " -> " + m
 		}
+		if e := extraString(extra, "effort"); e != "" {
+			tail += " (effort " + e + ")"
+		}
 		if n, ok := extraInt(extra, "attempt"); ok && n > 1 {
 			tail += fmt.Sprintf(" (attempt %s)", extraRaw(extra, "attempt"))
 		}

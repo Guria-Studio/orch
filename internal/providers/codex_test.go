@@ -463,3 +463,27 @@ func TestCodexArgvGrantsTheStateDir(t *testing.T) {
 		t.Error("an argv with no writable dirs carries --add-dir")
 	}
 }
+
+// TestCodexArgvForwardsTheRouteEffort is #388: a route's `effort` used to
+// reach agy only, so a codex dispatch ran at whatever reasoning effort the
+// user's ~/.codex/config.toml set. It is now codex's model_reasoning_effort,
+// which `codex exec` prints back as "reasoning effort: low" (checked against
+// codex 0.154). No effort on the route, no override: codex's own default.
+func TestCodexArgvForwardsTheRouteEffort(t *testing.T) {
+	low := "low"
+	route := codexRoute("gpt-5.6-codex")
+	route.Effort = &low
+	argv := CodexProvider{}.Argv(Request{Route: route})
+	found := false
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == "-c" && argv[i+1] == `model_reasoning_effort="low"` {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("argv does not set the route's effort: %v", argv)
+	}
+	if contains(CodexProvider{}.Argv(Request{Route: codexRoute("gpt-5.6-codex")}), "-c") {
+		t.Error("a route with no effort overrides codex's config")
+	}
+}
