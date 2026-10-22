@@ -2,11 +2,16 @@ package verify
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hectorcanaimero/orch/internal/ci"
 	"github.com/hectorcanaimero/orch/internal/config"
@@ -16,7 +21,7 @@ import (
 
 func TestVerifyPassesWhenTheCommandsPass(t *testing.T) {
 	v := Verifier{Cfg: config.Verify{Commands: []string{"true", "test -d ."}, TimeoutS: 10}}
-	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, t.TempDir()); got != "" {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}); got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
 	}
 }
@@ -26,7 +31,7 @@ func TestVerifyPassesWhenTheCommandsPass(t *testing.T) {
 func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 	v := Verifier{Cfg: config.Verify{Commands: []string{"true", "echo FAIL TestLogin: want 401; exit 3", "touch never-ran"}, TimeoutS: 10}}
 	dir := t.TempDir()
-	got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir)
+	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir})
 	for _, want := range []string{"`echo FAIL TestLogin: want 401; exit 3`", "exit status 3", "FAIL TestLogin: want 401"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Verify = %q, want it to contain %q", got, want)
@@ -39,7 +44,7 @@ func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 
 func TestVerifyBoundsEachCommand(t *testing.T) {
 	v := Verifier{Cfg: config.Verify{Commands: []string{"sleep 30"}, TimeoutS: 1}}
-	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, t.TempDir()); !strings.Contains(got, "timed out after 1s") {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}); !strings.Contains(got, "timed out after 1s") {
 		t.Errorf("Verify = %q, want a timeout", got)
 	}
 }
@@ -53,7 +58,7 @@ func TestVerifyRunsTheDetectedChecks(t *testing.T) {
 		t.Skip("make is not installed")
 	}
 	v := Verifier{Cfg: config.Verify{TimeoutS: 10}}
-	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir); !strings.Contains(got, "detected-make-test") {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}); !strings.Contains(got, "detected-make-test") {
 		t.Errorf("Verify = %q, want the detected make test to have run and failed", got)
 	}
 }
@@ -63,7 +68,7 @@ func TestVerifySendsBackABlockingReview(t *testing.T) {
 	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
 	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
 
-	got := v.Verify(context.Background(), "T-1", model.BackendCodex, dir)
+	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	for _, want := range []string{"the review asks for changes", "Tests: new behaviour comes with a test that exercises it"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Verify = %q, want it to contain %q", got, want)
@@ -76,7 +81,7 @@ func TestVerifyPassesAnApprovingReview(t *testing.T) {
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}"}`))
 	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
 
-	if got := v.Verify(context.Background(), "T-1", model.BackendCodex, dir); got != "" {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}); got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
 	}
 }
@@ -87,7 +92,7 @@ func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 	fakeReviewer(t, "1", []byte(`{"type":"result","subtype":"error","is_error":true,"terminal_reason":"api_error"}`))
 	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
 
-	if got := v.Verify(context.Background(), "T-1", model.BackendCodex, dir); got != "" {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}); got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
 	}
 }
@@ -218,7 +223,7 @@ func TestVerifyRequiresATestWhenTDDIsOn(t *testing.T) {
 	dir := branchWithWork(t) // adds store.go only
 	v := Verifier{Cfg: config.Verify{Commands: []string{"touch commands-ran"}, TimeoutS: 10}, Base: "main", RequireTests: true}
 
-	got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir)
+	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir})
 	if !strings.Contains(got, "touches no test file") || !strings.Contains(got, "store.go") {
 		t.Errorf("Verify = %q, want the missing test reported with the changed files", got)
 	}
@@ -229,14 +234,14 @@ func TestVerifyRequiresATestWhenTDDIsOn(t *testing.T) {
 	write(t, filepath.Join(dir, "store_test.go"), "package store\n")
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "test")
-	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir); got != "" {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}); got != "" {
 		t.Errorf("Verify = %q, want a pass once a test is in the change", got)
 	}
 
 	v.RequireTests = false
 	gitIn(t, dir, "rm", "-q", "store_test.go")
 	gitIn(t, dir, "commit", "-q", "-m", "no test")
-	if got := v.Verify(context.Background(), "T-1", model.BackendClaude, dir); got != "" {
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}); got != "" {
 		t.Errorf("Verify = %q, want no test requirement with dispatch.tdd off", got)
 	}
 }
@@ -248,5 +253,92 @@ func gitIn(t *testing.T, dir string, args ...string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// appFixture is a server standing in for the task's app, already up, and a
+// worktree whose start/stop commands leave a mark. The URL is written the
+// way a project writes it, from the task's slot.
+func appFixture(t *testing.T, status int) (Verifier, engine.VerifyRequest, string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) }))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := readyPoll
+	readyPoll = 10 * time.Millisecond
+	t.Cleanup(func() { readyPoll = old })
+
+	v := Verifier{Cfg: config.Verify{TimeoutS: 10, App: config.VerifyApp{
+		Start:         "touch started",
+		URL:           "http://127.0.0.1:$((BASE_PORT + ORCH_TASK_SLOT))",
+		Stop:          "touch stopped",
+		ReadyTimeoutS: 30, // room for a loaded machine; only a test that wants the timeout shortens it
+	}}}
+	req := engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir(),
+		Env: append(os.Environ(), "ORCH_TASK_SLOT=2", "BASE_PORT="+strconv.Itoa(port-2))}
+	return v, req, srv.URL
+}
+
+func TestVerifyRunsE2EAgainstTheTasksApp(t *testing.T) {
+	v, req, want := appFixture(t, http.StatusNotFound) // up, if not serving / yet
+	v.Cfg.E2E = []string{`test "$ORCH_APP_URL" = "` + want + `" && touch e2e-ran`}
+
+	if got := v.Verify(context.Background(), req); got != "" {
+		t.Fatalf("Verify = %q, want a pass", got)
+	}
+	for _, mark := range []string{"started", "e2e-ran", "stopped"} {
+		if _, err := os.Stat(filepath.Join(req.Dir, mark)); err != nil {
+			t.Errorf("%s: %v", mark, err)
+		}
+	}
+}
+
+func TestVerifySendsBackAnAppThatNeverAnswers(t *testing.T) {
+	v, req, want := appFixture(t, http.StatusInternalServerError)
+	v.Cfg.App.ReadyTimeoutS = 1
+	v.Cfg.E2E = []string{"touch e2e-ran"}
+
+	got := v.Verify(context.Background(), req)
+	if !strings.Contains(got, "never answered at "+want) || !strings.Contains(got, "500") {
+		t.Errorf("Verify = %q, want the app reported as never ready", got)
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err == nil {
+		t.Error("the E2E ran against an app that was not ready")
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "stopped")); err != nil {
+		t.Errorf("the app was not stopped: %v", err)
+	}
+}
+
+func TestVerifySendsBackAnAppThatDoesNotStart(t *testing.T) {
+	v, req, _ := appFixture(t, http.StatusOK)
+	v.Cfg.App.Start = "echo 'service web: build failed'; exit 1"
+
+	got := v.Verify(context.Background(), req)
+	if !strings.Contains(got, "did not start") || !strings.Contains(got, "service web: build failed") {
+		t.Errorf("Verify = %q, want the start failure and its output", got)
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "stopped")); err != nil {
+		t.Errorf("a half-started app was not stopped: %v", err)
+	}
+}
+
+func TestVerifySendsBackAFailingE2E(t *testing.T) {
+	v, req, _ := appFixture(t, http.StatusOK)
+	v.Cfg.E2E = []string{"echo '1 failed: checkout pays with a card'; exit 1"}
+
+	got := v.Verify(context.Background(), req)
+	if !strings.Contains(got, "against the running app") || !strings.Contains(got, "checkout pays with a card") {
+		t.Errorf("Verify = %q, want the E2E failure", got)
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "stopped")); err != nil {
+		t.Errorf("the app was not stopped: %v", err)
 	}
 }

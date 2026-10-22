@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/ci"
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/engine"
 	"github.com/hectorcanaimero/orch/internal/model"
 )
 
@@ -55,23 +57,123 @@ type Verifier struct {
 // does not parse) is logged and passes, as `orch ci review` without
 // --blocking does. A gate that blocks on its own breakage teaches people to
 // turn it off.
-func (v Verifier) Verify(ctx context.Context, taskID string, writer model.Backend, dir string) string {
+func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) string {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
 	if v.RequireTests {
-		if failure := v.requireTests(ctx, taskID, dir); failure != "" {
+		if failure := v.requireTests(ctx, req.TaskID, req.Dir); failure != "" {
 			return failure
 		}
 	}
-	for _, c := range v.commands(taskID, dir) {
-		if out, err := run(ctx, dir, c, timeout); err != nil {
-			return fmt.Sprintf("orch's local verify ran `%s` in your working dir and it failed (%v):\n\n```\n%s\n```\n",
-				c, err, tail(out))
+	for _, c := range v.commands(req.TaskID, req.Dir) {
+		if out, err := run(ctx, req.Dir, req.Env, c, timeout); err != nil {
+			return commandFailed(c, err, out, "")
 		}
+	}
+	if failure := v.e2e(ctx, req, timeout); failure != "" {
+		return failure
 	}
 	if !v.Cfg.Review {
 		return ""
 	}
-	return v.review(ctx, taskID, writer, dir, timeout)
+	return v.review(ctx, req.TaskID, req.Writer, req.Dir, timeout)
+}
+
+func commandFailed(command string, err error, out, context string) string {
+	return fmt.Sprintf("orch's local verify ran `%s` in your working dir%s and it failed (%v):\n\n```\n%s\n```\n",
+		command, context, err, tail(out))
+}
+
+// e2e brings the task's app up (verify.app), waits for it to answer, runs
+// verify.e2e against it with ORCH_APP_URL set, and takes it down again,
+// whatever happened. An app that does not start or never answers is sent
+// back like a failing test: most often it is the change that broke it, and
+// when it is the machine instead, the agent can block the task and say so.
+func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout time.Duration) string {
+	app := v.Cfg.App
+	env := req.Env
+	if app.Start != "" {
+		if app.Stop != "" {
+			defer func() {
+				// A fresh context: the app comes down even when ctx is done.
+				if out, err := run(context.Background(), req.Dir, req.Env, app.Stop, timeout); err != nil {
+					slog.Warn("verify: stopping the app failed", "task", req.TaskID, "err", err, "output", tail(out))
+				}
+			}()
+		}
+		if out, err := run(ctx, req.Dir, req.Env, app.Start, timeout); err != nil {
+			return "The task's app did not start. " + commandFailed(app.Start, err, out, "")
+		}
+		if app.URL != "" {
+			url, err := expandURL(ctx, req.Dir, req.Env, app.URL)
+			if err != nil {
+				slog.Warn("verify: expanding verify.app.url failed; not waiting for the app", "task", req.TaskID, "err", err)
+			} else {
+				ready := time.Duration(app.ReadyTimeoutS) * time.Second
+				if err := waitReady(ctx, url, ready); err != nil {
+					return fmt.Sprintf("orch's local verify started the task's app with `%s`, and it never answered at %s (%v). "+
+						"Check that the change still builds and serves.\n", app.Start, url, err)
+				}
+				env = withVar(env, "ORCH_APP_URL="+url)
+			}
+		}
+	}
+	for _, c := range v.Cfg.E2E {
+		if out, err := run(ctx, req.Dir, env, c, timeout); err != nil {
+			return commandFailed(c, err, out, " against the running app")
+		}
+	}
+	return ""
+}
+
+// expandURL has the shell expand verify.app.url with the task's environment,
+// so `$((3000 + ORCH_TASK_SLOT))` gives each task its own port.
+func expandURL(ctx context.Context, dir string, env []string, url string) (string, error) {
+	out, err := run(ctx, dir, env, `printf '%s' "`+strings.ReplaceAll(url, `"`, `\"`)+`"`, time.Minute)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, tail(out))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// readyPoll is how often waitReady asks.
+var readyPoll = time.Second
+
+// waitReady polls url until it answers below 500, or ready runs out. A 404 is
+// ready: the server is up, and the E2E tests say what is missing.
+func waitReady(ctx context.Context, url string, ready time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, ready)
+	defer cancel()
+	client := &http.Client{Timeout: 5 * time.Second}
+	var last error
+	for {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := client.Do(req) // #nosec G704 -- the operator's own verify.app.url
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode < 500 {
+				return nil
+			}
+			err = fmt.Errorf("it answered %s", resp.Status)
+		}
+		last = err
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("gave up after %s: %w", ready, last)
+		case <-time.After(readyPoll):
+		}
+	}
+}
+
+// withVar is env with kv added, starting from this process's environment
+// when env is nil (which exec reads as "inherit").
+func withVar(env []string, kv string) []string {
+	if env == nil {
+		env = os.Environ()
+	}
+	return append(slices.Clone(env), kv)
 }
 
 // commands are the configured ones, or what `orch ci setup` detects.
@@ -103,13 +205,15 @@ func (v Verifier) commands(taskID, dir string) []string {
 	return out
 }
 
-// run is `sh -c command` in dir, bounded by timeout (checklist rule 18).
-func run(ctx context.Context, dir, command string, timeout time.Duration) (string, error) {
+// run is `sh -c command` in dir with env (nil inherits this process's),
+// bounded by timeout (checklist rule 18).
+func run(ctx context.Context, dir string, env []string, command string, timeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// #nosec G204 -- the operator's own verify.commands, or commands detected from their repository.
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
+	cmd.Env = env
 	cmd.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -180,7 +284,7 @@ func (v Verifier) baseRef(ctx context.Context, dir string) string {
 	if base == "" {
 		base = "main"
 	}
-	if _, err := run(ctx, dir, "git rev-parse --verify --quiet "+shellQuote("origin/"+base+"^{commit}"), time.Minute); err == nil {
+	if _, err := run(ctx, dir, nil, "git rev-parse --verify --quiet "+shellQuote("origin/"+base+"^{commit}"), time.Minute); err == nil {
 		return "origin/" + base
 	}
 	return base
@@ -189,7 +293,7 @@ func (v Verifier) baseRef(ctx context.Context, dir string) string {
 // requireTests sends back a change that touches no test file. An empty
 // change passes here: the other checks decide what nothing means.
 func (v Verifier) requireTests(ctx context.Context, taskID, dir string) string {
-	out, err := run(ctx, dir, "git diff --name-only --merge-base "+shellQuote(v.baseRef(ctx, dir))+" --", time.Minute)
+	out, err := run(ctx, dir, nil, "git diff --name-only --merge-base "+shellQuote(v.baseRef(ctx, dir))+" --", time.Minute)
 	if err != nil {
 		slog.Warn("verify: listing the changed files failed; not checking for tests", "task", taskID, "err", err)
 		return ""

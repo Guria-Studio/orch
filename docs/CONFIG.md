@@ -608,6 +608,12 @@ verify:
   reviewer: ""          # "" = another installed provider than the task's
   review_model: ""
   checklist: ""         # "" = .orch/review.md, then .github/orch-review.md, then the built-in one
+  app:                  # the task's own app, for E2E; empty start = none
+    start: ""           # e.g. docker compose up -d --build
+    url: ""             # e.g. http://localhost:$((3000 + ORCH_TASK_SLOT))
+    stop: ""            # e.g. docker compose down -v --remove-orphans
+    ready_timeout_s: 120
+  e2e: []               # run against the app, with ORCH_APP_URL set
   max_attempts: 2
   timeout_s: 600
 ```
@@ -627,6 +633,23 @@ a note and verifies nothing.
    task. Only a blocking finding fails the work. A review that cannot complete
    (no other provider, a provider that is down, an answer that does not
    parse) is logged and the work passes.
+
+Every command runs with the agent's own environment: `ORCH_TASK_ID`,
+`ORCH_TASK_SLOT` and, with `dispatch.isolate_compose`, the task's
+`COMPOSE_PROJECT_NAME`. So two tasks verifying at once do not share
+containers, and their ports can follow the slot as in
+[`dispatch`](#dispatch).
+
+**The task's app and E2E.** After the commands pass, `app.start` brings up
+the app of the task's worktree, and verify waits up to `ready_timeout_s` for
+`app.url` to answer below 500 (a 404 counts as up). The shell expands
+`url` with the task's environment, so `$((3000 + ORCH_TASK_SLOT))` gives each
+task its own port. Then each `e2e` command runs with `ORCH_APP_URL` set to
+that URL, and `app.stop` always runs at the end, even after a failure. An app
+that does not start, or never answers, is sent back like a failing test. If
+the cause is the machine and not the change, the agent can block the task and
+say so. `e2e` without `app` runs too, for a suite that starts its own server
+(Playwright's `webServer`).
 
 Work that fails is not pushed. The task goes back to its agent in the same
 worktree, with the failure in `.orch-ci-feedback.md` and the prompt telling it

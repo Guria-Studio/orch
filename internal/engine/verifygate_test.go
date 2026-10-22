@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,12 +22,14 @@ type scriptedVerifier struct {
 	mu      sync.Mutex
 	answers []string
 	dirs    []string
+	envs    [][]string
 }
 
-func (v *scriptedVerifier) Verify(_ context.Context, _ string, _ model.Backend, dir string) string {
+func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) string {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.dirs = append(v.dirs, dir)
+	v.dirs = append(v.dirs, req.Dir)
+	v.envs = append(v.envs, req.Env)
 	i := min(len(v.dirs), len(v.answers)) - 1
 	return v.answers[i]
 }
@@ -113,6 +116,13 @@ func TestVerifyFailureSendsTheTaskBackToItsWorktree(t *testing.T) {
 
 	if len(v.dirs) != 2 || v.dirs[1] != wt {
 		t.Errorf("verified in %v, want the same worktree twice", v.dirs)
+	}
+	// The checks run as the task: its slot is what keeps two tasks' apps
+	// off the same port.
+	for i, env := range v.envs {
+		if !slices.Contains(env, "ORCH_TASK_ID=C-1") || !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "ORCH_TASK_SLOT=") }) {
+			t.Errorf("verify %d ran without the task's environment: %v", i+1, env)
+		}
 	}
 	files, pushed := remoteBranchFiles(t, remote, "orch/C-1")
 	if !pushed {

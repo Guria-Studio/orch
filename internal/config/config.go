@@ -76,10 +76,29 @@ type Verify struct {
 	// root. Empty means .orch/review.md, then .github/orch-review.md, then
 	// the built-in one.
 	Checklist string `yaml:"checklist"`
+	// App starts the task's app for E2E, and E2E are the commands that test
+	// it while it runs, with ORCH_APP_URL set.
+	App VerifyApp `yaml:"app"`
+	E2E []string  `yaml:"e2e"`
 	// MaxAttempts is how many times a task is sent back before it is blocked.
 	MaxAttempts int `yaml:"max_attempts"`
 	// TimeoutS bounds each command, and the review.
 	TimeoutS int `yaml:"timeout_s"`
+}
+
+// VerifyApp is how the local verify runs the task's app: each command through
+// `sh -c` in the worktree, with the task's environment, so ports and compose
+// projects follow ORCH_TASK_SLOT and COMPOSE_PROJECT_NAME.
+type VerifyApp struct {
+	// Start brings the app up and returns, e.g. `docker compose up -d`.
+	Start string `yaml:"start"`
+	// URL is where the app answers once it is up, expanded by the shell with
+	// the task's environment: `http://localhost:$((3000 + ORCH_TASK_SLOT))`.
+	URL string `yaml:"url"`
+	// Stop takes it down again, always, e.g. `docker compose down -v`.
+	Stop string `yaml:"stop"`
+	// ReadyTimeoutS is how long the app has to answer at URL.
+	ReadyTimeoutS int `yaml:"ready_timeout_s"`
 }
 
 // Portal configures what the client portal (`orch publish`) shows beyond the
