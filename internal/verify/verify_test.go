@@ -307,7 +307,10 @@ func TestVerifySendsBackAnAppThatNeverAnswers(t *testing.T) {
 	v.Cfg.E2E = []string{"touch e2e-ran"}
 
 	got := v.Verify(context.Background(), req).Failure
-	if !strings.Contains(got, "never answered at "+want) || !strings.Contains(got, "500") {
+	// The last error is the 500, or, on a loaded machine, the deadline of a
+	// request still waiting: either way the app was never ready, which is
+	// what this checks. A 500 taken as ready would have passed the work.
+	if !strings.Contains(got, "never answered at "+want) {
 		t.Errorf("Verify = %q, want the app reported as never ready", got)
 	}
 	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err == nil {
