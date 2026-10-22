@@ -202,6 +202,7 @@ func Run(opts Options) (Result, error) {
 		w.copyShared(filepath.Join("openspec", "README.md"), "openspec/README.md")
 	}
 	w.reportFindings(opts)
+	w.verify()
 	w.stampTaskMeta(opts)
 	if opts.Template == "" && !opts.NoSampleTask {
 		res.SampleTask = w.sampleTask(opts.TierDefaults)
@@ -665,6 +666,52 @@ func (w *writer) reportFindings(opts Options) {
 		body += "\n" + block[:strings.LastIndex(block, "enabled:")] + "enabled: " + value + "\n"
 	}
 	w.write(rel, []byte(body), 0o600)
+}
+
+// verify gives a new project the packaged `verify:` block — the local
+// verify on — when its config has none: a template's config.yaml.tmpl is
+// partial, and a project from a template is as new as a blank one.
+func (w *writer) verify() {
+	if w.err != nil {
+		return
+	}
+	rel := filepath.Join(".orchestrator", "config.yaml")
+	raw, err := os.ReadFile(w.path(rel)) // #nosec G304 -- the file this scaffold just wrote
+	if err != nil {
+		w.fail("read %s to add verify: %w", rel, err)
+		return
+	}
+	body := string(raw)
+	if reVerifyBlock.MatchString(body) {
+		return
+	}
+	block, err := packagedVerifyBlock()
+	if err != nil {
+		w.fail("the packaged default config has no verify block: %w", err)
+		return
+	}
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	w.write(rel, []byte(body+"\n"+block), 0o600)
+}
+
+var reVerifyBlock = regexp.MustCompile(`(?m)^verify:`)
+
+// packagedVerifyBlock is the packaged default's verify comment and block,
+// from its "# Local verify" comment to the next blank line.
+func packagedVerifyBlock() (string, error) {
+	raw, err := packagedDefault("config.yaml")
+	if err != nil {
+		return "", fmt.Errorf("read the packaged default config.yaml: %w", err)
+	}
+	body := string(raw)
+	start := strings.Index(body, "# Local verify")
+	if start < 0 || !reVerifyBlock.MatchString(body[start:]) {
+		return "", errors.New("block or its comment not found")
+	}
+	block, _, _ := strings.Cut(body[start:], "\n\n")
+	return block + "\n", nil
 }
 
 var reReportFindings = regexp.MustCompile(`(?m)^(report_findings:[ \t]*\n[ \t]+enabled:[ \t]*)\S+`)
