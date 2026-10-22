@@ -61,7 +61,7 @@ func CheckOrphanWorktrees(root string) Check {
 		}
 	}
 
-	var orphanBranches []string
+	var orphanBranches, salvage []string
 	branchOut, err := gitCapture(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/orch/*")
 	if err != nil {
 		return Check{Name: name, Status: StatusWarn,
@@ -72,13 +72,17 @@ func CheckOrphanWorktrees(root string) Check {
 		if branch == "" {
 			continue
 		}
+		if id, ok := worktree.SalvageTaskID(branch); ok {
+			salvage = append(salvage, id)
+			continue
+		}
 		taskID := strings.TrimPrefix(branch, "orch/")
 		if !slices.Contains(current, taskID) && !slices.Contains(leftovers, taskID) {
 			orphanBranches = append(orphanBranches, branch)
 		}
 	}
 
-	if len(orphanDirs) == 0 && len(leftovers) == 0 && len(orphanBranches) == 0 {
+	if len(orphanDirs) == 0 && len(leftovers) == 0 && len(orphanBranches) == 0 && len(salvage) == 0 {
 		return Check{Name: name, Status: StatusOK, Detail: "no orphaned worktree directories or branches"}
 	}
 
@@ -95,6 +99,11 @@ func CheckOrphanWorktrees(root string) Check {
 	}
 	if len(orphanBranches) > 0 {
 		parts = append(parts, fmt.Sprintf("%d orch/* branch(es) with no live worktree: %s", len(orphanBranches), strings.Join(orphanBranches, ", ")))
+	}
+	if len(salvage) > 0 {
+		salvage = slices.Compact(slices.Sorted(slices.Values(salvage)))
+		parts = append(parts, fmt.Sprintf("unpushed work an earlier attempt committed, kept for task(s) %s (#391)", strings.Join(salvage, ", ")))
+		remediation += "; `orch task salvage --id <id>` to review that work and accept it without running the agent again"
 	}
 	return Check{
 		Name: name, Status: StatusWarn,

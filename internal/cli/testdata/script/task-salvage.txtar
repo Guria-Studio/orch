@@ -1,0 +1,59 @@
+# `orch task salvage` (#391): an earlier attempt committed its work and never
+# published it — the task ended blocked — and Create kept that work under a
+# salvage branch instead of deleting it. The operator reviews it and accepts
+# it as the task's result, without running the agent again.
+
+[!exec:git] skip
+
+cd $WORK/sproj
+exec git init -q --initial-branch=main .
+exec git config user.email orch@example.com
+exec git config user.name orch
+exec git config commit.gpgsign false
+exec git add -A
+exec git commit -q -m 'initial'
+exec git checkout -q -b orch/T-1-salvage-20261022T213000Z
+cp $WORK/deliverable.md docs.md
+exec git add docs.md
+exec git commit -q -m 'document the search filters'
+exec git checkout -q main
+
+# Nothing to see for a task with no branch.
+exec orch task salvage --id T-2 --project-root $WORK/sproj
+stdout '^T-2: no committed work outside main'
+
+# The listing names the branch, its commit, and the command that accepts it.
+exec orch task salvage --id T-1 --project-root $WORK/sproj
+stdout '^orch/T-1-salvage-20261022T213000Z — 1 commit\(s\) not on main:$'
+stdout 'document the search filters'
+stdout 'orch task salvage --id T-1 --accept orch/T-1-salvage-20261022T213000Z'
+
+# A branch that is not one of them is refused.
+! exec orch task salvage --id T-1 --accept orch/T-9 --project-root $WORK/sproj
+stderr 'orch/T-9 has no committed work outside main for T-1'
+
+# Accepting it: the task is done, the work sits under the task's own branch,
+# where a dependent's worktree merges it, and the history says so.
+exec orch task salvage --id T-1 --accept orch/T-1-salvage-20261022T213000Z --project-root $WORK/sproj
+stdout '^T-1: done, with the 1 commit\(s\) now on orch/T-1'
+stdout 'gh pr create --head orch/T-1 --base main'
+exec git branch --list orch/T-1
+stdout 'orch/T-1'
+exec git branch --list 'orch/T-1-salvage-*'
+! stdout .
+exec orch tasks --project-root $WORK/sproj --json
+stdout '"id":"T-1"[^}]*"status":"done"'
+exec orch events T-1 --project-root $WORK/sproj
+stdout 'salvage_accepted'
+
+-- deliverable.md --
+# Search and filters
+-- sproj/tasks.json --
+{"tasks":[{"id":"T-1","phase":1,"title":"document the filters","model":"claude/haiku","status":"blocked","dependencies":[],"estimateHours":1.0,"files":[],"specRef":"","reason":"close failed"},{"id":"T-2","phase":1,"title":"other","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":"","reason":""}]}
+-- sproj/.orchestrator/config.yaml --
+dispatch:
+  worktree_mode: true
+  base_branch: main
+-- sproj/scripts/task-start.sh --
+#!/bin/sh
+exec orch task-status "$1" in-progress

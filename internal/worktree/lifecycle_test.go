@@ -943,3 +943,71 @@ func TestCreateSkipsADependencyTheBaseAlreadyContains(t *testing.T) {
 		t.Errorf("a merge commit was made for a dependency the base contains:\n%s", out)
 	}
 }
+
+// TestCreateKeepsAnEarlierAttemptsUnpushedWork is #391: an attempt that
+// committed its work but never pushed it (its task ended blocked: a close that
+// failed, a verify send-back used up) left the only copy on orch/<id>, and the
+// next Create deleted that branch with `git branch -D`. Create now keeps it
+// under orch/<id>-salvage-<time>, where `orch task salvage` finds it.
+func TestCreateKeepsAnEarlierAttemptsUnpushedWork(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	wt, err := m.Create("F0.1.T5", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "deliverable.md"), []byte("the work\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CommitPending("F0.1.T5", "work"); err != nil {
+		t.Fatal(err)
+	}
+	work := strings.TrimSpace(runGit(t, root, "rev-parse", m.BranchName("F0.1.T5")))
+	if err := m.Remove("F0.1.T5"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := m.Create("F0.1.T5", "main"); err != nil {
+		t.Fatalf("Create over a branch with unpushed work: %v", err)
+	}
+
+	kept := strings.Fields(runGit(t, root, "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/orch/F0.1.T5"+SalvageMarker+"*"))
+	if len(kept) != 2 || kept[1] != work {
+		t.Fatalf("salvage branches = %v, want one at the earlier attempt's commit %s", kept, work)
+	}
+	if id, ok := SalvageTaskID(kept[0]); !ok || id != "F0.1.T5" {
+		t.Errorf("SalvageTaskID(%q) = %q, %v", kept[0], id, ok)
+	}
+}
+
+// Work the earlier attempt pushed is safe on the remote: its branch is
+// cleared as before, with no salvage copy.
+func TestCreateClearsAnEarlierAttemptsPushedWork(t *testing.T) {
+	root := newTestRepo(t)
+	newBareRemote(t, root)
+	runGit(t, root, "push", "-q", "origin", "main")
+	m := NewManager(root, true)
+	wt, err := m.Create("F0.1.T6", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "deliverable.md"), []byte("the work\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CommitPending("F0.1.T6", "work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Push("F0.1.T6"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Remove("F0.1.T6"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := m.Create("F0.1.T6", "main"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(runGit(t, root, "for-each-ref", "refs/heads/orch/F0.1.T6"+SalvageMarker+"*")); got != "" {
+		t.Errorf("pushed work got a salvage copy: %s", got)
+	}
+}

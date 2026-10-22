@@ -99,3 +99,20 @@ func TestCheckOrphanWorktreesWarnsWhenWorktreesDirUnreadable(t *testing.T) {
 		})
 	}
 }
+
+// A salvage branch is an earlier attempt's only copy of its work (#391):
+// doctor names its task and the command that reviews it, and does not list
+// it among the finished branches it suggests deleting.
+func TestCheckOrphanWorktreesPointsAtSalvagedWork(t *testing.T) {
+	root := newTestGitRepo(t)
+	runGitDoctor(t, root, "branch", "orch/F0.1.T5-salvage-20261022T213000Z")
+
+	c := CheckOrphanWorktrees(root)
+	if c.Status != StatusWarn || !strings.Contains(c.Detail, "kept for task(s) F0.1.T5") ||
+		!strings.Contains(c.Remediation, "orch task salvage --id <id>") {
+		t.Errorf("c = %+v, want a warning naming F0.1.T5 and orch task salvage", c)
+	}
+	if strings.Contains(c.Detail, "with no live worktree") {
+		t.Errorf("the salvage branch is listed as a branch to delete: %s", c.Detail)
+	}
+}
