@@ -1135,3 +1135,46 @@ func TestTransitionRefusesAStatusOutsideTheEnum(t *testing.T) {
 		})
 	}
 }
+
+// #390: a task's static fields edited in tasks.json reach tasks_definition on
+// the next Bootstrap. It used to INSERT OR IGNORE them, so the database kept
+// the first model a task ever had while dispatch ran tasks.json's, and the
+// dashboard and MCP showed the stale one. Runtime state is still never
+// touched, and an unchanged definition keeps its updated_at.
+func TestBootstrapUpdatesEditedDefinitions(t *testing.T) {
+	ctx := context.Background()
+	b := seeded(t, "T1")
+	if err := b.Transition(ctx, "T1", model.StatusDone, Note{Author: "orch"}); err != nil {
+		t.Fatal(err)
+	}
+	readDef := func() (mdl, title, updated string) {
+		t.Helper()
+		if err := b.db.read.QueryRowContext(ctx,
+			`SELECT model, title, updated_at FROM tasks_definition WHERE project_id = 'proj' AND task_id = 'T1'`,
+		).Scan(&mdl, &title, &updated); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	_, _, before := readDef()
+
+	b.now = func() time.Time { return time.Date(2026, 10, 22, 23, 0, 0, 0, time.UTC) }
+	if err := b.Bootstrap(ctx, tasks("T1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, after := readDef(); after != before {
+		t.Errorf("an unchanged definition was rewritten: updated_at %q -> %q", before, after)
+	}
+
+	edited := tasks("T1")
+	edited[0].Model, edited[0].Title = "codex/gpt-5.6-codex", "renamed"
+	if err := b.Bootstrap(ctx, edited); err != nil {
+		t.Fatal(err)
+	}
+	if mdl, title, updated := readDef(); mdl != "codex/gpt-5.6-codex" || title != "renamed" || updated == before {
+		t.Errorf("definition = %q %q %q, want the edit with a new updated_at", mdl, title, updated)
+	}
+	if got, _ := b.Task(ctx, "T1"); got.Status != model.StatusDone {
+		t.Errorf("status = %q; an edited definition touched the runtime row", got.Status)
+	}
+}

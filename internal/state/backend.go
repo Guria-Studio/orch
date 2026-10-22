@@ -218,11 +218,23 @@ func (b *SQLite) Bootstrap(ctx context.Context, tasks []model.Task) error {
 				b.projectID, t.ID, string(status), string(comments), now); err != nil {
 				return fmt.Errorf("seed runtime row for %q: %w", t.ID, err)
 			}
+			// tasks.json is where a task's static fields are edited (#390),
+			// so they are upserted: an edit reaches the definition, and an
+			// unchanged row keeps its updated_at. backend and milestone_id
+			// are not tasks.json's and are left alone.
 			if _, err := tx.ExecContext(ctx,
-				`INSERT OR IGNORE INTO tasks_definition
+				`INSERT INTO tasks_definition
 				   (project_id, task_id, title, model, backend, deps_json,
 				    spec_ref, phase, estimate_h, reason, files_json, updated_at)
-				 VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+				 VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT (project_id, task_id) DO UPDATE SET
+				   title = excluded.title, model = excluded.model, deps_json = excluded.deps_json,
+				   spec_ref = excluded.spec_ref, phase = excluded.phase, estimate_h = excluded.estimate_h,
+				   reason = excluded.reason, files_json = excluded.files_json, updated_at = excluded.updated_at
+				 WHERE title IS NOT excluded.title OR model IS NOT excluded.model
+				    OR deps_json IS NOT excluded.deps_json OR spec_ref IS NOT excluded.spec_ref
+				    OR phase IS NOT excluded.phase OR estimate_h IS NOT excluded.estimate_h
+				    OR reason IS NOT excluded.reason OR files_json IS NOT excluded.files_json`,
 				b.projectID, t.ID, t.Title, t.Model, string(deps), t.SpecRef,
 				t.Phase, t.EstimateHours, t.Reason, string(files), now); err != nil {
 				return fmt.Errorf("seed definition row for %q: %w", t.ID, err)
