@@ -9,10 +9,13 @@ import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
 import { StatusBadge } from "@/components/StatusBadge"
 import { TaskSteer } from "@/components/TaskSteer"
+import { useTicker } from "@/hooks/useNow"
 import { useTaskDetail } from "@/hooks/useTaskDetail"
 import { fmt, t } from "@/i18n"
 import { taskPath } from "@/lib/nav"
 import { statusKey } from "@/lib/status"
+import { formatRelative } from "@/lib/time"
+import { cn } from "@/lib/utils"
 import type { Task } from "@/lib/types"
 
 function Meta({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -30,6 +33,55 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h3>
       {children}
     </section>
+  )
+}
+
+interface TaskComment {
+  at: string
+  author: string
+  body: string
+  kind?: string
+}
+
+/** A comment as the API sends it, or null for an entry that is not one. */
+function asComment(raw: unknown): TaskComment | null {
+  if (!raw || typeof raw !== "object") return null
+  const c = raw as Record<string, unknown>
+  if (typeof c.body !== "string" || c.body.trim() === "") return null
+  return {
+    at: typeof c.at === "string" ? c.at : "",
+    author: typeof c.author === "string" && c.author ? c.author : "—",
+    body: c.body,
+    kind: typeof c.kind === "string" ? c.kind : undefined,
+  }
+}
+
+// The task's comment trail, oldest first (#405): who wrote it, when, and what.
+// orch's own notes mostly repeat a status the badge above already shows, so
+// they are muted next to what an agent or the operator wrote.
+function TaskComments({ comments, label }: { comments: unknown[]; label: string }) {
+  const now = useTicker(60_000)
+  const rows = comments.map(asComment).filter((c): c is TaskComment => c !== null)
+  return (
+    <ul aria-label={label} className="max-h-80 space-y-2 overflow-auto pr-1">
+      {rows.map((c, i) => {
+        const muted = c.author === "orch"
+        return (
+          <li key={`${c.at}-${i}`} data-muted={muted ? "true" : undefined} className={cn("text-xs", muted && "text-muted-foreground")}>
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span className={cn("font-medium", !muted && "text-foreground")}>{c.author}</span>
+              {c.kind === "operator_note" ? <Badge variant="outline" className="px-1 py-0 text-[10px] font-normal">{t("task.operator_note")}</Badge> : null}
+              {c.at ? (
+                <time dateTime={c.at} title={fmt.dateTime(c.at)} className="text-muted-foreground">
+                  {formatRelative(c.at, now)}
+                </time>
+              ) : null}
+            </div>
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{c.body}</p>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -101,9 +153,7 @@ function TaskContext({ task }: { task: Task }) {
 
       {task.comments.length > 0 ? (
         <Section title={t("task.comments", { count: task.comments.length })}>
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">
-            {JSON.stringify(task.comments, null, 2)}
-          </pre>
+          <TaskComments comments={task.comments} label={t("task.comments", { count: task.comments.length })} />
         </Section>
       ) : null}
 

@@ -210,6 +210,7 @@ export const es = {
   "task.files": { one: "Archivo", other: "Archivos ({count})" },
   "task.spec_ref": "Spec",
   "task.comments": { one: "Comentario", other: "Comentarios ({count})" },
+  "task.operator_note": "Nota del operador",
   "task.load_failed": "No se pudo cargar la tarea",
   "task.back": "Volver",
   "task.open_page": "Abrir la página de {id}",

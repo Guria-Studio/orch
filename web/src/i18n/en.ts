@@ -206,6 +206,7 @@ export const en = {
   "task.files": { one: "File", other: "Files ({count})" },
   "task.spec_ref": "Spec",
   "task.comments": { one: "Comment", other: "Comments ({count})" },
+  "task.operator_note": "Operator note",
   "task.load_failed": "Couldn't load the task",
   "task.back": "Back",
   "task.open_page": "Open {id}'s page",
