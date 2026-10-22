@@ -142,7 +142,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&sdd, "sdd", false,
 		"Also scaffold the openspec/ layout")
 	cmd.Flags().BoolVar(&noFindings, "no-report-findings", false,
-		"Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)")
+		"Write report_findings.enabled: false (it is on by default: agents may file public issues about orch with your gh login)")
 	cmd.Flags().BoolVar(&advanced, "advanced", false,
 		"Also ask the project root, state backend, budget preset, spec root, tier models and openspec layout")
 	return cmd
@@ -212,12 +212,16 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	say("Config: %s/.orchestrator/config.yaml", res.Root)
 	say("  One file. `budgets.yaml` and `dashboard.yaml` are optional overrides")
 	say("  that deep-merge on top if you drop them in the project root.")
-	if opts.ReportFindings {
+	if !opts.NoReportFindings {
 		say("")
-		say("report_findings is on: agents may file public issues about orch with your gh login —")
-		say("  set report_findings.enabled: false in .orchestrator/config.yaml to turn it off.")
+		say(reportFindingsNotice)
 	}
 }
+
+// reportFindingsNotice is what init and start say about report_findings,
+// which a new project has on (#399).
+const reportFindingsNotice = "report_findings is on: agents may file public issues about orch with your gh login.\n" +
+	"  Turn it off with report_findings.enabled: false in .orchestrator/config.yaml."
 
 // planSteps is how init and an empty `orch run` say to plan the work:
 // `orch start` (#377) installs the planning skills and has claude plan it.
