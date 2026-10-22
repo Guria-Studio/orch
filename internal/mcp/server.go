@@ -158,6 +158,13 @@ func NewServer(opts Options) (*mcpsdk.Server, error) {
 	}, s.events)
 
 	mcpsdk.AddTool(srv, &mcpsdk.Tool{
+		Name: "orch_run_status",
+		Description: "The latest run: its status, and the tasks it has in flight right now — " +
+			"which provider each went to, which attempt, and since when — plus every task's " +
+			"status counts. Use it to show what is working, not to change anything.",
+	}, s.runStatus)
+
+	mcpsdk.AddTool(srv, &mcpsdk.Tool{
 		Name: "orch_context",
 		Description: "Where you are: the project's root, spec root and task " +
 			"counts, plus — with a task_id — everything that task's dispatch " +
