@@ -477,6 +477,7 @@ var defaultsDivergedFromPython = map[string]string{
 		"comment says the issues are public and under the operator's gh login; a config without the key stays off. " +
 		"#376: back to `enabled: false` — asking a new user to file public issues before anything has worked is " +
 		"the wrong first question; the first `orch run` that finishes a task offers it. " +
+		"#399: `enabled: true` again — off by default meant almost nobody turned it on; init and start say so. " +
 		"feat/verify-default: a new project gets a `verify:` block with the local verify on (#398); " +
 		"a config without the block stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
@@ -962,10 +963,10 @@ func TestAgentsMDInstallsTheGoBinary(t *testing.T) {
 	}
 }
 
-// A new project leaves report_findings off (#376) — blank or from a
-// template, whose config.yaml.tmpl carries no such block — and leaves the
-// marker that has the first `orch run` to finish a task offer it. Opting in
-// writes it on; `--no-report-findings` writes it off and is never offered.
+// A new project has report_findings on (#399, which undoes #376's off) —
+// blank or from a template, whose config.yaml.tmpl carries no such block —
+// and needs no offer marker. `--no-report-findings` writes it off and is
+// never offered.
 // The value is read back through config.Load, the way `orch run` reads it, so
 // a block the loader would not see does not pass.
 func TestInitWritesReportFindings(t *testing.T) {
@@ -976,9 +977,9 @@ func TestInitWritesReportFindings(t *testing.T) {
 		want      bool
 		wantOffer bool
 	}{
-		{"blank project", "", Options{}, false, true},
-		{"template project", "python-api", Options{}, false, true},
-		{"blank, opted in", "", Options{ReportFindings: true}, true, false},
+		{"blank project", "", Options{}, true, false},
+		{"template project", "python-api", Options{}, true, false},
+		{"blank, said no", "", Options{NoReportFindings: true}, false, false},
 		{"template, said no", "python-api", Options{NoReportFindings: true}, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

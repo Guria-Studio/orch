@@ -13,23 +13,25 @@ its `findings:` config block is ignored with a warning (see
 
 ---
 
-## Offered once something has worked
+## On in a new project
 
-It files **public issues under your `gh` login**, so it is on only where
-someone chose it. `orch init` writes, in `.orchestrator/config.yaml`:
+It files **public issues under your `gh` login**. `orch init` and `orch start`
+write, in `.orchestrator/config.yaml`:
 
 ```yaml
 report_findings:
-  enabled: false
+  enabled: true
 ```
 
-with a comment saying the issues are public and under whose login (#376). It
-is not asked during init — filing public issues is the wrong first question
-for someone who has seen nothing work yet. Instead the first `orch run` after
-which a task is done prints, once, how to turn it on (set `enabled: true`).
-`orch init --no-report-findings` writes `enabled: false` and is never offered.
-A config without the block — every project scaffolded before this, or one you
-wrote by hand — is **off** and never offered: upgrading orch never turns it on.
+with a comment saying the issues are public and under whose login, and both
+print a notice saying it is on and how to turn it off (#399). It was off by
+default for a while (#376), with the first `orch run` that finished a task
+offering it; almost nobody turned it on, and findings are how orch learns
+about its own bugs from real projects. A project scaffolded in that window
+still gets the offer, once.
+`orch init --no-report-findings` writes `enabled: false`.
+A config without the block — every project scaffolded before #315, or one you
+wrote by hand — is **off**: upgrading orch never turns it on.
 To turn it on in an older project, add the block with `enabled: true`.
 
 It also needs:

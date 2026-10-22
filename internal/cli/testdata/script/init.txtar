@@ -24,11 +24,11 @@ exists batchproj/.github/workflows/orch-ci.yml
 # config.yaml, where `orch run` and `orch doctor` look for it.
 exists batchproj/.orchestrator/budgets.yaml
 
-# report_findings is off in a new project (#376): the first run that finishes
-# a task offers it, through the marker init leaves.
-! stdout 'report_findings is on'
-grep '^  enabled: false' batchproj/.orchestrator/config.yaml
-exists batchproj/.orchestrator/report-findings.offer
+# report_findings is on in a new project (#399), init says so and how to turn
+# it off, and there is nothing left to offer later. The value itself is
+# checked through config.Load in internal/scaffold's TestInitWritesReportFindings.
+stdout 'report_findings is on: agents may file public issues about orch with your gh login'
+! exists batchproj/.orchestrator/report-findings.offer
 
 # The scaffolded project passes its own validator. This is the assertion the
 # Python side was missing. No errors; the two warnings are the template's

@@ -73,17 +73,11 @@ type Options struct {
 	// tasks.json's meta block for downstream tools. Keys: premium, standard,
 	// cheap.
 	TierDefaults map[string]string
-	// ReportFindings writes `report_findings.enabled: true`. The zero value
-	// writes false (#376): filing public issues under the operator's login is
-	// not the first thing to ask of someone who has seen nothing work yet, so
-	// a new project leaves it off and the first `orch run` that finishes a
-	// task offers it once (FindingsOfferPath).
-	ReportFindings bool
 	// NoSampleTask leaves a blank project without the sample task — for
 	// `orch start`, which plans the real ones right away.
 	NoSampleTask bool
-	// NoReportFindings is the operator saying no outright
-	// (`--no-report-findings`): off, and never offered.
+	// NoReportFindings is the operator saying no (`--no-report-findings`).
+	// The zero value writes `report_findings.enabled: true` (#399).
 	NoReportFindings bool
 }
 
@@ -629,9 +623,9 @@ var (
 	reBaseBranchValue = regexp.MustCompile(`(?m)^(\s+base_branch:\s*)\S+`)
 )
 
-// reportFindings writes `report_findings.enabled` — false unless the
-// operator opted in — and, unless they said no outright, leaves the marker
-// that has `orch run` offer it once a task has finished.
+// reportFindings writes `report_findings.enabled` — true unless the operator
+// said no (#399; #376 had made it false with a later offer, and almost nobody
+// turned it on, which is how orch learns about its own bugs from real use).
 //
 // The packaged default carries the block with its comment; a template's
 // config.yaml.tmpl does not, and a project from a template is as new as a
@@ -647,10 +641,7 @@ func (w *writer) reportFindings(opts Options) {
 		w.fail("read %s to set report_findings: %w", rel, err)
 		return
 	}
-	value := strconv.FormatBool(opts.ReportFindings)
-	if !opts.ReportFindings && !opts.NoReportFindings {
-		w.write(filepath.Join(".orchestrator", FindingsOfferName), nil, 0o600)
-	}
+	value := strconv.FormatBool(!opts.NoReportFindings)
 	body := string(raw)
 	if loc := reReportFindings.FindStringSubmatchIndex(body); loc != nil {
 		body = body[:loc[0]] + body[loc[2]:loc[3]] + value + body[loc[1]:]
@@ -816,8 +807,9 @@ func OnlySampleTask(tasks []model.Task) bool {
 }
 
 // FindingsOfferName is the marker, under .orchestrator/, that has the first
-// `orch run` to finish a task offer report_findings (#376). Only `orch init`
-// writes it, so a project that predates it is never asked.
+// `orch run` to finish a task offer report_findings (#376). `orch init` wrote
+// it from #380 until #399 turned report_findings on in a new project; it is
+// still honoured for the projects scaffolded in between.
 const FindingsOfferName = "report-findings.offer"
 
 // sampleTask gives a blank project one harmless task, so the first `orch run`

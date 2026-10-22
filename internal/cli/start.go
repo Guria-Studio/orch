@@ -106,7 +106,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		if err != nil {
 			return withExitCode(1, err)
 		}
-		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoReportFindings: true, NoSampleTask: true})
+		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoSampleTask: true})
 		if err != nil {
 			return withExitCode(1, fmt.Errorf("scaffolding %s: %w", root, err))
 		}
@@ -117,6 +117,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 			return withExitCode(1, fmt.Errorf("adding the routes of the installed CLIs: %w", err))
 		}
 		say("✓ model_router.yaml: %d routes for the CLIs on PATH", len(routes))
+		say("%s", reportFindingsNotice)
 		if remotes, err := exec.Command("git", "-C", root, "remote").Output(); err == nil && strings.TrimSpace(string(remotes)) == "" { // #nosec G204 -- fixed git subcommand
 			if err := scaffold.RunLocally(root); err != nil {
 				return withExitCode(1, fmt.Errorf("configuring a project with no git remote: %w", err))

@@ -42,7 +42,8 @@ stdout '^≈ 3 tasks · '
 stdout '^Next: orch run --max-tasks 2$'
 grep '"model": "claude/claude-sonnet-4-6"' tasks.json
 ! grep 'opencode/glm-5.2' tasks.json
-grep 'enabled: false' .orchestrator/config.yaml
+# report_findings is on in a project start scaffolds (#399), and it says so.
+stdout '^report_findings is on: agents may file public issues about orch with your gh login'
 stdout '^✓ no git remote: agents work in this directory'
 grep '^  worktree_mode: false' .orchestrator/config.yaml
 grep '^  auto_pr: false' .orchestrator/config.yaml
