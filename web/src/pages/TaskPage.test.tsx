@@ -84,6 +84,38 @@ describe("TaskPage", () => {
     expect(location()).toBe("/work/kanban?status=blocked")
   })
 
+  // #405: comments read as author · time · text, never as raw JSON. orch's
+  // own status notes are muted beside a person's or an agent's, an operator
+  // note says it is one, and an entry that is not a comment breaks nothing.
+  it("shows the comments as a thread, not as JSON", async () => {
+    const withComments = {
+      ...task,
+      comments: [
+        { at: "2026-10-12T21:31:42Z", author: "orch", body: "in-progress" },
+        { at: "2026-10-12T21:35:00Z", author: "claude/claude-sonnet-4-6", body: "Refilled the slot; the scheduler test covers it." },
+        { at: "2026-10-12T21:36:00Z", author: "operator", body: "keep the old flag working", kind: "operator_note" },
+        "not a comment",
+        { at: "2026-10-12T21:41:42Z", author: "orch", body: "done" },
+      ],
+    }
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url.includes("/activity") ? { offset: 0, exists: false, steps: [] } : withComments }),
+    )
+    renderAt([taskPath("F6.1.T1")])
+
+    const list = await screen.findByRole("list", { name: "Comments (5)" })
+    expect(list.textContent).not.toContain('"author"')
+    const items = list.querySelectorAll("li")
+    expect(items).toHaveLength(4)
+    expect(items[0]).toHaveTextContent("orch")
+    expect(items[0]).toHaveTextContent("in-progress")
+    expect(items[0]).toHaveAttribute("data-muted", "true")
+    expect(items[1]).toHaveTextContent("Refilled the slot; the scheduler test covers it.")
+    expect(items[1]).not.toHaveAttribute("data-muted")
+    expect(items[2]).toHaveTextContent("Operator note")
+    expect(items[2].querySelector("time")).toHaveAttribute("dateTime", "2026-10-12T21:36:00Z")
+  })
+
   it("goes to the list when it was opened straight from a link", async () => {
     renderAt([taskPath("F6.1.T1")])
     fireEvent.click(await screen.findByRole("button", { name: "Back" }))
