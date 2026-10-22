@@ -172,6 +172,9 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
+	// ciRetryWorktree is the worktree the poller rebuilt for a CI retry, by
+	// task, with the failing logs in it; the retry's dispatch runs there.
+	ciRetryWorktree map[string]string
 	// stopping holds the children the operator asked to stop, by pid, and
 	// whether to hold their task after (#356).
 	stopping map[int]bool
@@ -248,20 +251,21 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		capacity = 1
 	}
 	return &Scheduler{
-		Queue:         q,
-		Routes:        routes,
-		Sems:          NewSems(opts.GlobalMax, opts.PerProvider),
-		Opts:          opts,
-		inFlight:      make(map[int]*InFlight),
-		deferred:      make(map[string]bool),
-		deferReasons:  make(map[string]string),
-		dispatchedIDs: make(map[string]bool),
-		done:          make(chan completion, capacity),
-		spentUSD:      make(map[string]float64),
-		ciRetryPR:     make(map[string]string),
-		stopping:      make(map[int]bool),
-		slots:         NewTaskSlots(),
-		now:           time.Now,
+		Queue:           q,
+		Routes:          routes,
+		Sems:            NewSems(opts.GlobalMax, opts.PerProvider),
+		Opts:            opts,
+		inFlight:        make(map[int]*InFlight),
+		deferred:        make(map[string]bool),
+		deferReasons:    make(map[string]string),
+		dispatchedIDs:   make(map[string]bool),
+		done:            make(chan completion, capacity),
+		spentUSD:        make(map[string]float64),
+		ciRetryPR:       make(map[string]string),
+		ciRetryWorktree: make(map[string]string),
+		stopping:        make(map[int]bool),
+		slots:           NewTaskSlots(),
+		now:             time.Now,
 	}
 }
 
@@ -531,7 +535,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// prevent.
 	workdir := s.Opts.Cwd
 	if s.Worktree != nil && s.Opts.WorktreeMode {
-		created, err := s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
+		created, err := s.taskWorktree(ctx, task)
 		if err != nil {
 			release()
 			s.logger().Error("creating the worktree failed", "task", task.ID, "err", err)
@@ -571,6 +575,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		ComposeProject: s.composeProject(task.ID),
 		Spec:           specState,
 		OperatorNotes:  s.operatorNotes(ctx, task.ID),
+		FeedbackFile:   feedbackFileIn(workdir),
 	})
 	if err != nil {
 		release()
@@ -770,6 +775,31 @@ func (s *Scheduler) completedDeps(ctx context.Context, task model.Task) []model.
 // (#356), read at dispatch time: a note written while the task waited, or
 // with the stop that ended its last attempt, reaches the next one. A read
 // that fails costs the notes, not the dispatch.
+// taskWorktree is where task's agent runs. A CI retry runs in the worktree
+// the poller rebuilt from its PR's branch, with the failing logs in it, or
+// rebuilds it again when an earlier attempt of the retry was tidied away:
+// Create would branch afresh from the base and delete both, sending the agent
+// back in blind to redo the task over its own PR.
+func (s *Scheduler) taskWorktree(ctx context.Context, task model.Task) (string, error) {
+	if s.ciRetryPR[task.ID] == "" {
+		return s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
+	}
+	path, ok := s.ciRetryWorktree[task.ID]
+	delete(s.ciRetryWorktree, task.ID)
+	if ok && fileExists(path) {
+		return path, nil
+	}
+	return s.Worktree.Recreate(ctx, task.ID)
+}
+
+// feedbackFileIn names the CI feedback file when workdir has one.
+func feedbackFileIn(workdir string) string {
+	if fileExists(filepath.Join(workdir, CIFeedbackFile)) {
+		return CIFeedbackFile
+	}
+	return ""
+}
+
 func (s *Scheduler) operatorNotes(ctx context.Context, taskID string) []string {
 	if s.Comments == nil {
 		return nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/hectorcanaimero/orch/internal/worktree"
 )
 
 // ---- Doubles -------------------------------------------------------------
@@ -1226,5 +1228,86 @@ func TestCIRetryIsNotAnnounced(t *testing.T) {
 	}
 	if got := n.ciBlockedList(); len(got) != 0 {
 		t.Errorf("announced %v for a CI failure that will retry", got)
+	}
+}
+
+// TestCIRetryAgentFindsItsWorkAndTheLogs runs a CI re-dispatch against real
+// git: the retry must start the agent in the worktree Recreate rebuilt from
+// the pushed branch, with the failing logs in it and the prompt naming them.
+// Dispatch used to Create a fresh worktree over it, which deletes the branch
+// and the feedback file, so the agent redid the task blind from the base and
+// force-pushed over its own PR.
+func TestCIRetryAgentFindsItsWorkAndTheLogs(t *testing.T) {
+	f := newCIFixture(t, pendingRow("C-1", "https://github.com/o/r/pull/1", 0))
+	f.vcs.status["https://github.com/o/r/pull/1"] = vcs.CIFailure
+	f.vcs.logs = "FAIL TestBar: expected 3, got 4"
+
+	root := f.s.Opts.Cwd
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	gitRun(t, "", "init", "-q", "--bare", remote)
+	gitRun(t, root, "init", "-q")
+	gitRun(t, root, "symbolic-ref", "HEAD", "refs/heads/main")
+	write(t, filepath.Join(root, "README.md"), "initial\n")
+	gitRun(t, root, "add", "-A")
+	gitRun(t, root, "commit", "-q", "-m", "initial")
+	gitRun(t, root, "remote", "add", "origin", remote)
+	gitRun(t, root, "push", "-q", "origin", "main")
+
+	wm := NewWorktreeManager(worktree.NewManager(root, true))
+	f.s.Worktree = wm
+	f.s.Opts.WorktreeMode = true
+	f.s.Opts.BaseBranch = "main"
+	f.poller.Worktree = wm
+
+	// The first attempt: the agent's work, committed, pushed and tidied away,
+	// as the reaper leaves it once the PR is open.
+	ctx := context.Background()
+	wt, err := wm.Create(ctx, "C-1", "main", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(wt, "work.txt"), "first attempt\n")
+	if err := wm.CommitPending(ctx, "C-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wm.Push(ctx, "C-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wm.Remove(ctx, "C-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.poller.Poll(ctx, f.s); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if _, err := f.s.Refill(ctx); err != nil {
+		t.Fatalf("Refill: %v", err)
+	}
+
+	for _, name := range []string{"work.txt", CIFeedbackFile} {
+		if _, err := os.Stat(filepath.Join(wt, name)); err != nil {
+			t.Errorf("the retried agent's worktree has no %s: %v", name, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(f.s.Opts.StateDir, "prompts", f.s.Opts.RunID, "C-1.txt")) // #nosec G304 -- a temp dir this test made
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "READ FIRST "+CIFeedbackFile) {
+		t.Errorf("the retry prompt never names %s:\n%s", CIFeedbackFile, body)
+	}
+
+	// The logs were for the agent: what the retry pushes keeps the work and
+	// leaves them out of the PR.
+	if _, err := f.s.DrainWait(ctx, 30*time.Second); err != nil {
+		t.Fatalf("DrainWait: %v", err)
+	}
+	// #nosec G204 -- fixed git subcommand on a temp repo this test made.
+	out, err := exec.Command("git", "-C", remote, "ls-tree", "--name-only", "orch/C-1").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git ls-tree: %v\n%s", err, out)
+	}
+	if files := string(out); !strings.Contains(files, "work.txt") || strings.Contains(files, CIFeedbackFile) {
+		t.Errorf("the pushed branch holds %q, want work.txt and no %s", files, CIFeedbackFile)
 	}
 }

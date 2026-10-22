@@ -588,6 +588,7 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 		EarliestAt: s.now(),
 	})
 	s.ciRetryPR[row.ID] = row.PRURL
+	s.ciRetryWorktree[row.ID] = wtPath
 	p.emit(ctx, s, EventCIRedispatch, row, map[string]any{"pr_url": row.PRURL})
 	return true
 }

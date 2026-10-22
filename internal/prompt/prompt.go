@@ -94,6 +94,11 @@ type Options struct {
 	// OperatorNotes are what the operator told this task's agent, oldest
 	// first (#356): see OperatorNotes. Empty, the block is not rendered.
 	OperatorNotes []string
+
+	// FeedbackFile names the file in the working dir that says why the
+	// previous attempt was rejected — the CI logs a CI retry leaves there.
+	// Empty, the block is not rendered.
+	FeedbackFile string
 }
 
 // SpecState is whether the spec ref was found where the agent will run.
@@ -154,6 +159,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"spec_ref_line":  specLine,
 		"deps_block":     renderDepsBlock(completedDeps),
 		"notes_block":    renderNotesBlock(opts.OperatorNotes),
+		"feedback_block": feedbackBlock(opts.FeedbackFile),
 		"model":          task.Model,
 		"working_dir":    workingDir,
 		"compose_line":   composeLine(opts.ComposeProject),
@@ -310,6 +316,18 @@ func renderNotesBlock(notes []string) string {
 		fmt.Fprintf(&b, "  - %s\n", truncateRunes(strings.TrimSpace(n), depCommentMaxChars))
 	}
 	return b.String()
+}
+
+// feedbackBlock points a retried agent at why its last attempt was rejected,
+// or is empty. Without it the agent never learns the file exists, and redoes
+// the task from the description as if it had never run.
+func feedbackBlock(file string) string {
+	if file == "" {
+		return ""
+	}
+	return fmt.Sprintf("Your previous attempt at this task was rejected. Its work is already in your\n"+
+		"working dir. READ FIRST %s: it says what failed. Fix that rather than\n"+
+		"starting over.\n", file)
 }
 
 // OperatorNotes picks the operator's notes out of a task's own comment
@@ -487,6 +505,8 @@ func truncateRunes(s string, n int) string {
 //   - **Operator notes exist only when the operator wrote one** (#356). They
 //     follow the dependency block, so a task without notes renders byte for
 //     byte as before; the goldens without notes are the proof.
+//   - **The feedback block exists only on a retry that left a feedback
+//     file** (the CI logs). It follows the notes, under the same rule.
 const template = `TASK_ID={id}
 You are executing task {id}.
 
@@ -495,7 +515,7 @@ Title: {title}
 Description: {description}
 Files you may write: {files}
 Spec ref (READ FIRST): {spec_ref_line}
-{deps_block}{notes_block}
+{deps_block}{notes_block}{feedback_block}
 Coordination protocol:
 1. Read the spec ref for the exact acceptance criteria for {id}.
 2. Do the work. {id} is already in-progress — the orchestrator moved it before launching you.
