@@ -76,6 +76,9 @@ type SchedulerOptions struct {
 	MaxTasks int
 	// StateDir is where logs and task locks live.
 	StateDir string
+	// DBDir is the directory holding orch.db, which a sandboxed agent must be
+	// able to write to report its task (#387). Empty means StateDir.
+	DBDir string
 	// Cwd is the project root. Children run in it, or in their worktree
 	// when WorktreeMode is on.
 	Cwd string
@@ -604,6 +607,9 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 			SessionID: providers.NewSessionID(),
 			BudgetUSD: s.Opts.BudgetUSD,
 			Settings:  projectClaudeSettings(s.Opts.Cwd, workdir),
+			// The agent reports its task by writing orch.db, outside its
+			// worktree: a sandboxed CLI has to be told it may (#387).
+			WritableDirs: []string{s.dbDir()},
 		},
 		PromptPath: promptPath,
 		LogPath:    LogPathFor(s.Opts.StateDir, task.ID),
@@ -799,6 +805,15 @@ func (s *Scheduler) taskWorktree(ctx context.Context, task model.Task) (string, 
 		return s.Worktree.Recreate(ctx, task.ID)
 	}
 	return s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
+}
+
+// dbDir is the directory holding orch.db: Opts.DBDir, else the state dir,
+// where the database lives unless state.sqlite_path moves it.
+func (s *Scheduler) dbDir() string {
+	if s.Opts.DBDir != "" {
+		return s.Opts.DBDir
+	}
+	return s.Opts.StateDir
 }
 
 // feedbackFileIn names the feedback file when workdir has one.

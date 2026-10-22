@@ -436,3 +436,30 @@ func TestSumCodexUsageTolerance(t *testing.T) {
 		})
 	}
 }
+
+// TestCodexArgvGrantsTheStateDir is #387: --approve-for-me runs codex's
+// workspace-write sandbox, which lets the agent write only its worktree (and
+// /tmp). The project's orch.db lives outside it, so task-finish.sh and the
+// MCP tools failed with "attempt to write a readonly database". Each
+// writable dir the engine asks for becomes --add-dir, the whole directory:
+// SQLite's WAL needs to create orch.db-wal and orch.db-shm beside the file.
+func TestCodexArgvGrantsTheStateDir(t *testing.T) {
+	argv := CodexProvider{}.Argv(Request{
+		Route:        codexRoute("gpt-5.6-codex"),
+		WritableDirs: []string{"/work/app/.orchestrator/state/app"},
+	})
+	want := []string{"--add-dir", "/work/app/.orchestrator/state/app"}
+	found := false
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == want[0] && argv[i+1] == want[1] {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("argv does not grant the state dir: %v", argv)
+	}
+	// None asked, none granted: the argv is what it always was.
+	if contains(CodexProvider{}.Argv(Request{Route: codexRoute("gpt-5.6-codex")}), "--add-dir") {
+		t.Error("an argv with no writable dirs carries --add-dir")
+	}
+}

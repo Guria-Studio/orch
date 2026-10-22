@@ -39,7 +39,7 @@ func (CodexProvider) PromptDelivery() PromptDelivery { return PromptStdin }
 // instead; DefaultOutputPath builds the value Python's spawn would have
 // produced.
 func (CodexProvider) Argv(req Request) []string {
-	return []string{
+	argv := []string{
 		"codex",
 		"exec",
 		"--skip-git-repo-check",
@@ -49,6 +49,12 @@ func (CodexProvider) Argv(req Request) []string {
 		"--approve-for-me",
 		"-m", req.Route.CLIModel,
 	}
+	// --approve-for-me's workspace-write sandbox lets the agent write its
+	// worktree and /tmp only; the project's orch.db is elsewhere (#387).
+	for _, dir := range req.WritableDirs {
+		argv = append(argv, "--add-dir", dir)
+	}
+	return argv
 }
 
 // DefaultOutputPath is where codex's `-o` artefact goes: beside the dispatch

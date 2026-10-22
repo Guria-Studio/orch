@@ -78,6 +78,12 @@ type Request struct {
 	// because git ignores .claude/ (#231). Only claude reads it; empty omits
 	// the flag.
 	Settings string
+
+	// WritableDirs are directories outside Cwd the agent must be able to
+	// write: the one holding the project's orch.db, so a sandboxed CLI can
+	// report its task done or blocked (#387). Only codex sandboxes writes
+	// to its workspace; it gets one --add-dir per entry.
+	WritableDirs []string
 }
 
 // Result is the terminal state of one dispatch. Ported from
