@@ -211,6 +211,7 @@ export const pt = {
   "task.spec_ref": "Spec",
   "task.comments": { one: "Comentário", other: "Comentários ({count})" },
   "task.operator_note": "Nota do operador",
+  "task.resize": "Redimensionar os detalhes e a atividade",
   "task.load_failed": "Não foi possível carregar a tarefa",
   "task.back": "Voltar",
   "task.open_page": "Abrir a página de {id}",

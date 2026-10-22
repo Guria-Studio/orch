@@ -54,6 +54,7 @@ function renderAt(entries: string[]) {
 const location = () => screen.getByRole("status", { name: "location" }).textContent
 
 beforeEach(() => {
+  window.localStorage.clear()
   get.mockReset()
   get.mockImplementation((url: string) =>
     Promise.resolve({
@@ -114,6 +115,34 @@ describe("TaskPage", () => {
     expect(items[1]).not.toHaveAttribute("data-muted")
     expect(items[2]).toHaveTextContent("Operator note")
     expect(items[2].querySelector("time")).toHaveAttribute("dateTime", "2026-10-12T21:36:00Z")
+  })
+
+  // #404: the details get 70% and the activity 30% by default; the split
+  // moves with the keyboard (and the pointer), keeps 20% for each side,
+  // resets on a double click, and survives a reload.
+  it("splits details and activity 70/30, resizable and remembered", async () => {
+    renderAt([taskPath("F6.1.T1")])
+    const handle = await screen.findByRole("separator", { name: "Resize the details and the activity" })
+    const grid = handle.parentElement!
+    expect(handle).toHaveAttribute("aria-valuenow", "70")
+    expect(grid.style.getPropertyValue("--details")).toBe("70fr")
+    expect(grid.style.getPropertyValue("--activity")).toBe("30fr")
+
+    fireEvent.keyDown(handle, { key: "ArrowLeft" })
+    expect(handle).toHaveAttribute("aria-valuenow", "65")
+    expect(window.localStorage.getItem("orch.taskSplit")).toBe("65")
+    for (let i = 0; i < 20; i++) fireEvent.keyDown(handle, { key: "ArrowLeft" })
+    expect(handle).toHaveAttribute("aria-valuenow", "20")
+
+    fireEvent.doubleClick(handle)
+    expect(handle).toHaveAttribute("aria-valuenow", "70")
+    expect(grid.style.getPropertyValue("--activity")).toBe("30fr")
+  })
+
+  it("opens at the split the operator left", async () => {
+    window.localStorage.setItem("orch.taskSplit", "55")
+    renderAt([taskPath("F6.1.T1")])
+    expect(await screen.findByRole("separator", { name: "Resize the details and the activity" })).toHaveAttribute("aria-valuenow", "55")
   })
 
   it("goes to the list when it was opened straight from a link", async () => {
