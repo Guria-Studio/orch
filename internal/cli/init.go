@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/templates"
 )
@@ -33,14 +35,16 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 		force       bool
 		sdd         bool
 		noFindings  bool
+		advanced    bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "init [PATH]",
 		Short: "Scaffold a new orch project",
 		Long: "Scaffold a new orch project.\n\n" +
-			"With no arguments, asks a short series of questions and shows " +
-			"everything it is about to write before writing any of it.\n" +
+			"With no arguments, asks three questions (project id, template, confirm) and shows " +
+			"everything it is about to write before writing any of it; --advanced asks the rest.\n" +
+			"The project goes in the current directory, with the default models of the AI CLIs on PATH.\n" +
 			"With a path or any of the flags below, scaffolds directly.\n\n" +
 			"Templates: " + strings.Join(templates.Names(), ", "),
 		Args: cobra.MaximumNArgs(1),
@@ -65,7 +69,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				var confirmed bool
 				var err error
 				term = scaffold.NewWizardIO(cmd.InOrStdin(), cmd.OutOrStdout())
-				opts, confirmed, err = scaffold.Wizard(term, opts)
+				opts, confirmed, err = scaffold.Wizard(term, opts, advanced)
 				if err != nil {
 					return err
 				}
@@ -82,6 +86,18 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 					return fmt.Errorf("resolving the current directory: %w", err)
 				}
 				opts.Root = cwd
+			}
+			if opts.BaseBranch == "" {
+				opts.BaseBranch = repoBranch(opts.Root)
+			}
+			if opts.TierDefaults == nil {
+				// Batch decides what the wizard would have: the models of the
+				// CLIs that are installed (#376).
+				tiers, err := scaffold.InstalledTierDefaults(router.OnPath)
+				if err != nil {
+					return err
+				}
+				opts.TierDefaults = tiers
 			}
 
 			res, err := scaffold.Run(opts)
@@ -100,6 +116,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("scaffolding %s: %w", opts.Root, err)
 			}
 
+			recordInitTemplate(res.Root, opts.Template)
 			printInitResult(cmd, res, opts, term != nil)
 			// The wizard asks; batch names the command in its next steps. A
 			// failure here is reported, but the project is already written.
@@ -107,6 +124,9 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 				if err := offerClaudePermissions(term.Confirm, cmd.OutOrStdout(), res.Root, false); err != nil {
 					return fmt.Errorf("the project is initialized, but its claude settings were not: %w", err)
+				}
+				if err := offerAgyPermissionsIfInstalled(term.Confirm, cmd.OutOrStdout()); err != nil {
+					return fmt.Errorf("the project is initialized, but agy's settings were not: %w", err)
 				}
 			}
 			return nil
@@ -122,7 +142,9 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&sdd, "sdd", false,
 		"Also scaffold the openspec/ layout")
 	cmd.Flags().BoolVar(&noFindings, "no-report-findings", false,
-		"Write report_findings.enabled: false (agents do not file public issues about orch)")
+		"Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)")
+	cmd.Flags().BoolVar(&advanced, "advanced", false,
+		"Also ask the project root, state backend, budget preset, spec root, tier models and openspec layout")
 	return cmd
 }
 
@@ -158,37 +180,76 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	}
 
 	say("")
-	say("Next steps:")
-	if opts.Template == "" {
-		say("  1. Write your first spec:")
-		say("       $EDITOR %s/specs/f0-foundation.md", res.Root)
-		say("     (format reference: specs/README.md)")
-		say("  2. Atomize it:")
-		say("       orch atomize --project-root %s --file specs/f0-foundation.md --apply", res.Root)
-	} else {
-		say("  1. Inspect the tasks it came with:")
-		say("       orch tasks --project-root %s", res.Root)
-		say("  2. Preview the plan:")
-		say("       orch validate --project-root %s", res.Root)
+	in := ""
+	if wd, err := os.Getwd(); err != nil || wd != res.Root {
+		in = " --project-root " + res.Root
 	}
-	step := 3
-	if !asks {
-		say("  3. Let claude agents use orch's tools (it shows the rules and asks):")
-		say("       orch claude-permissions --project-root %s", res.Root)
-		step = 4
+	if problem := baseProblem(res.Root, opts.BaseBranch); problem != "" {
+		say("First: %s", problem)
+		say("")
 	}
-	say("  %d. Run it:", step)
-	say("       orch run --project-root %s --mode semi", res.Root)
+	switch {
+	case opts.Template != "":
+		say("Next: run the tasks it came with (`orch tasks%s` lists them):", in)
+		say("    orch run%s", in)
+	case res.SampleTask != "":
+		say("Next: watch an agent do the sample task (%s), then plan your own:", res.SampleTask)
+		say("    orch run%s", in)
+	default:
+		say("Next: install an AI CLI (claude is the one orch knows best) and check it with `orch doctor`.")
+	}
 	say("")
-	say("  If you change a task's `model` later, add its route:")
-	say("       orch router add-missing --yes --project-root %s", res.Root)
+	say("Plan what you want to build:")
+	for _, line := range planSteps() {
+		say("    %s", line)
+	}
+	if !asks {
+		say("")
+		say("Before the first run, let claude agents use orch's tools (it shows the rules and asks):")
+		say("    orch claude-permissions%s", in)
+	}
 	say("")
 	say("Config: %s/.orchestrator/config.yaml", res.Root)
 	say("  One file. `budgets.yaml` and `dashboard.yaml` are optional overrides")
 	say("  that deep-merge on top if you drop them in the project root.")
-	if !opts.NoReportFindings {
+	if opts.ReportFindings {
 		say("")
 		say("report_findings is on: agents may file public issues about orch with your gh login —")
 		say("  set report_findings.enabled: false in .orchestrator/config.yaml to turn it off.")
 	}
+}
+
+// planSteps is how init and an empty `orch run` say to plan the work:
+// `orch start` (#377) installs the planning skills and has claude plan it.
+func planSteps() []string {
+	return []string{`orch start "<what you want to build>"`}
+}
+
+// repoBranch is the branch HEAD names in dir's repository — known even before
+// the first commit — or "" outside a repository.
+func repoBranch(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "symbolic-ref", "--short", "HEAD").Output() // #nosec G204 -- fixed git arguments; dir is the project root
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// baseProblem says why task worktrees cannot branch from base in root — not a
+// repository, or no commit on the base yet, the state `git init` leaves —
+// with the command that fixes it; "" when they can. #376: a fresh repository
+// blocked its first task on git's "invalid reference: main".
+func baseProblem(root, base string) string {
+	if base == "" {
+		base = "main"
+	}
+	if exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree").Run() != nil { // #nosec G204 -- fixed git arguments
+		return `each task works on its own git branch, and this is not a git repository yet: git init && git add -A && git commit -m "orch init"`
+	}
+	for _, ref := range []string{base, "origin/" + base} {
+		if exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Run() == nil { // #nosec G204 -- fixed git arguments; base comes from the project's config
+			return ""
+		}
+	}
+	return fmt.Sprintf(`each task branches from %s, which has no commit yet: git add -A && git commit -m "orch init"`, base)
 }

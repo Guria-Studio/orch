@@ -252,6 +252,26 @@ touched and no test asserts on the path. Flagged here rather than left for a
 reader to notice, since "these bytes are what the CLI wrote" is the promise
 this whole directory makes.
 
+## `agy/1.4.2/` — real capture (#382)
+
+```
+agy --output-format json --model gemini-3.8-flash-medium --print 'Reply with exactly: ok'
+agy --output-format json --agent executor --model gemini-3.8-flash-medium --print 'Reply with exactly: ok'
+```
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `success.json` | the first command: no `--agent`, which is what orch sends now | 0 |
+| `unknown-agent.json` | the second: the `--agent executor` every dispatch used to carry | 1 |
+| `command-denied.json` | `--print 'Run exactly this shell command: scripts/task-finish.sh T1 …'` with no allow rule (#383) | 0 |
+
+agy 1.4 dropped the `executor` persona issue #88 relied on, and its default
+agent edits files in-process, so orch passes `--agent` only when a route names
+one. `unknown-agent.json` starts with a plain `error:` line before the envelope.
+`command-denied.json` is headless agy refusing a shell command: a `jetski:` line,
+then `status: SUCCESS` with an empty `response` and `denied_actions` — the run
+#383 fails with the refusal as its reason.
+
 ## `agy/1.2.1/` — real capture
 
 ```

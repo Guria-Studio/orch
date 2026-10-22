@@ -2,7 +2,7 @@
   "agy/flash": {
     "agent": null,
     "backend": "agy",
-    "cli_model": "gemini-3.7-flash-medium",
+    "cli_model": "gemini-3.8-flash-medium",
     "effort": null,
     "escalation_model": null,
     "fallback_cli_model": null,
@@ -12,10 +12,10 @@
   "agy/pro": {
     "agent": null,
     "backend": "agy",
-    "cli_model": "gemini-3.1-pro-high",
+    "cli_model": "gemini-4-argon-high",
     "effort": null,
     "escalation_model": null,
-    "fallback_cli_model": "gemini-3.7-flash-medium",
+    "fallback_cli_model": "gemini-3.8-flash-medium",
     "is_premium": true,
     "tier": "premium"
   },

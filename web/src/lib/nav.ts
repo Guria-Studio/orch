@@ -141,8 +141,15 @@ export function visibleDestinations(access: Access & { portfolioAvailable: boole
   )
 }
 
+/** The address of a task's page (#374). */
+export function taskPath(id: string): string {
+  return `/work/tasks/${encodeURIComponent(id)}`
+}
+
 /** The tab a path belongs to: an exact match, or the tab whose path it extends. */
 export function findTab(pathname: string): { destination: NavDestination; tab: NavTab } | undefined {
+  // A task's page belongs to the task list: same destination, same data route.
+  if (pathname.startsWith("/work/tasks/")) pathname = "/work/list"
   for (const destination of DESTINATIONS) {
     for (const tab of destination.tabs) {
       if (tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) {

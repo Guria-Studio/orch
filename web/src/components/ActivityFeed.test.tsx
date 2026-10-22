@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ActivityFeed } from "@/components/ActivityFeed"
 
@@ -62,5 +62,20 @@ describe("ActivityFeed", () => {
     expect(await screen.findByText("Finished")).toBeInTheDocument()
     await new Promise((r) => setTimeout(r, 2_500))
     await waitFor(() => expect(get).toHaveBeenCalledTimes(1))
+  })
+
+  it("offers the latest step to an operator who scrolled up while the task runs, and takes them there", async () => {
+    get.mockReturnValue(reply({ offset: 10, exists: true, steps: [{ kind: "tool", tool: "Bash", detail: "make test" }] }))
+    render(<ActivityFeed taskId="T-1" live full />)
+    const list = await screen.findByRole("list", { name: "Activity" })
+    Object.defineProperty(list, "scrollHeight", { configurable: true, value: 1000 })
+    Object.defineProperty(list, "clientHeight", { configurable: true, value: 200 })
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument()
+
+    list.scrollTop = 100 // reading an older step
+    fireEvent.scroll(list)
+    fireEvent.click(screen.getByRole("button", { name: "Jump to latest" }))
+    expect(list.scrollTop).toBe(1000)
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument()
   })
 })

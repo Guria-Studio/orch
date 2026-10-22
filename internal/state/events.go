@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -61,4 +63,21 @@ func (b *SQLite) AllEvents(ctx context.Context, n int) ([]Event, error) {
 		reverse(out)
 	}
 	return out, nil
+}
+
+// FirstEventBackend reports whether the project has any event of eventType and
+// the backend of the earliest one, by id: what the onboarding progress reads
+// (#378) — "has this project ever dispatched", and with which CLI.
+func (b *SQLite) FirstEventBackend(ctx context.Context, eventType string) (backend string, ok bool, err error) {
+	err = b.db.read.QueryRowContext(ctx,
+		`SELECT COALESCE(backend, '') FROM events
+		  WHERE project_id = ? AND event_type = ?
+		  ORDER BY id LIMIT 1`, b.projectID, eventType).Scan(&backend)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("query the first %s event: %w", eventType, err)
+	}
+	return backend, true, nil
 }

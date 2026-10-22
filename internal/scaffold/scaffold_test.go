@@ -474,11 +474,15 @@ var defaultsDivergedFromPython = map[string]string{
 		"feat/i18n-portal-pt: `summary_language` is written as `dashboard.language`, the key that now also " +
 		"picks the portal's and the PDF's language, and pt joins en and es. " +
 		"feat/report-findings-new-projects: `report_findings.enabled` is true in a new project, and its " +
-		"comment says the issues are public and under the operator's gh login; a config without the key stays off",
+		"comment says the issues are public and under the operator's gh login; a config without the key stays off. " +
+		"#376: back to `enabled: false` — asking a new user to file public issues before anything has worked is " +
+		"the wrong first question; the first `orch run` that finishes a task offers it",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count",
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
-		"entries route to",
+		"entries route to. #382: agy 1.4 accepts neither gemini-3.1-pro-high nor gemini-3.7-flash-medium " +
+		"(\"not recognized as a known model\"); agy/pro and agy/flash route to gemini-4-argon-high and " +
+		"gemini-3.8-flash-medium, both run against agy 1.4.2 (router/testdata/packaged.golden.json edited to match)",
 }
 
 // The three packaged defaults started as copies of Python's, so they get the
@@ -956,28 +960,29 @@ func TestAgentsMDInstallsTheGoBinary(t *testing.T) {
 	}
 }
 
-// `orch init` turns report_findings on for a new project — blank or from a
-// template, whose config.yaml.tmpl carries no such block — and
-// NoReportFindings (`--no-report-findings`, or "n" in the wizard) writes it
-// off. The value is read back through config.Load, the way `orch run` reads
-// it, so a block the loader would not see does not pass.
+// A new project leaves report_findings off (#376) — blank or from a
+// template, whose config.yaml.tmpl carries no such block — and leaves the
+// marker that has the first `orch run` to finish a task offer it. Opting in
+// writes it on; `--no-report-findings` writes it off and is never offered.
+// The value is read back through config.Load, the way `orch run` reads it, so
+// a block the loader would not see does not pass.
 func TestInitWritesReportFindings(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		template string
-		opt      bool
-		want     bool
+		name      string
+		template  string
+		opts      Options
+		want      bool
+		wantOffer bool
 	}{
-		{"blank project", "", false, true},
-		{"template project", "python-api", false, true},
-		{"blank, opted out", "", true, false},
-		{"template, opted out", "python-api", true, false},
+		{"blank project", "", Options{}, false, true},
+		{"template project", "python-api", Options{}, false, true},
+		{"blank, opted in", "", Options{ReportFindings: true}, true, false},
+		{"template, said no", "python-api", Options{NoReportFindings: true}, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := Run(Options{
-				Root: filepath.Join(t.TempDir(), "proj"), Template: tc.template,
-				Now: fixedNow, NoReportFindings: tc.opt,
-			})
+			opts := tc.opts
+			opts.Root, opts.Template, opts.Now = filepath.Join(t.TempDir(), "proj"), tc.template, fixedNow
+			res, err := Run(opts)
 			if err != nil {
 				t.Fatalf("Run: %v", err)
 			}
@@ -996,6 +1001,62 @@ func TestInitWritesReportFindings(t *testing.T) {
 			if !strings.Contains(body, "PUBLIC") {
 				t.Error("the config does not say the issues are public")
 			}
+			_, err = os.Stat(filepath.Join(res.Root, ".orchestrator", FindingsOfferName))
+			if offered := err == nil; offered != tc.wantOffer {
+				t.Errorf("offer marker present = %v, want %v", offered, tc.wantOffer)
+			}
 		})
+	}
+}
+
+// A blank project starts with one sample task on the cheapest installed
+// model, routed with orch's own entry for it, so the first `orch run` has
+// something to show (#376). Without a model to give it, there is none.
+func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
+	res, err := Run(Options{
+		Root: filepath.Join(t.TempDir(), "proj"), Now: fixedNow,
+		TierDefaults: map[string]string{"standard": "codex/gpt-5.4", "cheap": "claude/claude-haiku-4-5"},
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.SampleTask != "F0.T1" {
+		t.Errorf("SampleTask = %q, want F0.T1", res.SampleTask)
+	}
+	tf, err := model.LoadTasksFile(filepath.Join(res.Root, "tasks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tf.Tasks) != 1 || tf.Tasks[0].Model != "claude/claude-haiku-4-5" {
+		t.Fatalf("tasks = %+v, want the sample task on the cheap model", tf.Tasks)
+	}
+	r, err := router.Load(filepath.Join(res.Root, ".orchestrator", "model_router.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Validate(tf.Tasks); err != nil {
+		t.Errorf("the sample task does not route: %v", err)
+	}
+	if e := r["claude/claude-haiku-4-5"]; e.Tier != model.TierCheap || e.CLIModel != "claude-haiku-4-5" {
+		t.Errorf("route = %+v, want orch's own cheap entry", e)
+	}
+	if tf.Meta.Extra["default_cheap_model"] == nil {
+		t.Error("the tier defaults were not stamped next to the sample task")
+	}
+
+	none, err := Run(Options{Root: filepath.Join(t.TempDir(), "bare"), Now: fixedNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if none.SampleTask != "" {
+		t.Errorf("a project with no installed model got sample task %q", none.SampleTask)
+	}
+	tmpl, err := Run(Options{Root: filepath.Join(t.TempDir(), "tmpl"), Template: "python-api", Now: fixedNow,
+		TierDefaults: map[string]string{"cheap": "claude/claude-haiku-4-5"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tmpl.SampleTask != "" {
+		t.Error("a template project, which has its own tasks, got the sample task")
 	}
 }

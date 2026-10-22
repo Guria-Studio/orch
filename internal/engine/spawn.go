@@ -79,7 +79,8 @@ type SpawnRequest struct {
 	// Req is handed to Provider.Argv verbatim.
 	Req providers.Request
 	// PromptPath is the file whose bytes become the child's stdin, for a
-	// provider on providers.PromptStdin. Python pipes the file rather than
+	// provider on providers.PromptStdin, or Req.PromptText, for one on
+	// providers.PromptArg when the caller left it empty. Python pipes the file rather than
 	// embedding the prompt in the argv or using an @file reference, both of
 	// which hit escaping edge cases in practice.
 	PromptPath string
@@ -109,6 +110,16 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 	// The fake hook swaps the argv — and only the argv — so every test below
 	// exercises a real fork, a real process group and real signals.
 	provider := withFake(sr.Provider)
+	// A provider on PromptArg (gemini, agy) takes the prompt in its argv. The
+	// scheduler only renders it to PromptPath, so read it here, where every
+	// dispatch passes; without this they were handed "" (#382).
+	if provider.PromptDelivery() == providers.PromptArg && sr.Req.PromptText == "" && sr.PromptPath != "" {
+		text, err := os.ReadFile(sr.PromptPath) // #nosec G304 -- the prompt file the engine just wrote for this task
+		if err != nil {
+			return nil, fmt.Errorf("spawn: read prompt: %w", err)
+		}
+		sr.Req.PromptText = string(text)
+	}
 	argv := provider.Argv(sr.Req)
 	if len(argv) == 0 {
 		if err := fakeArgvError(provider); err != nil {

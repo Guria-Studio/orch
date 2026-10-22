@@ -41,6 +41,14 @@ models:
   gemini-3.7-flash-medium:
     input: 0.075
     output: 0.30
+  # agy 1.4's models (#382), priced as the ones they replace until agy
+  # publishes their rates.
+  gemini-4-argon-high:
+    input: 1.25
+    output: 5.00
+  gemini-3.8-flash-medium:
+    input: 0.075
+    output: 0.30
   default:
     input: 1.00
     output: 4.00

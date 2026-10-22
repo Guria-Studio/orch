@@ -88,15 +88,13 @@ func TestTelemetryDoesNotFireUnderDoNotTrack(t *testing.T) {
 // the package doc promises — nothing more (no path, no project id).
 func TestTelemetrySendsExactlyOneEventWhenEnabled(t *testing.T) {
 	var (
-		hits int32
-		mu   sync.Mutex
-		body []byte
+		mu     sync.Mutex
+		bodies [][]byte
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&hits, 1)
 		b, _ := io.ReadAll(r.Body)
 		mu.Lock()
-		body = b
+		bodies = append(bodies, b)
 		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -106,20 +104,34 @@ func TestTelemetrySendsExactlyOneEventWhenEnabled(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	appendTelemetryConfig(t, root, true, srv.URL)
 
-	if rc := cli.Run("test", append([]string{"status"}, common...)); rc != 0 {
-		t.Fatalf("orch status exit = %d, want 0", rc)
+	for range 2 {
+		if rc := cli.Run("test", append([]string{"status"}, common...)); rc != 0 {
+			t.Fatalf("orch status exit = %d, want 0", rc)
+		}
 	}
 
-	if got := atomic.LoadInt32(&hits); got != 1 {
-		t.Fatalf("collector saw %d request(s), want exactly 1", got)
-	}
-
+	// Two commands: two usage events, plus the project's onboarding
+	// milestones (#378) on the first only — this fixture has no dispatch, so
+	// just project_init.
 	mu.Lock()
 	defer mu.Unlock()
-	var event map[string]any
-	if err := json.Unmarshal(body, &event); err != nil {
-		t.Fatalf("decode event %s: %v", body, err)
+	var commands []map[string]any
+	var milestones []string
+	for _, b := range bodies {
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatalf("decode %s: %v", b, err)
+		}
+		if ev, ok := m["event"].(string); ok {
+			milestones = append(milestones, ev)
+			continue
+		}
+		commands = append(commands, m)
 	}
+	if len(commands) != 2 || len(milestones) != 1 || milestones[0] != "project_init" {
+		t.Fatalf("collector saw %d usage event(s) and milestones %v, want 2 and [project_init]", len(commands), milestones)
+	}
+	event := commands[0]
 
 	if event["command"] != "status" {
 		t.Errorf("command = %v, want %q", event["command"], "status")

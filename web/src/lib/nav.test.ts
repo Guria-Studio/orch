@@ -61,6 +61,12 @@ describe("findTab", () => {
     expect(findTab("/work/graph/extra")?.tab.to).toBe("/work/graph")
     expect(findTab("/workshop")).toBeUndefined()
   })
+
+  it("files a task's page under the task list, so a stakeholder needs the same route for both", () => {
+    expect(findTab("/work/tasks/F6.1.T1")?.tab.to).toBe("/work/list")
+    expect(isPathAllowed("/work/tasks/F6.1.T1", { isStakeholder: true, allowedRoutes: ["api_budget_summary"] })).toBe(false)
+    expect(isPathAllowed("/work/tasks/F6.1.T1", { isStakeholder: true, allowedRoutes: ["api_tasks"] })).toBe(true)
+  })
 })
 
 describe("LEGACY_REDIRECTS", () => {

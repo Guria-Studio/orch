@@ -1,18 +1,11 @@
 import "@testing-library/jest-dom/vitest"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppLayout } from "@/components/AppLayout"
 import { DESTINATIONS } from "@/lib/nav"
 
-const openedTask = vi.fn()
-vi.mock("@/components/TaskDetailModal", () => ({
-  TaskDetailModal: ({ taskId }: { taskId: string | null }) => {
-    if (taskId) openedTask(taskId)
-    return taskId ? <p>detail of {taskId}</p> : null
-  },
-}))
 vi.mock("@/hooks/useTasks", () => ({
   useTasks: () => ({
     data: {
@@ -68,7 +61,6 @@ const type = (input: HTMLElement, value: string) => fireEvent.change(input, { ta
 const key = (el: HTMLElement, k: string) => fireEvent.keyDown(el, { key: k })
 
 describe("CommandPalette", () => {
-  beforeEach(() => openedTask.mockReset())
   afterEach(() => vi.unstubAllGlobals())
 
   it("focuses its search field and keeps Tab there, so arrows are the only way through the results", () => {
@@ -94,13 +86,13 @@ describe("CommandPalette", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it("finds a task by id and opens its detail", () => {
+  it("finds a task by id and opens its page", () => {
     const { input } = renderPalette()
     type(input, "F2.T3")
     const tasks = screen.getByRole("group", { name: "Tasks" })
     expect(within(tasks).getByRole("option")).toHaveTextContent("Add DELETE /items/{id}")
     fireEvent.click(within(tasks).getByRole("option"))
-    expect(openedTask).toHaveBeenCalledWith("F2.T3")
+    expect(location()).toBe("/work/tasks/F2.T3")
   })
 
   it("adds a filter to the ones already set on a filtered page", () => {

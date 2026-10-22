@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"text/tabwriter"
@@ -11,7 +12,9 @@ import (
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/tunnel"
 )
 
@@ -95,6 +98,17 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			checks = append(checks, doctor.CheckRoutes(tasks, rtr))
+			checks = append(checks, doctor.CheckDefaultModels(tierDefaults(paths.TasksJSON()), func(key string) string {
+				if e, ok := rtr[key]; ok {
+					return string(e.Backend)
+				}
+				if packaged, err := scaffold.PackagedRouter(); err == nil {
+					if e, ok := packaged[key]; ok {
+						return string(e.Backend)
+					}
+				}
+				return ""
+			}))
 			checks = append(checks, doctor.CheckBackends(doctor.ReferencedBackends(tasks, rtr))...)
 			checks = append(checks, doctor.CheckBudgetPreset(budget.ResolvePath(paths.Root, paths.ConfigYAML, cfg.BudgetsConfig), cfg.BudgetsPreset, cfg.TypicalDispatchToken)...)
 			checks = append(checks, doctor.CheckOrphanWorktrees(paths.Root))
@@ -111,9 +125,16 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			}
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))
 			checks = append(checks, doctor.CheckClaudePermissions(paths.Root, slices.Contains(doctor.ReferencedBackends(tasks, rtr), "claude")))
+			checks = append(checks, doctor.CheckAgyPermissions(agySettingsPath(), slices.Contains(doctor.ReferencedBackends(tasks, rtr), "agy")))
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker()))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))
+			if o, err := readOnboarding(context.Background(), paths, cfg); err == nil {
+				checks = append(checks, doctor.CheckOnboarding(o))
+			} else {
+				checks = append(checks, doctor.Check{Name: "onboarding.progress", Status: doctor.StatusSkip,
+					Detail: fmt.Sprintf("could not read the project's progress: %v", err)})
+			}
 
 			doctor.SortByName(checks)
 			payload := buildDoctorPayload(paths, cfg, checks)
@@ -182,4 +203,21 @@ func renderDoctorReport(cmd *cobra.Command, payload doctorPayload) error {
 		}
 	}
 	return w.Flush()
+}
+
+// tierDefaults reads tasks.json's meta.default_<tier>_model keys, which
+// `orch init` stamps; nil when the file or the keys are missing.
+func tierDefaults(path string) map[string]string {
+	tf, err := model.LoadTasksFile(path)
+	if err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, tier := range []string{"premium", "standard", "cheap"} {
+		var key string
+		if raw, ok := tf.Meta.Extra["default_"+tier+"_model"]; ok && json.Unmarshal(raw, &key) == nil && key != "" {
+			out[tier] = key
+		}
+	}
+	return out
 }

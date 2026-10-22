@@ -129,8 +129,8 @@ type Result struct {
 
 	// PermissionDenials are the tool calls the CLI refused without asking,
 	// as `Tool` or `Bash(command)`. A run can succeed with some; one that
-	// could do nothing looks the same from its exit code (#231). Only claude
-	// reports them.
+	// could do nothing looks the same from its exit code (#231). claude and
+	// agy report them (agy as its denied_actions' display names, #383).
 	PermissionDenials []string
 }
 
