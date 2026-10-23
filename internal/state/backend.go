@@ -594,11 +594,11 @@ func (b *SQLite) RecordSpend(ctx context.Context, s Spend) error {
 		`INSERT OR IGNORE INTO spend
 		   (project_id, ts, task_id, backend, model, tokens_in,
 		    tokens_out, cost_usd, duration_s, estimated, dedup_hash,
-		    cache_read_tokens, cache_creation_tokens)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		    cache_read_tokens, cache_creation_tokens, reasoning_tokens, attempt)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		projectID, s.TS, s.TaskID, s.Backend, s.Model, s.TokensIn,
 		s.TokensOut, s.CostUSD, s.DurationS, estimated, hash,
-		s.CacheReadTokens, s.CacheCreationTokens)
+		s.CacheReadTokens, s.CacheCreationTokens, s.ReasoningTokens, s.Attempt)
 	if err != nil {
 		return fmt.Errorf("record spend for %q: %w", s.TaskID, err)
 	}

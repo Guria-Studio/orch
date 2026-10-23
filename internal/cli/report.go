@@ -20,14 +20,15 @@ import (
 )
 
 // newReportCmd is `orch report`: `pdf` renders the stakeholder snapshot as a
-// document, `receipt` summarises one run.
+// document, `receipt` summarises one run, `usage` splits the tokens.
 func newReportCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "report",
-		Short: "Render reports: the stakeholder PDF, a run's receipt",
+		Short: "Render reports: the stakeholder PDF, a run's receipt, token usage",
 	}
 	cmd.AddCommand(newReportPDFCmd(flags))
 	cmd.AddCommand(newReportReceiptCmd(flags))
+	cmd.AddCommand(newReportUsageCmd(flags))
 	return cmd
 }
 

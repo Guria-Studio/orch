@@ -131,10 +131,12 @@ func (AgyProvider) Parse(exitCode int, output []byte) Result {
 	}
 
 	return Result{
-		ExitCode:          exitCode,
-		Success:           success,
-		TokensIn:          tokensIn,
-		TokensOut:         tokensOut,
+		ExitCode:  exitCode,
+		Success:   success,
+		TokensIn:  tokensIn,
+		TokensOut: tokensOut,
+		// output_tokens already counts the thinking (#417).
+		ReasoningTokens:   thinking,
 		Stdout:            text,
 		Text:              strings.TrimSpace(response),
 		ErrorMessage:      errMsg,

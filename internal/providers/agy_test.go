@@ -307,3 +307,12 @@ func TestAgyEnvelopePrefersWholeBody(t *testing.T) {
 		t.Fatalf("agyEnvelope on a pretty-printed body = %v, %v", obj, ok)
 	}
 }
+
+// #417: agy's thinking_tokens are part of output_tokens (total = input +
+// output); the result says how many.
+func TestAgyThinkingIsTheReasoning(t *testing.T) {
+	res := AgyProvider{}.Parse(0, readFixture(t, "agy", "1.4.2", "command-denied.json"))
+	if res.TokensOut != 249 || res.ReasoningTokens != 119 {
+		t.Errorf("out %d, reasoning %d; want 249, 119", res.TokensOut, res.ReasoningTokens)
+	}
+}

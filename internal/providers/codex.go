@@ -118,6 +118,7 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 		CacheReadTokens:     u.cacheRead,
 		CacheCreationTokens: u.cacheWrite,
 		TokensOut:           u.out,
+		ReasoningTokens:     u.reasoning,
 		Stdout:              text,
 		Text:                codexText(events),
 		ErrorMessage:        errMsg,
@@ -216,8 +217,8 @@ func codexErrorMessage(ev event) string {
 // input_tokens counts them: cacheRead (cached_input_tokens) and cacheWrite
 // (cache_write_input_tokens) are part of it, not added to it (#389).
 type codexUsage struct {
-	cost                           float64
-	in, cacheRead, cacheWrite, out int
+	cost                                      float64
+	in, cacheRead, cacheWrite, out, reasoning int
 }
 
 // sumCodexUsage sums the token counts on every `turn.completed` event.
@@ -239,7 +240,9 @@ func sumCodexUsage(events []event) codexUsage {
 		u.in += toInt(usage["input_tokens"])
 		u.cacheRead += toInt(usage["cached_input_tokens"])
 		u.cacheWrite += toInt(usage["cache_write_input_tokens"])
+		// output_tokens already counts the reasoning (#417).
 		u.out += toInt(usage["output_tokens"])
+		u.reasoning += toInt(usage["reasoning_output_tokens"])
 	}
 	return u
 }
