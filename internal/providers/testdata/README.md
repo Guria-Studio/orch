@@ -149,6 +149,7 @@ printf '<prompt>' | codex exec --skip-git-repo-check --json \
 | `tool-errors.jsonl` | captured 2026-10-16, prompt ``Read missing.txt, then run `ls missing.txt` in the shell, then reply with one short sentence saying what happened.`` in an empty scratch git repository, **no `-m`**: `cat` exits 1, `ls` exits 2. Its first `error` item is codex warning about the operator's own skills, kept because that is what a real log carries | 0 |
 | `tools.jsonl` | captured 2026-10-16, prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` in a scratch git repository holding `note.txt`, **no `-m`**; read by `activity_test.go` | 0 |
 | `reasoning.jsonl` | captured 2026-10-22, prompt ``Find the smallest positive integer n such that n leaves remainder 1 when divided by 2, 3, 4, 5 and 6, and is divisible by 7. Think it through, then reply with the number only.`` in an empty scratch git repository, **no `-m`**, `-c 'model_reasoning_effort="high"'`: `output_tokens` 37 of which `reasoning_output_tokens` 30 — codex counts reasoning inside output (#417) | 0 |
+| `models.json` | captured 2026-10-23, `codex debug models` (codex's model catalog, offline, exit 0), then projected with `jq '{models: [.models[] \| {slug, display_name, visibility, supported_in_api}]}'`: the full catalog is 352 KB, almost all of it each model's base instructions, and the parser reads `slug` and `visibility` only (#397) | 0 |
 | `tier-not-advertised.jsonl` | captured 2026-10-22, prompt `Reply with exactly: ok` in an empty scratch git repository, **no `-m`** (gpt-6-astra), plus `-c 'service_tier="flex"'`: codex warns the tier "will be omitted from requests" as an `error` item, then answers at the standard tier (#416). `default`, `priority` and `fast` ran with no such item | 0 |
 
 `success.jsonl` was captured **without `-m`**, which is the one place these
@@ -174,6 +175,7 @@ holding `note.txt` (`hello from orch`); read by `activity_test.go`:
 | File | How it was produced | Exit |
 |---|---|---|
 | `tool-errors.json` | same model, prompt ``Read missing.txt, then run `ls missing.txt` in the shell, then reply with one short sentence saying what happened.`` in an empty directory: the `read` is `status: "error"`; the `bash` call completes with its exit code in `metadata` | 0 |
+| `models.txt` | captured 2026-10-23, `opencode models` on this VPS: `provider/model` per line, only the providers this account has configured (no `google/`, no `deepseek/`) (#397) | 0 |
 | `tools.json` | `--model opencode/mimo-v2.6-flash-free` (2.5 was gone), prompt ``Read note.txt, then run `wc -l note.txt` in the shell, then reply with one short sentence saying what the file contains.`` | 0 |
 
 Two `step_start`/`step_finish` pairs: the first holds a `read` and a `bash`
@@ -276,6 +278,12 @@ Each file is muse's stderr (its `muse:` banner lines; the unknown-model one
 ends with `run ended with Failed: …`) followed by its stdout, as the engine's
 merged log would hold them. Paths are rewritten to `/work/project` and
 `/work/state`.
+
+## `agy/1.4.6/` — real capture (#397)
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `models.txt` | captured 2026-10-23, `agy models` on this VPS, stdout only: one `id<TAB>display name` per line. Its `Fetching available models...` goes to stderr and is not in the file | 0 |
 
 ## `agy/1.4.2/` — real capture (#382)
 
