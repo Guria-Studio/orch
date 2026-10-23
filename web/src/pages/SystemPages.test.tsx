@@ -45,6 +45,26 @@ describe("System pages", () => {
     )
   })
 
+  // #427: the second tab walks idea → PRD → ARCH → SPEC → TASKS → run, each
+  // step with its skill, input, output and command; a skill no CLI has says so.
+  it("Skills has a How it works tab with the five steps", () => {
+    render(<SkillsPage />)
+    expect(screen.getByRole("tab", { name: "Installed" })).toHaveAttribute("aria-selected", "true")
+    fireEvent.click(screen.getByRole("tab", { name: "How it works" }))
+    const steps = screen.getAllByRole("listitem").filter((li) => li.dataset.step)
+    expect(steps.map((li) => li.dataset.step)).toEqual(["prd", "arch", "spec", "tasks", "run"])
+    const arch = steps[1]
+    expect(within(arch).getByText("orch-arch")).toBeInTheDocument()
+    expect(within(arch).getByText("docs/prd/NNN-<slug>.md")).toBeInTheDocument()
+    expect(within(arch).getByText("docs/arch/NNN-<slug>.md")).toBeInTheDocument()
+    expect(within(arch).getByText("/orch-arch")).toBeInTheDocument()
+    // Only orch is installed (in claude); the planning skills are not.
+    expect(within(arch).getByText(/Not installed/)).toHaveTextContent("orch install-skills")
+    expect(within(steps[4]).getByText("orch")).toHaveAttribute("title", "Installed in claude")
+    fireEvent.click(within(arch).getByRole("button", { name: "See Installed" }))
+    expect(screen.getByRole("tab", { name: "Installed" })).toHaveAttribute("aria-selected", "true")
+  })
+
   // Anyone but the operator reads the settings: switches and fields are inert.
   it("Settings is read-only for a stakeholder", () => {
     who.profile = "stakeholder"

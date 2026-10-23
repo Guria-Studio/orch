@@ -370,7 +370,9 @@ tunnel). **Logs** opens as a panel over any
 page. Old addresses (`/kanban`, `/budget`, `/tunnel`…) redirect to their new
 place. **⌘K** (Ctrl+K) searches pages, tasks and filters and copies CLI
 commands; `g` then `n`/`w`/`c`/`d` changes destination, `/` searches the task
-list and `?` lists every shortcut.
+list and `?` lists every shortcut. A task's page renders its description as
+Markdown: inline code, and fenced blocks with their language, syntax colors
+and a copy button (Edit still shows the raw text).
 
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the
@@ -605,7 +607,9 @@ manual for an agent working inside a project, and the planning pipeline —
 (→ `docs/arch/`), `orch-spec` (→ `specs/`, in the exact format
 `orch atomize` parses) and `orch-tasks` (→ `tasks.json` via
 `orch atomize --apply`), stopping for you after each document and before
-anything is applied.
+anything is applied. The dashboard's System › Skills page has a **How it works** tab
+that walks these steps — each skill, what it reads and writes, the command
+that starts it — and flags the ones no CLI has installed yet.
 
 ---
 

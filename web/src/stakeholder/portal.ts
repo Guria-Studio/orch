@@ -111,9 +111,11 @@ export function parseRoute(hash: string): { tab: Tab; doc?: string } {
 
 // renderMarkdown turns a shared document into HTML that is safe to insert:
 // the markdown is the operator's, but the page is a client's, so nothing
-// executable survives (scripts, event handlers, javascript: links).
-export function renderMarkdown(markdown: string): string {
-  const html = marked.parse(markdown, { async: false }) as string
+// executable survives (scripts, event handlers, javascript: links). The
+// dashboard renders task descriptions and release notes through it too
+// (components/Markdown.tsx); `breaks` keeps a plain-text description's lines.
+export function renderMarkdown(markdown: string, { breaks = false } = {}): string {
+  const html = marked.parse(markdown, { async: false, breaks }) as string
   return DOMPurify.sanitize(html)
 }
 
