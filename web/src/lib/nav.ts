@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  BookOpen,
   BriefcaseBusiness,
   CalendarClock,
   Gauge,
@@ -14,6 +15,7 @@ import {
   Milestone,
   Radio,
   Send,
+  Settings,
   Sparkles,
   Wallet,
   Workflow,
@@ -105,6 +107,8 @@ export const DESTINATIONS: NavDestination[] = [
     tabs: [
       { to: "/system/providers", label: "nav.providers", route: "api_quota", operatorOnly: true },
       { to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true },
+      { to: "/system/skills", label: "nav.skills", route: "api_skills", operatorOnly: true },
+      { to: "/system/settings", label: "nav.settings", route: "api_config_effective", operatorOnly: true },
     ],
   },
 ]
@@ -128,6 +132,8 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/delivery/tests": FlaskConical,
   "/delivery/share": Radio,
   "/system/tools": Wrench,
+  "/system/skills": BookOpen,
+  "/system/settings": Settings,
 }
 
 /**

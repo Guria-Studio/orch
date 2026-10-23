@@ -41,6 +41,9 @@ type Skill struct {
 	Content string
 }
 
+// Description is the skill's frontmatter description, "" without one.
+func (s Skill) Description() string { return description(s.Content) }
+
 // List returns every embedded skill, sorted by name.
 func List() ([]Skill, error) {
 	entries, err := fs.ReadDir(skillsFS, ".")

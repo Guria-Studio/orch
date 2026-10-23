@@ -22,6 +22,8 @@ import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TaskPage } from "@/pages/TaskPage"
 import { ClientPage } from "@/pages/ClientPage"
 import { QuotaPage } from "@/pages/QuotaPage"
+import { SettingsPage } from "@/pages/SettingsPage"
+import { SkillsPage } from "@/pages/SkillsPage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { UsagePage } from "@/pages/UsagePage"
 import { TunnelPage } from "@/pages/TunnelPage"
@@ -54,6 +56,8 @@ const PAGES: Record<string, ReactNode> = {
   "/delivery/share": <TunnelPage />,
   "/system/providers": <QuotaPage />,
   "/system/tools": <ToolsPage />,
+  "/system/skills": <SkillsPage />,
+  "/system/settings": <SettingsPage />,
 }
 
 /** A redirect that keeps the query string, so filters and `?token=` survive it. */
