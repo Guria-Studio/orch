@@ -69,7 +69,9 @@ func TestMetricsForTheUsagePage(t *testing.T) {
 
 // The newest report per backend wins, and an event without one is ignored.
 func TestQuotaIsTheLatestReportPerBackend(t *testing.T) {
-	window := func(u float64) []any { return []any{map[string]any{"window": "five_hour", "utilization": u, "resets_at": 1792155000}} }
+	window := func(u float64) []any {
+		return []any{map[string]any{"window": "five_hour", "utilization": u, "resets_at": 1792155000}}
+	}
 	f := &fakeState{events: []state.Event{
 		{EventType: "success", Backend: "claude", TS: "2026-10-22T10:00:00Z", Extra: map[string]any{"quota": window(0.2)}},
 		{EventType: "success", Backend: "claude", TS: "2026-10-22T12:00:00+00:00", Extra: map[string]any{"quota": window(0.6)}},

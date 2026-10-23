@@ -1,10 +1,14 @@
 import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle } from "lucide-react"
+import { BudgetLimitsButton } from "@/components/BudgetLimitsDialog"
+import { RoutingTable } from "@/components/RoutingTable"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useBudgetSummary, type BudgetRow } from "@/hooks/useBudgetSummary"
 import { useQuota, type ProviderQuota, type QuotaWindow } from "@/hooks/useQuota"
 import { t, type MessageKey } from "@/i18n"
+import { setProvider } from "@/lib/api"
 import { formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
@@ -44,7 +48,10 @@ export function QuotaPage() {
           ))}
         </div>
         {budget.data?.available ? (
-          <span className="text-xs text-muted-foreground">{t("quota.preset", { preset: budget.data.preset })}</span>
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">{t("quota.preset", { preset: budget.data.preset })}</span>
+            <BudgetLimitsButton preset={budget.data.preset} rows={rows} />
+          </span>
         ) : null}
       </header>
 
@@ -67,6 +74,8 @@ export function QuotaPage() {
           ))}
         </section>
       )}
+
+      <RoutingTable />
     </div>
   )
 }
@@ -77,17 +86,58 @@ function SourceChip({ source }: { source: Source }) {
   )
 }
 
+/**
+ * The design's on/off switch: `orch provider disable|enable` through the
+ * dashboard. Off, `orch run` leaves the provider's tasks waiting.
+ */
+function ProviderSwitch({ name, off, onError }: { name: string; off: boolean; onError: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const flip = async () => {
+    setBusy(true)
+    onError(null)
+    try {
+      await setProvider(name, !off)
+      await queryClient.invalidateQueries({ queryKey: ["quota"] })
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={!off}
+      aria-label={t("quota.switch", { provider: name })}
+      disabled={busy}
+      onClick={() => void flip()}
+      className={cn(
+        "relative h-5 w-[34px] shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+        off ? "bg-secondary" : "bg-brand",
+      )}
+    >
+      <span className={cn("absolute top-[3px] h-3.5 w-3.5 rounded-full bg-white transition-[left]", off ? "left-[3px]" : "left-[17px]")} />
+    </button>
+  )
+}
+
 function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQuota; budget?: BudgetRow }) {
   // Read once per mount: the relative times need not tick.
   const [now] = useState(() => Date.now())
-  const source: Source = quota ? "reported" : budget ? "estimated" : "none"
-  const note = quota
-    ? t("quota.note.reported", { time: formatRelative(quota.seen_at, now) })
+  const [error, setError] = useState<string | null>(null)
+  const off = quota?.disabled === true
+  // A provider listed only because it is turned off carries no report.
+  const report = quota && quota.windows.length > 0 ? quota : undefined
+  const source: Source = report ? "reported" : budget ? "estimated" : "none"
+  const note = report
+    ? t("quota.note.reported", { time: formatRelative(report.seen_at, now) })
     : budget
       ? t("quota.note.estimated", { pct: budget.threshold_pct })
       : t("quota.note.none")
   return (
-    <article aria-labelledby={`quota-${name}`} className="rounded-lg border bg-card">
+    <article aria-labelledby={`quota-${name}`} className={cn("rounded-lg border bg-card", off && "opacity-80")}>
       <header className="flex items-center gap-2 border-b px-3.5 py-2.5">
         <h2 id={`quota-${name}`} className="font-mono text-sm font-medium">
           {name}
@@ -95,10 +145,19 @@ function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQ
         <span className="ml-auto">
           <SourceChip source={source} />
         </span>
+        <ProviderSwitch name={name} off={off} onError={setError} />
       </header>
       <div className="space-y-2.5 px-3.5 py-3">
-        {quota ? quota.windows.map((w) => <ReportedRow key={w.window} w={w} now={now} />) : null}
-        {!quota && budget ? (
+        {off ? (
+          <p className="text-xs text-status-blocked">{quota?.reason ? t("quota.off_reason", { reason: quota.reason }) : t("quota.off")}</p>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-xs text-status-failed">
+            {error}
+          </p>
+        ) : null}
+        {report ? report.windows.map((w) => <ReportedRow key={w.window} w={w} now={now} />) : null}
+        {!report && budget ? (
           <WindowRow
             label={t("quota.window.budget", { hours: budget.window_hours })}
             pct={budget.pct}

@@ -267,6 +267,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const project = now?.project || "orch"
   const repoSlug = caps?.repo?.slug
   const inFlight = now?.working.length ?? 0
+  // The badge on System › Tools; the server answers from a probe under a minute old.
+  const { data: toolsMissing } = useQuery({
+    queryKey: ["tools", "missing"],
+    queryFn: async () => (await apiClient.get<{ missing: number }>("/api/tools/missing")).data.missing,
+    enabled: !isStakeholder,
+    staleTime: 60_000,
+  })
   const runLive = now?.run?.status === "live"
   const isLocal = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(window.location.hostname)
 
@@ -363,10 +370,22 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               aria-label={compact ? t(tab.label) : undefined}
-              className={cn(sideRow, compact ? "justify-center" : "gap-2.5 px-2.5", active && "bg-sidebar-active font-medium text-sidebar-foreground")}
+              className={cn(sideRow, "relative", compact ? "justify-center" : "gap-2.5 px-2.5", active && "bg-sidebar-active font-medium text-sidebar-foreground")}
             >
               {Icon ? <Icon className={cn("h-4 w-4 shrink-0", active && "text-brand")} aria-hidden /> : null}
               {compact ? null : <span>{t(tab.label)}</span>}
+              {tab.to === "/system/tools" && toolsMissing ? (
+                compact ? (
+                  <span className="absolute right-2 top-1.5 h-1.5 w-1.5 rounded-full bg-status-blocked" aria-hidden />
+                ) : (
+                  <span
+                    className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-status-blocked/15 px-1 text-[11px] text-status-blocked"
+                    aria-label={t("shell.tools_missing", { count: toolsMissing })}
+                  >
+                    {toolsMissing}
+                  </span>
+                )
+              ) : null}
             </NavLink>,
           )}
         </div>
@@ -510,6 +529,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="space-y-2 p-2">
           {canShare ? shareButton(collapsed) : null}
+          {isStakeholder && !collapsed ? (
+            <p className="rounded-lg border px-2.5 py-2 text-xs leading-[18px] text-sidebar-muted">{t("shell.client_notice")}</p>
+          ) : null}
           {/* Who this session is and where it is served from, with the session's controls beside it. */}
           <div className={cn("flex items-center", collapsed ? "flex-col gap-px" : "gap-1 pl-2.5")}>
             {collapsed ? null : (

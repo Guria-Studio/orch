@@ -128,6 +128,9 @@ type taskPayload struct {
 	// Parallelizable is only present on the single-task endpoint, which is
 	// where Python adds it.
 	Parallelizable *bool `json:"parallelizable,omitempty"`
+	// MaxAttempts is the retry policy's cap (retry.max_attempts), the M of
+	// the task page's "attempt N of M"; single-task endpoint only.
+	MaxAttempts *int `json:"max_attempts,omitempty"`
 }
 
 func (v projectView) task(t model.Task) taskPayload {
@@ -274,6 +277,8 @@ type graphNode struct {
 	Status string `json:"status"`
 	Phase  int    `json:"phase"`
 	OnPath bool   `json:"on_critical_path"`
+	// Model is the task's route ("claude/sonnet"), which the node card shows.
+	Model string `json:"model"`
 }
 
 type graphEdge struct {
@@ -293,7 +298,7 @@ func (v projectView) graph() graphPayload {
 		}
 		out.Nodes = append(out.Nodes, graphNode{
 			ID: t.ID, Label: label, Status: string(t.Status),
-			Phase: t.Phase, OnPath: v.CriticalPath[t.ID],
+			Phase: t.Phase, OnPath: v.CriticalPath[t.ID], Model: t.Model,
 		})
 		for _, dep := range t.Dependencies {
 			// Direction is dep → task: the edge points at what waits.

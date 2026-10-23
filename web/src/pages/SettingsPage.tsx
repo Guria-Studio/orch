@@ -1,7 +1,10 @@
+import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useEffectiveConfig } from "@/hooks/useSystem"
+import { useEffectiveConfig, useSaveConfig } from "@/hooks/useSystem"
+import { useWhoami } from "@/hooks/useWhoami"
 import { t, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 
@@ -18,26 +21,57 @@ const SECTIONS: { id: string; keys: string[] }[] = [
   { id: "telemetria", keys: ["telemetry.enabled"] },
 ]
 
+/** A credential the server only reports as set: its field starts empty. */
+const MASKED = "(set)"
+
 /**
  * System › Settings: the effective configuration — config.yaml merged with
  * the defaults, as `orch config show` computes it — in the design's
- * sections, each value under the key docs/CONFIG.md documents. Read-only:
- * orch has no command that writes config.yaml, so the switches and fields
- * show the values and the file stays the interface. Credentials only say
- * whether they are set.
+ * sections, each value under the key docs/CONFIG.md documents. The operator
+ * edits it here and Save writes only the changed keys through config.Set,
+ * the function behind `orch config set` (comments in the file survive; a
+ * refused value leaves it untouched). Credentials only say whether they are
+ * set. Anyone else reads it.
  */
 export function SettingsPage() {
   const { data, isLoading, isError, error } = useEffectiveConfig()
+  const { data: whoami } = useWhoami()
+  const canEdit = whoami?.profile === "operator"
+  const save = useSaveConfig()
+  const [draft, setDraft] = useState<Record<string, string>>({})
   const values = new Map<string, string>()
   for (const sec of data?.sections ?? []) for (const e of sec.entries) values.set(e.key, e.value)
+  const changed = Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== values.get(k)))
+  const dirty = Object.keys(changed).length > 0
+  const onSave = () => save.mutate(changed, { onSuccess: () => setDraft({}) })
 
   return (
     <div className="space-y-6 text-[13px]">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="sr-only">{t("settings.title")}</h1>
         {data ? <code className="rounded-md bg-secondary px-2 py-0.5 font-mono text-xs">{data.path}</code> : null}
-        <span className="ml-auto text-xs text-muted-foreground">{t("settings.readonly")}</span>
+        {canEdit ? (
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">{t("settings.note")}</span>
+            <Button type="button" size="sm" variant="outline" disabled={!dirty || save.isPending} onClick={() => setDraft({})}>
+              {t("settings.discard")}
+            </Button>
+            <Button type="button" size="sm" disabled={!dirty || save.isPending} onClick={onSave}>
+              {t("settings.save")}
+            </Button>
+          </span>
+        ) : (
+          <span className="ml-auto text-xs text-muted-foreground">{t("settings.readonly")}</span>
+        )}
       </header>
+
+      {save.isError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("settings.not_saved")}</AlertTitle>
+          <AlertDescription className="font-mono text-xs">{save.error.message}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {isError || data?.error ? (
         <Alert variant="destructive">
@@ -76,7 +110,13 @@ export function SettingsPage() {
                   {sec.keys
                     .filter((key) => values.has(key))
                     .map((key) => (
-                      <Field key={key} configKey={key} value={values.get(key) ?? ""} />
+                      <Field
+                        key={key}
+                        configKey={key}
+                        value={draft[key] ?? values.get(key) ?? ""}
+                        editable={canEdit}
+                        onChange={(v) => setDraft((d) => ({ ...d, [key]: v }))}
+                      />
                     ))}
                 </div>
               </section>
@@ -88,10 +128,22 @@ export function SettingsPage() {
   )
 }
 
-function Field({ configKey, value }: { configKey: string; value: string }) {
+function Field({
+  configKey,
+  value,
+  editable,
+  onChange,
+}: {
+  configKey: string
+  value: string
+  editable: boolean
+  onChange: (value: string) => void
+}) {
   const label = t(`settings.f.${configKey}` as MessageKey)
   const isBool = value === "true" || value === "false"
-  const shown = value === "" || value === '""' ? "—" : value
+  const masked = value === MASKED
+  const empty = value === "" || value === '""'
+  const shown = masked ? "" : empty ? "" : value
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5">
       <span className="min-w-0 flex-1">
@@ -104,7 +156,8 @@ function Field({ configKey, value }: { configKey: string; value: string }) {
           role="switch"
           aria-checked={value === "true"}
           aria-label={label}
-          disabled
+          disabled={!editable}
+          onClick={() => onChange(value === "true" ? "false" : "true")}
           className={cn("relative h-5 w-[34px] shrink-0 rounded-full disabled:cursor-default", value === "true" ? "bg-brand" : "bg-secondary")}
         >
           <span className={cn("absolute top-[3px] h-3.5 w-3.5 rounded-full bg-white", value === "true" ? "left-[17px]" : "left-[3px]")} />
@@ -113,7 +166,9 @@ function Field({ configKey, value }: { configKey: string; value: string }) {
         <input
           aria-label={label}
           value={shown}
-          readOnly
+          placeholder={masked ? MASKED : "—"}
+          readOnly={!editable}
+          onChange={(e) => onChange(e.target.value)}
           className="h-8 w-full max-w-xs rounded-md border bg-background px-2.5 font-mono text-xs text-foreground sm:w-64"
         />
       )}

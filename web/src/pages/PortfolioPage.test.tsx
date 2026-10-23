@@ -49,6 +49,16 @@ describe("PortfolioPage", () => {
     }
   })
 
+  // The design's last column: when each project last did anything, with the
+  // event itself in the tooltip.
+  it("shows each project's last event", () => {
+    mockUsePortfolio.mockReturnValue({ data: EXAMPLE_PORTFOLIO, isLoading: false, isError: false, error: undefined })
+    render(<PortfolioPage />)
+    expect(screen.getByText("Last event")).toBeInTheDocument()
+    const last = screen.getAllByTitle(/sprint_done · 2026-09-12/)
+    expect(last.length).toBeGreaterThan(0)
+  })
+
   it("shows the unavailable directory's reason, not just that it was skipped", () => {
     mockUsePortfolio.mockReturnValue({
       data: EXAMPLE_PORTFOLIO,

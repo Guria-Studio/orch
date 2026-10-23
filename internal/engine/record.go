@@ -35,6 +35,9 @@ const (
 	// over the budget window. Written when the task starts waiting, with the
 	// provider and reset estimate, so status and the dashboard can show it.
 	EventBudgetSkip = "budget_skip"
+	// EventProviderSkip marks a ready task deferred because the operator
+	// turned its provider off (`orch provider disable`).
+	EventProviderSkip = "provider_skip"
 	// EventReconciled marks a dispatch row whose process was gone.
 	EventReconciled = "reconciled"
 	// EventPRCreated marks a pull request opened for a finished task.

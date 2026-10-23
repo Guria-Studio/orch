@@ -332,6 +332,11 @@ dashboard all read `budgets_config` and `budgets_preset` the same way; there
 is no flag or environment variable for the preset. `typical_dispatch_tokens`
 also drives doctor's warning when a preset's window cannot fit two dispatches.
 
+To change a provider's window without opening the file, `orch budget set
+<provider> --tokens N --window-hours H --threshold PCT` edits the active preset
+in place (comments kept), and the dashboard's Providers and quota page offers
+the same as **Edit limits**.
+
 ### `dashboard`
 
 ```yaml

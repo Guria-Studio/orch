@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/model"
 )
 
 // The read endpoints of G5.2(b): everything the trimmed operator SPA fetches
@@ -54,11 +57,7 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	// An unparseable `phase` is no filter rather than a 400, matching
 	// FastAPI only in effect: there a bad int is a 422 the SPA never sends.
 	// Treating it as absent keeps a hand-typed URL useful instead of terse.
-	if raw := q.Get("phase"); raw != "" {
-		if n, convErr := strconv.Atoi(raw); convErr == nil {
-			filters.Phase = &n
-		}
-	}
+	filters.Phase = phaseQuery(r)
 
 	filtered := view.filter(filters)
 	rows := make([]taskPayload, 0, len(filtered))
@@ -93,6 +92,7 @@ func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 		// the `parallelizable=1` filter already says.
 		para := view.Parallelizable[t.ID]
 		payload.Parallelizable = &para
+		payload.MaxAttempts = s.maxAttempts()
 		writeJSON(w, http.StatusOK, payload)
 		return
 	}
@@ -186,4 +186,39 @@ func (s *Server) failRead(w http.ResponseWriter, what string, err error) {
 	s.log.Error("dashboard read failed", "endpoint", what, "err", err)
 	writeJSON(w, http.StatusInternalServerError,
 		errorPayload{Detail: "could not read the project's " + what})
+}
+
+// phaseQuery is `?phase=` as a phase number, nil when absent. A value that is
+// not a number is no filter rather than a 400: a hand-typed URL stays useful.
+func phaseQuery(r *http.Request) *int {
+	n, err := strconv.Atoi(r.URL.Query().Get("phase"))
+	if err != nil {
+		return nil
+	}
+	return &n
+}
+
+// inPhase is the tasks of phase, or all of them when phase is nil.
+func inPhase(tasks []model.Task, phase *int) []model.Task {
+	if phase == nil {
+		return tasks
+	}
+	out := make([]model.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if t.Phase == *phase {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// maxAttempts is retry.max_attempts as the engine applies it to a failed
+// dispatch (its default, 2, when unset). A failure class or verify can set
+// its own cap; this is the one that governs the common case.
+func (s *Server) maxAttempts() *int {
+	n := config.Defaults().Retry.MaxAttempts
+	if loaded, err := config.Load(s.paths.ConfigYAML, s.paths.Root); err == nil && loaded.Config.Retry.MaxAttempts > 0 {
+		n = loaded.Config.Retry.MaxAttempts
+	}
+	return &n
 }

@@ -319,6 +319,11 @@ export function GraphPage() {
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full border-2" style={ringStyle(status)} aria-hidden />
                           <span className="font-mono text-[11px] text-muted-foreground">{n.id}</span>
                           <span className="sr-only">{t(STATUS[status].label)}</span>
+                          {n.model ? (
+                            <span className="ml-auto truncate text-[11px] text-muted-foreground" title={n.model}>
+                              {n.model.split("/")[0]}
+                            </span>
+                          ) : null}
                         </span>
                         <span className="truncate text-xs font-medium">{n.label}</span>
                       </button>

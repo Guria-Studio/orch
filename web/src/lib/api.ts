@@ -155,6 +155,9 @@ async function taskWrite<T>(method: "post" | "patch", path: string, body: object
 
 export const addTask = (task: TaskFields & { id: string; backlog?: boolean }) =>
   taskWrite<{ task_id: string; status: string }>("post", "/api/tasks", task)
+/** Turns a provider off or back on, as `orch provider disable|enable` does; its tasks wait while off. */
+export const setProvider = (backend: string, disabled: boolean, reason = "") =>
+  taskWrite<{ backend: string; disabled: boolean }>("post", `/api/provider/${encodeURIComponent(backend)}/${disabled ? "disable" : "enable"}`, { reason })
 export const editTask = (id: string, fields: TaskFields) =>
   taskWrite<{ message: string }>("patch", `/api/task/${encodeURIComponent(id)}`, fields)
 /** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */

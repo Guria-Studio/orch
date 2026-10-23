@@ -15,6 +15,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
@@ -33,6 +34,11 @@ const (
 // so the scheduler does not care how the window is computed.
 type BudgetGate interface {
 	CanDispatch(ctx context.Context, provider string) (budget.Decision, error)
+}
+
+// ProviderGate lists the providers the operator turned off or back on.
+type ProviderGate interface {
+	ProviderStates(ctx context.Context) ([]state.ProviderState, error)
 }
 
 // InFlight is one dispatched task under supervision, and everything the
@@ -114,6 +120,9 @@ type Scheduler struct {
 	Gate Gate
 	// Budget is consulted before the semaphores. Nil disables the check.
 	Budget BudgetGate
+	// Providers says which backends the operator turned off (`orch provider
+	// disable`); their tasks wait. Nil means every provider is on.
+	Providers ProviderGate
 	// Notify announces blocked tasks on the operator's webhooks. The zero
 	// value is a working no-op, so this is never nil-checked at the call
 	// sites — which is the point: a side channel must not become a branch.
@@ -482,6 +491,13 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 			// Another orch owns it. Silently skip, as Python does.
 			return false, nil
 		}
+	}
+
+	// (1b) A provider the operator turned off: the task waits, like a capped
+	// budget, and goes once it is back on.
+	if s.Providers != nil && s.providerOff(ctx, task, backend) {
+		lock.Release()
+		return false, nil
 	}
 
 	// (2) Budget gate, BEFORE the semaphores, so a capped provider does not
@@ -872,6 +888,39 @@ func (s *Scheduler) checkBudget(ctx context.Context, task model.Task, backend st
 			map[string]any{"reset_at": resetAtText(decision.ResetAt), "reason": decision.Reason}); err != nil {
 			s.logger().Error("recording the budget deferral failed", "task", task.ID, "err", err)
 		}
+	}
+	return false
+}
+
+// providerOff reports whether backend is turned off, recording the wait once
+// per task (a provider_skip event), and fails OPEN like the budget gate: a
+// read error dispatches, with a log line.
+func (s *Scheduler) providerOff(ctx context.Context, task model.Task, backend string) bool {
+	states, err := s.Providers.ProviderStates(ctx)
+	if err != nil {
+		s.logger().Warn("reading the disabled providers failed, dispatching anyway", "task", task.ID, "backend", backend, "err", err)
+		return false
+	}
+	reason := "provider-disabled:" + backend
+	for _, p := range states {
+		if p.Backend != backend || !p.Disabled {
+			continue
+		}
+		if s.deferReasons[task.ID] == reason {
+			return true
+		}
+		s.deferReasons[task.ID] = reason
+		s.logger().Info("deferred: provider turned off", "task", task.ID, "backend", backend, "reason", p.Reason)
+		if s.Backend != nil {
+			if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventProviderSkip, task.ID, backend,
+				map[string]any{"reason": p.Reason}); err != nil {
+				s.logger().Error("recording the provider deferral failed", "task", task.ID, "err", err)
+			}
+		}
+		return true
+	}
+	if s.deferReasons[task.ID] == reason {
+		delete(s.deferReasons, task.ID)
 	}
 	return false
 }

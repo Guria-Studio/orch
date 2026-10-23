@@ -16,8 +16,11 @@ export interface QuotaWindow {
 export interface ProviderQuota {
   backend: string
   windows: QuotaWindow[]
-  /** The dispatch that carried the report: as fresh as the last run, no fresher. */
+  /** The dispatch that carried the report: as fresh as the last run, no fresher; "" with no report. */
   seen_at: string
+  /** Turned off by the operator (`orch provider disable`): its tasks wait. */
+  disabled?: boolean
+  reason?: string
 }
 
 export function useQuota() {

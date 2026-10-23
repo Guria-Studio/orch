@@ -116,6 +116,12 @@ type Backend interface {
 	// SetStakeholderToken stores a freshly rotated token's hash, replacing
 	// any row this project already had.
 	SetStakeholderToken(ctx context.Context, tokenHash string, rotatedAt time.Time) error
+
+	// ProviderStates lists the providers the operator turned off or back
+	// on; a backend with no row is enabled.
+	ProviderStates(ctx context.Context) ([]ProviderState, error)
+	// SetProviderState turns a backend off (with a reason) or back on.
+	SetProviderState(ctx context.Context, backend string, disabled bool, reason string, at time.Time) error
 }
 
 // Sentinel errors callers act on. Everything else is wrapped context.

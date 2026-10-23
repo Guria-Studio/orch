@@ -2,11 +2,13 @@ package dashboard
 
 import (
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 // `/stakeholder/summary` — the one route the stakeholder profile exists for.
@@ -129,8 +131,21 @@ func (s *Server) handleStakeholderSummary(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// ?phase= is one phase's summary: its tasks, and the events and spend
+	// those tasks made. The pace stays the project's.
+	tasks := view.Tasks
+	if phase := phaseQuery(r); phase != nil {
+		tasks = inPhase(tasks, phase)
+		ids := make(map[string]bool, len(tasks))
+		for _, t := range tasks {
+			ids[t.ID] = true
+		}
+		events = slices.DeleteFunc(events, func(e state.Event) bool { return !ids[e.TaskID] })
+		spends = slices.DeleteFunc(spends, func(sp state.Spend) bool { return !ids[sp.TaskID] })
+	}
+
 	snap := snapshot.Build(snapshot.Input{
-		Tasks:            view.Tasks,
+		Tasks:            tasks,
 		Phases:           view.Phases,
 		Events:           events,
 		Spends:           spends,

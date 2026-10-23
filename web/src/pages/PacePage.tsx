@@ -6,6 +6,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Explain } from "@/components/Explain"
+import { PhaseSelect, usePhaseParam } from "@/components/PhaseSelect"
+import { useMilestones } from "@/hooks/useMilestones"
 import { useSprintHealth } from "@/hooks/useSprintHealth"
 import { fmt, t } from "@/i18n"
 import { taskPath } from "@/lib/nav"
@@ -48,7 +50,9 @@ function BlockerRow({ blocker }: { blocker: SprintBlocker }) {
 }
 
 export function PacePage() {
-  const { data, isLoading, isError, error } = useSprintHealth()
+  const [phase] = usePhaseParam()
+  const { data, isLoading, isError, error } = useSprintHealth(phase)
+  const { data: milestones } = useMilestones()
 
   if (isLoading) {
     return (
@@ -73,7 +77,10 @@ export function PacePage() {
 
   return (
     <div className="space-y-5 text-[13px]">
-      <p className="text-muted-foreground">{t("pace.intro")}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto text-muted-foreground">{t("pace.intro")}</p>
+        <PhaseSelect phases={milestones ?? []} />
+      </div>
 
       <section className="space-y-1.5 rounded-lg border bg-card p-4" aria-labelledby="finish-heading">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

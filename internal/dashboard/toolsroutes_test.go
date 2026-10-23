@@ -34,3 +34,30 @@ func TestToolsIsOperatorOnly(t *testing.T) {
 		t.Errorf("stakeholder token: status = %d, want 403", resp.StatusCode)
 	}
 }
+
+// The sidebar's count reuses the last probe for a minute instead of running
+// every CLI on each page load.
+func TestToolsMissingCountsFromTheCachedProbe(t *testing.T) {
+	saved := describeTools
+	t.Cleanup(func() { describeTools = saved })
+	probes := 0
+	describeTools = func(doctor.ToolsConfig) []doctor.Tool {
+		probes++
+		return []doctor.Tool{
+			{ID: "claude", Used: true, Found: true},
+			{ID: "codex", Used: true, Found: false},
+			{ID: "gemini", Used: false, Found: false},
+		}
+	}
+	s := newReadServer(t, &fakeState{})
+	for range 2 {
+		var got map[string]int
+		decode(t, get(t, s, "/api/tools/missing"), &got)
+		if got["missing"] != 1 {
+			t.Errorf("missing = %d, want 1 (codex: used, not installed)", got["missing"])
+		}
+	}
+	if probes != 1 {
+		t.Errorf("probed %d times, want 1: the second answer comes from the cache", probes)
+	}
+}

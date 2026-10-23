@@ -3,9 +3,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isPortfolioDisabled, usePortfolio } from "@/hooks/usePortfolio"
+import { useTicker } from "@/hooks/useNow"
 import { useWhoami } from "@/hooks/useWhoami"
 import type { PortfolioProject } from "@/lib/types"
 import { fmt, t } from "@/i18n"
+import { formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 /**
@@ -30,6 +32,7 @@ export function PortfolioPage() {
   const { data: whoami } = useWhoami()
   const isStakeholder = whoami?.profile === "stakeholder"
   const { data, isLoading, isError, error } = usePortfolio({ enabled: !isStakeholder })
+  const now = useTicker(60_000)
 
   if (isLoading) {
     return (
@@ -66,7 +69,7 @@ export function PortfolioPage() {
   if (!data) return null
 
   const down = data.projects.filter((p) => !p.available).length
-  const cols = "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_7rem_6rem]"
+  const cols = "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_7rem_6rem_8rem]"
 
   return (
     <div className="space-y-4 text-[13px]">
@@ -86,10 +89,11 @@ export function PortfolioPage() {
           <span>{t("portfolio.col.eta")}</span>
           <span>{t("portfolio.col.blockers")}</span>
           <span className="text-right">{t("portfolio.col.spend")}</span>
+          <span>{t("portfolio.col.last")}</span>
         </div>
         <ul className="divide-y">
           {data.projects.map((p) => (
-            <ProjectRow key={p.project_id} project={p} cols={cols} />
+            <ProjectRow key={p.project_id} project={p} cols={cols} now={now} />
           ))}
         </ul>
         {data.unavailable.length > 0 ? (
@@ -124,7 +128,7 @@ function ConfidenceDot({ confidence }: { confidence: PortfolioProject["confidenc
   )
 }
 
-function ProjectRow({ project, cols }: { project: PortfolioProject; cols: string }) {
+function ProjectRow({ project, cols, now }: { project: PortfolioProject; cols: string; now: number }) {
   if (!project.available) {
     return (
       <li className={cn("grid gap-x-4 gap-y-1 px-3.5 py-2.5", cols)}>
@@ -132,7 +136,7 @@ function ProjectRow({ project, cols }: { project: PortfolioProject; cols: string
           <span className="block truncate font-medium text-muted-foreground">{project.project_name}</span>
           <span className="block truncate font-mono text-xs text-muted-foreground">{project.root}</span>
         </span>
-        <span className="self-center text-xs text-status-failed sm:col-span-4">
+        <span className="self-center text-xs text-status-failed sm:col-span-5">
           {t("portfolio.unavailable_one")}
           {project.reason ? (
             <>
@@ -175,6 +179,13 @@ function ProjectRow({ project, cols }: { project: PortfolioProject; cols: string
         </span>
         <span className="text-xs tabular-nums text-muted-foreground sm:text-right">
           {project.spend.available && project.spend.total_cost_usd !== undefined ? fmt.usd(project.spend.total_cost_usd) : t("portfolio.spend_hidden")}
+        </span>
+        {/* When the project last did anything; the event itself in the tooltip. */}
+        <span
+          className="truncate text-xs text-muted-foreground"
+          title={project.last_event ? `${project.last_event.event_type}${project.last_event.task_id ? ` ${project.last_event.task_id}` : ""} · ${project.last_event.ts}` : undefined}
+        >
+          {project.last_event ? formatRelative(project.last_event.ts, now) : "—"}
         </span>
       </a>
     </li>

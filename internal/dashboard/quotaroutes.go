@@ -21,6 +21,10 @@ type providerQuota struct {
 	// SeenAt is the outcome event that carried it: the report is as fresh as
 	// the last dispatch to that backend, no fresher.
 	SeenAt string `json:"seen_at"`
+	// Disabled: the operator turned it off (`orch provider disable`), with
+	// the reason given; `orch run` leaves its tasks waiting.
+	Disabled bool   `json:"disabled"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 type quotaPayload struct {
@@ -59,6 +63,22 @@ func (s *Server) handleQuota(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		latest[e.Backend] = providerQuota{Backend: e.Backend, Windows: windows, SeenAt: e.TS}
+	}
+	states, err := s.state.ProviderStates(r.Context())
+	if err != nil {
+		s.failRead(w, "quota", err)
+		return
+	}
+	for _, p := range states {
+		q, ok := latest[p.Backend]
+		if !ok && !p.Disabled {
+			continue
+		}
+		if !ok {
+			q = providerQuota{Backend: p.Backend, Windows: []providers.QuotaWindow{}}
+		}
+		q.Disabled, q.Reason = p.Disabled, p.Reason
+		latest[p.Backend] = q
 	}
 	out := quotaPayload{Providers: make([]providerQuota, 0, len(latest))}
 	for _, q := range latest {

@@ -67,6 +67,8 @@ type Server struct {
 	// value doesn't change while the process runs, so there is nothing to
 	// re-resolve about it the way there is for the database's.
 	fallbackTokenHash string
+	// tools is the last doctor.Tools answer, for the sidebar's missing count.
+	tools toolsCache
 }
 
 // StateReader is the slice of the state backend the dashboard reads.
@@ -98,6 +100,9 @@ type StateReader interface {
 	// CountDoneLastNDays is the numerator of velocity: tasks that finished
 	// inside the window.
 	CountDoneLastNDays(ctx context.Context, days int) (int, error)
+	// ProviderStates is which providers the operator turned off, for the
+	// Providers and quota page.
+	ProviderStates(ctx context.Context) ([]state.ProviderState, error)
 	// LastEventByTask is the newest event per task id, which is how a blocked
 	// task explains itself. The sprint panel asks only about the blocked ones.
 	LastEventByTask(ctx context.Context, taskIDs []string) (map[string]state.Event, error)

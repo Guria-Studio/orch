@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api"
 
 // System › Skills (GET /api/skills) and System › Settings
@@ -32,5 +32,25 @@ export function useEffectiveConfig() {
   return useQuery<EffectiveConfig, Error>({
     queryKey: ["config-effective"],
     queryFn: async () => (await apiClient.get<EffectiveConfig>("/api/config/effective")).data,
+  })
+}
+
+/**
+ * Saves Settings through PATCH /api/config — config.Set, the function behind
+ * `orch config set` — and puts the config it answers with in the cache. A
+ * refusal rejects with the server's own reason.
+ */
+export function useSaveConfig() {
+  const queryClient = useQueryClient()
+  return useMutation<EffectiveConfig, Error, Record<string, string>>({
+    mutationFn: async (set) => {
+      try {
+        return (await apiClient.patch<EffectiveConfig>("/api/config", { set })).data
+      } catch (err) {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        throw new Error(detail ?? (err instanceof Error ? err.message : "the settings were not saved"))
+      }
+    },
+    onSuccess: (data) => queryClient.setQueryData(["config-effective"], data),
   })
 }

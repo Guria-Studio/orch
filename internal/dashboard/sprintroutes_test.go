@@ -155,3 +155,20 @@ func TestSprintEndpointsAreGated(t *testing.T) {
 		}
 	}
 }
+
+// ?phase= narrows the figures to that phase's tasks, at the project's pace.
+// The fixture's phase 1 is T-3 alone, blocked.
+func TestSprintForOnePhase(t *testing.T) {
+	s := newReadServer(t, &fakeState{done7d: 7})
+	var got sprintPayload
+	decode(t, get(t, s, "/api/sprint?phase=1"), &got)
+	// Remaining counts what is not blocked, so phase 1 has none left to start.
+	if got.RemainingTasks != 0 || got.BlockedCount != 1 || got.VelocityPerDay != 1 {
+		t.Errorf("phase 1: remaining %d, blocked %d, velocity %v; want 0, 1, 1", got.RemainingTasks, got.BlockedCount, got.VelocityPerDay)
+	}
+	// Like /api/tasks: a phase that is not a number is no filter.
+	decode(t, get(t, s, "/api/sprint?phase=x"), &got)
+	if got.RemainingTasks != 2 {
+		t.Errorf("phase=x: remaining %d, want the whole project's 2", got.RemainingTasks)
+	}
+}

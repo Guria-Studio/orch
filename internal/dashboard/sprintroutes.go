@@ -39,12 +39,14 @@ func (s *Server) handleSprint(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "sprint health", err)
 		return
 	}
+	// ?phase= narrows the figures to one phase; the pace stays the project's.
+	tasks := inPhase(view.Tasks, phaseQuery(r))
 
 	// Only the blocked tasks need their last event, and asking for exactly
 	// those is the difference between one small query and reading the whole
 	// event log to render a panel that is usually empty.
 	blockedIDs := make([]string, 0)
-	for _, t := range view.Tasks {
+	for _, t := range tasks {
 		if t.Status == model.StatusBlocked {
 			blockedIDs = append(blockedIDs, t.ID)
 		}
@@ -55,7 +57,7 @@ func (s *Server) handleSprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, sprintHealth(view.Tasks, done7d, lastEvents, time.Now()))
+	writeJSON(w, http.StatusOK, sprintHealth(tasks, done7d, lastEvents, time.Now()))
 }
 
 // milestonesPayload is `/api/milestones`'s body.

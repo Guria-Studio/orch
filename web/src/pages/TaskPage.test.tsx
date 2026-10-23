@@ -26,6 +26,7 @@ const task = {
   files: [],
   spec_ref: "",
   comments: [],
+  max_attempts: 3,
 } as unknown as Task
 
 const get = vi.fn()
@@ -97,7 +98,10 @@ describe("TaskPage", () => {
     renderAt([taskPath("F6.1.T1")])
     expect(await screen.findByText("dispatched attempt 2 to claude-sonnet-4-6")).toBeInTheDocument()
     expect(screen.getByText("2 tests failed")).toBeInTheDocument()
-    expect(within(screen.getByRole("complementary", { name: "Properties" })).getByText("2")).toBeInTheDocument()
+    const props = screen.getByRole("complementary", { name: "Properties" })
+    expect(within(props).getByText("2 of 3")).toBeInTheDocument()
+    // The running card says how long the attempt has been going, from its dispatch.
+    expect(within(props).getByText(/^Running for /)).toBeInTheDocument()
   })
 
   it("opens a task straight from its address, dots in the id and all", async () => {

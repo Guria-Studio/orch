@@ -88,6 +88,8 @@ export interface Task {
   pr_url?: string | null
   ci_status?: CiStatus | null
   ci_attempts?: number
+  /** The retry policy's cap, only on GET /api/task/{id}: the M of "attempt N of M". */
+  max_attempts?: number
 }
 
 export interface TasksSummary {
@@ -355,6 +357,8 @@ export interface GraphNode {
   status: string
   phase: number
   on_critical_path: boolean
+  /** The task's route, "claude/sonnet"; the card shows its provider. */
+  model?: string
 }
 
 export interface GraphEdge {

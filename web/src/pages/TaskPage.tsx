@@ -17,7 +17,7 @@ import { fmt, t, type MessageKey } from "@/i18n"
 import { editTask, moveTask, type TaskFields } from "@/lib/api"
 import { taskPath } from "@/lib/nav"
 import { STATUS, statusKey, statusMeta } from "@/lib/status"
-import { formatRelative } from "@/lib/time"
+import { formatDuration, formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import type { FormattedEvent, Task } from "@/lib/types"
 
@@ -319,6 +319,7 @@ function Properties({
   save,
   move,
   attempt,
+  runningSince,
   onFold,
 }: {
   task: Task
@@ -328,6 +329,8 @@ function Properties({
   move: (status: string) => void
   /** The latest dispatch's attempt, from the task's events. */
   attempt?: number
+  /** When the latest dispatch started, for the running card's clock. */
+  runningSince?: string
   onFold: () => void
 }) {
   const now = useTicker(60_000)
@@ -375,7 +378,9 @@ function Properties({
         </Prop>
         {attempt ? (
           <Prop label={t("task.attempt")}>
-            <span className="pl-2 tabular-nums">{attempt}</span>
+            <span className="pl-2 tabular-nums">
+              {task.max_attempts ? t("task.attempt_of", { attempt, max: task.max_attempts }) : attempt}
+            </span>
           </Prop>
         ) : null}
         <Prop label={t("tasks.col.model")}>
@@ -488,6 +493,11 @@ function Properties({
             {t("task.agent_working")}
           </h3>
           <p className="font-mono text-xs text-muted-foreground">{task.model}</p>
+          {runningSince ? (
+            <p className="text-xs tabular-nums" title={fmt.dateTime(runningSince)}>
+              {t("task.running_for", { duration: formatDuration((now - Date.parse(runningSince)) / 1000) })}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -722,7 +732,7 @@ export function TaskPage() {
               </button>
             </aside>
           ) : (
-            <Properties task={data} all={all} canEdit={canEdit} save={save} move={move} attempt={attempt} onFold={() => foldProps(true)} />
+            <Properties task={data} all={all} canEdit={canEdit} save={save} move={move} attempt={attempt} runningSince={lastDispatch?.ts} onFold={() => foldProps(true)} />
           )}
         </div>
       ) : null}

@@ -162,3 +162,33 @@ func TestMoveLeavesARunningTaskToItsRun(t *testing.T) {
 		t.Errorf("Move T-2 to done = %+v, %v", res, err)
 	}
 }
+
+// One function turns a provider off and on for `orch provider` and the
+// dashboard alike; a name orch has no adapter for is refused, not stored.
+func TestSetProviderTurnsABackendOffAndOn(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	db, _, err := state.Open(ctx, filepath.Join(dir, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	s := project.Steer{Backend: state.NewSQLite(db, "p", dir)}
+
+	if err := s.SetProvider(ctx, "codex", true, "  quota spent  "); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	got, _ := s.Backend.ProviderStates(ctx)
+	if len(got) != 1 || !got[0].Disabled || got[0].Reason != "quota spent" {
+		t.Fatalf("states = %+v, want codex disabled, reason trimmed", got)
+	}
+	if err := s.SetProvider(ctx, "codex", false, ""); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if got, _ := s.Backend.ProviderStates(ctx); got[0].Disabled {
+		t.Errorf("codex still disabled: %+v", got)
+	}
+	if err := s.SetProvider(ctx, "ngrok", true, ""); err == nil {
+		t.Error("an unknown provider was accepted")
+	}
+}

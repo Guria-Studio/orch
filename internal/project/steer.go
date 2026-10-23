@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -37,6 +38,24 @@ type Steer struct {
 	StateDir string
 	// Source names who asked, in the request's extra: cli, mcp, dashboard.
 	Source string
+}
+
+// Providers are the backends orch has an adapter for, the names
+// SetProvider accepts.
+var Providers = []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendOpencode, model.BackendGemini, model.BackendAgy}
+
+// SetProvider turns dispatching to backend off (with the operator's reason)
+// or back on for this project: `orch run` leaves the tasks routed to a
+// disabled backend waiting, as it does for a capped budget. The one function
+// behind `orch provider disable|enable` and the dashboard's switch.
+func (s Steer) SetProvider(ctx context.Context, backend string, disabled bool, reason string) error {
+	if !slices.Contains(Providers, model.Backend(backend)) {
+		return fmt.Errorf("unknown provider %q: one of %v", backend, Providers)
+	}
+	if !disabled {
+		reason = ""
+	}
+	return s.Backend.SetProviderState(ctx, backend, disabled, strings.TrimSpace(reason), time.Now())
 }
 
 // Note records a note for the task's agent. It reaches the prompt of the

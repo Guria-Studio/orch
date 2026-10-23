@@ -114,7 +114,7 @@ var goOnlyEventTypes = map[string]bool{
 	// Work an earlier attempt committed, accepted with `orch task salvage --accept` (#391).
 	"salvage_accepted": true,
 	// A task added to or edited in tasks.json through orch (v0.22, #390).
-	"task_added": true, "task_edited": true,
+	"task_added": true, "task_edited": true, "provider_skip": true,
 }
 
 // The four names the plan's FR-STATE-7 listed are not event types.

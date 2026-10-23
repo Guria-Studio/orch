@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Explain } from "@/components/Explain"
+import { PhaseSelect, usePhaseParam } from "@/components/PhaseSelect"
 import { ProjectConfigWidget } from "@/components/ProjectConfigWidget"
 import { isStakeholderSummaryUnavailable, useStakeholderSummary } from "@/hooks/useStakeholderSummary"
 import { fmt, t } from "@/i18n"
@@ -203,7 +204,10 @@ function ExecSummary({ text }: { text: string }) {
 // ---- Main page -------------------------------------------------------------
 
 export function StakeholderSummaryPage() {
-  const { data, isLoading, isError, error, isFetching } = useStakeholderSummary()
+  const [phase] = usePhaseParam()
+  const { data, isLoading, isError, error, isFetching } = useStakeholderSummary(phase)
+  // The phases to pick from are the whole project's, whatever is picked.
+  const { data: whole } = useStakeholderSummary()
   const { data: whoami } = useWhoami()
   const isStakeholder = whoami?.profile === "stakeholder"
 
@@ -263,6 +267,7 @@ export function StakeholderSummaryPage() {
           {t("summary.refresh", { seconds: refreshSeconds })}
           {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-label={t("common.refreshing")} /> : null}
         </span>
+        <PhaseSelect phases={whole?.phases_timeline ?? []} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
           <Download className="h-3.5 w-3.5" />
           {t("summary.export_pdf")}

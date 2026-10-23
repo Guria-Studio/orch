@@ -5,7 +5,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { AppLayout } from "@/components/AppLayout"
 
-vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: { profile: "operator" } }) }))
+let whoami: { profile: string; routes?: string[] } = { profile: "operator" }
+vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: whoami }) }))
 vi.mock("@/hooks/usePortfolio", () => ({
   usePortfolio: () => ({ data: undefined, error: undefined }),
   isPortfolioNavVisible: () => false,
@@ -139,6 +140,27 @@ describe("AppLayout", () => {
     expect(within(screen.getByRole("navigation", { name: "Main" })).getByText("3 in flight")).toBeInTheDocument()
     expect(screen.getByText("run active")).toBeInTheDocument()
     expect(within(sidebar).getByText(/Operator · /)).toBeInTheDocument()
+  })
+
+  // The design's badge on Tools: how many tools this project uses are missing.
+  it("counts the missing tools on System › Tools", async () => {
+    apiGet.mockImplementation(((url: string) =>
+      url === "/api/tools/missing" ? Promise.resolve({ data: { missing: 2 } }) : new Promise(() => {})) as never)
+    renderAt("/work/list")
+    const tools = within(screen.getByRole("region", { name: "System" })).getByRole("link", { name: /Tools/ })
+    expect(await within(tools).findByText("2")).toBeInTheDocument()
+    apiGet.mockImplementation(() => new Promise(() => {}))
+  })
+
+  // A client's session says what it is, as the design's sidebar does.
+  it("tells a client the view is read-only", () => {
+    whoami = { profile: "stakeholder", routes: ["stakeholder_summary_json", "stakeholder_snapshot_json", "api_whoami", "spa"] }
+    try {
+      renderAt("/delivery/client")
+      expect(within(screen.getByRole("complementary")).getByText("Client view · read-only.")).toBeInTheDocument()
+    } finally {
+      whoami = { profile: "operator" }
+    }
   })
 
   // The event log is a page of its own under System, not a panel over the page.
