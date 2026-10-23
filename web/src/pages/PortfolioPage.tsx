@@ -36,7 +36,7 @@ export function PortfolioPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("portfolio.title")}</h1>
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("portfolio.title")}</h1>
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-20 w-full" />
         ))}
@@ -68,10 +68,10 @@ export function PortfolioPage() {
   if (!data) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-[13px]">
       <header>
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("portfolio.title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("portfolio.title")}</h1>
+        <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
           {t("portfolio.projects", { count: data.projects.length })}
           {data.unavailable.length > 0 ? ` · ${t("portfolio.unavailable", { count: data.unavailable.length })}` : ""}
         </p>
@@ -85,10 +85,10 @@ export function PortfolioPage() {
 
       {data.unavailable.length > 0 ? (
         <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-muted-foreground">
+          <summary className="cursor-pointer select-none px-3.5 py-2.5 text-[13px] font-medium text-muted-foreground">
             {t("portfolio.skipped", { count: data.unavailable.length })}
           </summary>
-          <div className="space-y-1 border-t px-4 py-3 text-xs text-muted-foreground">
+          <div className="space-y-1 border-t px-3.5 py-2.5 text-xs text-muted-foreground">
             {data.unavailable.map((u) => (
               <div key={u.root} className="flex items-center justify-between gap-4">
                 <span className="truncate font-mono">{u.root}</span>

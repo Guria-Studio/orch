@@ -78,14 +78,14 @@ function Section({
 }) {
   return (
     <section aria-labelledby={id}>
-      <div className={cn("flex items-baseline justify-between gap-3", !collapsed && "mb-3")}>
-        <h2 id={id} className="text-sm font-semibold tracking-[-0.01em]">
+      <div className={cn("flex items-baseline justify-between gap-3", !collapsed && "mb-2")}>
+        <h2 id={id} className="text-xs font-medium text-muted-foreground">
           <button
             type="button"
             onClick={onToggle}
             aria-expanded={!collapsed}
             aria-controls={`${id}-body`}
-            className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronDown
               className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform motion-reduce:transition-none", collapsed && "-rotate-90")}
@@ -119,18 +119,18 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
         aria-expanded={open}
         aria-controls={activityId}
         title={t("activity.show", { id: d.task_id })}
-        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]"
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-2.5 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]"
       >
         <span className="hidden font-mono text-xs text-muted-foreground sm:block">{d.task_id}</span>
         <span className="min-w-0">
-          <span className="block truncate text-sm font-medium">{d.title}</span>
+          <span className="block truncate font-medium">{d.title}</span>
           <span className="block truncate font-mono text-[11px] text-muted-foreground">
             <span className="sm:hidden">{d.task_id} · </span>
             {[d.provider, d.model, d.attempt > 1 || d.max_attempts > 0 ? attempt : null].filter(Boolean).join(" · ")}
           </span>
         </span>
         <span
-          className="inline-flex items-center gap-2 font-mono text-sm tabular-nums text-status-running"
+          className="inline-flex items-center gap-2 font-mono text-xs tabular-nums text-status-running"
           title={Number.isNaN(started) ? undefined : fmt.dateTime(d.started_at)}
           aria-label={Number.isNaN(started) ? undefined : t("now.elapsed", { elapsed: formatElapsed(now - started) })}
         >
@@ -142,7 +142,7 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
           />
         </span>
       </button>
-      <div id={activityId} hidden={!open} className="border-t bg-muted/30 px-4 py-3">
+      <div id={activityId} hidden={!open} className="border-t bg-muted/30 px-3.5 py-3">
         {open ? (
           <>
             <TaskLink id={d.task_id} className="mb-2 inline-block text-xs text-primary underline-offset-4 hover:underline">
@@ -158,12 +158,12 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
 
 function BlockedRow({ b, now }: { b: SprintBlocker; now: number }) {
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]">
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-2.5 sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]">
       <span className="hidden font-mono text-xs text-muted-foreground sm:block">{b.task_id}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-2">
           <OctagonPause className={cn("h-3.5 w-3.5 shrink-0", STATUS.blocked.text)} aria-label={t("status.blocked")} />
-          <span className="truncate text-sm font-medium">{b.title}</span>
+          <span className="truncate font-medium">{b.title}</span>
         </span>
         <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={b.reason}>
           <span className="font-mono sm:hidden">{b.task_id} · </span>
@@ -192,8 +192,8 @@ function BudgetGauge({ row, now }: { row: BudgetRow; now: number }) {
   const tone = row.over_threshold ? "bg-status-blocked" : "bg-brand"
   const source = row.cost_source === "none" ? null : t(`now.cost.${row.cost_source}`)
   return (
-    <li className="px-4 py-3">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
+    <li className="px-3.5 py-2.5">
+      <div className="flex items-baseline justify-between gap-3">
         <span className="font-medium">{row.provider}</span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {t("now.tokens", { used: fmt.number(row.tokens_used), budget: fmt.number(row.token_budget) })}
@@ -226,7 +226,7 @@ function BudgetGauge({ row, now }: { row: BudgetRow; now: number }) {
 // What the next `orch run` would take, shown while nothing runs (#357).
 function NextRun({ e }: { e: Estimate }) {
   return (
-    <p className="mt-2 text-sm">
+    <p className="mt-2">
       <span className="tabular-nums">
         {t("now.next_run", { count: e.tasks.length, cost: fmt.usd(e.cost_usd), time: formatDuration(e.wall_s), slots: e.slots })}
       </span>
@@ -239,7 +239,7 @@ function NextRun({ e }: { e: Estimate }) {
   )
 }
 
-const panel = "overflow-hidden rounded-xl border bg-card"
+const panel = "overflow-hidden rounded-lg border bg-card"
 
 export function NowPage() {
   const now = useTicker()
@@ -282,11 +282,11 @@ export function NowPage() {
   const attentionCount = data.attention.length + data.waiting_for_budget.length
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 text-[13px]">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{data.project || t("now.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{data.project || t("now.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">
             {run
               ? run.status === "live"
                 ? t("now.run_live", { id: run.run_id, time: formatRelative(run.started_at, now) })
@@ -297,17 +297,17 @@ export function NowPage() {
         <LiveStatusPill status={streamStatus} lastEventAt={lastEventAt} />
       </header>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           {/* The run line: progress, who is working, and when it lands. */}
           <section aria-label={t("now.title")} className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
             <p className="flex items-baseline gap-2">
-              <span className="text-4xl font-semibold tracking-[-0.03em] tabular-nums">
+              <span className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">
                 {t("now.tasks_done", { done: summary.done, total: summary.total })}
               </span>
-              <span className="text-sm text-muted-foreground">{t("now.tasks_label")}</span>
+              <span className="text-muted-foreground">{t("now.tasks_label")}</span>
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground">
               {data.working.length > 0 ? t("now.agents_working", { count: data.working.length }) : t("now.no_agents")}
               {" · "}
               {pace.eta_date ? (
@@ -330,7 +330,7 @@ export function NowPage() {
               checking={onboarding.isFetching}
             />
           ) : !run ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground">
               {t("now.never_ran")} <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">orch run</code>
             </p>
           ) : null}
@@ -351,8 +351,8 @@ export function NowPage() {
                 ))}
               </ul>
             ) : (
-              <div className="rounded-xl border border-dashed px-4 py-6">
-                <p className="text-sm text-muted-foreground">{t("now.nothing_running")}</p>
+              <div className="rounded-lg border border-dashed px-3.5 py-5">
+                <p className="text-muted-foreground">{t("now.nothing_running")}</p>
                 {idle && estimate && estimate.tasks.length > 0 ? <NextRun e={estimate} /> : null}
               </div>
             )}
@@ -365,12 +365,12 @@ export function NowPage() {
                   <BlockedRow key={b.task_id} b={b} now={now} />
                 ))}
                 {data.waiting_for_budget.map((w) => (
-                  <li key={w.task_id} className="grid grid-cols-1 items-center gap-3 px-4 py-3 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+                  <li key={w.task_id} className="grid grid-cols-1 items-center gap-3 px-3.5 py-2.5 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                     <span className="hidden font-mono text-xs text-muted-foreground sm:block">{w.task_id}</span>
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
                         <Hourglass className={cn("h-3.5 w-3.5 shrink-0", STATUS.blocked.text)} aria-hidden />
-                        <span className="truncate text-sm font-medium">{titles.get(w.task_id) ?? w.task_id}</span>
+                        <span className="truncate font-medium">{titles.get(w.task_id) ?? w.task_id}</span>
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                         {t("now.waiting_budget", { provider: w.provider, time: formatRelative(w.reset_at, now) })}
@@ -380,12 +380,12 @@ export function NowPage() {
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.all_clear")}</p>
+              <p className="rounded-lg border border-dashed px-3.5 py-5 text-muted-foreground">{t("now.all_clear")}</p>
             )}
           </Section>
         </div>
 
-        <div className="min-w-0 space-y-8">
+        <div className="min-w-0 space-y-6">
           {receipt?.receipt ? (
             <Section {...fold("now-last-run")} title={t("now.last_run")}>
               <RunReceipt payload={receipt} now={now} />
@@ -393,10 +393,10 @@ export function NowPage() {
           ) : null}
 
           <Section {...fold("now-phases")} title={t("now.phases")}>
-            <ul className={cn(panel, "space-y-3 p-4")}>
+            <ul className={cn(panel, "space-y-3 p-3.5")}>
               {(phases ?? []).map((m) => (
                 <li key={m.phase} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3rem] items-center gap-3">
-                  <span className="truncate text-sm" title={m.name}>
+                  <span className="truncate" title={m.name}>
                     {m.name}
                   </span>
                   <PhaseSegments
@@ -436,7 +436,7 @@ export function NowPage() {
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("now.budget_off")}</p>
+              <p className="rounded-lg border border-dashed px-3.5 py-5 text-muted-foreground">{t("now.budget_off")}</p>
             )}
           </Section>
         </div>

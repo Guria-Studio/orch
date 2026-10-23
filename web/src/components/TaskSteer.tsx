@@ -44,7 +44,7 @@ export function TaskSteer({ task }: { task: Task }) {
       <h3 className="text-xs font-medium text-muted-foreground">{t("steer.title")}</h3>
       <textarea
         aria-label={t("steer.placeholder")}
-        className="min-h-16 w-full rounded-md border bg-background p-2 text-sm"
+        className="min-h-16 w-full rounded-md border bg-background p-2 text-[13px]"
         placeholder={t("steer.placeholder")}
         value={note}
         maxLength={2000}

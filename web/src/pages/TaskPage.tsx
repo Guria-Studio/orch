@@ -22,7 +22,7 @@ function Meta({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 truncate text-sm tabular-nums">{children}</dd>
+      <dd className="mt-0.5 truncate tabular-nums">{children}</dd>
     </div>
   )
 }
@@ -109,13 +109,13 @@ function TaskContext({ task }: { task: Task }) {
 
       {task.description ? (
         <Section title={t("task.description")}>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{task.description}</p>
+          <p className="whitespace-pre-wrap leading-relaxed">{task.description}</p>
         </Section>
       ) : null}
 
       {task.reason ? (
         <Section title={t("task.reason")}>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{task.reason}</p>
+          <p className="whitespace-pre-wrap leading-relaxed">{task.reason}</p>
         </Section>
       ) : null}
 
@@ -262,7 +262,7 @@ export function TaskPage() {
   const back = () => (location.key === "default" ? navigate("/work/list") : navigate(-1))
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-[13px]">
       <Button variant="ghost" size="sm" onClick={back} className="-ml-2 gap-1 text-muted-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {t("task.back")}
@@ -283,7 +283,7 @@ export function TaskPage() {
         <>
           <header className="min-w-0">
             <p className="font-mono text-xs text-muted-foreground">{data.id}</p>
-            <h1 className="text-xl font-semibold leading-snug">{data.title}</h1>
+            <h1 className="text-xl font-semibold leading-snug tracking-[-0.01em]">{data.title}</h1>
           </header>
           <SplitGrid>
             <aside className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-auto">
@@ -299,7 +299,7 @@ export function TaskPage() {
                 taskId={data.id}
                 live={statusKey(data.status) === "in_progress"}
                 provider={data.model.split("/")[0]}
-                className="rounded-md border bg-muted/30 p-3"
+                className="rounded-lg border bg-muted/30 p-3"
                 full
               />
             </section>

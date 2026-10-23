@@ -142,11 +142,11 @@ export function ListPage() {
   const isEmpty = !isLoading && (!data || data.tasks.length === 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 text-[13px]">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("tasks.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("tasks.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
             {data ? t("tasks.shown", { count: data.count, total: data.total }) : t("tasks.loading")}
             {showCriticalPath ? (
               <span className="ml-3 inline-flex items-center gap-1 align-middle">
@@ -158,7 +158,7 @@ export function ListPage() {
         </div>
         <div className="flex items-center gap-2">
           <LiveStatusPill status={streamStatus} lastEventAt={lastEventAt} />
-          <div className="flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("tasks.view")}>
+          <div className="flex items-center rounded-md border bg-card p-0.5" role="group" aria-label={t("tasks.view")}>
             {(
               [
                 ["list", LayoutList, t("tasks.view_list")],
@@ -172,9 +172,9 @@ export function ListPage() {
                 aria-label={label}
                 aria-pressed={viewMode === mode}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                  "flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors max-md:h-10 max-md:w-10",
                   "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  viewMode === mode && "bg-accent text-foreground",
+                  viewMode === mode && "bg-secondary text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4" aria-hidden />
@@ -210,7 +210,7 @@ export function ListPage() {
               ))}
         </div>
       ) : (
-        <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-xl border bg-card">
+        <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-lg border bg-card">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow className="hover:bg-transparent">
@@ -252,7 +252,7 @@ export function ListPage() {
                       (id) => taskStatusMap[id] !== undefined && taskStatusMap[id] !== "done",
                     )
                     return (
-                      <TableRow key={task.id} className="h-11 cursor-pointer" onClick={() => openTask(task.id)}>
+                      <TableRow key={task.id} className="h-10 cursor-pointer" onClick={() => openTask(task.id)}>
                         <TableCell className="text-muted-foreground">{task.phase}</TableCell>
                         <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">{task.id}</TableCell>
                         <TableCell className="max-w-0" title={task.title}>
@@ -260,7 +260,7 @@ export function ListPage() {
                             {showCriticalPath && task.on_critical_path ? (
                               <Route className="h-3.5 w-3.5 shrink-0" aria-label={t("task.on_critical_path")} />
                             ) : null}
-                            <span className="truncate font-medium">{task.title}</span>
+                            <span className="truncate">{task.title}</span>
                           </span>
                         </TableCell>
                         <TableCell>

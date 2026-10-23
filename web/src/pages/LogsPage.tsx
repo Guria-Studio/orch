@@ -193,14 +193,15 @@ export function LogsPage() {
   }
 
   return (
-    // h-[calc(100vh-4rem)] accounts for AppLayout's py-8 (2rem top + 2rem bottom).
+    // h-[calc(100vh-7rem)] accounts for AppLayout's page header (3rem) and its
+    // py-8 (2rem top + 2rem bottom); inside the logs drawer, h-full wins.
     // Flex column so header + toolbar (+ optional alert) stay at natural height and
     // the terminal grows to consume all remaining vertical space.
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-6">
+    <div className="flex h-[calc(100vh-7rem)] flex-col gap-4 text-[13px]">
       <header className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("logs.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("logs.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
             {history.isLoading
               ? t("logs.loading")
               : t("logs.shown", { count: filtered.length })}
@@ -286,7 +287,7 @@ export function LogsPage() {
         <div
           ref={containerRef}
           className={cn(
-            "flex-1 rounded-xl border bg-card font-mono text-xs text-card-foreground",
+            "flex-1 rounded-lg border bg-card font-mono text-xs text-card-foreground",
             "overflow-auto",
           )}
         >

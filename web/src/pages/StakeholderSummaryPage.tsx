@@ -53,9 +53,9 @@ export function PhaseSegments({ phase }: { phase: StakeholderPhase }) {
 function PhaseTimeline({ phases }: { phases: StakeholderPhase[] }) {
   if (!phases.length) return null
   return (
-    <section className="rounded-xl border bg-card p-5" aria-labelledby="phases-heading">
+    <section className="rounded-lg border bg-card p-4" aria-labelledby="phases-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="phases-heading" className="text-base font-semibold">
+        <h2 id="phases-heading" className="text-xs font-medium text-muted-foreground">
           {t("summary.phases")}
         </h2>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -87,8 +87,8 @@ function PhaseTimeline({ phases }: { phases: StakeholderPhase[] }) {
 function Milestones({ milestones, phases }: { milestones: StakeholderMilestone[]; phases: StakeholderPhase[] }) {
   const nameOf = new Map(phases.map((p) => [p.phase, p.name]))
   return (
-    <section className="rounded-xl border bg-card p-5" aria-labelledby="milestones-heading">
-      <h2 id="milestones-heading" className="text-base font-semibold">
+    <section className="rounded-lg border bg-card p-4" aria-labelledby="milestones-heading">
+      <h2 id="milestones-heading" className="text-xs font-medium text-muted-foreground">
         {t("summary.milestones")}
       </h2>
       <ul className="mt-3 divide-y">
@@ -172,9 +172,9 @@ function ExecSummary({ text }: { text: string }) {
     })
   }
   return (
-    <section className="rounded-xl border bg-card p-5" aria-labelledby="exec-heading">
+    <section className="rounded-lg border bg-card p-4" aria-labelledby="exec-heading">
       <div className="flex items-center justify-between gap-2">
-        <h2 id="exec-heading" className="text-base font-semibold">
+        <h2 id="exec-heading" className="text-xs font-medium text-muted-foreground">
           {t("summary.exec")}
         </h2>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 print:hidden" onClick={handleCopy}>
@@ -249,14 +249,14 @@ export function StakeholderSummaryPage() {
   ]
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 text-[13px]">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-3 truncate text-2xl font-semibold tracking-[-0.02em]">
+          <h1 className="flex items-center gap-3 truncate text-xl font-semibold tracking-[-0.01em]">
             {project_id}
             {isFetching ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label={t("common.refreshing")} /> : null}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("summary.refresh", { seconds: refreshSeconds })}</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">{t("summary.refresh", { seconds: refreshSeconds })}</p>
         </div>
         <Button variant="outline" size="sm" className="gap-1.5 print:hidden" onClick={() => window.print()}>
           <Download className="h-3.5 w-3.5" />
@@ -264,9 +264,9 @@ export function StakeholderSummaryPage() {
         </Button>
       </header>
 
-      <section className="rounded-xl border bg-card p-5" aria-labelledby="progress-heading">
+      <section className="rounded-lg border bg-card p-4" aria-labelledby="progress-heading">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="progress-heading" className="text-base font-semibold">
+          <h2 id="progress-heading" className="text-xs font-medium text-muted-foreground">
             {t("summary.progress")}
           </h2>
           <span className="text-sm tabular-nums text-muted-foreground">
@@ -274,7 +274,7 @@ export function StakeholderSummaryPage() {
           </span>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
-          <span className="text-3xl font-semibold tabular-nums tracking-[-0.02em]">{Math.round(summary.percent_done)}%</span>
+          <span className="text-2xl font-semibold tabular-nums tracking-[-0.02em]">{Math.round(summary.percent_done)}%</span>
           <div className="min-w-[10rem] flex-1">
             <Progress value={summary.percent_done} className="h-2" />
             <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">

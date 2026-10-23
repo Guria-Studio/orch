@@ -79,8 +79,8 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
   const prsPassed = r.prs.filter((p) => p.ci_status === "success").length
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4">
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3.5 pt-3.5">
         <p className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={r.run_id}>
           {r.run_id}
         </p>
@@ -89,7 +89,7 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
         </p>
       </div>
 
-      <p className="px-4 pt-2 text-sm">
+      <p className="px-3.5 pt-2">
         <span className="font-semibold tabular-nums">{t("receipt.done", { count: r.done.length })}</span>
         {r.blocked.length > 0 ? (
           <span className="text-status-blocked"> · {t("receipt.blocked", { count: r.blocked.length })}</span>
@@ -98,14 +98,14 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
           <span className="text-muted-foreground"> · {t("receipt.failed_attempts", { count: r.failed_attempts })}</span>
         ) : null}
       </p>
-      <p className="px-4 pt-1 text-xs text-muted-foreground tabular-nums">
+      <p className="px-3.5 pt-1 text-xs text-muted-foreground tabular-nums">
         {t("receipt.times", { wall: formatDuration(r.wall_seconds), agent: formatDuration(r.agent_seconds) })}
         {r.prs.length > 0 ? ` · ${t("receipt.prs", { count: r.prs.length, passed: prsPassed })}` : null}
       </p>
 
       <ul className="mt-3 divide-y border-t">
         {r.providers.map((p) => (
-          <li key={p.provider} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 px-4 py-2 text-sm">
+          <li key={p.provider} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 px-3.5 py-2">
             <span className="min-w-0">
               <span className="font-medium">{p.provider}</span>
               <span className="ml-2 font-mono text-[11px] text-muted-foreground tabular-nums">
@@ -127,7 +127,7 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
         ))}
       </ul>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-3.5 py-3">
         <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <input
             id="receipt-built-with"
@@ -156,12 +156,12 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
         </div>
       </div>
       {imageFailed ? (
-        <p role="alert" className="border-t px-4 py-2 text-xs text-status-blocked">
+        <p role="alert" className="border-t px-3.5 py-2 text-xs text-status-blocked">
           {t("receipt.image_failed")}
         </p>
       ) : null}
       {manual ? (
-        <div className="border-t px-4 py-3">
+        <div className="border-t px-3.5 py-3">
           <p className="mb-2 text-xs text-muted-foreground">{t("receipt.copy_manual")}</p>
           <textarea
             ref={area}

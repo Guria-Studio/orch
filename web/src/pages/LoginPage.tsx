@@ -30,10 +30,10 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center">
-            <img src="/favicon.svg" alt="Orch" className="h-12 w-12" />
+          <div className="mx-auto flex h-9 w-9 items-center justify-center">
+            <img src="/favicon.svg" alt="Orch" className="h-9 w-9" />
           </div>
-          <CardTitle className="text-lg">{t("login.title")}</CardTitle>
+          <CardTitle className="text-base">{t("login.title")}</CardTitle>
           <CardDescription>
             {t("login.paste")}{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">orch dashboard --token …</code>

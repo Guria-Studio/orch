@@ -55,10 +55,10 @@ export function CIPage() {
   const tasks = useTasks()
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 text-[13px]">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("ci.title")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">{t("ci.intro")}</p>
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("ci.title")}</h1>
+        <p className="max-w-3xl text-[13px] text-muted-foreground">{t("ci.intro")}</p>
       </header>
 
       {ci.isError ? (
@@ -84,7 +84,7 @@ export function CIPage() {
       ) : null}
 
       <section aria-labelledby="pipeline-heading" className="space-y-3">
-        <h2 id="pipeline-heading" className="text-lg font-semibold">
+        <h2 id="pipeline-heading" className="text-xs font-medium text-muted-foreground">
           {t("ci.pipeline")}
         </h2>
         {ci.isLoading ? (
@@ -100,7 +100,7 @@ export function CIPage() {
 
       <section aria-labelledby="prs-heading" className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="prs-heading" className="text-lg font-semibold">
+          <h2 id="prs-heading" className="text-xs font-medium text-muted-foreground">
             {t("ci.pull_requests")}
           </h2>
           {tasks.data ? <PrCountsLine tasks={tasks.data.tasks} /> : null}
@@ -119,11 +119,11 @@ export function CIPage() {
       </section>
 
       <section aria-labelledby="workflows-heading" className="space-y-3">
-        <h2 id="workflows-heading" className="text-lg font-semibold">
+        <h2 id="workflows-heading" className="text-xs font-medium text-muted-foreground">
           {t("ci.workflows")}
         </h2>
         {ci.data && ci.data.workflows.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed p-5 text-muted-foreground">
             {t("ci.no_workflows_before")} <code className="font-mono">.github/workflows</code>.{" "}
             <code className="font-mono">orch init</code> {t("ci.no_workflows_writes")} <code className="font-mono">orch-ci.yml</code>{" "}
             {t("ci.no_workflows_after")}
@@ -189,7 +189,7 @@ function PrTable({ tasks, retries }: { tasks: Task[]; retries?: number }) {
   return (
     <div className="space-y-3">
       {active.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed p-5 text-muted-foreground">
           {t("ci.no_prs_before")} <code className="font-mono">vcs.auto_pr</code> {t("ci.no_prs_after")}
         </p>
       ) : (
@@ -275,7 +275,7 @@ function WorkflowCard({ workflow }: { workflow: CiWorkflow }) {
     <Card>
       <CardHeader className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-base">{workflow.name || workflow.file}</CardTitle>
+          <CardTitle>{workflow.name || workflow.file}</CardTitle>
           {workflow.runs_on_pull_requests ? <Badge variant="success">{t("ci.runs_on_prs")}</Badge> : <Badge variant="muted">{t("ci.not_on_prs")}</Badge>}
         </div>
         <CardDescription className="flex flex-wrap items-center gap-2">

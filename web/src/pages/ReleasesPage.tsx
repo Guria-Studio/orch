@@ -18,9 +18,9 @@ function notesHTML(markdown: string): string {
 function Release({ r }: { r: ReleaseItem }) {
   const html = useMemo(() => notesHTML(r.notes), [r.notes])
   return (
-    <li className="rounded-xl border bg-card p-4" data-testid={`release-${r.tag}`}>
+    <li className="rounded-lg border bg-card p-3.5" data-testid={`release-${r.tag}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
+        <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">
           <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
             {r.tag}
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
@@ -37,7 +37,7 @@ function Release({ r }: { r: ReleaseItem }) {
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground">{t("releases.no_notes")}</p>
+        <p className="mt-3 text-[13px] text-muted-foreground">{t("releases.no_notes")}</p>
       )}
     </li>
   )
@@ -51,12 +51,12 @@ export function ReleasesPage() {
     if (current) markReleasesSeen(current)
   }, [current])
 
-  const title = <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("releases.title")}</h1>
+  const title = <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("releases.title")}</h1>
   if (isLoading) {
     return (
       <div className="space-y-6">
         {title}
-        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-lg" />
       </div>
     )
   }
@@ -76,7 +76,7 @@ export function ReleasesPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         {title}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           {current ? t("releases.running", { version: current }) : null}
           {newer > 0 ? ` ${t("releases.newer", { count: newer })}` : null}
         </p>
@@ -89,7 +89,7 @@ export function ReleasesPage() {
         </Alert>
       ) : null}
       {data.releases.length === 0 ? (
-        <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">{t("releases.empty")}</p>
+        <p className="rounded-lg border border-dashed px-3.5 py-5 text-[13px] text-muted-foreground">{t("releases.empty")}</p>
       ) : (
         <ul className="space-y-4">
           {data.releases.map((r) => (

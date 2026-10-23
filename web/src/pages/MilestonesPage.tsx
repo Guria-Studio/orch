@@ -23,8 +23,8 @@ const MILESTONE_STATUS: Record<
 function Intro() {
   return (
     <header className="space-y-1">
-      <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("milestones.title")}</h1>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t("milestones.intro")}</p>
+      <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("milestones.title")}</h1>
+      <p className="max-w-3xl text-[13px] text-muted-foreground">{t("milestones.intro")}</p>
     </header>
   )
 }
@@ -35,7 +35,7 @@ function MilestoneRow({ milestone: m }: { milestone: Milestone }) {
   return (
     <li className="space-y-2.5 py-4 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="min-w-0 text-base font-semibold">{m.name}</h2>
+        <h2 className="min-w-0 text-sm font-medium">{m.name}</h2>
         <Badge variant={status.variant} className="shrink-0">
           <Icon className="h-3 w-3" aria-hidden />
           {t(status.label)}
@@ -79,7 +79,7 @@ export function MilestonesPage() {
     return (
       <div className="space-y-6">
         <Intro />
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     )
   }
@@ -98,7 +98,7 @@ export function MilestonesPage() {
     return (
       <div className="space-y-6">
         <Intro />
-        <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-5 text-muted-foreground">
           <p className="font-medium text-foreground">{t("milestones.none")}</p>
           <p className="mt-1">
             {t("milestones.none_before")} <code className="font-mono">orch atomize --apply</code>.
@@ -109,9 +109,9 @@ export function MilestonesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-[13px]">
       <Intro />
-      <section className="rounded-xl border bg-card p-5" aria-label={t("milestones.title")}>
+      <section className="rounded-lg border bg-card p-4" aria-label={t("milestones.title")}>
         <ul className="divide-y">
           {milestones.map((m) => (
             <MilestoneRow key={m.phase} milestone={m} />

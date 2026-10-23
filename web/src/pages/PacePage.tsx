@@ -51,9 +51,9 @@ export function PacePage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("pace.title")}</h1>
-        <Skeleton className="h-52 w-full rounded-xl" />
-        <Skeleton className="h-32 w-full rounded-xl" />
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("pace.title")}</h1>
+        <Skeleton className="h-52 w-full rounded-lg" />
+        <Skeleton className="h-32 w-full rounded-lg" />
       </div>
     )
   }
@@ -71,20 +71,20 @@ export function PacePage() {
   const velocity = data.velocity_per_day > 0 ? data.velocity_per_day.toFixed(1) : "—"
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 text-[13px]">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("pace.title")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">{t("pace.intro")}</p>
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("pace.title")}</h1>
+        <p className="max-w-3xl text-[13px] text-muted-foreground">{t("pace.intro")}</p>
       </header>
 
-      <section className="space-y-5 rounded-xl border bg-card p-5" aria-labelledby="finish-heading">
-        <h2 id="finish-heading" className="text-base font-semibold">
+      <section className="space-y-5 rounded-lg border bg-card p-4" aria-labelledby="finish-heading">
+        <h2 id="finish-heading" className="text-xs font-medium text-muted-foreground">
           <Explain term="eta">{t("pace.projected_finish")}</Explain>
         </h2>
         {data.eta_date ? (
           <div className="space-y-1">
             <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">{fmt.day(data.eta_date)}</span>
+              <span className="text-2xl font-semibold tracking-[-0.02em] tabular-nums">{fmt.day(data.eta_date)}</span>
               {data.confidence !== "none" ? (
                 <Badge variant={data.confidence === "high" ? "success" : "warning"}>
                   {t(data.confidence === "high" ? "pace.confidence.high" : "pace.confidence.low")}
@@ -119,7 +119,7 @@ export function PacePage() {
       </section>
 
       <section className="space-y-3" aria-labelledby="blocked-heading">
-        <h2 id="blocked-heading" className="flex items-baseline gap-2 text-lg font-semibold">
+        <h2 id="blocked-heading" className="flex items-baseline gap-2 text-xs font-medium text-muted-foreground">
           {t("pace.blocked")}
           {data.blocked_count > 0 ? (
             <span className="text-sm font-normal text-status-blocked tabular-nums">
@@ -128,11 +128,11 @@ export function PacePage() {
           ) : null}
         </h2>
         {data.blockers.length === 0 ? (
-          <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed p-5 text-center text-muted-foreground">
             {t("pace.none_blocked")}
           </p>
         ) : (
-          <ul className="divide-y rounded-xl border bg-card p-5">
+          <ul className="divide-y rounded-lg border bg-card p-4">
             {data.blockers.map((b) => (
               <BlockerRow key={b.task_id} blocker={b} />
             ))}

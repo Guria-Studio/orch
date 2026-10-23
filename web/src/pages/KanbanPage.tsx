@@ -109,11 +109,11 @@ export function KanbanPage() {
     // instead of `h-[calc(100vh-4rem)]` at xl doesn't work because AppLayout
     // doesn't stretch this child; we need the explicit viewport calc.
     // 4rem accounts for AppLayout's py-8 (2rem top + 2rem bottom).
-    <div className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
+    <div className="flex flex-col gap-4 text-[13px] xl:h-[calc(100vh-4rem)]">
       <header className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("kanban.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("kanban.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
             {data
               ? t("kanban.done_of", { done: data.summary.done, total: data.summary.total })
               : t("tasks.loading")}
@@ -170,7 +170,7 @@ export function KanbanPage() {
         <div
           ref={boardRef}
           className={cn(
-            "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5",
+            "grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-5",
             // xl-only: this row fills the parent's remaining height (1fr) so
             // each KanbanColumn is bounded and its inner overflow-y-auto has
             // something to scroll against. Below xl the row is `auto` and

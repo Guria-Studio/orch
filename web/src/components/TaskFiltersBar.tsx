@@ -40,13 +40,13 @@ export function TaskFiltersBar({ value, onChange, phaseOptions, modelOptions }: 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[200px] flex-1">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={value.search}
           onChange={(e) => onChange({ ...value, search: e.target.value })}
           placeholder={t("filters.search")}
           aria-label={t("filters.search")}
-          className="pl-9"
+          className="pl-8"
         />
       </div>
       <div className="w-40">

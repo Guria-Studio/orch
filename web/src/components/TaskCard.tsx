@@ -49,7 +49,7 @@ export function TaskCard({ task, taskStatusMap, onClick, showStatus = false, sho
           : undefined
       }
       className={cn(
-        "group flex flex-col gap-2 rounded-lg border bg-card p-3 text-card-foreground transition-colors",
+        "group flex flex-col gap-2 rounded-md border bg-card px-3 py-2.5 text-card-foreground transition-colors",
         onClick
           ? "cursor-pointer hover:border-input hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           : "cursor-default",
@@ -65,7 +65,7 @@ export function TaskCard({ task, taskStatusMap, onClick, showStatus = false, sho
         </div>
       </div>
 
-      <p className="line-clamp-3 text-sm font-medium leading-snug">{task.title}</p>
+      <p className="line-clamp-3 text-[13px] leading-snug">{task.title}</p>
 
       {task.pr_url || ci ? (
         <div className="flex flex-wrap items-center gap-2 text-xs">

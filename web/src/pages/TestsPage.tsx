@@ -43,10 +43,10 @@ export function TestsPage() {
   const selected = list.find((r) => runKey(r) === picked) ?? list[0]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 text-[13px]">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("tests.title")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">{t("tests.intro")}</p>
+        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("tests.title")}</h1>
+        <p className="max-w-3xl text-[13px] text-muted-foreground">{t("tests.intro")}</p>
       </header>
 
       {runs.isError ? (
@@ -62,7 +62,7 @@ export function TestsPage() {
       {runs.data && list.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <FlaskConical className="h-4 w-4" />
               {t("tests.empty_title")}
             </CardTitle>
@@ -77,7 +77,7 @@ export function TestsPage() {
       {selected ? (
         <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
           <nav aria-label={t("tests.runs")} className="space-y-1">
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("tests.runs")}</h2>
+            <h2 className="mb-2 text-xs font-medium text-muted-foreground">{t("tests.runs")}</h2>
             {list.map((r) => (
               <RunRow key={runKey(r)} run={r} now={now} active={runKey(r) === runKey(selected)} onPick={() => setPicked(runKey(r))} />
             ))}
@@ -132,7 +132,7 @@ function RunReport({ run }: { run: E2ERun }) {
   return (
     <section className="min-w-0 space-y-4" aria-label={`${run.task_id} — ${t("tests.attempt", { n: run.attempt })}`}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <h2 className="font-mono text-lg font-semibold">{run.task_id}</h2>
+        <h2 className="font-mono text-sm font-medium">{run.task_id}</h2>
         <span className="text-muted-foreground">{t("tests.attempt", { n: run.attempt })}</span>
         <Badge variant={rep.stats.failed > 0 ? "danger" : "success"}>
           {counts(rep.stats.passed, rep.stats.failed)}

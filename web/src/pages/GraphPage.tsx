@@ -164,16 +164,16 @@ export function GraphPage() {
     showCritical && Boolean(nodeById.get(source)?.on_critical_path && nodeById.get(target)?.on_critical_path)
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full flex-col gap-4 text-[13px]">
       <header className="flex flex-shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("graph.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("graph.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
             {isLoading ? t("graph.loading") : data ? t("graph.counts", { tasks: nodeCount, edges: edgeCount }) : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg border bg-card p-0.5">
+          <div className="flex items-center gap-0.5 rounded-md border bg-card p-0.5">
             <Button
               type="button"
               variant="ghost"
@@ -231,7 +231,7 @@ export function GraphPage() {
       </header>
 
       {isLoading ? (
-        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton className="h-96 w-full rounded-lg" />
       ) : isError ? (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -243,10 +243,10 @@ export function GraphPage() {
       ) : (
         <div
           ref={graphRef}
-          className="relative flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-xl border bg-card"
+          className="relative flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-lg border bg-card"
         >
           {/* Legend sits above the drawing, never on top of a node. */}
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-4 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-3.5 py-2 text-xs">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
               {LEGEND.map((key) => {
                 const meta = STATUS[key]
