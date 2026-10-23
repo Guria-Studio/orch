@@ -53,4 +53,8 @@ type RouteEntry struct {
 	// suffix (e.g. "gemini-3.7-flash-high").
 	Agent  *string `yaml:"agent,omitempty"`
 	Effort *string `yaml:"effort,omitempty"`
+	// ServiceTier is codex's service_tier for this route's dispatches (#416),
+	// so a Fast mode set globally in ~/.codex/config.toml is not forced on
+	// every one: "default" is the standard tier. Nil leaves codex's config.
+	ServiceTier *string `yaml:"service_tier,omitempty"`
 }
