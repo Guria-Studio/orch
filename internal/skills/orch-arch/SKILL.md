@@ -74,15 +74,27 @@ side of one agree without talking.
 | FR-1 | ... |
 
 ## Work breakdown
-### F1 — <phase goal>
-- **F1.1 — <package>**: <scope>. Files/dirs: `<path>`, `<path>`.
-- **F1.2 — <package>**: <scope>. Depends on: F1.1.
+### F1 — <milestone M1 from the PRD>
+- **F1.1 — skeleton**: the thinnest end-to-end path of M1, plus every file
+  the slice shares (routes, schema, wiring). Files/dirs: `<path>`, `<path>`.
+- **F1.2 — <package>**: <scope>. Files/dirs: `<path>`. Depends on: F1.1.
+- **F1.3 — <package>**: <scope>. Files/dirs: `<path>`. Depends on: F1.1.
 ```
 
 ## Rules
 
 - **Every FR and NFR appears in *Requirement coverage*.** A requirement with no
   component is either out of scope — say so — or a hole in the design.
+- **One phase is one milestone of the PRD: a vertical slice.** Each phase
+  ends in something a user can do end to end, never in a layer ("all the
+  models", "all the endpoints"). Layers built apart pass their own tests and
+  break when they meet; a slice is integrated from its first task.
+- **Every phase starts with a skeleton package.** One task that wires the
+  thinnest path of the slice through every layer — a stub where the real
+  logic will go, a test that crosses the whole path — and creates the files
+  the slice shares (route registration, schema, migrations). The other
+  packages depend on it and fill in the layers in parallel without touching
+  the shared files. A phase small enough to be one task is its own skeleton.
 - **Phases are ordered delivery, packages are parallel work.** Packages in the
   same phase should be buildable at the same time by different agents; put a
   package in a later phase, or name its dependency, when it cannot be. orch

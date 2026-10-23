@@ -51,19 +51,45 @@ consumed_by:
   - orch-atomizer
 generated_by: orch-spec
 generated_at: 2026-09-13
-title: Auth core
+title: Sign-in
 ---
 
-# F1 — Auth core
+# F1 — Sign-in
 
-Sign-in, sessions and the user model everything else depends on.
+A user signs in with email and password and gets a session: milestone M1 of
+docs/prd/001-auth.md, built as one vertical slice.
 
-## F1.1 — Package: domain
+## F1.1 — Package: skeleton
 
-### F1.1.T1 — User and Session types
+### F1.1.T1 — Sign-in walking skeleton
 
-Define the User and Session types and their validation, exactly as the
-Interfaces section of docs/arch/001-auth.md fixes them. No persistence.
+Wire POST /session end to end before any real logic: the User and Session
+types exactly as the Interfaces section of docs/arch/001-auth.md fixes them,
+an in-memory user store seeded with one user, the route registered in the
+router, and a handler that answers the JSON body the Interfaces section
+describes. The password check is a plain comparison and the types have no
+validation yet; F1.2 and F1.3 replace those stubs.
+
+Done when: these tests pass in `src/api/session.test.ts` — the seeded user's
+credentials answer 200 with a session; any other credentials answer 401.
+
+- **Model**: claude/claude-sonnet-4-6
+- **Estimate**: 3h
+- **Reason**: Wiring across every layer; standard tier is enough.
+- **Dependencies**:
+- **Files**:
+  - `src/auth/types.ts`
+  - `src/auth/store.ts`
+  - `src/api/router.ts`
+  - `src/api/session.ts`
+  - `src/api/session.test.ts`
+
+## F1.2 — Package: domain
+
+### F1.2.T1 — User and Session validation
+
+Add validation to the User and Session types from F1.1.T1, as the Interfaces
+section of docs/arch/001-auth.md states it. No persistence, no HTTP.
 
 Done when: these tests pass in `src/auth/types.test.ts` — an empty email is
 rejected; an expired session is rejected; a valid user and session are
@@ -71,19 +97,18 @@ accepted.
 
 - **Model**: claude/claude-sonnet-4-6
 - **Estimate**: 2h
-- **Reason**: Plain types and validation; standard tier is enough.
-- **Dependencies**:
+- **Reason**: Plain validation; standard tier is enough.
+- **Dependencies**: F1.1.T1
 - **Files**:
   - `src/auth/types.ts`
   - `src/auth/types.test.ts`
 
-## F1.2 — Package: api
+## F1.3 — Package: api
 
-### F1.2.T1 — POST /session
+### F1.3.T1 — Password hashing and uniform 401
 
-Implement sign-in against the User type from F1.1.T1: verify the password
-hash, create a Session, return it as the JSON body the Interfaces section
-describes. Wrong credentials answer 401 with no hint of which part was wrong.
+Replace the skeleton's plain comparison in POST /session with a password-hash
+check. Wrong credentials answer 401 with no hint of which part was wrong.
 
 Done when: these tests pass in `src/api/session.test.ts` — the right password
 answers 200 with a session; a wrong password answers 401; an unknown email
@@ -94,6 +119,7 @@ answers 401 with the same body as a wrong password.
 - **Reason**: Auth logic with security edge cases.
 - **Dependencies**: F1.1.T1
 - **Files**:
+  - `src/auth/password.ts`
   - `src/api/session.ts`
   - `src/api/session.test.ts`
 ```
@@ -131,6 +157,12 @@ Everything between the task header and its first field bullet is the
 
 ## Rules for good tasks
 
+- **A phase is a vertical slice; its first task is the skeleton.** The
+  phase delivers one PRD milestone end to end. Its first task wires the
+  thinnest path through every layer and owns the files the slice shares;
+  the other tasks depend on it and fill in one layer each, in parallel, as
+  F1.2.T1 and F1.3.T1 do above. Never a phase of only models or only
+  endpoints.
 - **One task = one agent session = one PR.** Aim for 1–4h, never above 8h.
   Split anything bigger along the architecture's interfaces.
 - **The description is the whole brief.** What to build, which contract to
