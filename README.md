@@ -10,7 +10,7 @@ Site: **[tryorch.us](https://tryorch.us)** — [try a spec in your browser](http
 
 orch is a local task orchestrator for freelancers and agencies building with AI.
 You define the work as a DAG (`tasks.json`) and dispatch each task to the CLI you
-route it to — `claude`, `codex`, `opencode`, `gemini` or `agy` — in parallel.
+route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in parallel.
 
 - **Your client stops asking how it is going.** One page — phases, blockers in
   plain language, hours left — published as a static site or served live behind
@@ -90,7 +90,7 @@ builders in that space actually reach for today.
 | GitHub stars | 49.6k | 28.1k | 65 | 8.5k | **2** |
 | Stack | Go + Next.js + Postgres | Rust | TypeScript (Electrobun) | Go | Go |
 | License | Apache-2.0 + commercial | Apache-2.0 | MIT | AGPL-3.0 | MIT |
-| CLIs/agents supported | 26 | 10+ | 5 | ~6 | 5 (claude, codex, opencode, gemini, agy) |
+| CLIs/agents supported | 26 | 10+ | 5 | ~6 | 6 (claude, codex, opencode, gemini, agy, muse) |
 | Desktop app | ✅ Electron | ❌ | ✅ macOS | ❌ (TUI) | ❌ |
 | Mobile app | ✅ iOS | ❌ | ❌ | ❌ | ❌ |
 | Cloud-hosted option | ✅ multica.ai | ❌ (shut down w/ Bloop) | ❌ | ❌ | ❌ |

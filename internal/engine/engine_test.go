@@ -246,6 +246,36 @@ func (echoArgProvider) Parse(exitCode int, output []byte) providers.Result {
 	return providers.Result{ExitCode: exitCode, Success: exitCode == 0, Stdout: string(output)}
 }
 
+// TestRunPassesThePromptFile is the PromptFile third: muse reads no stdin and
+// takes the prompt file's path, which Spawn copies from the dispatch.
+func TestRunPassesThePromptFile(t *testing.T) {
+	d := claudeDispatch(t, "B-023")
+	d.PromptPath = promptFile(t, "TASK_ID=B-023\nhello from a file\n")
+	d.Provider = catFileProvider{}
+	t.Setenv(FakeProviderEnv, "") // the cat provider is the fake here
+
+	out, err := Run(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !out.Result.Success {
+		t.Fatalf("the cat child should have exited 0: %q", out.Result.ErrorMessage)
+	}
+	if logged := ReadLog(d.LogPath); !strings.Contains(logged, "hello from a file") {
+		t.Errorf("the prompt file did not reach the child's argv; log = %q", logged)
+	}
+}
+
+// catFileProvider runs `cat <prompt file>`, the way muse runs --prompt-file.
+type catFileProvider struct{}
+
+func (catFileProvider) Name() model.Backend                      { return model.BackendMuse }
+func (catFileProvider) PromptDelivery() providers.PromptDelivery { return providers.PromptFile }
+func (catFileProvider) Argv(req providers.Request) []string      { return []string{"cat", req.PromptPath} }
+func (catFileProvider) Parse(exitCode int, output []byte) providers.Result {
+	return providers.Result{ExitCode: exitCode, Success: exitCode == 0, Stdout: string(output)}
+}
+
 // ---- Failure classes -----------------------------------------------------
 
 func TestRunClassifiesFailures(t *testing.T) {

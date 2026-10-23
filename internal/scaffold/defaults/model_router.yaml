@@ -4,7 +4,7 @@
 # does an exact match; see AS-06).
 #
 # Fields (per orchestrator/models.py::RouteEntry):
-#   backend             : one of {claude, codex, opencode, gemini, agy}
+#   backend             : one of {claude, codex, opencode, gemini, agy, muse}
 #   cli_model           : native model string the chosen CLI expects
 #   tier                : one of {premium, standard, cheap} — drives semi gate
 #   is_premium          : cached tier == "premium" (denormalized for hot path)
@@ -13,7 +13,8 @@
 #                         WARN per substitution at startup.
 #   effort              : (optional) low | medium | high. codex runs at it
 #                         (model_reasoning_effort) instead of the effort in
-#                         ~/.codex/config.toml; agy gets --effort. Unset, the
+#                         ~/.codex/config.toml; agy gets --effort, muse
+#                         --reasoning-effort. Unset, the
 #                         CLI's own default applies.
 #   service_tier        : (optional, codex only) default | priority | fast |
 #                         flex. codex's service_tier for this route, over
@@ -300,6 +301,16 @@ agy/flash:
   backend: agy
   cli_model: gemini-3.8-flash-medium
   tier: cheap
+  is_premium: false
+
+# ----- Muse Code via muse CLI -----
+# Meta's coding agent (#395). Runs `muse exec --json --prompt-file <p>` with
+# approvals and its sandbox off; effort becomes --reasoning-effort.
+
+muse/wonder:
+  backend: muse
+  cli_model: muse-wonder-1.0
+  tier: standard
   is_premium: false
 
 # ----- TODO: evaluate ---------------------------------------------------

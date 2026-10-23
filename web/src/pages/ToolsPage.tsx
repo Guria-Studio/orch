@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 const GROUPS: { key: MessageKey; ids: string[] }[] = [
   { key: "tools.group.share_delivery", ids: ["cloudflared", "tailscale", "git", "gh", "glab"] },
   { key: "tools.group.quality", ids: ["playwright"] },
-  { key: "tools.group.agents", ids: ["claude", "codex", "opencode", "gemini", "agy"] },
+  { key: "tools.group.agents", ids: ["claude", "codex", "opencode", "gemini", "agy", "muse"] },
 ]
 
 /** Installed, missing (this project uses it), or not used here. */

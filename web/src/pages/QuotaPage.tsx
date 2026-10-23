@@ -35,6 +35,7 @@ const PRODUCT: Record<string, string> = {
   opencode: "opencode",
   gemini: "Gemini CLI",
   agy: "Antigravity",
+  muse: "Muse Code",
 }
 
 export function QuotaPage() {
@@ -185,7 +186,7 @@ function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQ
 }
 
 function ReportedRow({ w, now }: { w: QuotaWindow; now: number }) {
-  const known = w.window === "five_hour" || w.window === "seven_day"
+  const known = ["five_hour", "seven_day", "session"].includes(w.window)
   const pct = Math.round(w.utilization * 100)
   return (
     <WindowRow

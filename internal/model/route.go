@@ -10,6 +10,7 @@ const (
 	BackendOpencode Backend = "opencode"
 	BackendGemini   Backend = "gemini"
 	BackendAgy      Backend = "agy"
+	BackendMuse     Backend = "muse"
 )
 
 // Tier is a route's cost/capability class — drives the semi-auto gate and

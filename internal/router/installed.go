@@ -10,6 +10,7 @@ import (
 // are installed: the CLIs most people have first.
 var BackendPreference = []model.Backend{
 	model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy,
+	model.BackendMuse,
 }
 
 // OnPath reports whether a backend's CLI is on PATH; each backend's binary

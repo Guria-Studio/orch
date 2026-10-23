@@ -33,11 +33,11 @@ Real import edges (non-cli):
 Roles:
 - state: SQLite, single source of truth for runtime status (orch.db, WAL, one writer). Migrations 001–006.
 - engine: run loop — Refill (retry queue first, then ready set), spawnOne, Reap, CIPoller.
-- providers: five CLI adapters: claude, codex, opencode, gemini, agy (Argv / Parse / Classify).
+- providers: six CLI adapters: claude, codex, opencode, gemini, agy, muse (Argv / Parse / Classify).
 - dashboard: HTTP server + embedded SPA (web/), profiles operator|stakeholder, SSE.
 - mcp: stdio MCP server, seven orch_* tools, shares state.Backend.
 - publish: static client site (dir | git | cloud) from publish/snapshot.
-External processes: agent CLIs (claude, codex, opencode, gemini, agy), git, gh/glab, Slack/Discord webhooks,
+External processes: agent CLIs (claude, codex, opencode, gemini, agy, muse), git, gh/glab, Slack/Discord webhooks,
 Cloudflare Worker orch-cloud (for publish --to cloud).
 
 ## 2. Data flow (a project)

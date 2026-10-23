@@ -54,7 +54,7 @@ type ToolsConfig struct {
 }
 
 // agentCLIs are the backends orch dispatches to, in the order the page lists them.
-var agentCLIs = []string{"claude", "codex", "opencode", "gemini", "agy"}
+var agentCLIs = []string{"claude", "codex", "opencode", "gemini", "agy", "muse"}
 
 // lookVersion finds command on PATH and asks its version; a missing binary
 // costs no probe.

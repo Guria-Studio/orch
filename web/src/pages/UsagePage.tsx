@@ -21,6 +21,7 @@ const BACKEND_COLORS: Record<string, string> = {
   opencode: "#8b7bd8",
   gemini: "#4a8fe0",
   agy: "#d16ba5",
+  muse: "#c9a227",
 }
 const backendColor = (backend: string) => BACKEND_COLORS[backend] ?? "#8a8f98"
 

@@ -51,6 +51,34 @@ func TestActivityOf(t *testing.T) {
 			},
 		},
 		{
+			name:    "muse 1.4.12 success",
+			fixture: []string{"muse", "1.4.12", "success.jsonl"},
+			want: []Step{
+				{Kind: StepStart},
+				{Kind: StepTool, Tool: "bash", Detail: "scripts/task-finish.sh T1"},
+				{Kind: StepText, Detail: "Command ran once with exit code 0. Output:\n\n```\nreported\n```"},
+				{Kind: StepEnd, Detail: "completed"},
+			},
+		},
+		{
+			name:    "muse 1.4.12 sandbox denied",
+			fixture: []string{"muse", "1.4.12", "sandbox-denied.jsonl"},
+			want: []Step{
+				{Kind: StepStart},
+				{Kind: StepError, Detail: "scripts/task-finish.sh T1: bwrap: setting up uid map: Permission denied"},
+				{Kind: StepText, Detail: "Command failed before the script ran. Output:\n\n```\nbwrap: setting up uid map: Permission denied\n```\n\nExit code: 1"},
+				{Kind: StepEnd, Detail: "completed"},
+			},
+		},
+		{
+			name:    "muse 1.4.12 unknown model",
+			fixture: []string{"muse", "1.4.12", "unknown-model.jsonl"},
+			want: []Step{
+				{Kind: StepStart},
+				{Kind: StepError, Detail: "model `nope-model` does not exist or you lack access [request_id=838c9861-4722-40aa-9a05-4f09a3bf568b]"},
+			},
+		},
+		{
 			name:    "codex 0.154.0 tools",
 			fixture: []string{"codex", "0.154.0", "tools.jsonl"},
 			want: []Step{

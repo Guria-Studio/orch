@@ -36,7 +36,7 @@ const Version = 1
 // lists them.
 var Providers = []string{
 	string(model.BackendClaude), string(model.BackendCodex), string(model.BackendOpencode),
-	string(model.BackendGemini), string(model.BackendAgy),
+	string(model.BackendGemini), string(model.BackendAgy), string(model.BackendMuse),
 }
 
 // Report is the whole bench: where and when it ran, and one Result per run.

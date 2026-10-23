@@ -42,6 +42,9 @@ func ActivityOf(line []byte) []Step {
 	if !ok {
 		return nil
 	}
+	if pt := asString(obj["payload_type"]); pt != "" {
+		return museSteps(pt, obj)
+	}
 	switch asString(obj["type"]) {
 	// claude
 	case "system":
@@ -161,6 +164,31 @@ func codexSteps(started bool, obj map[string]any) []Step {
 		if !started {
 			return []Step{{Kind: StepError, Detail: bound(asString(item["message"]))}}
 		}
+	}
+	return nil
+}
+
+// museSteps reads one muse envelope, keyed by payload_type. A tool shows once
+// it has a result, since muse streams the call itself only as task lifecycle
+// noise; the result's text is a JSON object naming the command.
+func museSteps(pt string, obj map[string]any) []Step {
+	payload, _ := asObject(obj["payload"])
+	switch {
+	case pt == "run.lifecycle.started":
+		return []Step{{Kind: StepStart}}
+	case pt == "tool.result":
+		facts, _ := asObject(payload["correlation_facts"])
+		result, _ := decodeObject([]byte(asString(payload["text"])))
+		target := toolTarget(result)
+		if asString(facts["outcome"]) == "failure" {
+			return []Step{{Kind: StepError, Detail: bound(strings.TrimSpace(target + ": " + asString(result["output"])))}}
+		}
+		return []Step{{Kind: StepTool, Tool: asString(facts["tool_name"]), Detail: bound(target)}}
+	case strings.HasPrefix(pt, "run.terminal."):
+		if asString(payload["terminal"]) != "completed" {
+			return []Step{{Kind: StepError, Detail: bound(asString(payload["reason"]))}}
+		}
+		return append(textStep(asString(payload["text"])), Step{Kind: StepEnd, Detail: "completed"})
 	}
 	return nil
 }

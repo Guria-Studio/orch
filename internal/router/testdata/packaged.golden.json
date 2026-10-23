@@ -99,6 +99,16 @@
     "is_premium": true,
     "tier": "premium"
   },
+  "muse/wonder": {
+    "agent": null,
+    "backend": "muse",
+    "cli_model": "muse-wonder-1.0",
+    "effort": null,
+    "escalation_model": null,
+    "fallback_cli_model": null,
+    "is_premium": false,
+    "tier": "standard"
+  },
   "opencode-go/deepseek-v4-flash": {
     "agent": null,
     "backend": "opencode",

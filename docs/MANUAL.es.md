@@ -75,6 +75,9 @@ cada task va a la CLI a la que rutea su modelo
 - **`gemini`** — Gemini CLI (Google)
 - **`opencode`** — OpenCode (cualquier proveedor que tenga configurado)
 - **`agy`** — Antigravity (el gateway multi-modelo de Google)
+- **`muse`** — Muse Code (Meta). orch lo corre sin aprobaciones y sin su
+  sandbox (`--approval-mode never --disable-sandbox`), para que el agente
+  pueda reportar su tarea terminada
 
 Sólo necesitás las CLIs a las que rutean tus tasks.
 
@@ -124,7 +127,7 @@ preguntas — project id (default: el nombre del directorio), template
 (default: blank) y la confirmación —, así que con Enter en todas te queda un
 proyecto que corre. Escribe en el **directorio actual**, elige los modelos
 por defecto entre las CLIs de IA que encuentra en el `PATH` (primero claude,
-después codex, gemini, opencode, agy) y escribe la rama de tu repositorio como
+después codex, gemini, opencode, agy, muse) y escribe la rama de tu repositorio como
 `dispatch.base_branch`. `orch init --advanced` pregunta además el root, el
 backend de estado, el preset de presupuesto, el spec root, los modelos por
 tier y el layout openspec.
