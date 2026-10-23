@@ -3,6 +3,7 @@ import type {
   Portfolio,
   ProjectConfig,
   TunnelCapabilities,
+  TunnelProviderId,
   TunnelStatus,
 } from "@/lib/types"
 
@@ -83,9 +84,9 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
   return data
 }
 
-async function tunnelAction(action: "start" | "stop"): Promise<TunnelStatus> {
+async function tunnelAction(action: "start" | "stop", body?: object): Promise<TunnelStatus> {
   try {
-    const { data } = await apiClient.post<TunnelStatus>(`/api/tunnel/${action}`)
+    const { data } = await apiClient.post<TunnelStatus>(`/api/tunnel/${action}`, body)
     return data
   } catch (err) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -93,7 +94,7 @@ async function tunnelAction(action: "start" | "stop"): Promise<TunnelStatus> {
   }
 }
 
-export const startTunnel = () => tunnelAction("start")
+export const startTunnel = (provider: TunnelProviderId) => tunnelAction("start", { provider })
 export const stopTunnel = () => tunnelAction("stop")
 
 /** What `POST /api/task/{id}/stop` did (project.StopResult). */

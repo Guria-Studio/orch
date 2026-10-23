@@ -93,7 +93,7 @@ describe("AppLayout", () => {
     fireEvent.click(within(bottom).getByRole("button", { name: "More" }))
     const more = screen.getByRole("dialog")
     expect(within(more).getByText("System")).toBeInTheDocument()
-    expect(within(more).getByRole("link", { name: "Share" })).toHaveAttribute("href", "/delivery/share")
+    expect(within(more).getByRole("button", { name: "Share" })).toBeInTheDocument()
     expect(within(more).getByRole("button", { name: "Log out" })).toBeInTheDocument()
     fireEvent.click(within(more).getByRole("button", { name: "Logs" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()

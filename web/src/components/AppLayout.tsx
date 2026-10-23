@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { Link, Navigate, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { Navigate, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { Languages, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, ScrollText, Search, Share, Sun, X } from "lucide-react"
 import { CommandPalette, ShortcutsDialog } from "@/components/CommandPalette"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { SharePanel } from "@/components/SharePanel"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip } from "@/components/ui/tooltip"
 import { LANGS, LANGUAGE_NAMES, setLanguage, t, useLanguage } from "@/i18n"
 import { useAuth } from "@/hooks/useAuth"
@@ -129,6 +130,7 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
   const unseen = useUnseenRelease(destination?.id === "now")
   if (!destination) return null
   const currentTab = findTab(pathname)?.tab
+  const tabs = destination.tabs.filter((tab) => !tab.offTabs)
   // Filters live in the query string; moving between List, Kanban and Graph keeps them.
   const carry = new URLSearchParams(search)
   carry.delete("logs")
@@ -138,7 +140,7 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
       <div className="flex min-h-12 items-center gap-3 overflow-x-auto px-4 md:px-6">
         <p className="hidden shrink-0 items-center gap-2 text-[13px] md:flex">
           <span className="text-muted-foreground">{t(destination.label)}</span>
-          {currentTab && destination.tabs.length > 1 ? (
+          {currentTab && (tabs.length > 1 || currentTab.offTabs) ? (
             <>
               <span className="text-muted-foreground" aria-hidden>
                 ›
@@ -147,9 +149,9 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
             </>
           ) : null}
         </p>
-        {destination.tabs.length > 1 ? (
+        {tabs.length > 1 ? (
           <nav aria-label={t("nav.sections")} className="flex min-w-max gap-1 md:ml-2">
-            {destination.tabs.map((tab) => {
+            {tabs.map((tab) => {
               const Icon = TAB_ICONS[tab.to]
               const active = currentTab?.to === tab.to
               return (
@@ -230,6 +232,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const handleLogout = () => {
     clearToken()
@@ -299,13 +302,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       </button>,
     )
 
-  const shareButton = (compact: boolean, onClick?: () => void) =>
+  const shareButton = (compact: boolean, onOpen = () => setShareOpen(true)) =>
     compactable(
       compact,
       t("nav.share"),
-      <Link
-        to={SHARE_PATH}
-        onClick={onClick}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-haspopup="dialog"
         aria-label={compact ? t("nav.share") : undefined}
         className={cn(
           "flex h-8 w-full items-center justify-center gap-2 rounded-md bg-brand text-[13px] font-medium text-white transition-opacity hover:opacity-90",
@@ -314,7 +318,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       >
         <Share className="h-4 w-4 shrink-0" aria-hidden />
         {compact ? null : <span>{t("nav.share")}</span>}
-      </Link>,
+      </button>,
     )
 
   const logoutButton = (compact: boolean) =>
@@ -425,7 +429,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           <LanguageToggle compact={false} />
           <ThemeToggle compact={false} />
           {logoutButton(false)}
-          {canShare ? <div className="pt-2">{shareButton(false, () => setMoreOpen(false))}</div> : null}
+          {canShare ? (
+            <div className="pt-2">
+              {shareButton(false, () => {
+                setMoreOpen(false)
+                setShareOpen(true)
+              })}
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -497,6 +508,18 @@ export function AppLayout({ children }: AppLayoutProps) {
         <PageHeader destination={current} pathname={pathname} />
         <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 md:py-8 lg:px-10">{children}</div>
       </main>
+
+      {canShare ? (
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+          <DialogContent className="max-w-2xl gap-5">
+            <DialogHeader>
+              <DialogTitle>{t("share.title")}</DialogTitle>
+              <DialogDescription>{t("share.intro")}</DialogDescription>
+            </DialogHeader>
+            <SharePanel />
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       {logsOpen ? <LogsDrawer onClose={() => setLogs(false)} collapsed={collapsed} /> : null}
 

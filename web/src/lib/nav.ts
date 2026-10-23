@@ -30,6 +30,9 @@ export interface NavTab {
   operatorOnly?: boolean
   // G8.5: hidden whenever the dashboard wasn't started with --portfolio.
   portfolioGated?: boolean
+  // A page reached from elsewhere (Share: the sidebar's button), so it is not
+  // one of its destination's view tabs. Still gated and addressable.
+  offTabs?: boolean
 }
 
 export interface NavDestination {
@@ -84,7 +87,7 @@ export const DESTINATIONS: NavDestination[] = [
       { to: "/delivery/summary", label: "nav.summary", route: "stakeholder_summary_json" },
       { to: "/delivery/ci", label: "nav.ci", route: "api_ci", operatorOnly: true },
       { to: "/delivery/tests", label: "nav.tests", route: "api_tests", operatorOnly: true },
-      { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true },
+      { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true, offTabs: true },
     ],
   },
 ]
