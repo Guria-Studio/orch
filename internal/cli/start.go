@@ -35,7 +35,7 @@ const planFromRepo = "plan the next work for this repository from its README and
 // claude plans (the embedded orch-plan skills, in the user's own claude
 // session); orch checks what it wrote, estimates it and runs the first tasks.
 func newStartCmd(flags *projectFlags) *cobra.Command {
-	var yes, noRun, replan bool
+	var yes, noRun, replan, noPerms bool
 	cmd := &cobra.Command{
 		Use:   `start ["what you want to build"]`,
 		Short: "From an idea to agents working: scaffold, plan with claude, check, estimate, run",
@@ -51,16 +51,18 @@ func newStartCmd(flags *projectFlags) *cobra.Command {
 			if len(args) == 1 {
 				idea = strings.TrimSpace(args[0])
 			}
-			return runStart(cmd, flags, idea, yes, noRun, replan)
+			return runStart(cmd, flags, idea, yes, noRun, replan, noPerms)
 		},
 	}
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Do not ask: allow claude's orch rules and run the first tasks")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Do not ask: allow orch's agent rules and run the first tasks")
+	cmd.Flags().BoolVar(&noPerms, "no-permissions", false,
+		"Do not allow orch's agent rules in the settings of the CLIs the plan uses; orch claude-permissions / orch agy-permissions add them later")
 	cmd.Flags().BoolVar(&noRun, "no-run", false, "Stop after the estimate; run nothing")
 	cmd.Flags().BoolVar(&replan, "replan", false, "Plan with claude even though tasks.json has tasks")
 	return cmd
 }
 
-func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, replan bool) error {
+func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, replan, noPerms bool) error {
 	out := cmd.OutOrStdout()
 	say := func(format string, a ...any) { _, _ = fmt.Fprintf(out, format+"\n", a...) }
 	term := scaffold.NewWizardIO(cmd.InOrStdin(), out)
@@ -128,13 +130,6 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 			}
 			say("✓ no git remote: agents work in this directory, without branches or pull requests " +
 				"(turn dispatch.worktree_mode and vcs.auto_pr on once it has one)")
-		}
-		if err := offerClaudePermissions(ask, out, root, false); err != nil {
-			return withExitCode(1, fmt.Errorf("the project is created, but its claude settings were not: %w", err))
-		}
-		// agy's rules live in the user's home, so --yes does not write them.
-		if err := offerAgyPermissionsIfInstalled(ask, out); err != nil {
-			return withExitCode(1, fmt.Errorf("the project is created, but agy's settings were not: %w", err))
 		}
 	}
 	scoped := *flags
@@ -221,6 +216,11 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		return withExitCode(1, fmt.Errorf("tasks.json has %d problem(s); fix them (`orch validate` lists them) and run `orch start` again", len(problems)))
 	}
 	say("✓ tasks.json: %s, DAG valid, every model routed", plural(len(tf.Tasks), "task"))
+	// orch's rules for the CLIs the plan routes to, now that it is routed
+	// (#400). --yes writes them, agy's in the user's home included.
+	if err := grantPermissions(ask, out, root, usedBackends(tf.Tasks, rtr, paths.TasksJSON()), noPerms); err != nil {
+		return withExitCode(1, err)
+	}
 
 	ready, err := printStartEstimate(cmd.Context(), &scoped, out)
 	if err != nil {

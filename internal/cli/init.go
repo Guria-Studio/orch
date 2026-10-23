@@ -37,6 +37,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 		sdd         bool
 		noFindings  bool
 		advanced    bool
+		noPerms     bool
 	)
 
 	cmd := &cobra.Command{
@@ -123,17 +124,16 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			recordInitTemplate(res.Root, opts.Template)
-			printInitResult(cmd, res, opts, term != nil, scaffold.DiscoverySummary(router.OnPath, opts.Models, failed))
-			// The wizard asks; batch names the command in its next steps. A
-			// failure here is reported, but the project is already written.
+			printInitResult(cmd, res, opts, scaffold.DiscoverySummary(router.OnPath, opts.Models, failed))
+			// orch's rules for the CLIs the project routes to (#400): the
+			// wizard asks, Enter accepts; batch writes them. A failure here
+			// is reported, but the project is already written.
+			var ask func(string) (bool, error)
 			if term != nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout())
-				if err := offerClaudePermissions(term.Confirm, cmd.OutOrStdout(), res.Root, false); err != nil {
-					return fmt.Errorf("the project is initialized, but its claude settings were not: %w", err)
-				}
-				if err := offerAgyPermissionsIfInstalled(term.Confirm, cmd.OutOrStdout()); err != nil {
-					return fmt.Errorf("the project is initialized, but agy's settings were not: %w", err)
-				}
+				ask = term.Confirm
+			}
+			if err := grantPermissions(ask, cmd.OutOrStdout(), res.Root, projectBackends(res.Root), noPerms); err != nil {
+				return fmt.Errorf("the project is initialized, but %w", err)
 			}
 			return nil
 		},
@@ -149,6 +149,8 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 		"Also scaffold the openspec/ layout")
 	cmd.Flags().BoolVar(&noFindings, "no-report-findings", false,
 		"Write report_findings.enabled: false (it is on by default: agents may file public issues about orch with your gh login)")
+	cmd.Flags().BoolVar(&noPerms, "no-permissions", false,
+		"Do not allow orch's agent rules in the settings of the CLIs the project uses; orch claude-permissions / orch agy-permissions add them later")
 	cmd.Flags().BoolVar(&advanced, "advanced", false,
 		"Also ask the project root, state backend, budget preset, spec root, tier models and openspec layout")
 	return cmd
@@ -159,10 +161,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 // The router line comes first among the notes because it is the one that
 // changed: `orch init` now routes a template's own models, and saying so is
 // what stops an operator from wondering whether they still need to.
-//
-// asks says the wizard will offer the claude rules right after, so the step
-// that names the command is left out.
-func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, asks bool, models []string) {
+func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, models []string) {
 	out := cmd.OutOrStdout()
 	// A failed write to stdout is not something this command can act on —
 	// the project is already scaffolded and the banner is the last thing it
@@ -211,11 +210,6 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	say("Plan what you want to build:")
 	for _, line := range planSteps() {
 		say("    %s", line)
-	}
-	if !asks {
-		say("")
-		say("Before the first run, let claude agents use orch's tools (it shows the rules and asks):")
-		say("    orch claude-permissions%s", in)
 	}
 	say("")
 	say("Config: %s/.orchestrator/config.yaml", res.Root)

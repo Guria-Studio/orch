@@ -168,6 +168,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	noteEstimate(ctx, os.Stderr, backend, paths, cfg, queue, opts)
 
 	rtr := loadRouterTolerant(paths)
+	warnMissingPermissions(os.Stderr, paths.Root, usedBackends(tasks, rtr, paths.TasksJSON()))
 	runID := opts.runID
 	if runID == "" {
 		runID = providers.NewSessionID()

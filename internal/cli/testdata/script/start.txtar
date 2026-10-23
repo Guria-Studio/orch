@@ -104,6 +104,8 @@ exec git init -q backlog
 cd backlog
 exec orch start --yes 'a todo app'
 stdout '^No task is todo yet: promote the ones to run with `orch task-status <id> todo`'
+# --yes grants claude's rules without asking (#400).
+stdout 'Added mcp__orch, Bash\(scripts/task-finish.sh:\*\), Bash\(scripts/task-block.sh:\*\) to .*backlog/.claude/settings.json'
 ! stdout 'dashboard:'
 cd $WORK
 env FAKE_PLAN=$WORK/run-plan.json
@@ -129,6 +131,16 @@ exec git init -q nocl
 cd nocl
 ! exec orch start --no-run 'a todo app'
 stderr 'planning needs claude'
+cd $WORK
+
+# --no-permissions (#400): the plan routes to claude, yet nothing is written,
+# and start names the command that adds the rules later.
+env PATH=$WORK/bin:$ORCH_BIN_DIR:/usr/bin:/bin
+exec git init -q noperms
+cd noperms
+exec orch start --no-run --no-permissions 'a todo app'
+! exists .claude/settings.json
+stdout 'claude agents cannot report a task done yet \(--no-permissions\); `orch claude-permissions` adds the rules'
 
 -- bin/claude --
 #!/bin/sh

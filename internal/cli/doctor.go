@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
+	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,9 @@ import (
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/hectorcanaimero/orch/internal/graph"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/tunnel"
@@ -43,6 +46,9 @@ type doctorPayload struct {
 	Checks   []doctor.Check    `json:"checks"`
 	Summary  doctorSummaryJSON `json:"summary"`
 	ExitCode int               `json:"exit_code"`
+	// Verdict is the readiness report's last line (#392): can `orch run`
+	// go ahead, and if not, the first check in the way.
+	Verdict doctor.Verdict `json:"verdict"`
 }
 
 // newDoctorCmd wires internal/doctor's checks (G4.5) into a subcommand —
@@ -85,7 +91,16 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				})
 			}
 
-			tasks := loadDAG(paths)
+			var tasks []model.Task
+			if tf, err := model.LoadTasksFile(paths.TasksJSON()); err == nil {
+				tasks = tf.Tasks
+				checks = append(checks, checkTasksValid(tasks))
+			} else {
+				checks = append(checks, doctor.Check{
+					Name: "tasks.parse", Status: doctor.StatusError,
+					Detail: fmt.Sprintf("tasks.json load failed: %v", err),
+				})
+			}
 
 			var rtr router.Router
 			if r, routerErr := router.Load(paths.RouterYAML()); routerErr == nil {
@@ -99,15 +114,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 
 			checks = append(checks, doctor.CheckRoutes(tasks, rtr))
 			checks = append(checks, doctor.CheckDefaultModels(tierDefaults(paths.TasksJSON()), func(key string) string {
-				if e, ok := rtr[key]; ok {
-					return string(e.Backend)
-				}
-				if packaged, err := scaffold.PackagedRouter(); err == nil {
-					if e, ok := packaged[key]; ok {
-						return string(e.Backend)
-					}
-				}
-				return ""
+				return routeBackend(rtr, key)
 			}))
 			// Ask only the CLIs this router uses: each is a process, bounded.
 			lists, _ := scaffold.DiscoverModels(cmd.Context(), func(b model.Backend) bool {
@@ -134,8 +141,8 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				checks = append(checks, doctor.CheckCIMinutes(paths.Root, repoVisibility))
 			}
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))
-			checks = append(checks, doctor.CheckClaudePermissions(paths.Root, slices.Contains(doctor.ReferencedBackends(tasks, rtr), "claude")))
-			checks = append(checks, doctor.CheckAgyPermissions(agySettingsPath(), slices.Contains(doctor.ReferencedBackends(tasks, rtr), "agy")))
+			checks = append(checks, doctor.CheckPermissions(usedBackends(tasks, rtr, paths.TasksJSON()), paths.Root, agySettingsPath(), doctor.CodexExecHelp)...)
+			checks = append(checks, doctor.CheckReadiness(hydrateForDoctor(context.Background(), paths, cfg, tasks))...)
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker(), tunnel.LookupBinary(tunnel.TailscaleCommand)))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))
@@ -147,6 +154,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			doctor.SortByName(checks)
+			doctor.SetSections(checks)
 			payload := buildDoctorPayload(paths, cfg, checks)
 
 			if asJSON {
@@ -184,7 +192,39 @@ func buildDoctorPayload(paths config.Paths, cfg config.Config, checks []doctor.C
 			Error: summary[doctor.StatusError], Skip: summary[doctor.StatusSkip],
 		},
 		ExitCode: doctor.ExitCode(checks),
+		Verdict:  doctor.ReadinessVerdict(checks),
 	}
+}
+
+// checkTasksValid is tasks.json's own shape: schema, dependencies, cycles —
+// `orch validate`'s errors, routes left to models.resolve.
+func checkTasksValid(tasks []model.Task) doctor.Check {
+	c := doctor.Check{Name: "tasks.valid", Status: doctor.StatusOK, Detail: fmt.Sprintf("%d task(s), DAG valid", len(tasks))}
+	for _, p := range graph.Validate(tasks, nil) {
+		if p.Severity == graph.SeverityError {
+			c.Status, c.Detail, c.Remediation = doctor.StatusError, p.Message, "`orch validate` lists every problem."
+			break
+		}
+	}
+	return c
+}
+
+// hydrateForDoctor gives tasks the database's status. A project with no
+// database yet keeps tasks.json's (what `orch run` would seed); this does not
+// create one.
+func hydrateForDoctor(ctx context.Context, paths config.Paths, cfg config.Config, tasks []model.Task) []model.Task {
+	if _, err := os.Stat(paths.SQLitePath(cfg)); err != nil {
+		return tasks
+	}
+	backend, closeDB, err := openBackend(ctx, paths, cfg)
+	if err != nil {
+		return tasks
+	}
+	defer func() { _ = closeDB() }()
+	if hydrated, err := project.Hydrate(ctx, backend, tasks); err == nil {
+		return hydrated
+	}
+	return tasks
 }
 
 // renderDoctorReport is the human (non-JSON) renderer — plain tabular
@@ -200,19 +240,37 @@ func renderDoctorReport(cmd *cobra.Command, payload doctorPayload) error {
 		payload.Summary.OK, payload.Summary.Warn, payload.Summary.Error, payload.Summary.Skip); err != nil {
 		return err
 	}
-	if len(payload.Checks) == 0 {
-		return nil
-	}
+	// One block per section, in the order the verdict reads them (#392).
 	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "STATUS\tNAME\tDETAIL"); err != nil {
-		return err
-	}
-	for _, c := range payload.Checks {
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", c.Status, c.Name, c.Detail); err != nil {
-			return err
+	for _, section := range doctor.Sections {
+		header := false
+		for _, c := range payload.Checks {
+			if c.Section != section {
+				continue
+			}
+			if !header {
+				header = true
+				if _, err := fmt.Fprintf(w, "\n%s\n", strings.ToUpper(section[:1])+section[1:]); err != nil {
+					return err
+				}
+			}
+			if _, err := fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Status, c.Name, c.Detail); err != nil {
+				return err
+			}
 		}
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	if b := payload.Verdict.Blocker; b != nil {
+		_, err := fmt.Fprintf(out, "\nNot ready to `orch run`: %s — %s\n", b.Name, b.Detail)
+		if err == nil && b.Remediation != "" {
+			_, err = fmt.Fprintf(out, "  %s\n", b.Remediation)
+		}
+		return err
+	}
+	_, err := fmt.Fprintln(out, "\nReady to `orch run`.")
+	return err
 }
 
 // tierDefaults reads tasks.json's meta.default_<tier>_model keys, which

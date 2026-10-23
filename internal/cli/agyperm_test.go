@@ -51,30 +51,6 @@ func TestAgyPermissionsAsksBeforeWriting(t *testing.T) {
 	}
 }
 
-// init and start never write the user's agy settings without asking: with no
-// way to ask they name the command.
-func TestAgyPermissionsOfferWithoutAskNamesTheCommand(t *testing.T) {
-	if _, err := os.Stat(agySettingsPath()); err == nil {
-		t.Fatal("the test settings file exists before the test")
-	}
-	dir := t.TempDir()
-	agy := filepath.Join(dir, "agy")
-	if err := os.WriteFile(agy, []byte("#!/bin/sh\n"), 0o700); err != nil { // #nosec G306 -- a fake executable
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir)
-	var out strings.Builder
-	if err := offerAgyPermissionsIfInstalled(nil, &out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), doctor.AgyPermissionsCommand) {
-		t.Errorf("out = %q, want the command named", out.String())
-	}
-	if _, err := os.Stat(agySettingsPath()); err == nil {
-		t.Error("wrote agy's settings without asking")
-	}
-}
-
 // --all-commands adds command(*) too, and says what it means first.
 func TestAgyPermissionsAllCommands(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")

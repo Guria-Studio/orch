@@ -34,6 +34,10 @@ type Check struct {
 	Status      Status `json:"status"`
 	Detail      string `json:"detail"`
 	Remediation string `json:"remediation,omitempty"`
+	// Section groups the check in the readiness report (#392); SetSections
+	// fills it from the name. Absent from Python's shape, so omitted when
+	// empty.
+	Section string `json:"section,omitempty"`
 }
 
 // Summary counts checks by status. Ports summarize_checks.
