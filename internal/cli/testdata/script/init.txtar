@@ -80,6 +80,38 @@ env PATH=$ORCH_BIN_DIR
 stdout '"name":"models.defaults_installed","status":"warn","detail":"default models need a CLI that is missing: premium claude/claude-opus-4-7 \(claude is not on PATH\)'
 env PATH=$FULLPATH
 
+# ---- batch: opencode's own model list picks the routes (#397) --------------
+# opencode lists two of the packaged routes' models and one no route runs:
+# the tier defaults and the sample task come from the listed ones, and init
+# says which packaged routes it left out and which listed models have none.
+chmod 0755 ocbin/opencode
+chmod 0755 ocbin/git
+env PATH=$WORK/ocbin:$ORCH_BIN_DIR
+exec orch init ocproj
+stdout '· models: opencode lists 3 models; packaged routes left out, not listed: .*opencode/deepseek-v4-pro'
+stdout '· models:   listed but not routed: opencode-go/hy3'
+grep '"default_premium_model": "opencode/kimi-k3"' ocproj/tasks.json
+grep '"model": "opencode-go/kimi-k3"' ocproj/tasks.json
+! grep 'deepseek' ocproj/tasks.json
+exec orch router validate --project-root ocproj --project-id ocproj
+# An opencode whose list fails: init goes on with the packaged routes, as
+# before discovery, and says so.
+chmod 0755 ocfail/opencode
+chmod 0755 ocfail/git
+env PATH=$WORK/ocfail:$ORCH_BIN_DIR
+exec orch init ocfailproj
+stdout '· models: opencode: could not list its models; its packaged routes are kept'
+grep '"default_premium_model": "opencode/deepseek-v4-pro"' ocfailproj/tasks.json
+# doctor asks again: the project init made with opencode's list routes only
+# listed models; the one made without it routes its sample task to a model
+# this opencode does not list, and doctor names it.
+env PATH=$WORK/ocbin:$ORCH_BIN_DIR
+! exec orch doctor --project-root ocproj --project-id ocproj --json
+stdout '"name":"models.available","status":"ok"'
+! exec orch doctor --project-root ocfailproj --project-id ocfailproj --json
+stdout '"name":"models.available","status":"warn","detail":"1 route\(s\) name a model their CLI does not list: opencode-go/deepseek-v4-flash \(deepseek/deepseek-v4-flash\)'
+env PATH=$FULLPATH
+
 # ---- batch: saying no to report_findings outright -------------------------
 exec orch init quietproj --no-report-findings
 grep '^  enabled: false' quietproj/.orchestrator/config.yaml
@@ -152,6 +184,20 @@ echo "2.1.0 (Claude Code)"
 -- bin/git --
 #!/bin/sh
 # The machine's git, on a PATH that otherwise holds only orch and the fake claude.
+PATH=$FULLPATH exec git "$@"
+-- ocbin/opencode --
+#!/bin/sh
+[ "$1" = models ] || exit 2
+printf 'opencode-go/kimi-k3\nopencode-go/glm-5.2\nopencode-go/hy3\n'
+-- ocbin/git --
+#!/bin/sh
+PATH=$FULLPATH exec git "$@"
+-- ocfail/opencode --
+#!/bin/sh
+echo 'Error: not logged in' >&2
+exit 1
+-- ocfail/git --
+#!/bin/sh
 PATH=$FULLPATH exec git "$@"
 -- enter3.txt --
  

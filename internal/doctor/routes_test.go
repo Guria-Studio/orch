@@ -10,6 +10,39 @@ import (
 	"github.com/hectorcanaimero/orch/internal/router"
 )
 
+// #397: a route whose CLI lists its models without the route's is a warning
+// naming it; a CLI with no list says nothing about its routes.
+func TestCheckModelsAvailable(t *testing.T) {
+	r := router.Router{
+		"opencode/kimi-k3":   {Backend: model.BackendOpencode, CLIModel: "opencode-go/kimi-k3"},
+		"opencode/deepseek":  {Backend: model.BackendOpencode, CLIModel: "deepseek/deepseek-v4-pro"},
+		"claude/sonnet":      {Backend: model.BackendClaude, CLIModel: "claude-sonnet-4-6"},
+		"codex/gpt-5.6-luna": {Backend: model.BackendCodex, CLIModel: "gpt-5.6-luna"},
+	}
+	lists := map[model.Backend][]string{
+		model.BackendOpencode: {"opencode-go/kimi-k3"},
+		model.BackendCodex:    {"gpt-5.6-luna"},
+	}
+	c := CheckModelsAvailable(r, lists)
+	if c.Name != "models.available" || c.Status != StatusWarn {
+		t.Fatalf("c = %+v, want a models.available warning", c)
+	}
+	if !strings.Contains(c.Detail, "opencode/deepseek (deepseek/deepseek-v4-pro)") {
+		t.Errorf("detail does not name the unlisted route: %q", c.Detail)
+	}
+	if strings.Contains(c.Detail, "kimi") || strings.Contains(c.Detail, "claude") {
+		t.Errorf("detail names a listed route or one with no list: %q", c.Detail)
+	}
+
+	delete(r, "opencode/deepseek")
+	if c := CheckModelsAvailable(r, lists); c.Status != StatusOK {
+		t.Errorf("every route listed: c = %+v, want ok", c)
+	}
+	if c := CheckModelsAvailable(r, nil); c.Status != StatusSkip {
+		t.Errorf("no list: c = %+v, want skip", c)
+	}
+}
+
 func TestCheckRoutesSkipsWithNoTasks(t *testing.T) {
 	c := CheckRoutes(nil, router.Router{"x": {}})
 	if c.Status != StatusSkip {

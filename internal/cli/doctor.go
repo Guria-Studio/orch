@@ -109,6 +109,16 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				}
 				return ""
 			}))
+			// Ask only the CLIs this router uses: each is a process, bounded.
+			lists, _ := scaffold.DiscoverModels(cmd.Context(), func(b model.Backend) bool {
+				for _, e := range rtr {
+					if e.Backend == b {
+						return router.OnPath(b)
+					}
+				}
+				return false
+			})
+			checks = append(checks, doctor.CheckModelsAvailable(rtr, lists))
 			checks = append(checks, doctor.CheckBackends(doctor.ReferencedBackends(tasks, rtr))...)
 			checks = append(checks, doctor.CheckBudgetPreset(budget.ResolvePath(paths.Root, paths.ConfigYAML, cfg.BudgetsConfig), cfg.BudgetsPreset, cfg.TypicalDispatchToken)...)
 			checks = append(checks, doctor.CheckOrphanWorktrees(paths.Root))

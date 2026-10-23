@@ -30,6 +30,9 @@ cd fresh
 exec orch start --no-run 'a todo app'
 stdout '^✓ claude, codex on PATH · git repository$'
 stdout 'orch project created in .*fresh \(premium claude/claude-opus-4-7 · standard claude/claude-sonnet-4-6 · cheap claude/claude-haiku-4-5\)'
+# The fake codex prints no model list: its packaged routes stay, and start
+# says so (#397).
+stdout '^· models: codex: could not list its models; its packaged routes are kept$'
 stdout 'Claude agents are refused orch''s own tools'
 stdout '^✓ installed claude skills: .*orch-plan'
 stdout '^→ claude plans it with /orch-plan'

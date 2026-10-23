@@ -73,6 +73,10 @@ type Options struct {
 	// tasks.json's meta block for downstream tools. Keys: premium, standard,
 	// cheap.
 	TierDefaults map[string]string
+	// Models is what each installed CLI said it runs now (DiscoverModels).
+	// The wizard and batch init pick TierDefaults among the packaged routes
+	// it keeps; nil keeps every packaged route (#397).
+	Models ModelLists
 	// NoSampleTask leaves a blank project without the sample task — for
 	// `orch start`, which plans the real ones right away.
 	NoSampleTask bool

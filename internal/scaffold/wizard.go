@@ -103,7 +103,7 @@ func Wizard(term *WizardIO, args Options, advanced bool) (opts Options, confirme
 	}
 	term.say("")
 
-	if opts.TierDefaults, err = InstalledTierDefaults(onPath); err != nil {
+	if opts.TierDefaults, err = InstalledTierDefaults(onPath, opts.Models); err != nil {
 		return Options{}, false, err
 	}
 	if advanced {

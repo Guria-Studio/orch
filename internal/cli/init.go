@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/router"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/templates"
@@ -64,6 +65,11 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			// Python's `_is_scaffolder_flag_provided`: a path or any of the
 			// flags means batch.
 			batch := opts.Root != "" || template != "" || projectName != "" || force || sdd || noFindings
+			// Each installed CLI's current models, before the wizard shows a
+			// tier default: a packaged route its CLI no longer lists is not
+			// one (#397). Bounded per CLI; a failure keeps the packaged routes.
+			var failed []model.Backend
+			opts.Models, failed = scaffold.DiscoverModels(cmd.Context(), router.OnPath)
 			var term *scaffold.WizardIO
 			if !batch {
 				var confirmed bool
@@ -93,7 +99,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			if opts.TierDefaults == nil {
 				// Batch decides what the wizard would have: the models of the
 				// CLIs that are installed (#376).
-				tiers, err := scaffold.InstalledTierDefaults(router.OnPath)
+				tiers, err := scaffold.InstalledTierDefaults(router.OnPath, opts.Models)
 				if err != nil {
 					return err
 				}
@@ -117,7 +123,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			recordInitTemplate(res.Root, opts.Template)
-			printInitResult(cmd, res, opts, term != nil)
+			printInitResult(cmd, res, opts, term != nil, scaffold.DiscoverySummary(router.OnPath, opts.Models, failed))
 			// The wizard asks; batch names the command in its next steps. A
 			// failure here is reported, but the project is already written.
 			if term != nil {
@@ -156,7 +162,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 //
 // asks says the wizard will offer the claude rules right after, so the step
 // that names the command is left out.
-func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, asks bool) {
+func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, asks bool, models []string) {
 	out := cmd.OutOrStdout()
 	// A failed write to stdout is not something this command can act on —
 	// the project is already scaffolded and the banner is the last thing it
@@ -177,6 +183,9 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	}
 	for _, warning := range res.Warnings {
 		say("! %s", warning)
+	}
+	for _, line := range models {
+		say("· models: %s", line)
 	}
 
 	say("")

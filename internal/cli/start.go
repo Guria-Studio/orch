@@ -102,7 +102,8 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	_, tasksErr := os.Stat(filepath.Join(root, "tasks.json"))
 	_, orchErr := os.Stat(filepath.Join(root, ".orchestrator"))
 	if tasksErr != nil && orchErr != nil {
-		tiers, err := scaffold.InstalledTierDefaults(router.OnPath)
+		lists, failed := scaffold.DiscoverModels(cmd.Context(), router.OnPath)
+		tiers, err := scaffold.InstalledTierDefaults(router.OnPath, lists)
 		if err != nil {
 			return withExitCode(1, err)
 		}
@@ -112,11 +113,14 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		}
 		say("✓ orch project created in %s (premium %s · standard %s · cheap %s)",
 			res.Root, orBlankTier(tiers["premium"]), orBlankTier(tiers["standard"]), orBlankTier(tiers["cheap"]))
-		routes, err := scaffold.SeedInstalledRoutes(root, router.OnPath)
+		routes, err := scaffold.SeedInstalledRoutes(root, router.OnPath, lists)
 		if err != nil {
 			return withExitCode(1, fmt.Errorf("adding the routes of the installed CLIs: %w", err))
 		}
 		say("✓ model_router.yaml: %d routes for the CLIs on PATH", len(routes))
+		for _, line := range scaffold.DiscoverySummary(router.OnPath, lists, failed) {
+			say("· models: %s", line)
+		}
 		say("%s", reportFindingsNotice)
 		if remotes, err := exec.Command("git", "-C", root, "remote").Output(); err == nil && strings.TrimSpace(string(remotes)) == "" { // #nosec G204 -- fixed git subcommand
 			if err := scaffold.RunLocally(root); err != nil {

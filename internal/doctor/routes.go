@@ -3,6 +3,7 @@ package doctor
 import (
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/model"
@@ -40,6 +41,40 @@ func CheckRoutes(tasks []model.Task, r router.Router) Check {
 		}
 	}
 	return Check{Name: name, Status: StatusOK, Detail: fmt.Sprintf("%d task(s) resolve", len(tasks))}
+}
+
+// CheckModelsAvailable reports the routes in r whose CLI listed the models it
+// runs now (lists, from scaffold.DiscoverModels) without the route's
+// cli_model (#397). A warning only: "listed" is not "works" — an account may
+// not reach a listed model, and a list may lag — so it is a hint to look, not
+// a reason to refuse a run.
+func CheckModelsAvailable(r router.Router, lists map[model.Backend][]string) Check {
+	const name = "models.available"
+	if len(lists) == 0 {
+		return Check{Name: name, Status: StatusSkip, Detail: "no installed CLI that this router uses lists its models"}
+	}
+	checked := 0
+	var missing []string
+	for _, k := range r.Keys() {
+		e := r[k]
+		listed, ok := lists[e.Backend]
+		if !ok {
+			continue
+		}
+		checked++
+		if !slices.Contains(listed, e.CLIModel) {
+			missing = append(missing, fmt.Sprintf("%s (%s)", k, e.CLIModel))
+		}
+	}
+	if len(missing) > 0 {
+		return Check{
+			Name: name, Status: StatusWarn,
+			Detail: fmt.Sprintf("%d route(s) name a model their CLI does not list: %s",
+				len(missing), strings.Join(missing, "; ")),
+			Remediation: "Point each route at a model its CLI lists (`opencode models`, `agy models`, `codex debug models`), or remove it.",
+		}
+	}
+	return Check{Name: name, Status: StatusOK, Detail: fmt.Sprintf("%d route(s) on a CLI that lists its models, each listed", checked)}
 }
 
 // CheckDefaultModels reports tier defaults (tasks.json's

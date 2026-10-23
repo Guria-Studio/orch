@@ -733,6 +733,40 @@ default_timeout_multiplier: 1.5  # timeout = estimateHours × this
 
 ---
 
+## `model_router.yaml` — the routes
+
+`.orchestrator/model_router.yaml` maps each `tasks.json` model key to a
+backend CLI, its `cli_model`, a `tier` (premium | standard | cheap), and
+optionally `fallback_cli_model`, `escalation_model`, `effort` and
+`service_tier`. The field list is in the packaged file's header
+(`internal/scaffold/defaults/model_router.yaml`); `orch router` maintains it.
+
+**Where a new project's routes come from (#397).** `orch init` and `orch
+start` begin from orch's packaged routes for the CLIs on PATH, and ask each
+installed CLI that can list its models which ones it runs now:
+
+| CLI | Model list | |
+|---|---|---|
+| `opencode` | `opencode models` | one `provider/model` per line, only the providers you configured |
+| `agy` | `agy models` | `id<TAB>name` per line |
+| `codex` | `codex debug models` | the bundled catalog, JSON; the models it shows (`visibility: list`) |
+| `claude`, `gemini`, `muse` | none | packaged routes as they are |
+
+The list only **removes**: a packaged route whose `cli_model` its CLI does
+not list is not a tier default and is not seeded (an `escalation_model` that
+pointed at it is dropped with it). Tier, effort and fallbacks still come from
+the packaged route. Listed models with no route are printed, not added. Each
+CLI gets 5 seconds; one that fails, hangs or prints nothing readable keeps
+its packaged routes, and the summary says so. Discovery writes no config key
+and nothing to turn off: offline, it is the packaged router as before.
+
+"Listed" is not "works" — an account may not reach a model its CLI lists —
+so afterwards it is a hint, not a gate: `orch doctor`'s `models.available`
+warns about routes whose model their CLI no longer lists, and never fails a
+run.
+
+---
+
 ## Keys that are ignored
 
 orch warns once per key and carries on. It does **not** fail: a config written
