@@ -373,7 +373,9 @@ deixou: erro, passo, captura, vídeo, trace) e Share (o túnel). **Logs** abre c
 antigos (`/kanban`, `/budget`, `/tunnel`…) redirecionam para o novo lugar.
 **⌘K** (Ctrl+K) busca páginas, tasks e filtros e copia comandos da CLI; `g` e
 depois `n`/`w`/`c`/`d` troca de destino, `/` busca na lista de tasks e `?`
-mostra todos os atalhos.
+mostra todos os atalhos. A página de uma task mostra a descrição como
+Markdown: código inline, e blocos com a linguagem, cores de sintaxe e um botão
+de copiar (Editar continua mostrando o texto cru).
 
 O dashboard está em inglês, espanhol e português (Brasil). Ele começa no idioma
 do seu navegador e, se não for nenhum desses, em inglês; o botão de idioma no
@@ -610,7 +612,10 @@ planejamento — `orch-plan` executa `orch-prd` (ideia → `docs/prd/`),
 `orch-arch` (→ `docs/arch/`), `orch-spec` (→ `specs/`, no formato exato
 que `orch atomize` lê) e `orch-tasks` (→ `tasks.json` via
 `orch atomize --apply`), parando para você depois de cada documento e
-antes de aplicar qualquer coisa.
+antes de aplicar qualquer coisa. A página Sistema › Skills do dashboard tem
+uma aba **Como funciona** que percorre esses passos — cada skill, o que lê e o
+que escreve, o comando que a inicia — e marca as que nenhuma CLI tem
+instaladas ainda.
 
 ---
 
