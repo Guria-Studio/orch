@@ -26,7 +26,8 @@ func runOrch(t *testing.T, stdin string, args ...string) (string, error) {
 // a yes.
 func TestClaudePermissionsAsksBeforeWriting(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "proj")
-	if out, err := runOrch(t, "", "init", dir); err != nil {
+	// init would grant them itself (#400).
+	if out, err := runOrch(t, "", "init", dir, "--no-permissions"); err != nil {
 		t.Fatalf("init: %v\n%s", err, out)
 	}
 	settings := filepath.Join(dir, ".claude", "settings.json")
@@ -52,7 +53,7 @@ func TestClaudePermissionsAsksBeforeWriting(t *testing.T) {
 
 func TestClaudePermissionsYesDoesNotAsk(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "proj")
-	if out, err := runOrch(t, "", "init", dir); err != nil {
+	if out, err := runOrch(t, "", "init", dir, "--no-permissions"); err != nil {
 		t.Fatalf("init: %v\n%s", err, out)
 	}
 	if out, err := runOrch(t, "", "claude-permissions", "--project-root", dir, "--yes"); err != nil || strings.Contains(out, "[Y/n]") {
@@ -63,10 +64,10 @@ func TestClaudePermissionsYesDoesNotAsk(t *testing.T) {
 	}
 }
 
-// The wizard offers the rules once the project is written; batch init only
-// names the command (TestInitNextStepsOnlyNameCommandsThatExist checks it
-// resolves).
+// The wizard offers the rules once the project is written, Enter accepts;
+// batch init writes them without asking (#400).
 func TestInitWizardOffersClaudePermissions(t *testing.T) {
+	fakeCLIs(t, "claude")
 	// The wizard scaffolds into the current directory (#376).
 	dir := filepath.Join(t.TempDir(), "wiz")
 	if err := os.Mkdir(dir, 0o750); err != nil {
@@ -91,8 +92,8 @@ func TestInitWizardOffersClaudePermissions(t *testing.T) {
 
 	batch := filepath.Join(t.TempDir(), "batch")
 	out, _ = runOrch(t, "", "init", batch)
-	if !strings.Contains(out, "orch claude-permissions --project-root") || strings.Contains(out, "Add them?") || fileExists(filepath.Join(batch, ".claude", "settings.json")) {
-		t.Errorf("batch init should list the command, not ask or write:\n%s", out)
+	if strings.Contains(out, "Add them?") || len(doctor.MissingOrchRules(batch)) != 0 {
+		t.Errorf("batch init should write the rules without asking:\n%s", out)
 	}
 }
 

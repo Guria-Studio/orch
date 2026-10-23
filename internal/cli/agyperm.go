@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -98,22 +97,4 @@ func offerAgyPermissions(ask func(question string) (bool, error), out io.Writer,
 			"`%s --all-commands` allows them all.", doctor.AgyPermissionsCommand)
 	}
 	return nil
-}
-
-// offerAgyPermissionsIfInstalled is what init and start do: ask, only when
-// agy is on PATH. Without a way to ask it names the command instead, because
-// the file is the user's, not the project's.
-func offerAgyPermissionsIfInstalled(ask func(question string) (bool, error), out io.Writer) error {
-	if _, err := exec.LookPath("agy"); err != nil {
-		return nil
-	}
-	if path := agySettingsPath(); path == "" || len(doctor.MissingAgyRules(path, doctor.AgyToolRules)) == 0 {
-		return nil
-	}
-	_, _ = fmt.Fprintln(out)
-	if ask == nil {
-		_, _ = fmt.Fprintf(out, "agy is installed: run `%s` so its agents can report a task done.\n", doctor.AgyPermissionsCommand)
-		return nil
-	}
-	return offerAgyPermissions(ask, out, false, false)
 }

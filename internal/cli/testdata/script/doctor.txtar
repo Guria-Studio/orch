@@ -51,6 +51,34 @@ stdout '"exit_code":2'
 stdout '"name":"router\.parse","status":"error","detail":"router load failed:'
 stdout '"exit_code":2'
 
+# Readiness (#392). T1 is done and T2 waits in backlog with its dependency
+# done: doctor names it with the command that promotes it, puts every check
+# in its section, and ends on a verdict. Which check blocks first depends on
+# the CLIs this machine has, so only the shape is asserted here; the order is
+# internal/doctor's TestVerdict.
+! exec orch doctor --json --project-root ready --project-id ready
+stdout '"name":"tasks\.backlog","status":"warn","detail":"1 backlog task\(s\) have their dependencies done and wait to be promoted: T2","remediation":"Promote the ones to run: orch task-status T2 todo","section":"tasks"'
+stdout '"name":"tasks\.ready","status":"warn"[^}]*"section":"tasks"'
+stdout '"name":"tasks\.valid","status":"ok"[^}]*"section":"config"'
+stdout '"name":"claude\.permissions","status":"warn"[^}]*"section":"permissions"'
+! stdout '"name":"agy\.permissions"'
+stdout '"verdict":\{"ready":false,"blocker":\{"name":'
+! exec orch doctor --project-root ready --project-id ready
+stdout '^Tasks$'
+stdout '^Permissions$'
+stdout '^Not ready to `orch run`: '
+
+# A tasks.json that does not parse is a config error, not zero tasks.
+! exec orch doctor --json --project-root badtasks --project-id badtasks
+stdout '"name":"tasks\.parse","status":"error"[^}]*"section":"config"'
+
+-- ready/tasks.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"T1","phase":1,"title":"Model","model":"claude/claude-haiku-4-5","status":"done","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T2","phase":1,"title":"API","model":"claude/claude-haiku-4-5","status":"backlog","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
+]}
+-- badtasks/tasks.json --
+{"tasks": [
 -- badcfg/tasks.json --
 {"meta":{},"phases":[],"tasks":[]}
 -- badcfg/.orchestrator/config.yaml --

@@ -116,6 +116,7 @@ Flags:
       --advanced              Also ask the project root, state backend, budget preset, spec root, tier models and openspec layout
       --force                 Overwrite an existing project's files
   -h, --help                  help for init
+      --no-permissions        Do not allow orch's agent rules in the settings of the CLIs the project uses; orch claude-permissions / orch agy-permissions add them later
       --no-report-findings    Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)
       --project-name string   Name used in generated files; default = the directory name
       --sdd                   Also scaffold the openspec/ layout
@@ -142,6 +143,20 @@ Eso escribe `.orchestrator/config.yaml`, `.orchestrator/model_router.yaml`,
 [§11](#11-mcp--que-un-agente-maneje-orch-directamente) — que se deja
 intacto en un re-`init`, `--force` incluido, porque puede que ya liste
 otros servidores MCP del proyecto.
+
+Un agente reporta su tarea con `scripts/task-finish.sh` / `task-block.sh` y
+las herramientas MCP de orch, y una CLI corriendo headless rechaza lo que no
+tiene una regla. Por eso `orch init` y `orch start` **otorgan por defecto los
+permisos básicos de orch** a cada CLI a la que rutea el proyecto y que está en
+tu `PATH` — nunca a una que no usa, y sólo esas reglas acotadas, nunca un flag
+para saltear permisos: las de claude en el `.claude/settings.json` del
+proyecto, las de agy en `~/.gemini/antigravity-cli/settings.json` (fuera del
+proyecto, así que imprime la ruta y cada regla agregada). El wizard pregunta y
+Enter acepta; `init` en modo batch y `start --yes` las escriben directamente.
+`--no-permissions` no escribe nada y nombra `orch claude-permissions` /
+`orch agy-permissions`, que las agregan después. codex, opencode y muse no
+necesitan nada escrito; `orch doctor` informa cada CLI (gemini como
+desconocido).
 
 Un proyecto nuevo trae `report_findings.enabled: false`. Los agentes pueden
 abrir issues **públicos** sobre orch en hectorcanaimero/orch con tu login de
@@ -641,6 +656,17 @@ efectivamente en `PATH`, completitud del ruteo, cordura del preset de
 budget, worktrees de git huérfanos, disponibilidad de VCS (repo/remote/auth),
 si existe `.mcp.json`, y salud de SQLite. Misma convención de exit code
 que `validate`: `0` limpio, `1` sólo warnings, `2` al menos un error.
+
+También es un **reporte de preparación**, en cinco secciones — Config
+(config, router, tasks.json, modelos), Backends, Tasks, Permissions,
+Environment — y termina con un veredicto: ``Ready to `orch run`.`` o lo primero
+que lo impide. Tasks dice qué tareas despacharía `orch run` ahora y lista las
+tareas en `backlog` con sus dependencias terminadas, con
+`orch task-status <id> todo` para cada una. Permissions tiene un check
+`<cli>.permissions` por cada CLI que usa el proyecto: si su agente puede
+reportar una tarea terminada (las reglas de claude y agy, el `--add-dir` con
+que codex recibe el directorio de estado). `orch doctor --json` incluye la
+`section` de cada check y el `verdict`.
 
 ### Una task bloqueada
 

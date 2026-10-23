@@ -52,10 +52,11 @@ func TestInitNextStepsOnlyNameCommandsThatExist(t *testing.T) {
 					t.Errorf("init tells the user to run `%s`: %s", inv, problem)
 				}
 			}
-			// orch run, install-skills, claude-permissions: an extractor that
-			// finds none would make this a test of nothing.
-			if checked < 3 {
-				t.Fatalf("found %d orch commands in init's output, want at least 3:\n%s", checked, out.String())
+			// orch run and orch start (claude-permissions is no longer a
+			// next step: init grants the rules itself, #400): an extractor
+			// that finds none would make this a test of nothing.
+			if checked < 2 {
+				t.Fatalf("found %d orch commands in init's output, want at least 2:\n%s", checked, out.String())
 			}
 		})
 	}
