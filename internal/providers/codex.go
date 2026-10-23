@@ -53,6 +53,10 @@ func (CodexProvider) Argv(req Request) []string {
 	if e := req.Route.Effort; e != nil && *e != "" {
 		argv = append(argv, "-c", fmt.Sprintf("model_reasoning_effort=%q", *e))
 	}
+	// The route's service tier, else ~/.codex/config.toml's (#416).
+	if t := req.Route.ServiceTier; t != nil && *t != "" {
+		argv = append(argv, "-c", fmt.Sprintf("service_tier=%q", *t))
+	}
 	// --approve-for-me's workspace-write sandbox lets the agent write its
 	// worktree and /tmp only; the project's orch.db is elsewhere (#387).
 	for _, dir := range req.WritableDirs {
@@ -72,7 +76,14 @@ func (CodexProvider) DefaultOutputPath(logsDir, taskID string) string {
 // substrings, case-sensitively, as in Python.
 var codexNonFatalWarnings = []string{
 	"Skill descriptions were shortened",
+	codexTierNotAdvertised,
 }
+
+// codexTierNotAdvertised ends codex's warning for a service_tier the model
+// does not offer: "Configured service tier `flex` is not advertised as
+// supported for model `gpt-6-astra` and will be omitted from requests." The
+// run goes on at the standard tier (#416), and the warning stays in its log.
+const codexTierNotAdvertised = "will be omitted from requests"
 
 // Parse reads the JSONL event stream from a finished run's captured output.
 func (CodexProvider) Parse(exitCode int, output []byte) Result {

@@ -87,6 +87,9 @@ func TestRecordStart(t *testing.T) {
 	if got := ev.Extra["pid"]; !numericEquals(got, 4242) {
 		t.Errorf("extra pid = %v (%T), want 4242", got, got)
 	}
+	if _, ok := ev.Extra["service_tier"]; ok {
+		t.Errorf("a route with no service tier recorded one: %v", ev.Extra)
+	}
 	if _, ok := ev.Extra["effort"]; ok {
 		t.Errorf("a route with no effort recorded one: %v", ev.Extra)
 	}
@@ -480,8 +483,9 @@ func TestRecordStartNamesTheRouteEffort(t *testing.T) {
 	ctx := context.Background()
 	b := openBackend(t)
 	d := recordDispatch("B-021")
-	high := "high"
+	high, tier := "high", "default"
 	d.Req.Route.Effort = &high
+	d.Req.Route.ServiceTier = &tier // #416
 	if err := RecordStart(ctx, b, "run-1", d, &Spawned{PID: 4243, StartedAt: time.Now()}, 1); err != nil {
 		t.Fatalf("RecordStart: %v", err)
 	}
@@ -489,7 +493,7 @@ func TestRecordStartNamesTheRouteEffort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if len(events) != 1 || events[0].Extra["effort"] != "high" {
-		t.Errorf("dispatch event = %+v, want effort high", events)
+	if len(events) != 1 || events[0].Extra["effort"] != "high" || events[0].Extra["service_tier"] != "default" {
+		t.Errorf("dispatch event = %+v, want effort high, service_tier default", events)
 	}
 }

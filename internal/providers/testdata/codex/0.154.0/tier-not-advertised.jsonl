@@ -1,0 +1,6 @@
+Reading prompt from stdin...
+{"type":"thread.started","thread_id":"01a1660d-9856-78b2-b0b9-9ed7e79874e7"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Configured service tier `flex` is not advertised as supported for model `gpt-6-astra` and will be omitted from requests."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"ok"}}
+{"type":"turn.completed","usage":{"input_tokens":18131,"cached_input_tokens":12032,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0}}
