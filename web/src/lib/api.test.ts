@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { apiClient, getPortfolio, noteTask, PortfolioShapeError, stopTask } from "@/lib/api"
+import { addTask, apiClient, editTask, getPortfolio, moveTask, noteTask, PortfolioShapeError, stopTask } from "@/lib/api"
 import type { Portfolio } from "@/lib/types"
 
 // The agreed shape (coordination note in
@@ -105,5 +105,32 @@ describe("stopTask / noteTask", () => {
   it("rejects with the server's detail", async () => {
     vi.spyOn(apiClient, "post").mockRejectedValue({ response: { data: { detail: "loopback only" } } })
     await expect(stopTask("F1.T2", false, "")).rejects.toThrow("loopback only")
+  })
+})
+
+describe("addTask / editTask / moveTask", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("sends each to its route, id encoded", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({ data: {} })
+    await addTask({ id: "T-9", title: "Docs", model: "claude/sonnet", backlog: true })
+    expect(request).toHaveBeenCalledWith({
+      method: "post",
+      url: "/api/tasks",
+      data: { id: "T-9", title: "Docs", model: "claude/sonnet", backlog: true },
+    })
+    await editTask("F1/T2", { title: "Schema" })
+    expect(request).toHaveBeenLastCalledWith({ method: "patch", url: "/api/task/F1%2FT2", data: { title: "Schema" } })
+    await moveTask("F1.T2", "blocked", "no key")
+    expect(request).toHaveBeenLastCalledWith({
+      method: "post",
+      url: "/api/task/F1.T2/status",
+      data: { status: "blocked", note: "no key" },
+    })
+  })
+
+  it("rejects with the server's detail", async () => {
+    vi.spyOn(apiClient, "request").mockRejectedValue({ response: { data: { detail: "a cycle" } } })
+    await expect(editTask("F1.T2", { dependencies: ["F1.T3"] })).rejects.toThrow("a cycle")
   })
 })

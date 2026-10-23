@@ -2,6 +2,7 @@ package project_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -107,5 +108,57 @@ func TestStopWithNoRunIsAPlainChange(t *testing.T) {
 	defer func() { _ = f.Close() }()
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		t.Errorf("Stop left the run lock taken: %v", err)
+	}
+}
+
+// Move (v0.22, the board's drag): with a run live, a running task moved to
+// blocked is a stop request, not a status change behind the run's back; and
+// only orch run starts a task or finishes a running one.
+func TestMoveLeavesARunningTaskToItsRun(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	db, _, err := state.Open(ctx, filepath.Join(dir, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	backend := state.NewSQLite(db, "p", dir)
+	if err := backend.Bootstrap(ctx, []model.Task{
+		{ID: "T-1", Title: "t", Status: model.StatusInProgress},
+		{ID: "T-2", Title: "u", Status: model.StatusTodo},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A run holds its lock.
+	f, err := os.Create(filepath.Join(dir, project.RunLockFile)) // #nosec G304 -- a temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	steer := project.Steer{Backend: backend, StateDir: dir, Source: "dashboard"}
+
+	if _, err := steer.Move(ctx, "T-1", model.StatusBlocked, ""); err == nil {
+		t.Error("blocking with no reason was accepted")
+	}
+	res, err := steer.Move(ctx, "T-1", model.StatusBlocked, "wrong approach")
+	if err != nil || !res.Requested || !res.Hold {
+		t.Fatalf("Move to blocked = %+v, %v; want a hold request to the run", res, err)
+	}
+	if rt, _ := backend.Task(ctx, "T-1"); rt.Status != model.StatusInProgress {
+		t.Errorf("T-1 = %s: moved behind the run's back", rt.Status)
+	}
+	for _, c := range []struct {
+		id string
+		to model.Status
+	}{{"T-1", model.StatusDone}, {"T-2", model.StatusInProgress}} {
+		if _, err := steer.Move(ctx, c.id, c.to, ""); !errors.Is(err, project.ErrRunOwnsTask) {
+			t.Errorf("Move %s to %s = %v, want ErrRunOwnsTask", c.id, c.to, err)
+		}
+	}
+	if res, err := steer.Move(ctx, "T-2", model.StatusDone, ""); err != nil || res.To != model.StatusDone {
+		t.Errorf("Move T-2 to done = %+v, %v", res, err)
 	}
 }

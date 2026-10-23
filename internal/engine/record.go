@@ -80,6 +80,10 @@ func RecordStart(ctx context.Context, b state.Backend, runID string, d Dispatch,
 	if e := d.Req.Route.Effort; e != nil && *e != "" {
 		extra["effort"] = *e
 	}
+	// Likewise the codex service tier it asked for (#416).
+	if t := d.Req.Route.ServiceTier; t != nil && *t != "" {
+		extra["service_tier"] = *t
+	}
 	if err := b.AppendEvent(ctx, runID, state.Event{
 		RunID:     runID,
 		EventType: EventDispatch,

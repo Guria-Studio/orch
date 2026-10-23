@@ -486,7 +486,8 @@ var defaultsDivergedFromPython = map[string]string{
 		"entries route to. #382: agy 1.4 accepts neither gemini-3.1-pro-high nor gemini-3.7-flash-medium " +
 		"(\"not recognized as a known model\"); agy/pro and agy/flash route to gemini-4-argon-high and " +
 		"gemini-3.8-flash-medium, both run against agy 1.4.2 (router/testdata/packaged.golden.json edited to match). " +
-		"#388: the header documents the optional `effort` field, which codex now honours",
+		"#388: the header documents the optional `effort` field, which codex now honours. " +
+		"#416: and codex's optional `service_tier`",
 }
 
 // The three packaged defaults started as copies of Python's, so they get the
