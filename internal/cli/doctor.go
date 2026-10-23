@@ -135,6 +135,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				Provider:     cfg.VCS.Provider,
 				Host:         cfg.VCS.Host,
 			})...)
+			checks = append(checks, checkRunBase(paths.Root, cfg.Dispatch.BaseBranch, cfg.Dispatch.WorktreeMode))
 			checks = append(checks, doctor.CheckMCPConfig(paths.Root))
 			checks = append(checks, doctor.CheckCIStack(paths.Root))
 			if cfg.VCS.AutoPR {
@@ -207,6 +208,20 @@ func checkTasksValid(tasks []model.Task) doctor.Check {
 		}
 	}
 	return c
+}
+
+// checkRunBase is the precondition `orch run` enforces in worktree mode: a
+// base branch with a commit to branch from (baseProblem, #376). Without it
+// the run refuses to start, so doctor's verdict cannot say ready (#392).
+func checkRunBase(root, base string, worktreeMode bool) doctor.Check {
+	const name = "vcs.base_branch"
+	if !worktreeMode {
+		return doctor.Check{Name: name, Status: doctor.StatusSkip, Detail: "dispatch.worktree_mode is off: agents work in the project root"}
+	}
+	if problem := baseProblem(root, base); problem != "" {
+		return doctor.Check{Name: name, Status: doctor.StatusError, Detail: "`orch run` refuses to start: " + problem}
+	}
+	return doctor.Check{Name: name, Status: doctor.StatusOK, Detail: "task branches have a commit to start from"}
 }
 
 // hydrateForDoctor gives tasks the database's status. A project with no
