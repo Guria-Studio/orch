@@ -118,6 +118,14 @@ describe("TaskPage", () => {
     expect(line).not.toHaveClass("truncate")
   })
 
+  // #428: the description reads as markdown, not raw backticks.
+  it("renders the description as markdown", async () => {
+    get.mockImplementation((url: string) => Promise.resolve({ data: url === "/api/task/F6.1.T1" ? { ...task, description: "Edit `config.ts` **now**." } : { events: [], steps: [] } }))
+    renderAt([taskPath("F6.1.T1")])
+    expect((await screen.findByText("config.ts")).tagName).toBe("CODE")
+    expect(screen.getByText("now").tagName).toBe("STRONG")
+  })
+
   it("goes back to the board it came from, filters and all", async () => {
     renderAt(["/work/kanban?status=blocked", taskPath("F6.1.T1")])
     fireEvent.click(await screen.findByRole("button", { name: "Back" }))

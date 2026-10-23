@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
+import { Markdown } from "@/components/Markdown"
 import { StatusRing } from "@/components/StatusRing"
 import { TaskSteer } from "@/components/TaskSteer"
 import { useTicker } from "@/hooks/useNow"
@@ -663,9 +664,11 @@ export function TaskPage() {
               ) : (
                 <div className="space-y-2.5">
                   <h1 className="text-2xl font-semibold leading-tight tracking-[-0.02em]">{data.title}</h1>
-                  <p className={cn("whitespace-pre-wrap text-sm leading-[22px]", data.description ? "text-foreground/85" : "text-muted-foreground")}>
-                    {data.description || t("task.no_description")}
-                  </p>
+                  {data.description ? (
+                    <Markdown source={data.description} breaks className="text-sm leading-[22px] text-foreground/85" />
+                  ) : (
+                    <p className="text-sm leading-[22px] text-muted-foreground">{t("task.no_description")}</p>
+                  )}
                 </div>
               )}
 

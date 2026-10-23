@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from "react"
-import DOMPurify from "dompurify"
-import { marked } from "marked"
+import { useEffect } from "react"
 import { AlertTriangle } from "lucide-react"
+import { Markdown } from "@/components/Markdown"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { markReleasesSeen, useReleases, type ReleaseItem } from "@/hooks/useReleases"
@@ -9,15 +8,9 @@ import { fmt, t } from "@/i18n"
 import { describeLoadError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 
-// Release notes come from GitHub; nothing executable reaches the page.
-function notesHTML(markdown: string): string {
-  return DOMPurify.sanitize(marked.parse(markdown, { async: false }) as string)
-}
-
 const chip = "inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium"
 
 function Release({ r }: { r: ReleaseItem }) {
-  const html = useMemo(() => notesHTML(r.notes), [r.notes])
   return (
     <li className="grid gap-x-6 gap-y-2 py-5 sm:grid-cols-[9rem_minmax(0,1fr)]" data-testid={`release-${r.tag}`}>
       <div className="flex items-baseline gap-2 sm:flex-col sm:gap-0.5">
@@ -37,10 +30,8 @@ function Release({ r }: { r: ReleaseItem }) {
           </div>
         ) : null}
         {r.notes.trim() ? (
-          <div
-            className="prose prose-sm dark:prose-invert prose-code:before:content-none prose-code:after:content-none prose-headings:text-sm max-w-none break-words text-[13px] text-muted-foreground [&_a]:text-brand [&_li]:my-1 [&_ul]:list-disc [&_ul]:pl-5"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          // Release notes come from GitHub; Markdown sanitizes them.
+          <Markdown source={r.notes} className="text-[13px] text-muted-foreground" />
         ) : (
           <p className="text-[13px] text-muted-foreground">{t("releases.no_notes")}</p>
         )}
