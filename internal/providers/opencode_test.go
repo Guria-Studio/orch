@@ -263,9 +263,19 @@ func TestOpencodeStepFinishPayloadPrefersPart(t *testing.T) {
 	flat := `{"type":"step_finish","reason":"stop","tokens":{"input":5,"output":7},"cost":1}`
 
 	for _, line := range []string{nested, flat} {
-		cost, in, out := sumStepFinishCosts(jsonlEvents([]byte(line)))
+		cost, in, out, _ := sumStepFinishCosts(jsonlEvents([]byte(line)))
 		if cost != 1 || in != 5 || out != 7 {
 			t.Errorf("%s → (%v,%d,%d), want (1,5,7)", line, cost, in, out)
 		}
+	}
+}
+
+// #417: opencode reports reasoning outside `output` (total = input + output +
+// reasoning + cache.read), yet it is output the model is billed for. It used
+// to be left out of the spend, so the budget never saw it.
+func TestOpencodeReasoningCountsAsOutput(t *testing.T) {
+	res := OpencodeProvider{}.Parse(0, readFixture(t, "opencode", "1.18.32", "tools.json"))
+	if res.TokensOut != 97+16+13+9 || res.ReasoningTokens != 13+9 {
+		t.Errorf("out %d, reasoning %d; want 135, 22", res.TokensOut, res.ReasoningTokens)
 	}
 }

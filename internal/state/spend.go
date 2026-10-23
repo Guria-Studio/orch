@@ -27,7 +27,7 @@ func (b *SQLite) AllSpend(ctx context.Context, since time.Time) ([]Spend, error)
 	rows, err := b.db.read.QueryContext(ctx,
 		`SELECT project_id, ts, task_id, backend, model, tokens_in, tokens_out,
 		        cost_usd, duration_s, COALESCE(estimated, 0),
-		        cache_read_tokens, cache_creation_tokens
+		        cache_read_tokens, cache_creation_tokens, reasoning_tokens, attempt
 		   FROM spend
 		  WHERE project_id = ?`,
 		b.projectID)
@@ -43,7 +43,7 @@ func (b *SQLite) AllSpend(ctx context.Context, since time.Time) ([]Spend, error)
 		var estimated int
 		if err := rows.Scan(&s.ProjectID, &s.TS, &s.TaskID, &s.Backend, &s.Model,
 			&s.TokensIn, &s.TokensOut, &s.CostUSD, &s.DurationS, &estimated,
-			&s.CacheReadTokens, &s.CacheCreationTokens); err != nil {
+			&s.CacheReadTokens, &s.CacheCreationTokens, &s.ReasoningTokens, &s.Attempt); err != nil {
 			return nil, fmt.Errorf("scan spend row: %w", err)
 		}
 		s.Estimated = estimated != 0

@@ -200,6 +200,7 @@ func TestDefaultAllowListShape(t *testing.T) {
 	for _, denied := range []struct{ path, route string }{
 		{"/api/tasks", "api_tasks"},
 		{"/api/metrics", "api_metrics"},
+		{"/api/usage", "api_usage"},
 		{"/api/budget/summary", "api_budget_summary"},
 		{"/api/config", "api_config"},
 		{"/api/events", "api_events"},

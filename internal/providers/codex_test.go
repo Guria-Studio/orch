@@ -509,6 +509,14 @@ func TestCodexParseCountsCachedInput(t *testing.T) {
 	}
 }
 
+// #417: codex counts reasoning inside output_tokens; the result keeps both.
+func TestCodexReasoningIsPartOfTheOutput(t *testing.T) {
+	res := CodexProvider{}.Parse(0, readFixture(t, "codex", "0.154.0", "reasoning.jsonl"))
+	if res.TokensOut != 37 || res.ReasoningTokens != 30 {
+		t.Errorf("out %d, reasoning %d; want 37, 30", res.TokensOut, res.ReasoningTokens)
+	}
+}
+
 // TestCodexArgvForwardsTheRouteServiceTier is #416: a global Fast mode in
 // ~/.codex/config.toml (service_tier = "priority") was forced on every orch
 // dispatch. A route's service_tier now overrides it; "default" is the
@@ -540,4 +548,3 @@ func TestCodexTierTheModelDoesNotOfferIsNotAFailure(t *testing.T) {
 		t.Errorf("Parse = success %v, text %q, error %q; want a success", res.Success, res.Text, res.ErrorMessage)
 	}
 }
-

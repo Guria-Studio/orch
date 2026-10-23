@@ -112,8 +112,14 @@ type Spend struct {
 	// them; everything else reports TokensIn as is.
 	CacheReadTokens     int
 	CacheCreationTokens int
-	CostUSD             float64
-	DurationS           float64
+	// ReasoningTokens is the part of TokensOut the model spent reasoning, 0
+	// when the CLI does not say (#417).
+	ReasoningTokens int
+	// Attempt is the task's attempt this dispatch was; 0 on rows from before
+	// migration 008.
+	Attempt   int
+	CostUSD   float64
+	DurationS float64
 	// Estimated marks a row whose token counts orch inferred because the
 	// provider reported none. Downstream surfaces flag it so nobody reads
 	// an invented number as telemetry.

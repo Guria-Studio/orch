@@ -118,12 +118,12 @@ func TestRecordFinishSuccess(t *testing.T) {
 		Result: providers.Result{
 			Success: true, ExitCode: 0,
 			CostUSD: 0.0475971, TokensIn: 60132, TokensOut: 603,
-			CacheCreationTokens: 19792, CacheReadTokens: 40321,
+			CacheCreationTokens: 19792, CacheReadTokens: 40321, ReasoningTokens: 120,
 		},
 		StartedAt: start,
 		Duration:  90 * time.Second,
 	}
-	if err := RecordFinish(ctx, b, "run-1", d, out, 1); err != nil {
+	if err := RecordFinish(ctx, b, "run-1", d, out, 2); err != nil {
 		t.Fatalf("RecordFinish: %v", err)
 	}
 
@@ -147,6 +147,10 @@ func TestRecordFinishSuccess(t *testing.T) {
 	}
 	if s.DurationS != 90 {
 		t.Errorf("DurationS = %v, want 90", s.DurationS)
+	}
+	// #417: what part of the output was reasoning, and which attempt paid.
+	if s.ReasoningTokens != 120 || s.Attempt != 2 {
+		t.Errorf("reasoning %d, attempt %d; want 120, 2", s.ReasoningTokens, s.Attempt)
 	}
 	if s.Model != "claude-haiku-4-5-20251001" {
 		t.Errorf("Model = %q", s.Model)

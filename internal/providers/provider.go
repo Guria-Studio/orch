@@ -102,7 +102,11 @@ type Result struct {
 	TokensIn            int
 	CacheReadTokens     int
 	CacheCreationTokens int
-	TokensOut           int
+	// TokensOut counts every output token, reasoning included;
+	// ReasoningTokens says how much of it was reasoning, when the CLI says
+	// (codex, opencode, agy; #417).
+	TokensOut       int
+	ReasoningTokens int
 
 	// Stdout is the captured log — stdout and stderr merged, because that is
 	// how the engine spawns children (dispatcher.py: `stderr=STDOUT`). Claude's

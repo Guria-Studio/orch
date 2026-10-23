@@ -120,6 +120,8 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 		TokensOut:           o.Result.TokensOut,
 		CacheReadTokens:     o.Result.CacheReadTokens,
 		CacheCreationTokens: o.Result.CacheCreationTokens,
+		ReasoningTokens:     o.Result.ReasoningTokens,
+		Attempt:             attempt,
 		CostUSD:             o.Result.CostUSD,
 		DurationS:           o.Duration.Seconds(),
 		Estimated:           o.Result.Estimated,

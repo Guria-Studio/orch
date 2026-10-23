@@ -425,3 +425,25 @@ func TestMoneyEndpointsAreGated(t *testing.T) {
 		}
 	}
 }
+
+// /api/usage (#417) is usage.Build over the project's spend.
+func TestUsageSplitsTheSpend(t *testing.T) {
+	f := &fakeState{spends: []state.Spend{
+		spend("claude-sonnet-4-6", 1000, 500, 0.99, "2026-09-01T10:00:00Z", "T-1"),
+		spend("gpt-5", 2000, 10, 0, "2026-09-02T10:00:00Z", "T-2"),
+	}}
+	s, _ := newMoneyServer(t, f, nil)
+	var got struct {
+		Total struct {
+			Dispatches int `json:"dispatches"`
+			Output     int `json:"output"`
+		} `json:"total"`
+		ByTask []struct {
+			TaskID string `json:"task_id"`
+		} `json:"by_task"`
+	}
+	decode(t, get(t, s, "/api/usage"), &got)
+	if got.Total.Dispatches != 2 || got.Total.Output != 510 || len(got.ByTask) != 2 || got.ByTask[0].TaskID != "T-2" {
+		t.Errorf("usage = %+v", got)
+	}
+}

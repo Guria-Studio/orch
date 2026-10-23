@@ -88,7 +88,7 @@ func (OpencodeProvider) Parse(exitCode int, output []byte) Result {
 	}
 
 	success := exitCode == 0 && !hasError && terminalOK
-	cost, tokensIn, tokensOut := sumStepFinishCosts(events)
+	cost, tokensIn, tokensOut, reasoning := sumStepFinishCosts(events)
 	cacheRead, cacheWrite := sumStepFinishCache(events)
 
 	// Issue #8: a stream with step_finish events but no usage numbers is a
@@ -123,6 +123,7 @@ func (OpencodeProvider) Parse(exitCode int, output []byte) Result {
 		CostUSD:             cost,
 		TokensIn:            tokensIn,
 		TokensOut:           tokensOut,
+		ReasoningTokens:     reasoning,
 		CacheReadTokens:     cacheRead,
 		CacheCreationTokens: cacheWrite,
 		Stdout:              text,
@@ -156,7 +157,8 @@ func opencodeText(events []event) string {
 
 // ExtractCost reports cost and token counts in a captured opencode log.
 func (OpencodeProvider) ExtractCost(output []byte) (cost float64, tokensIn, tokensOut int) {
-	return sumStepFinishCosts(jsonlEvents(output))
+	cost, tokensIn, tokensOut, _ = sumStepFinishCosts(jsonlEvents(output))
+	return cost, tokensIn, tokensOut
 }
 
 // opencodeErrorMessage renders the operator-facing reason from an error event.
@@ -212,7 +214,7 @@ func stepFinishPayload(ev event) map[string]any {
 // Python shares this helper between codex and opencode; in Go only opencode
 // uses it, because codex 0.154 reports usage on `turn.completed` instead (see
 // sumCodexUsage).
-func sumStepFinishCosts(events []event) (cost float64, tokensIn, tokensOut int) {
+func sumStepFinishCosts(events []event) (cost float64, tokensIn, tokensOut, reasoning int) {
 	for _, ev := range events {
 		if ev.eventType() != "step_finish" {
 			continue
@@ -230,9 +232,13 @@ func sumStepFinishCosts(events []event) (cost float64, tokensIn, tokensOut int) 
 		if cache, ok := asObject(tokens["cache"]); ok {
 			tokensIn += toInt(cache["read"]) + toInt(cache["write"])
 		}
-		tokensOut += toInt(tokens["output"])
+		// Reasoning is output the model is billed for, and opencode reports
+		// it outside `output`: in the 1.18.32 captures `total` is input +
+		// output + reasoning + cache.read (#417).
+		reasoning += toInt(tokens["reasoning"])
+		tokensOut += toInt(tokens["output"]) + toInt(tokens["reasoning"])
 	}
-	return cost, tokensIn, tokensOut
+	return cost, tokensIn, tokensOut, reasoning
 }
 
 // sumStepFinishCache sums the cache part of the input tokens: `tokens.cache`
