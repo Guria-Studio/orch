@@ -47,6 +47,7 @@ func TestGet(t *testing.T) {
 		{name: "opencode", backend: model.BackendOpencode, want: model.BackendOpencode},
 		{name: "gemini", backend: model.BackendGemini, want: model.BackendGemini},
 		{name: "agy", backend: model.BackendAgy, want: model.BackendAgy},
+		{name: "muse", backend: model.BackendMuse, want: model.BackendMuse},
 		{name: "an unknown name", backend: model.Backend("bogus"), errContains: "unknown backend"},
 		{name: "the empty name", backend: model.Backend(""), errContains: "unknown backend"},
 	}
@@ -136,7 +137,7 @@ func TestParseNeverPanics(t *testing.T) {
 		"crlf line endings":       "{\"type\":\"turn.started\"}\r\n{\"type\":\"turn.completed\",\"usage\":{}}\r\n",
 	}
 
-	for _, p := range []Provider{ClaudeProvider{}} {
+	for _, p := range []Provider{ClaudeProvider{}, MuseProvider{}} {
 		for name, out := range outputs {
 			t.Run(string(p.Name())+"/"+name, func(t *testing.T) {
 				for _, exit := range []int{0, 1, -9} {
@@ -182,6 +183,7 @@ func TestEveryPortedBackendIsReachable(t *testing.T) {
 		model.BackendOpencode,
 		model.BackendGemini,
 		model.BackendAgy,
+		model.BackendMuse,
 	}
 	for _, b := range ported {
 		if notPorted[b] {

@@ -42,7 +42,7 @@ type Steer struct {
 
 // Providers are the backends orch has an adapter for, the names
 // SetProvider accepts.
-var Providers = []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendOpencode, model.BackendGemini, model.BackendAgy}
+var Providers = []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendOpencode, model.BackendGemini, model.BackendAgy, model.BackendMuse}
 
 // SetProvider turns dispatching to backend off (with the operator's reason)
 // or back on for this project: `orch run` leaves the tasks routed to a

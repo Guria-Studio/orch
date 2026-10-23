@@ -80,7 +80,8 @@ type SpawnRequest struct {
 	Req providers.Request
 	// PromptPath is the file whose bytes become the child's stdin, for a
 	// provider on providers.PromptStdin, or Req.PromptText, for one on
-	// providers.PromptArg when the caller left it empty. Python pipes the file rather than
+	// providers.PromptArg when the caller left it empty, or Req.PromptPath,
+	// for one on providers.PromptFile. Python pipes the file rather than
 	// embedding the prompt in the argv or using an @file reference, both of
 	// which hit escaping edge cases in practice.
 	PromptPath string
@@ -119,6 +120,10 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 			return nil, fmt.Errorf("spawn: read prompt: %w", err)
 		}
 		sr.Req.PromptText = string(text)
+	}
+	// A provider on PromptFile (muse) is handed the file itself.
+	if provider.PromptDelivery() == providers.PromptFile && sr.Req.PromptPath == "" {
+		sr.Req.PromptPath = sr.PromptPath
 	}
 	argv := provider.Argv(sr.Req)
 	if len(argv) == 0 {

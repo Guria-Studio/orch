@@ -33,6 +33,9 @@ const (
 	// PromptArg passes the prompt text as a CLI argument. gemini and agy
 	// need this; neither is ported yet.
 	PromptArg
+	// PromptFile hands the CLI the path of the prompt file the engine wrote,
+	// in Request.PromptPath. muse needs this: it reads no prompt from stdin.
+	PromptFile
 )
 
 // Request is everything a provider needs to build an argv for one dispatch.
@@ -64,6 +67,10 @@ type Request struct {
 	// PromptText is only read by providers whose PromptDelivery is
 	// PromptArg. Providers on PromptStdin ignore it.
 	PromptText string
+
+	// PromptPath is the rendered prompt file. Only read by providers whose
+	// PromptDelivery is PromptFile; the engine fills it from the dispatch.
+	PromptPath string
 
 	// SessionID correlates retries in the CLI's own session store. Only
 	// claude takes one. nil means "let the CLI pick"; see ClaudeProvider.Argv.
@@ -216,12 +223,14 @@ func Get(name model.Backend) (Provider, error) {
 		return GeminiProvider{}, nil
 	case model.BackendAgy:
 		return AgyProvider{}, nil
+	case model.BackendMuse:
+		return MuseProvider{}, nil
 	}
 	if notPorted[name] {
 		return nil, fmt.Errorf("backend %q: %w", name, ErrNotPorted)
 	}
 	return nil, fmt.Errorf(
-		"unknown backend %q; expected one of [claude codex opencode gemini agy]", name)
+		"unknown backend %q; expected one of [claude codex opencode gemini agy muse]", name)
 }
 
 // NewSessionID mints the per-dispatch session id claude correlates retries by.

@@ -83,13 +83,13 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	}
 
 	var installed []string
-	for _, b := range []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy} {
+	for _, b := range []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy, model.BackendMuse} {
 		if router.OnPath(b) {
 			installed = append(installed, string(b))
 		}
 	}
 	if len(installed) == 0 {
-		return withExitCode(1, errors.New("no AI CLI on PATH (claude, codex, gemini, opencode or agy); "+
+		return withExitCode(1, errors.New("no AI CLI on PATH (claude, codex, gemini, opencode, agy or muse); "+
 			"install one — claude plans the work: https://docs.anthropic.com/en/docs/claude-code"))
 	}
 	if err := exec.Command("git", "-C", root, "rev-parse", "--git-dir").Run(); err != nil { // #nosec G204 -- fixed git subcommand on the project root

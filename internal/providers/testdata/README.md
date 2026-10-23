@@ -254,6 +254,29 @@ touched and no test asserts on the path. Flagged here rather than left for a
 reader to notice, since "these bytes are what the CLI wrote" is the promise
 this whole directory makes.
 
+## `muse/1.4.12/` — real capture (#395)
+
+Captured on 2026-10-23 with Muse Code 1.4.12 in a scratch directory holding
+`scripts/task-finish.sh`, a stub that appends `done <id>` to a file outside the
+workspace and prints `reported`. Prompt, in a file:
+`Run exactly this command once and report its output: scripts/task-finish.sh T1`.
+
+```
+muse exec --json --prompt-file <prompt> --worktree off --workspace <dir> \
+    --approval-mode never --disable-request-user-input [--disable-sandbox] [...]
+```
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `success.jsonl` | the dispatch argv, `--disable-sandbox`, `--reasoning-effort low`: the script ran | 0 |
+| `unknown-model.jsonl` | the same with `--model nope-model` | 1 |
+| `sandbox-denied.jsonl` | without `--disable-sandbox`, on a host with `kernel.apparmor_restrict_unprivileged_userns=1`: the shell call dies in bwrap and the run still ends `completed` | 0 |
+
+Each file is muse's stderr (its `muse:` banner lines; the unknown-model one
+ends with `run ended with Failed: …`) followed by its stdout, as the engine's
+merged log would hold them. Paths are rewritten to `/work/project` and
+`/work/state`.
+
 ## `agy/1.4.2/` — real capture (#382)
 
 ```

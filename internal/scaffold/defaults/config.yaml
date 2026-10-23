@@ -11,6 +11,7 @@ concurrency:
     opencode: 3
     gemini: 2
     agy: 2
+    muse: 2
   # Per-file cap for the 33 tasks with declared `files[]` (opportunistic).
   per_file: 1
 

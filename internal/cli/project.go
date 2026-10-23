@@ -93,14 +93,14 @@ func loadRouterTolerant(paths config.Paths) router.Router {
 	return rtr
 }
 
-// knownBackends enumerates model.Backend's five values — Backend.SpendSince
+// knownBackends enumerates model.Backend's six values — Backend.SpendSince
 // takes one backend at a time (it's shaped for the budget gate's rolling
 // window, not a project-wide report), so computing a per-task cost map
 // across every provider means calling it once per known value. There is no
 // bulk "every backend" query to fall back to.
 var knownBackends = []model.Backend{
 	model.BackendClaude, model.BackendCodex, model.BackendOpencode,
-	model.BackendGemini, model.BackendAgy,
+	model.BackendGemini, model.BackendAgy, model.BackendMuse,
 }
 
 // computeCostByTask sums cost_usd per task id across every backend and all

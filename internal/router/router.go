@@ -77,7 +77,7 @@ func (e *UnroutedError) Error() string {
 var validBackends = map[model.Backend]bool{
 	model.BackendClaude: true, model.BackendCodex: true,
 	model.BackendOpencode: true, model.BackendGemini: true,
-	model.BackendAgy: true,
+	model.BackendAgy: true, model.BackendMuse: true,
 }
 
 var validTiers = map[model.Tier]bool{

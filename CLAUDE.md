@@ -1,7 +1,7 @@
 # orch — Project instructions
 
 Task orchestrator that walks a `tasks.json` DAG and dispatches each task to a
-local AI CLI (`claude` | `codex` | `opencode` | `gemini` | `agy`). Single-user,
+local AI CLI (`claude` | `codex` | `opencode` | `gemini` | `agy` | `muse`). Single-user,
 local, no daemon. One static Go binary with the React SPA embedded.
 
 ## Stack
@@ -111,7 +111,7 @@ internal/
   state/             — SQLite backend, the single source of truth
   engine/            — dispatch loop: refill, reaper, scheduler, run loop, CI poller
   project/           — what CLI and dashboard share: tasks.json hydrated with state
-  providers/         — per-CLI adapters: claude, codex, opencode, gemini, agy (real captures in testdata/)
+  providers/         — per-CLI adapters: claude, codex, opencode, gemini, agy, muse (real captures in testdata/)
   prompt/            — dispatch prompt builder
   worktree/          — per-task git isolation
   vcs/               — github/gitlab via gh/glab

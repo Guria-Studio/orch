@@ -1,5 +1,5 @@
 // Command orch walks a tasks.json DAG and dispatches each task to a local
-// AI CLI (claude | codex | opencode | gemini | agy). See CLAUDE.md's
+// AI CLI (claude | codex | opencode | gemini | agy | muse). See CLAUDE.md's
 // "Migración a Go" section for the target layout; the cobra wiring itself
 // lives in internal/cli so nothing under internal/ ever imports cmd/.
 package main
