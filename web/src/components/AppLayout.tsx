@@ -140,7 +140,7 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
       <div className="flex min-h-12 items-center gap-3 overflow-x-auto px-4 md:px-6">
         <p className="hidden shrink-0 items-center gap-2 text-[13px] md:flex">
           <span className="text-muted-foreground">{t(destination.label)}</span>
-          {currentTab && (tabs.length > 1 || currentTab.offTabs) ? (
+          {currentTab && currentTab.label !== destination.label ? (
             <>
               <span className="text-muted-foreground" aria-hidden>
                 ›
@@ -258,12 +258,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   })
 
   const destinations = visibleDestinations({ isStakeholder, allowedRoutes, portfolioAvailable })
+  // The main navigation is the four places; System's pages are listed apart.
+  const places = destinations.filter((d) => d.id !== "system")
+  const systemTabs = destinations.find((d) => d.id === "system")?.tabs ?? []
   const currentId = findTab(pathname)?.destination.id
   const current = destinations.find((d) => d.id === currentId)
   const canSeeLogs = !isStakeholder || (allowedRoutes ? allowedRoutes.includes("api_events") : false)
   const canShare = destinations.some((d) => d.tabs.some((tab) => tab.to === SHARE_PATH))
   // The System group is the operator's; a stakeholder allowed the log sees it among the controls.
-  const showSystem = canSeeLogs && !isStakeholder
+  const showSystem = systemTabs.length > 0 || (canSeeLogs && !isStakeholder)
   const logsOpen = canSeeLogs && params.get("logs") === "1"
 
   const setLogs = (open: boolean) => {
@@ -357,6 +360,31 @@ export function AppLayout({ children }: AppLayoutProps) {
     </button>,
   )
 
+  // System's pages, as sidebar rows.
+  const systemLinks = (compact: boolean, onNavigate?: () => void) =>
+    systemTabs.map((tab) => {
+      const Icon = TAB_ICONS[tab.to]
+      const active = pathname === tab.to
+      return (
+        <div key={tab.to}>
+          {compactable(
+            compact,
+            t(tab.label),
+            <NavLink
+              to={tab.to}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              aria-label={compact ? t(tab.label) : undefined}
+              className={cn(sideRow, compact ? "justify-center" : "gap-2.5 px-2.5", active && "bg-sidebar-active font-medium text-sidebar-foreground")}
+            >
+              {Icon ? <Icon className={cn("h-4 w-4 shrink-0", active && "text-brand")} aria-hidden /> : null}
+              {compact ? null : <span>{t(tab.label)}</span>}
+            </NavLink>,
+          )}
+        </div>
+      )
+    })
+
   const toggleLabel = collapsed ? t("nav.expand") : t("nav.collapse")
   const iconButton = cn(
     "flex h-10 w-10 items-center justify-center rounded-md text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground",
@@ -382,10 +410,10 @@ export function AppLayout({ children }: AppLayoutProps) {
         aria-label={t("nav.main") + " (small screens)"}
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 grid h-16 border-t bg-sidebar pb-[env(safe-area-inset-bottom)] text-sidebar-foreground md:hidden",
-          BOTTOM_COLS[destinations.length + 1] ?? "grid-cols-5",
+          BOTTOM_COLS[places.length + 1] ?? "grid-cols-5",
         )}
       >
-        {destinations.map((d) => {
+        {places.map((d) => {
           const Icon = d.icon
           const active = d.id === currentId
           return (
@@ -419,6 +447,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
         <DialogContent aria-label={t("nav.more")} className="max-w-sm gap-px self-end bg-sidebar p-3 text-sidebar-foreground md:hidden">
           {showSystem ? <p className="px-2.5 py-1 text-[11px] font-medium text-sidebar-muted">{t("nav.system")}</p> : null}
+          {systemLinks(false, () => setMoreOpen(false))}
           {canSeeLogs
             ? logsButton(false, () => {
                 setMoreOpen(false)
@@ -475,7 +504,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="flex-1 space-y-4 overflow-y-auto px-2">
           <nav aria-label={t("nav.main")} className="space-y-px">
-            <DestinationLinks destinations={destinations} currentId={currentId} collapsed={collapsed} />
+            <DestinationLinks destinations={places} currentId={currentId} collapsed={collapsed} />
           </nav>
           {showSystem ? (
             <section aria-label={t("nav.system")} className="space-y-px">
@@ -484,7 +513,8 @@ export function AppLayout({ children }: AppLayoutProps) {
               ) : (
                 <p className="px-2.5 pb-1 text-[11px] font-medium text-sidebar-muted">{t("nav.system")}</p>
               )}
-              {logsButton(collapsed)}
+              {systemLinks(collapsed)}
+              {canSeeLogs ? logsButton(collapsed) : null}
             </section>
           ) : null}
         </div>

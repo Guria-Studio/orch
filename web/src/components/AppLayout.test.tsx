@@ -53,6 +53,8 @@ describe("AppLayout", () => {
     const bottom = screen.getByRole("navigation", { name: "Main (small screens)" })
     expect(hrefs(sidebar)).toEqual(["/", "/work/list", "/cost/budget", "/delivery/summary"])
     expect(hrefs(bottom)).toEqual(hrefs(sidebar))
+    // System's pages sit under their own heading, not among the places.
+    expect(hrefs(screen.getByRole("region", { name: "System" }))).toEqual(["/system/tools"])
     expect(bottom).toHaveClass("md:hidden")
     expect(sidebar.closest("aside")).toHaveClass("hidden", "md:flex")
   })
@@ -93,6 +95,7 @@ describe("AppLayout", () => {
     fireEvent.click(within(bottom).getByRole("button", { name: "More" }))
     const more = screen.getByRole("dialog")
     expect(within(more).getByText("System")).toBeInTheDocument()
+    expect(within(more).getByRole("link", { name: "Tools" })).toHaveAttribute("href", "/system/tools")
     expect(within(more).getByRole("button", { name: "Share" })).toBeInTheDocument()
     expect(within(more).getByRole("button", { name: "Log out" })).toBeInTheDocument()
     fireEvent.click(within(more).getByRole("button", { name: "Logs" }))

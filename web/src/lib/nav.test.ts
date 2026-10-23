@@ -16,9 +16,10 @@ const shape = (ds: ReturnType<typeof visibleDestinations>) =>
   Object.fromEntries(ds.map((d) => [d.id, d.tabs.map((tab) => tab.to)]))
 
 describe("visibleDestinations", () => {
-  it("gives an operator the four destinations, Portfolio only when available", () => {
+  it("gives an operator the four destinations and System, Portfolio only when available", () => {
     const off = visibleDestinations({ isStakeholder: false, portfolioAvailable: false })
-    expect(off.map((d) => d.id)).toEqual(["now", "work", "cost", "delivery"])
+    expect(off.map((d) => d.id)).toEqual(["now", "work", "cost", "delivery", "system"])
+    expect(shape(off).system).toEqual(["/system/tools"])
     expect(shape(off).now).toEqual(["/", "/now/releases"])
     expect(shape(visibleDestinations({ isStakeholder: false, portfolioAvailable: true })).now).toEqual([
       "/",

@@ -21,6 +21,7 @@ import { PortfolioPage } from "@/pages/PortfolioPage"
 import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TaskPage } from "@/pages/TaskPage"
+import { ToolsPage } from "@/pages/ToolsPage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
 const queryClient = new QueryClient({
@@ -48,6 +49,7 @@ const PAGES: Record<string, ReactNode> = {
   "/delivery/ci": <CIPage />,
   "/delivery/tests": <TestsPage />,
   "/delivery/share": <TunnelPage />,
+  "/system/tools": <ToolsPage />,
 }
 
 /** A redirect that keeps the query string, so filters and `?token=` survive it. */

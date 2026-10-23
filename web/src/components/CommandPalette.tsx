@@ -441,7 +441,9 @@ export function ShortcutsDialog({ open, onOpenChange, destinations }: { open: bo
   const letters = Object.fromEntries(Object.entries(GO_KEYS).map(([key, id]) => [id, key]))
   const rows: { keys: string[][]; label: string }[] = [
     { keys: [[isMac() ? "⌘" : "Ctrl", "K"]], label: t("shortcuts.palette") },
-    ...destinations.map((d) => ({ keys: [["g"], [letters[d.id]]], label: t("shortcuts.go", { destination: t(d.label) }) })),
+    ...destinations
+      .filter((d) => letters[d.id])
+      .map((d) => ({ keys: [["g"], [letters[d.id]]], label: t("shortcuts.go", { destination: t(d.label) }) })),
     ...(destinations.some((d) => d.tabs.some((tab) => tab.to === "/work/list")) ? [{ keys: [["/"]], label: t("shortcuts.search") }] : []),
     { keys: [["["]], label: t("shortcuts.sidebar") },
     { keys: [["?"]], label: t("shortcuts.help") },

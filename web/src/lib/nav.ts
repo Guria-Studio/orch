@@ -15,6 +15,7 @@ import {
   Sparkles,
   Wallet,
   Workflow,
+  Wrench,
 } from "lucide-react"
 import type { MessageKey } from "@/i18n"
 
@@ -36,7 +37,7 @@ export interface NavTab {
 }
 
 export interface NavDestination {
-  id: "now" | "work" | "cost" | "delivery"
+  id: "now" | "work" | "cost" | "delivery" | "system"
   label: MessageKey
   icon: typeof Activity
   tabs: NavTab[]
@@ -44,8 +45,9 @@ export interface NavDestination {
 
 /**
  * Four places, each answering one question: what is happening now, where the
- * work stands, what it costs, and what has been delivered. Every page is a tab
- * of exactly one of them.
+ * work stands, what it costs, and what has been delivered — plus System, the
+ * machine and project setup, listed apart. Every page is a tab of exactly one
+ * of them.
  */
 export const DESTINATIONS: NavDestination[] = [
   {
@@ -90,6 +92,14 @@ export const DESTINATIONS: NavDestination[] = [
       { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true, offTabs: true },
     ],
   },
+  // System is not a fifth place in the main navigation: the sidebar lists its
+  // pages under their own heading, and the phone keeps them behind More.
+  {
+    id: "system",
+    label: "nav.system",
+    icon: Wrench,
+    tabs: [{ to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true }],
+  },
 ]
 
 /** Icons for tabs, keyed by path; the destination icon stands for the group. */
@@ -108,6 +118,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/delivery/ci": Workflow,
   "/delivery/tests": FlaskConical,
   "/delivery/share": Radio,
+  "/system/tools": Wrench,
 }
 
 /**
