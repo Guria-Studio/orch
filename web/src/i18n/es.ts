@@ -16,6 +16,8 @@ export const es = {
 
   "nav.menu": "Menú",
   "nav.logout": "Cerrar sesión",
+  "nav.system": "Sistema",
+  "nav.more": "Más",
   "nav.collapse": "Contraer barra lateral",
   "nav.expand": "Expandir barra lateral",
   "nav.main": "Principal",
@@ -639,6 +641,7 @@ export const es = {
   "shortcuts.go": "Ir a {destination}",
   "shortcuts.search": "Buscar en la lista de tareas",
   "shortcuts.help": "Ver esta lista",
+  "shortcuts.sidebar": "Contraer o expandir la barra lateral",
   "shortcuts.close": "Cerrar un panel o diálogo",
 } satisfies Dictionary
 

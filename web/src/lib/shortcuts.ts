@@ -39,18 +39,20 @@ export interface ShortcutHandlers {
   destinations: NavDestination[]
   onPalette: () => void
   onShortcuts: () => void
+  onToggleSidebar: () => void
 }
 
 /**
  * ⌘K / Ctrl+K anywhere; and, when nobody is typing and no dialog is open:
- * `g` then n/w/c/d to change destination, `/` to search tasks, `?` for help.
+ * `g` then n/w/c/d to change destination, `/` to search tasks, `[` to
+ * collapse or expand the sidebar, `?` for help.
  */
-export function useKeyboardShortcuts({ destinations, onPalette, onShortcuts }: ShortcutHandlers) {
+export function useKeyboardShortcuts({ destinations, onPalette, onShortcuts, onToggleSidebar }: ShortcutHandlers) {
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
-  const latest = useRef({ destinations, onPalette, onShortcuts, navigate, pathname, search })
+  const latest = useRef({ destinations, onPalette, onShortcuts, onToggleSidebar, navigate, pathname, search })
   useEffect(() => {
-    latest.current = { destinations, onPalette, onShortcuts, navigate, pathname, search }
+    latest.current = { destinations, onPalette, onShortcuts, onToggleSidebar, navigate, pathname, search }
   })
 
   useEffect(() => {
@@ -78,6 +80,9 @@ export function useKeyboardShortcuts({ destinations, onPalette, onShortcuts }: S
       gPressedAt = 0
       if (e.key === "g") {
         gPressedAt = Date.now()
+      } else if (e.key === "[") {
+        e.preventDefault()
+        h.onToggleSidebar()
       } else if (e.key === "?") {
         e.preventDefault()
         h.onShortcuts()

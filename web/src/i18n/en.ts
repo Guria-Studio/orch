@@ -13,6 +13,8 @@ export const en = {
 
   "nav.menu": "Menu",
   "nav.logout": "Log out",
+  "nav.system": "System",
+  "nav.more": "More",
   "nav.collapse": "Collapse sidebar",
   "nav.expand": "Expand sidebar",
   "nav.main": "Main",
@@ -621,5 +623,6 @@ export const en = {
   "shortcuts.go": "Go to {destination}",
   "shortcuts.search": "Search the task list",
   "shortcuts.help": "Show this list",
+  "shortcuts.sidebar": "Collapse or expand the sidebar",
   "shortcuts.close": "Close a panel or dialog",
 } as const satisfies Record<string, string | { one: string; other: string }>

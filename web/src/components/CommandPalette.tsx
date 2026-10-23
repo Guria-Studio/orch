@@ -443,6 +443,7 @@ export function ShortcutsDialog({ open, onOpenChange, destinations }: { open: bo
     { keys: [[isMac() ? "⌘" : "Ctrl", "K"]], label: t("shortcuts.palette") },
     ...destinations.map((d) => ({ keys: [["g"], [letters[d.id]]], label: t("shortcuts.go", { destination: t(d.label) }) })),
     ...(destinations.some((d) => d.tabs.some((tab) => tab.to === "/work/list")) ? [{ keys: [["/"]], label: t("shortcuts.search") }] : []),
+    { keys: [["["]], label: t("shortcuts.sidebar") },
     { keys: [["?"]], label: t("shortcuts.help") },
     { keys: [["Esc"]], label: t("shortcuts.close") },
   ]

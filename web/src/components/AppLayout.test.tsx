@@ -85,6 +85,33 @@ describe("AppLayout", () => {
     expect(within(screen.getByRole("navigation", { name: "Sections" })).queryByRole("img", { name: "New notes" })).toBeNull()
   })
 
+  // The phone's bottom bar holds the destinations only; the System group,
+  // Share and the session controls live behind "More".
+  it("puts System, Share and the session controls behind More on a phone", () => {
+    renderAt("/work/list")
+    const bottom = screen.getByRole("navigation", { name: "Main (small screens)" })
+    fireEvent.click(within(bottom).getByRole("button", { name: "More" }))
+    const more = screen.getByRole("dialog")
+    expect(within(more).getByText("System")).toBeInTheDocument()
+    expect(within(more).getByRole("link", { name: "Share" })).toHaveAttribute("href", "/delivery/share")
+    expect(within(more).getByRole("button", { name: "Log out" })).toBeInTheDocument()
+    fireEvent.click(within(more).getByRole("button", { name: "Logs" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("status", { name: "location" })).toHaveTextContent("/work/list?logs=1")
+  })
+
+  it("collapses and expands the sidebar with [", () => {
+    window.localStorage.clear()
+    renderAt("/")
+    const sidebar = screen.getByRole("complementary")
+    expect(sidebar).toHaveClass("w-60")
+    fireEvent.keyDown(window, { key: "[" })
+    expect(sidebar).toHaveClass("w-14")
+    expect(within(sidebar).getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-expanded", "false")
+    fireEvent.keyDown(window, { key: "[" })
+    expect(sidebar).toHaveClass("w-60")
+  })
+
   it("opens the event log over the current page and closes it again", () => {
     renderAt("/cost/budget")
     expect(screen.queryByText("event log")).not.toBeInTheDocument()
