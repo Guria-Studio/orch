@@ -115,8 +115,9 @@ func TestTheOrchSpecExampleAtomizesCleanly(t *testing.T) {
 		files int
 	}
 	wantTasks := map[string]want{
-		"F1.1.T1": {"claude/claude-sonnet-4-6", 2, nil, 2},
-		"F1.2.T1": {"claude/claude-sonnet-4-6", 4, []string{"F1.1.T1"}, 2},
+		"F1.1.T1": {"claude/claude-sonnet-4-6", 3, nil, 5},
+		"F1.2.T1": {"claude/claude-sonnet-4-6", 2, []string{"F1.1.T1"}, 2},
+		"F1.3.T1": {"claude/claude-sonnet-4-6", 4, []string{"F1.1.T1"}, 3},
 	}
 	if len(res.Tasks) != len(wantTasks) {
 		t.Fatalf("parsed %d tasks, want %d: %+v", len(res.Tasks), len(wantTasks), res.Tasks)
@@ -143,6 +144,21 @@ func TestTheOrchSpecExampleAtomizesCleanly(t *testing.T) {
 		}
 		if task.SpecRef != "f1-auth.md#"+task.ID {
 			t.Errorf("%s specRef = %q", task.ID, task.SpecRef)
+		}
+	}
+
+	// The two tasks after the skeleton run at the same time, so the example
+	// must keep the rule it teaches: they never share a file.
+	owner := map[string]string{}
+	for _, task := range res.Tasks {
+		if task.ID == "F1.1.T1" {
+			continue
+		}
+		for _, f := range task.Files {
+			if other, ok := owner[f]; ok {
+				t.Errorf("%s and %s run in parallel and both write %s", other, task.ID, f)
+			}
+			owner[f] = task.ID
 		}
 	}
 
