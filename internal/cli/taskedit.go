@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/router"
@@ -29,14 +30,19 @@ func openTaskEditor(cmd *cobra.Command, flags *projectFlags) (project.TaskEditor
 		_ = closeDB()
 		return project.TaskEditor{}, nil, fmt.Errorf("bootstrap: %w", err)
 	}
-	var routes []string
-	if rtr, err := router.Load(paths.RouterYAML()); err == nil {
-		routes = rtr.Keys()
-	}
 	return project.TaskEditor{
 		TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(),
-		Routes: routes, Backend: backend, Source: "cli",
+		Routes: routerKeys(paths), Backend: backend, Source: "cli",
 	}, closeDB, nil
+}
+
+// routerKeys are model_router.yaml's keys, the models a task may name; nil
+// (no check) when there is no router.
+func routerKeys(paths config.Paths) []string {
+	if rtr, err := router.Load(paths.RouterYAML()); err == nil {
+		return rtr.Keys()
+	}
+	return nil
 }
 
 // editErr maps an edit's errors onto exit codes: 1 for a refused edit.
