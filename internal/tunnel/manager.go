@@ -175,7 +175,11 @@ func intPtr(i int) *int       { return &i }
 // reference into config.Config, so a test builds one without dragging in the
 // whole config graph.
 type ManagerConfig struct {
-	// Command overrides the binary, for tests; empty means cloudflared.
+	// Provider is which program carries the share (Providers()); empty
+	// means the default, cloudflared.
+	Provider string
+	// Command overrides the provider's binary, for tests; empty means the
+	// provider's own (cloudflared or tailscale).
 	Command string
 	// Port is the dashboard's bound port, which the tunnel forwards to.
 	Port int
@@ -355,7 +359,7 @@ func (m *Manager) Start(cfg ManagerConfig) (State, error) {
 	m.state = State{
 		State:     StateStarting,
 		Phase:     StateStarting,
-		Provider:  strPtr(Provider),
+		Provider:  strPtr(providerOf(cfg)),
 		StartedAt: strPtr(utcISO(time.Now())),
 	}
 	if err := m.writeStateLocked(); err != nil {
@@ -462,8 +466,9 @@ func waitForDone(done <-chan struct{}, d time.Duration) bool {
 }
 
 // SweepStaleLock is the boot-time reconciler (TUN-8): if state/tunnel/pid
-// names a PID that's still alive AND whose comm matches cfg's command
-// (cloudflared unless overridden), the manager adopts it as running. Otherwise both lock and pid files are
+// names a PID that's still alive AND whose comm matches cfg's command (the
+// provider state.json recorded — cloudflared when it recorded none — unless
+// overridden), the manager adopts it as running. Otherwise both lock and pid files are
 // removed and state stays idle. cfg nil means "no expected command" —
 // any live PID is adopted (only used by tests that don't care).
 func (m *Manager) SweepStaleLock(cfg *ManagerConfig) {
@@ -479,6 +484,10 @@ func (m *Manager) SweepStaleLock(cfg *ManagerConfig) {
 		pid, _ = strconv.Atoi(strings.TrimSpace(string(raw)))
 	}
 
+	provider := Provider
+	if saved, ok := ReadState(m.stateDir); ok && saved.Provider != nil && KnownProvider(*saved.Provider) {
+		provider = *saved.Provider
+	}
 	adopted := false
 	if pid > 0 && pidAlive(pid) {
 		if cfg == nil {
@@ -486,7 +495,7 @@ func (m *Manager) SweepStaleLock(cfg *ManagerConfig) {
 		} else {
 			command := cfg.Command
 			if command == "" {
-				command = Command
+				command = CommandFor(provider)
 			}
 			comm := pidComm(pid)
 			adopted = comm != "" && comm == filepath.Base(command)
@@ -498,7 +507,7 @@ func (m *Manager) SweepStaleLock(cfg *ManagerConfig) {
 		m.state = State{
 			State:     StateRunning,
 			Phase:     StateRunning,
-			Provider:  strPtr(Provider),
+			Provider:  strPtr(provider),
 			PID:       intPtr(pid),
 			StartedAt: strPtr(utcISO(time.Now())),
 		}
@@ -605,6 +614,7 @@ func (m *Manager) startReader(cfg ManagerConfig, stdout io.ReadCloser) {
 	m.readerDone = done
 
 	deadline := time.Now().Add(urlParseTimeout(cfg))
+	pattern := providers[providerOf(cfg)].url
 
 	go func() {
 		defer close(done)
@@ -619,7 +629,7 @@ func (m *Manager) startReader(cfg ManagerConfig, stdout io.ReadCloser) {
 			m.appendStdoutLog(line)
 
 			if !urlSeen {
-				if captured := urlPattern.FindString(line); captured != "" {
+				if captured := pattern.FindString(line); captured != "" {
 					m.mu.Lock()
 					m.state.URL = strPtr(captured)
 					m.state.URLAt = strPtr(utcISO(time.Now()))

@@ -3,6 +3,7 @@ package tunnel
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -70,5 +71,30 @@ func TestFindConfigReportsTheFileThatBlocksQuickTunnels(t *testing.T) {
 	}
 	if got := findConfig([]string{empty, withConfig}); got != path {
 		t.Errorf("findConfig = %q, want %q", got, path)
+	}
+}
+
+func TestTailscaleRunsInTheForegroundAgainstTheDashboard(t *testing.T) {
+	for provider, verb := range map[string]string{ProviderTailscaleServe: "serve", ProviderTailscaleFunnel: "funnel"} {
+		argv, err := commandLine(ManagerConfig{Provider: provider, Port: 7420})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []string{"tailscale", verb, "http://127.0.0.1:7420"}; !slices.Equal(argv, want) {
+			t.Errorf("%s argv = %q, want %q", provider, argv, want)
+		}
+	}
+	if _, err := commandLine(ManagerConfig{Provider: "ngrok", Port: 7420}); err == nil {
+		t.Error("an unknown provider got an argv")
+	}
+}
+
+func TestTailscaleURLPatternTakesTheNodeNotTheLoginLink(t *testing.T) {
+	out := "Funnel is not enabled on your tailnet.\nTo enable, visit:\n\n         https://login.tailscale.com/f/funnel?node=abc\n"
+	if got := tailscaleURLPattern.FindString(out); got != "" {
+		t.Errorf("matched %q in the enable-Funnel prompt", got)
+	}
+	if got := tailscaleURLPattern.FindString("https://box.tail1234.ts.net/"); got != "https://box.tail1234.ts.net" {
+		t.Errorf("got %q", got)
 	}
 }

@@ -484,17 +484,30 @@ publish:
 
 ### `tunnel`
 
-Share the dashboard over a **Cloudflare quick tunnel**: a public
-`https://<random>.trycloudflare.com` address, with no Cloudflare account,
-login or DNS. It needs the `cloudflared` binary on PATH; the dashboard's
-Tunnel page shows the install steps for your system (and `orch dashboard
---tunnel` prints them when it is missing). Start and stop it from that page
-or with `orch dashboard --tunnel`.
+Share the dashboard from its **Share** panel, through one of two programs,
+picked each time you start a share:
+
+- **Cloudflare quick tunnel** (`cloudflared`): a public
+  `https://<random>.trycloudflare.com` address, with no Cloudflare account,
+  login or DNS. `orch dashboard --tunnel` starts this one.
+- **Tailscale** (`tailscale`): `serve` makes the dashboard reachable only
+  inside your tailnet; `funnel` makes it public. Both use your node's
+  `https://<machine>.<tailnet>.ts.net` name and run in the foreground, so
+  stopping the share removes it. Tailscale must be installed and logged in
+  (`sudo tailscale up`), the tailnet needs HTTPS certificates on, and
+  `funnel` also needs Funnel allowed in the tailnet's policy — when it is
+  not, tailscale prints the link to allow it, and the panel shows that
+  output.
+
+A program that is missing is shown with the install steps for your system
+(and `orch dashboard --tunnel` prints cloudflared's when it is missing). The
+panel also shows the repository and branch this dashboard serves and its
+local address.
 
 ```yaml
 tunnel:
   enabled: false
-  url_parse_timeout_s: 30   # how long to wait for cloudflared's URL line
+  url_parse_timeout_s: 30   # how long to wait for the provider's URL line
 ```
 
 | Key | Notes |
@@ -506,10 +519,12 @@ tunnel:
 a request that does not come straight from this machine (a loopback peer, a
 loopback `Host`, and none of the headers Cloudflare or a proxy add) must
 carry one of the tokens minted when the tunnel started, which are in the two
-links orch prints and the Tunnel page shows: the **full dashboard** link's
-token opens everything; the **client portal** link's token — like the
-project's stakeholder token — reaches only the stakeholder allow-list, so a
-client cannot turn the portal link into your view by editing the path. Both
+links orch prints and the Share panel shows: the **full dashboard** link's
+token opens everything; the **client** link's token — like the project's
+stakeholder token — reaches only the stakeholder allow-list. Both links open
+the same dashboard; on the client's, `/api/whoami` answers `stakeholder`, so
+the client sees only the pages on the allow-list, and cannot turn the link
+into your view by editing the path. Both
 change on every start, so stopping the tunnel revokes them. The operator
 profile, which asks nothing of the person at the keyboard, is never what a
 stranger with the URL gets.

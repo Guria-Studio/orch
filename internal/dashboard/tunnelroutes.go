@@ -3,7 +3,9 @@ package dashboard
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,10 +13,12 @@ import (
 	"sync"
 
 	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
-// The dashboard tunnel: a Cloudflare quick tunnel the operator raises from the
-// Tunnel page (or `orch dashboard --tunnel`) to share this dashboard.
+// The dashboard tunnel: a Cloudflare quick tunnel or a tailscale serve/funnel
+// the operator raises from the Share panel (or a quick tunnel with `orch
+// dashboard --tunnel`) to share this dashboard.
 //
 // # The gates, in a fixed order
 //
@@ -25,18 +29,21 @@ import (
 //
 // # Who may reach the dashboard while the tunnel is up
 //
-// cloudflared connects to this listener from 127.0.0.1, so the internet
-// arrives looking local by address. What gives it away is the Host header
-// (the trycloudflare hostname) and the headers Cloudflare adds. While the
+// cloudflared and tailscale both connect to this listener from 127.0.0.1, so
+// the internet arrives looking local by address. What gives it away is the
+// Host header (the trycloudflare or ts.net hostname) and the headers the
+// relay adds (Cloudflare's own; X-Forwarded-For from tailscale's proxy). While the
 // tunnel is up, every gated route asks a request that is not local (see
 // isLocalRequest) for a token, and the token decides how far it gets:
 //
 //   - the dashboard link token (minted on each start) opens everything, and
 //     is for the operator's own use;
 //   - the portal link token (minted alongside it) and the project's
-//     stakeholder token reach only the stakeholder allow-list — what the
-//     client portal needs. A client handed the portal link cannot turn it
-//     into the operator's view by editing the path.
+//     stakeholder token reach only the stakeholder allow-list. The portal
+//     link opens this same SPA, and /api/whoami answers such a request as a
+//     stakeholder, so the client sees the backoffice with only their pages.
+//     A client handed the portal link cannot turn it into the operator's
+//     view by editing the path.
 //
 // The operator profile, which gates nothing for the person at the keyboard,
 // is never what a stranger holding the URL gets.
@@ -137,17 +144,20 @@ func (s *Server) tunnelUp() bool {
 // tunnelledVerdict is the extra gate for a non-local request while the tunnel
 // is up: 401 without a token this tunnel knows, 403 for a portal-level token
 // on a route outside the stakeholder allow-list.
-func (s *Server) tunnelledVerdict(r *http.Request, routeName string) Verdict {
+//
+// portal reports an allowed request that came in on a portal-level token:
+// the stakeholder's view of an operator dashboard.
+func (s *Server) tunnelledVerdict(r *http.Request, routeName string) (v Verdict, portal bool) {
 	supplied := tokenFrom(r)
 	if supplied == "" {
-		return Unauthorized
+		return Unauthorized, false
 	}
 	hash := HashToken(supplied)
 	s.tunnel.mu.Lock()
 	dashboardHash, portalHash := s.tunnel.dashboardHash, s.tunnel.portalHash
 	s.tunnel.mu.Unlock()
 	if dashboardHash != "" && constantTimeEqual(hash, dashboardHash) {
-		return Allow
+		return Allow, false
 	}
 	portalLevel := portalHash != "" && constantTimeEqual(hash, portalHash)
 	if !portalLevel {
@@ -156,11 +166,11 @@ func (s *Server) tunnelledVerdict(r *http.Request, routeName string) Verdict {
 	}
 	switch {
 	case !portalLevel:
-		return Unauthorized
+		return Unauthorized, false
 	case !s.cfg.routeAllowed(r.URL.Path, routeName):
-		return Forbidden
+		return Forbidden, false
 	}
-	return Allow
+	return Allow, true
 }
 
 func newLinkToken() (string, error) {
@@ -171,10 +181,10 @@ func newLinkToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// StartTunnel raises the quick tunnel to this server's bound port and mints a
-// fresh link token. The URL arrives asynchronously; TunnelLinks has it once
-// cloudflared prints it.
-func (s *Server) StartTunnel() (tunnel.State, error) {
+// StartTunnel raises a share of this server's bound port through provider
+// ("" for the default, cloudflared) and mints fresh link tokens. The URL
+// arrives asynchronously; TunnelLinks has it once the provider prints it.
+func (s *Server) StartTunnel(provider string) (tunnel.State, error) {
 	if !s.tunnel.Enabled {
 		return tunnel.State{}, errTunnelNotConfigured
 	}
@@ -197,7 +207,7 @@ func (s *Server) StartTunnel() (tunnel.State, error) {
 	}
 
 	st, err := s.tunnel.Manager.Start(tunnel.ManagerConfig{
-		Command: s.tunnel.Command, Port: port, URLParseTimeoutS: s.tunnel.URLParseTimeoutS,
+		Provider: provider, Command: s.tunnel.Command, Port: port, URLParseTimeoutS: s.tunnel.URLParseTimeoutS,
 	})
 	if err != nil {
 		return st, err
@@ -239,7 +249,7 @@ func (s *Server) TunnelLinks() (dashboard, portal string) {
 		return "", ""
 	}
 	return *st.URL + "/?token=" + url.QueryEscape(dashboardToken),
-		*st.URL + StakeholderPathPrefix + "/?token=" + url.QueryEscape(portalToken)
+		*st.URL + "/?token=" + url.QueryEscape(portalToken)
 }
 
 // capabilitiesPayload is `/api/tunnel/capabilities`'s body.
@@ -259,6 +269,12 @@ type capabilitiesPayload struct {
 	Guides        []tunnel.InstallGuide `json:"guides,omitempty"`
 	DocsURL       string                `json:"docs_url,omitempty"`
 	ConfigBlocker string                `json:"config_blocker,omitempty"`
+	// Providers, Repo and LocalURL are what the Share panel draws, for the
+	// local operator only: every provider with its binary and install
+	// guides, the repository this dashboard serves, and its own address.
+	Providers []tunnel.ProviderCapability `json:"providers,omitempty"`
+	Repo      *vcs.Repo                   `json:"repo,omitempty"`
+	LocalURL  string                      `json:"local_url,omitempty"`
 }
 
 // shortReason maps a gate's reason to the chip the SPA draws.
@@ -285,17 +301,25 @@ func (s *Server) handleTunnelCapabilities(w http.ResponseWriter, r *http.Request
 
 	// PATH is only consulted once every other gate has passed — checking it
 	// first would leak what the box has installed to a caller who may not ask.
-	var bin tunnel.Binary
+	anyBinary := false
 	if gates.Enabled && gates.OperatorProfile && gates.LoopbackHost {
-		bin = tunnel.LookupBinary(s.tunnel.Command)
 		host := tunnel.DetectHost()
-		payload.Binary = &bin
 		payload.Host = &host
-		payload.Guides = tunnel.InstallGuides(host.Arch)
-		payload.DocsURL = tunnel.DocsURL
-		payload.ConfigBlocker = tunnel.ConfigBlocker()
+		payload.Providers = tunnel.DescribeProviders(host, s.tunnel.Command)
+		for _, p := range payload.Providers {
+			anyBinary = anyBinary || p.Binary.Found
+			if p.ID == tunnel.ProviderCloudflared {
+				bin := p.Binary
+				payload.Binary = &bin
+				payload.Guides, payload.DocsURL = p.Guides, p.DocsURL
+				payload.ConfigBlocker = tunnel.ConfigBlocker()
+			}
+		}
+		repo := vcs.DescribeRepo(s.paths.Root)
+		payload.Repo = &repo
+		payload.LocalURL = "http://" + s.BoundAddr()
 	}
-	payload.CanControl, payload.Reason = tunnel.EvaluateCapabilities(gates, bin.Found)
+	payload.CanControl, payload.Reason = tunnel.EvaluateCapabilities(gates, anyBinary)
 	if !payload.CanControl {
 		if short, ok := shortReason[payload.Reason]; ok {
 			payload.Reasons = append(payload.Reasons, short)
@@ -306,12 +330,18 @@ func (s *Server) handleTunnelCapabilities(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// tunnelStatusPayload is the manager's State plus the share links.
+// tunnelStatusPayload is the manager's State plus the share links, and the
+// provider's last output lines: what tailscale prints when Funnel is not
+// allowed yet, or cloudflared when it cannot connect, is the explanation.
 type tunnelStatusPayload struct {
 	tunnel.State
-	ShareURL  *string `json:"share_url"`
-	PortalURL *string `json:"portal_url"`
+	ShareURL  *string  `json:"share_url"`
+	PortalURL *string  `json:"portal_url"`
+	LogTail   []string `json:"log_tail"`
 }
+
+// statusLogTail is how many of the provider's last lines status carries.
+const statusLogTail = 8
 
 // controlGate answers the three gates for status/start/stop and reports
 // whether the handler may continue. The status codes each say something
@@ -334,7 +364,10 @@ func (s *Server) controlGate(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (s *Server) writeTunnelStatus(w http.ResponseWriter, status int) {
-	payload := tunnelStatusPayload{State: s.tunnel.Manager.Status()}
+	payload := tunnelStatusPayload{State: s.tunnel.Manager.Status(), LogTail: []string{}}
+	if logs := s.tunnel.Manager.LogsSnapshot(); len(logs) > 0 {
+		payload.LogTail = logs[max(0, len(logs)-statusLogTail):]
+	}
 	if operator, portal := s.TunnelLinks(); operator != "" {
 		payload.ShareURL, payload.PortalURL = &operator, &portal
 	}
@@ -348,9 +381,14 @@ func (s *Server) handleTunnelStatus(w http.ResponseWriter, r *http.Request) {
 	s.writeTunnelStatus(w, http.StatusOK)
 }
 
+// tunnelStartBody is POST /api/tunnel/start's optional body.
+type tunnelStartBody struct {
+	Provider string `json:"provider"`
+}
+
 // handleTunnelStart refuses, with the reason as `detail`, what would only fail
-// a moment later inside cloudflared: a missing binary or a config file that
-// blocks quick tunnels.
+// a moment later inside the provider: an unknown provider, a missing binary,
+// or a config file that blocks quick tunnels. No body means cloudflared.
 func (s *Server) handleTunnelStart(w http.ResponseWriter, r *http.Request) {
 	if !s.controlGate(w, r) {
 		return
@@ -359,15 +397,36 @@ func (s *Server) handleTunnelStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorPayload{Detail: "cross-origin request refused"})
 		return
 	}
-	if !tunnel.LookupBinary(s.tunnel.Command).Found {
+	var body tunnelStartBody
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<10)).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorPayload{Detail: "body: " + err.Error()})
+			return
+		}
+	}
+	provider := body.Provider
+	if provider == "" {
+		provider = tunnel.Provider
+	}
+	if !tunnel.KnownProvider(provider) {
+		writeJSON(w, http.StatusBadRequest, errorPayload{Detail: "unknown provider " + strconv.Quote(provider)})
+		return
+	}
+	command := s.tunnel.Command
+	if command == "" {
+		command = tunnel.CommandFor(provider)
+	}
+	if !tunnel.LookupBinary(command).Found {
 		writeJSON(w, http.StatusConflict, errorPayload{Detail: tunnel.ReasonBinaryMissing})
 		return
 	}
-	if path := tunnel.ConfigBlocker(); path != "" {
-		writeJSON(w, http.StatusConflict, errorPayload{Detail: tunnel.BlockerMessage(path)})
-		return
+	if provider == tunnel.ProviderCloudflared {
+		if path := tunnel.ConfigBlocker(); path != "" {
+			writeJSON(w, http.StatusConflict, errorPayload{Detail: tunnel.BlockerMessage(path)})
+			return
+		}
 	}
-	if _, err := s.StartTunnel(); err != nil {
+	if _, err := s.StartTunnel(provider); err != nil {
 		code := http.StatusInternalServerError
 		if errors.Is(err, tunnel.ErrAlreadyRunning) || errors.Is(err, tunnel.ErrLocked) {
 			code = http.StatusConflict

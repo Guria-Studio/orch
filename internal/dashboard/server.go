@@ -308,13 +308,17 @@ func (s *Server) gated(r route) http.Handler {
 		// no profile's rules were written for that: a relayed request needs a
 		// token before anything else is decided (tunnelroutes.go).
 		if s.tunnelUp() && !isLocalRequest(req) {
-			switch s.tunnelledVerdict(req, r.name) {
+			verdict, portal := s.tunnelledVerdict(req, r.name)
+			switch verdict {
 			case Unauthorized:
 				writePlain(w, http.StatusUnauthorized, "unauthorized")
 				return
 			case Forbidden:
 				writePlain(w, http.StatusForbidden, "forbidden")
 				return
+			}
+			if portal {
+				req = req.WithContext(context.WithValue(req.Context(), portalViewKey{}, true))
 			}
 		}
 		var expectedHash string

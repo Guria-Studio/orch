@@ -54,9 +54,17 @@ type whoamiPayload struct {
 	Routes []string `json:"routes,omitempty"`
 }
 
-func (s *Server) handleWhoami(w http.ResponseWriter, _ *http.Request) {
+// portalViewKey marks a request the tunnel let in on a portal-level token:
+// the client's view of an operator dashboard (tunnelroutes.go).
+type portalViewKey struct{}
+
+// handleWhoami answers a portal-link request as the stakeholder it is, so the
+// SPA it opens shows the client only their pages — the server refuses the
+// rest anyway, but a menu of 403s is not a view.
+func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 	payload := whoamiPayload{Profile: string(s.cfg.Profile)}
-	if s.cfg.Profile == ProfileStakeholder {
+	if s.cfg.Profile == ProfileStakeholder || r.Context().Value(portalViewKey{}) != nil {
+		payload.Profile = string(ProfileStakeholder)
 		payload.Routes = s.cfg.StakeholderRoutes
 	}
 	writeJSON(w, http.StatusOK, payload)

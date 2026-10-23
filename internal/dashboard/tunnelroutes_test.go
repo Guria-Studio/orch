@@ -265,7 +265,7 @@ func TestTunnelStartAndStopFromThePage(t *testing.T) {
 	s := startedTunnel(t)
 	operator, portal := waitForLinks(t, s)
 	if !strings.HasPrefix(operator, "https://quiet-river-sea-bird.trycloudflare.com/?token=") ||
-		!strings.HasPrefix(portal, "https://quiet-river-sea-bird.trycloudflare.com/stakeholder/?token=") {
+		!strings.HasPrefix(portal, "https://quiet-river-sea-bird.trycloudflare.com/?token=") || portal == operator {
 		t.Fatalf("links = %q, %q", operator, portal)
 	}
 
