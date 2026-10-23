@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen, within } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { AppLayout } from "@/components/AppLayout"
@@ -17,6 +18,16 @@ vi.mock("@/hooks/useReleases", async (importOriginal) => ({
   }),
 }))
 vi.mock("@/pages/LogsPage", () => ({ LogsPage: () => <p>event log</p> }))
+// The layout reads the project and what is running from /api/now, and the
+// repository from the Share panel's capabilities.
+const apiGet = vi.hoisted(() => vi.fn(() => new Promise(() => {})))
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  apiClient: { get: apiGet },
+}))
+vi.mock("@/hooks/useTunnelCapabilities", () => ({
+  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" } } }),
+}))
 
 function Where() {
   const { pathname, search } = useLocation()
@@ -25,18 +36,20 @@ function Where() {
 
 function renderAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="*"
-          element={
-            <AppLayout>
-              <Where />
-            </AppLayout>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <AppLayout>
+                <Where />
+              </AppLayout>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
@@ -54,7 +67,7 @@ describe("AppLayout", () => {
     expect(hrefs(sidebar)).toEqual(["/", "/work/list", "/cost/usage", "/delivery/client"])
     expect(hrefs(bottom)).toEqual(hrefs(sidebar))
     // System's pages sit under their own heading, not among the places.
-    expect(hrefs(screen.getByRole("region", { name: "System" }))).toEqual(["/system/providers", "/system/tools", "/system/skills", "/system/settings"])
+    expect(hrefs(screen.getByRole("region", { name: "System" }))).toEqual(["/system/providers", "/system/tools", "/system/skills", "/system/settings", "/system/logs"])
     expect(bottom).toHaveClass("md:hidden")
     expect(sidebar.closest("aside")).toHaveClass("hidden", "md:flex")
   })
@@ -98,9 +111,9 @@ describe("AppLayout", () => {
     expect(within(more).getByRole("link", { name: "Tools" })).toHaveAttribute("href", "/system/tools")
     expect(within(more).getByRole("button", { name: "Share" })).toBeInTheDocument()
     expect(within(more).getByRole("button", { name: "Log out" })).toBeInTheDocument()
-    fireEvent.click(within(more).getByRole("button", { name: "Logs" }))
+    fireEvent.click(within(more).getByRole("link", { name: "Logs" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    expect(screen.getByRole("status", { name: "location" })).toHaveTextContent("/work/list?logs=1")
+    expect(screen.getByRole("status", { name: "location" })).toHaveTextContent("/system/logs")
   })
 
   it("collapses and expands the sidebar with [", () => {
@@ -115,13 +128,23 @@ describe("AppLayout", () => {
     expect(sidebar).toHaveClass("w-60")
   })
 
-  it("opens the event log over the current page and closes it again", () => {
+  // The approved shell: the project and its repository at the top, what is in
+  // flight on Now, and a live-run pill in the page header while a run is on.
+  it("names the project and repository and shows what is running", async () => {
+    apiGet.mockResolvedValueOnce({ data: { project: "acme-billing-api", run: { status: "live" }, working: [{}, {}, {}] } })
+    renderAt("/work/list")
+    const sidebar = screen.getByRole("complementary")
+    expect(await within(sidebar).findByText("acme-billing-api")).toBeInTheDocument()
+    expect(within(sidebar).getByText("hectorcanaimero/orch")).toBeInTheDocument()
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByText("3 in flight")).toBeInTheDocument()
+    expect(screen.getByText("run active")).toBeInTheDocument()
+    expect(within(sidebar).getByText(/Operator · /)).toBeInTheDocument()
+  })
+
+  // The event log is a page of its own under System, not a panel over the page.
+  it("opens the event log as a System page", () => {
     renderAt("/cost/budget")
-    expect(screen.queryByText("event log")).not.toBeInTheDocument()
-    fireEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Logs" }))
-    expect(screen.getByRole("region", { name: "Logs" })).toHaveTextContent("event log")
-    expect(screen.getByRole("status", { name: "location" })).toHaveTextContent("/cost/budget?logs=1")
-    fireEvent.click(screen.getByRole("button", { name: "Close logs" }))
-    expect(screen.queryByText("event log")).not.toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole("region", { name: "System" })).getByRole("link", { name: "Logs" }))
+    expect(screen.getByRole("status", { name: "location" })).toHaveTextContent("/system/logs")
   })
 })

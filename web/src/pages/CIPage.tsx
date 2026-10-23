@@ -1,65 +1,40 @@
-import {
-  AlertTriangle,
-  ChevronRight,
-  CircleCheck,
-  CircleDashed,
-  CircleX,
-  ExternalLink,
-  GitBranch,
-  GitMerge,
-  GitPullRequest,
-  RotateCcw,
-  ShieldCheck,
-} from "lucide-react"
+import type { ReactNode } from "react"
+import { AlertTriangle } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCI } from "@/hooks/useCI"
 import { useTasks } from "@/hooks/useTasks"
 import { maxRetries, pipelineStages, prLabel, prTasks, type CiWorkflow, type Stage, type StageState } from "@/lib/ci"
 import { describeLoadError } from "@/lib/errors"
+import { taskPath } from "@/lib/nav"
 import { t } from "@/i18n"
 import { cn } from "@/lib/utils"
 import type { CiStatus, Task } from "@/lib/types"
 
-const STAGE_ICON: Record<Stage["key"], typeof GitBranch> = {
-  branch: GitBranch,
-  pr: GitPullRequest,
-  checks: ShieldCheck,
-  retry: RotateCcw,
-  merge: GitMerge,
-}
-
-const STATE_PILL: Record<StageState, { label: "ci.stage.on" | "ci.stage.off" | "ci.stage.missing"; variant: "success" | "muted" | "warning" }> = {
-  on: { label: "ci.stage.on", variant: "success" },
-  off: { label: "ci.stage.off", variant: "muted" },
-  missing: { label: "ci.stage.missing", variant: "warning" },
-}
-
-const CI_META: Record<CiStatus, { label: "ci.pending" | "ci.success" | "ci.failure" | "ci.skipped"; variant: "info" | "success" | "danger" | "muted"; icon: typeof CircleCheck }> = {
-  pending: { label: "ci.pending", variant: "info", icon: CircleDashed },
-  success: { label: "ci.success", variant: "success", icon: CircleCheck },
-  failure: { label: "ci.failure", variant: "danger", icon: CircleX },
-  skipped: { label: "ci.skipped", variant: "muted", icon: CircleDashed },
+const STATE_LABEL: Record<StageState, "ci.stage.on" | "ci.stage.off" | "ci.stage.missing"> = {
+  on: "ci.stage.on",
+  off: "ci.stage.off",
+  missing: "ci.stage.missing",
 }
 
 /**
  * CI (operator only): how a task's work gets from its agent to the base
  * branch in this project, as config.yaml and the repo's workflows set it up,
- * and where every open pull request is on that path right now.
+ * and where every pull request is on that path right now.
  */
 export function CIPage() {
   const ci = useCI()
   const tasks = useTasks()
 
   return (
-    <div className="space-y-6 text-[13px]">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("ci.title")}</h1>
-        <p className="max-w-3xl text-[13px] text-muted-foreground">{t("ci.intro")}</p>
-      </header>
+    <div className="flex flex-col gap-6 text-[13px]">
+      {/* The layout's header names the page. */}
+      <h1 className="sr-only">{t("ci.title")}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+        <p className="max-w-[720px] leading-5 text-muted-foreground">{t("ci.intro")}</p>
+        {tasks.data ? <PrCountsLine tasks={tasks.data.tasks} /> : null}
+      </div>
 
       {ci.isError ? (
         <Alert variant="destructive">
@@ -83,28 +58,25 @@ export function CIPage() {
         </Alert>
       ) : null}
 
-      <section aria-labelledby="pipeline-heading" className="space-y-3">
-        <h2 id="pipeline-heading" className="text-xs font-medium text-muted-foreground">
+      <section aria-labelledby="pipeline-heading" className="flex flex-col gap-2">
+        <h2 id="pipeline-heading" className="font-medium">
           {t("ci.pipeline")}
         </h2>
         {ci.isLoading ? (
-          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-36 w-full" />
         ) : ci.data ? (
-          <ol className="grid gap-3 md:grid-cols-5">
-            {pipelineStages(ci.data).map((stage, i, all) => (
-              <StageCard key={stage.key} stage={stage} last={i === all.length - 1} />
+          <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {pipelineStages(ci.data).map((stage, i) => (
+              <StageCard key={stage.key} stage={stage} n={i + 1} />
             ))}
           </ol>
         ) : null}
       </section>
 
-      <section aria-labelledby="prs-heading" className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="prs-heading" className="text-xs font-medium text-muted-foreground">
-            {t("ci.pull_requests")}
-          </h2>
-          {tasks.data ? <PrCountsLine tasks={tasks.data.tasks} /> : null}
-        </div>
+      <section aria-labelledby="prs-heading" className="flex flex-col gap-2">
+        <h2 id="prs-heading" className="font-medium">
+          {t("ci.pull_requests")}
+        </h2>
         {tasks.isError ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -118,8 +90,8 @@ export function CIPage() {
         ) : null}
       </section>
 
-      <section aria-labelledby="workflows-heading" className="space-y-3">
-        <h2 id="workflows-heading" className="text-xs font-medium text-muted-foreground">
+      <section aria-labelledby="workflows-heading" className="flex flex-col gap-2">
+        <h2 id="workflows-heading" className="font-medium">
           {t("ci.workflows")}
         </h2>
         {ci.data && ci.data.workflows.length === 0 ? (
@@ -128,48 +100,44 @@ export function CIPage() {
             <code className="font-mono">orch init</code> {t("ci.no_workflows_writes")} <code className="font-mono">orch-ci.yml</code>{" "}
             {t("ci.no_workflows_after")}
           </p>
+        ) : ci.data ? (
+          <ul className="divide-y rounded-lg border">
+            {ci.data.workflows.map((w) => (
+              <WorkflowRow key={w.file} workflow={w} />
+            ))}
+          </ul>
         ) : null}
-        <div className="grid gap-4 lg:grid-cols-2">
-          {ci.data?.workflows.map((w) => (
-            <WorkflowCard key={w.file} workflow={w} />
-          ))}
-        </div>
       </section>
     </div>
   )
 }
 
-function StageCard({ stage, last }: { stage: Stage; last: boolean }) {
-  const Icon = STAGE_ICON[stage.key]
-  const pill = STATE_PILL[stage.state]
+const PILL: Record<StageState | "on_prs" | "off_prs", string> = {
+  on: "bg-status-done/14 text-status-done",
+  on_prs: "bg-status-done/14 text-status-done",
+  off: "bg-secondary text-muted-foreground",
+  off_prs: "bg-secondary text-muted-foreground",
+  missing: "bg-status-blocked/14 text-status-blocked",
+}
+
+function Pill({ tone, children }: { tone: keyof typeof PILL; children: ReactNode }) {
+  return <span className={cn("self-start rounded-full px-2 py-px text-[11px]", PILL[tone])}>{children}</span>
+}
+
+// The settings each stage reads stay on the card's tooltip; the card says
+// what they amount to.
+function StageCard({ stage, n }: { stage: Stage; n: number }) {
   return (
-    <li className="relative">
-      <Card className={cn("h-full", stage.state === "off" && "bg-muted/40", stage.state === "missing" && "border-status-blocked/60")}>
-        <CardHeader className="space-y-2 p-4 pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <Icon className={cn("h-5 w-5", stage.state === "off" ? "text-muted-foreground" : "text-foreground")} aria-hidden />
-            <Badge variant={pill.variant}>{t(pill.label)}</Badge>
-          </div>
-          <CardTitle className="text-sm">{stage.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 p-4 pt-0">
-          <p className="text-sm text-muted-foreground">{stage.detail}</p>
-          <dl className="space-y-1">
-            {stage.settings.map((s) => (
-              <div key={s.label} className="flex flex-wrap justify-between gap-x-2 text-xs">
-                <dt className="font-mono text-muted-foreground">{s.label}</dt>
-                <dd className="break-all font-mono text-foreground">{s.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </CardContent>
-      </Card>
-      {last ? null : (
-        <ChevronRight
-          className="absolute -right-3 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 text-muted-foreground md:block"
-          aria-hidden
-        />
-      )}
+    <li
+      className="flex flex-col gap-2 rounded-lg border bg-card p-3"
+      title={stage.settings.map((s) => `${s.label}: ${s.value}`).join("\n") || undefined}
+    >
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-[11px] text-muted-foreground">{n}</span>
+        <span className="font-medium">{stage.title}</span>
+      </span>
+      <Pill tone={stage.state}>{t(STATE_LABEL[stage.state])}</Pill>
+      <span className="text-xs leading-[18px] text-foreground/85">{stage.detail}</span>
     </li>
   )
 }
@@ -178,34 +146,9 @@ function PrCountsLine({ tasks }: { tasks: Task[] }) {
   const { active, finished, failing } = prTasks(tasks)
   if (active.length + finished.length === 0) return null
   return (
-    <p className="text-sm text-muted-foreground tabular-nums">
+    <p className="text-xs text-muted-foreground tabular-nums">
       {t("ci.counts", { active: active.length, failing, finished: finished.length })}
     </p>
-  )
-}
-
-function PrTable({ tasks, retries }: { tasks: Task[]; retries?: number }) {
-  const { active, finished } = prTasks(tasks)
-  return (
-    <div className="space-y-3">
-      {active.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-5 text-muted-foreground">
-          {t("ci.no_prs_before")} <code className="font-mono">vcs.auto_pr</code> {t("ci.no_prs_after")}
-        </p>
-      ) : (
-        <PrRows rows={active} retries={retries} showStatus />
-      )}
-      {finished.length > 0 ? (
-        <details className="group rounded-lg border">
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
-            {t("ci.finished_through_pr", { count: finished.length })}
-          </summary>
-          <div className="border-t">
-            <PrRows rows={finished} retries={retries} bare />
-          </div>
-        </details>
-      ) : null}
-    </div>
   )
 }
 
@@ -216,106 +159,84 @@ const TASK_STATUS: Record<string, "ci.task.in_review" | "ci.task.blocked" | "ci.
   done: "ci.task.done",
 }
 
-function PrRows({ rows, retries, showStatus, bare }: { rows: Task[]; retries?: number; showStatus?: boolean; bare?: boolean }) {
+const CI_TONE: Record<CiStatus, { label: "ci.pending" | "ci.success" | "ci.failure" | "ci.skipped"; text: string; bg: string }> = {
+  pending: { label: "ci.pending", text: "text-status-running", bg: "bg-status-running" },
+  success: { label: "ci.success", text: "text-status-done", bg: "bg-status-done" },
+  failure: { label: "ci.failure", text: "text-status-blocked", bg: "bg-status-blocked" },
+  skipped: { label: "ci.skipped", text: "text-muted-foreground", bg: "bg-muted-foreground" },
+}
+
+const PR_COLS = "grid grid-cols-[minmax(0,1fr)_140px_130px_100px_60px] items-center gap-x-3.5 px-3.5"
+
+// One table for every task with a PR: the ones still in review first, then
+// the finished ones.
+function PrTable({ tasks, retries }: { tasks: Task[]; retries?: number }) {
+  const { active, finished } = prTasks(tasks)
+  const rows = [...active, ...finished]
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed p-5 text-muted-foreground">
+        {t("ci.no_prs_before")} <code className="font-mono">vcs.auto_pr</code> {t("ci.no_prs_after")}
+      </p>
+    )
+  }
   return (
-    <div className={cn("overflow-x-auto", !bare && "rounded-lg border")}>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("ci.col.task")}</TableHead>
-            {showStatus ? <TableHead>{t("ci.col.task_status")}</TableHead> : null}
-            <TableHead>{t("ci.col.last_ci")}</TableHead>
-            <TableHead className="text-right">{t("ci.col.retries")}</TableHead>
-            <TableHead className="text-right">{t("task.pr")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((task) => {
-            const meta = CI_META[task.ci_status ?? "pending"]
-            const StatusIcon = meta.icon
-            return (
-              <TableRow key={task.id}>
-                <TableCell>
-                  <div className="font-mono text-xs text-muted-foreground">{task.id}</div>
-                  <div className="text-sm">{task.title}</div>
-                </TableCell>
-                {showStatus ? <TableCell className="text-sm">{TASK_STATUS[task.status] ? t(TASK_STATUS[task.status]) : task.status}</TableCell> : null}
-                <TableCell>
-                  <Badge variant={meta.variant}>
-                    <StatusIcon className="h-3 w-3" aria-hidden />
-                    {t(meta.label)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm tabular-nums">
-                  {task.ci_attempts ?? 0}
-                  {retries !== undefined ? ` / ${retries}` : ""}
-                </TableCell>
-                <TableCell className="text-right">
-                  <a
-                    href={task.pr_url ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-mono text-sm hover:underline"
-                  >
-                    {prLabel(task.pr_url ?? "")}
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                  </a>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <div className="overflow-x-auto rounded-lg border">
+      <div role="table" aria-labelledby="prs-heading" className="min-w-[720px]">
+        <div role="row" className={cn(PR_COLS, "h-[34px] border-b bg-card text-xs text-muted-foreground")}>
+          <span role="columnheader">{t("ci.col.task")}</span>
+          <span role="columnheader">{t("ci.col.task_status")}</span>
+          <span role="columnheader">{t("ci.col.last_ci")}</span>
+          <span role="columnheader">{t("ci.col.retries")}</span>
+          <span role="columnheader">{t("task.pr")}</span>
+        </div>
+        {rows.map((task) => {
+          const tone = CI_TONE[task.ci_status ?? "pending"]
+          return (
+            <div role="row" key={task.id} className={cn(PR_COLS, "h-10 border-b last:border-b-0")}>
+              <Link role="cell" to={taskPath(task.id)} className="flex min-w-0 gap-2.5 hover:underline">
+                <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
+                <span className="truncate">{task.title}</span>
+              </Link>
+              <span role="cell" className="text-foreground/85">
+                {TASK_STATUS[task.status] ? t(TASK_STATUS[task.status]) : task.status}
+              </span>
+              <span role="cell" className={cn("inline-flex items-center gap-1.5", tone.text)}>
+                <span className={cn("h-1.5 w-1.5 rounded-full", tone.bg)} aria-hidden />
+                {t(tone.label)}
+              </span>
+              <span role="cell" className="font-mono text-muted-foreground tabular-nums">
+                {task.ci_attempts ?? 0}
+                {retries !== undefined ? ` / ${retries}` : ""}
+              </span>
+              <a role="cell" href={task.pr_url ?? undefined} target="_blank" rel="noopener noreferrer" className="font-mono text-brand hover:underline">
+                {prLabel(task.pr_url ?? "")}
+              </a>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-function WorkflowCard({ workflow }: { workflow: CiWorkflow }) {
+// A workflow is one row: its file, whether it runs on PRs, and its jobs
+// (with what each waits on).
+function WorkflowRow({ workflow }: { workflow: CiWorkflow }) {
+  const jobs = workflow.jobs.map((j) => (j.needs.length ? `${j.name || j.id} (${t("ci.after", { jobs: j.needs.join(", ") })})` : j.name || j.id))
   return (
-    <Card>
-      <CardHeader className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{workflow.name || workflow.file}</CardTitle>
-          {workflow.runs_on_pull_requests ? <Badge variant="success">{t("ci.runs_on_prs")}</Badge> : <Badge variant="muted">{t("ci.not_on_prs")}</Badge>}
-        </div>
-        <CardDescription className="flex flex-wrap items-center gap-2">
-          <code className="font-mono text-xs">.github/workflows/{workflow.file}</code>
-          {workflow.triggers.map((trigger) => (
-            <Badge key={trigger} variant="outline" className="font-mono">
-              {trigger}
-            </Badge>
-          ))}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {workflow.parse_error ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("ci.unreadable")}</AlertTitle>
-            <AlertDescription className="font-mono text-xs">{workflow.parse_error}</AlertDescription>
-          </Alert>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {workflow.jobs.map((job) => (
-              <div key={job.id} className="rounded-lg bg-muted/50 p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium">{job.name || job.id}</span>
-                  {job.needs.length ? <span className="text-xs text-muted-foreground">{t("ci.after", { jobs: job.needs.join(", ") })}</span> : null}
-                </div>
-                {job.parse_error ? <p className="mt-2 font-mono text-xs text-status-failed">{job.parse_error}</p> : null}
-                <ol className="mt-2 space-y-1">
-                  {job.steps.map((step, i) => (
-                    <li key={`${i}-${step}`} className="flex gap-2 text-xs">
-                      <span className="w-4 shrink-0 text-right font-mono text-muted-foreground tabular-nums">{i + 1}</span>
-                      <span className="break-all font-mono text-foreground/85">{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <li className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2">
+      <span className="font-mono text-xs">.github/workflows/{workflow.file}</span>
+      <Pill tone={workflow.runs_on_pull_requests ? "on_prs" : "off_prs"}>
+        {workflow.runs_on_pull_requests ? t("ci.runs_on_prs") : t("ci.not_on_prs")}
+      </Pill>
+      {workflow.parse_error ? (
+        <span className="text-xs text-status-failed">
+          {t("ci.unreadable")}: <span className="font-mono">{workflow.parse_error}</span>
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">{jobs.join(" · ")}</span>
+      )}
+    </li>
   )
 }

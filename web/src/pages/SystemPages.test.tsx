@@ -25,19 +25,28 @@ vi.mock("@/hooks/useSystem", () => ({
 }))
 
 describe("System pages", () => {
-  it("Skills says per CLI whether each skill is installed, and gives the command", () => {
+  // As in the design: claude, codex and opencode columns, "Up to date" /
+  // "Missing" states, and a header button that copies the install command.
+  it("Skills says per CLI whether each skill is installed, and copies the command", () => {
     render(<SkillsPage />)
     const row = screen.getByText("orch").closest("tr")!
-    expect(within(row).getByText("Installed")).toBeInTheDocument()
-    expect(within(row).getByText("Not installed")).toBeInTheDocument()
-    expect(screen.getByText("orch install-skills --target claude --target codex")).toBeInTheDocument()
+    expect(within(row).getByText("Up to date")).toBeInTheDocument()
+    expect(within(row).getByText("Missing")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy the command: install / update all" })).toHaveAttribute(
+      "title",
+      "orch install-skills --target claude --target codex --target opencode --force",
+    )
   })
 
-  it("Settings lists each key under its section, with its source and the ignored keys", () => {
+  // The design's sections with labelled fields; booleans as switches, which
+  // are read-only because nothing writes config.yaml from the dashboard.
+  it("Settings shows each key in its section, read-only", () => {
     render(<SettingsPage />)
-    const tunnel = screen.getByRole("region", { name: "tunnel" })
+    const tunnel = screen.getByRole("region", { name: "Tunnel" })
     expect(within(tunnel).getByText("tunnel.enabled")).toBeInTheDocument()
-    expect(within(tunnel).getByText("true")).toBeInTheDocument()
-    expect(screen.getByText("unknown key: tunel")).toBeInTheDocument()
+    const sw = within(tunnel).getByRole("switch", { name: "Allow sharing" })
+    expect(sw).toHaveAttribute("aria-checked", "true")
+    expect(sw).toBeDisabled()
+    expect(screen.getByText("Read-only — edit the file")).toBeInTheDocument()
   })
 })

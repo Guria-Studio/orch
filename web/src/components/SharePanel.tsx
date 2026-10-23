@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Circle, Copy, ExternalLink, GitBranch, RefreshCw } from "lucide-react"
+import { AlertTriangle, Circle, Copy, GitBranch, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useTunnelCapabilities } from "@/hooks/useTunnelCapabilities"
@@ -11,17 +10,6 @@ import { startTunnel, stopTunnel } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { t, type MessageKey } from "@/i18n"
 import type { TunnelCapabilities, TunnelProvider, TunnelProviderId, TunnelState, TunnelStatus } from "@/lib/types"
-
-type BadgeVariant = "success" | "warning" | "danger" | "muted" | "info"
-
-// The dot takes the badge's own status color, so the pair can never disagree.
-const STATE_META: Record<TunnelState, { label: MessageKey; badge: BadgeVariant }> = {
-  idle: { label: "tunnel.state.idle", badge: "muted" },
-  starting: { label: "tunnel.state.starting", badge: "info" },
-  running: { label: "tunnel.state.running", badge: "success" },
-  stopping: { label: "tunnel.state.stopping", badge: "warning" },
-  error: { label: "tunnel.state.error", badge: "danger" },
-}
 
 const providerName = (id: TunnelProviderId) => t(`share.provider.${id}` as MessageKey)
 
@@ -88,27 +76,32 @@ function ShareBody({
   onCheck: () => void
 }) {
   const providers = caps.providers ?? []
+  const byId = (id: TunnelProviderId) => providers.find((p) => p.id === id)
   const state: TunnelState = status?.state ?? "idle"
   const up = state === "starting" || state === "running" || state === "stopping"
   const running = up ? providers.find((p) => p.id === status?.provider) : undefined
-  const [choice, setChoice] = useState<TunnelProviderId>(
-    () => providers.find((p) => p.binary.found)?.id ?? providers[0]?.id ?? "cloudflared",
+  const [choice, setChoice] = useState<TunnelProviderId>(() =>
+    byId("cloudflared")?.binary.found || !byId("tailscale-serve")?.binary.found ? "cloudflared" : "tailscale-serve",
   )
   // While a share is up, it is the one shown: switching means stopping it first.
-  const selected = running ?? providers.find((p) => p.id === choice) ?? providers[0]
+  const selected = running ?? byId(choice) ?? providers[0]
+  const tailscale = selected?.id !== "cloudflared"
+  // Two programs, as the panel offers them; tailscale's two modes are a choice inside its card.
+  const cards = [
+    { kind: "cloudflared" as const, id: "cloudflared" as TunnelProviderId, name: "share.provider.cloudflared", hint: "share.provider.cloudflared_hint" },
+    { kind: "tailscale" as const, id: (tailscale && selected ? selected.id : "tailscale-serve") as TunnelProviderId, name: "share.provider.tailscale", hint: "share.provider.tailscale_hint" },
+  ].filter((c) => byId(c.id))
 
   return (
-    <div className="space-y-5 text-[13px]">
-      <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
+    <div className="space-y-4 text-[13px]">
+      <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-b pb-4">
         <dt className="text-xs text-muted-foreground">{t("share.repo")}</dt>
         <dd className="flex min-w-0 flex-wrap items-center gap-2">
           {caps.repo?.remote ? (
             <>
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="truncate font-medium">{caps.repo.slug || caps.repo.remote}</span>
-              {caps.repo.branch ? (
-                <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px]">{caps.repo.branch}</span>
-              ) : null}
+              {caps.repo.branch ? <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px]">{caps.repo.branch}</span> : null}
               {caps.repo.host ? <span className="text-xs text-muted-foreground">{caps.repo.host}</span> : null}
             </>
           ) : (
@@ -120,37 +113,31 @@ function ShareBody({
             <dt className="text-xs text-muted-foreground">{t("share.local")}</dt>
             <dd className="flex min-w-0 items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-xs">{caps.local_url}</code>
-              <CopyButton text={caps.local_url} label={t("share.copy_local")} />
+              <CopyButton text={caps.local_url} label={t("share.copy_local")} iconOnly />
             </dd>
           </>
         ) : null}
       </dl>
 
-      <fieldset className="space-y-2">
-        <legend className="mb-2 text-xs text-muted-foreground">{t("share.via")}</legend>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {providers.map((p) => {
-            const checked = p.id === selected?.id
+      <fieldset>
+        <legend className="sr-only">{t("share.via")}</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {cards.map((c) => {
+            const p = byId(c.id)!
+            const checked = c.kind === (tailscale ? "tailscale" : "cloudflared")
+            const locked = !!running && !checked
             return (
               <label
-                key={p.id}
+                key={c.kind}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                  checked ? "border-brand bg-brand/5" : "hover:bg-secondary",
-                  running && !checked && "cursor-not-allowed opacity-50",
+                  "flex cursor-pointer flex-col items-start gap-1 rounded-lg border bg-background p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                  checked ? "border-brand ring-1 ring-brand" : "hover:bg-secondary",
+                  locked && "cursor-not-allowed opacity-50",
                 )}
               >
-                <input
-                  type="radio"
-                  name="share-provider"
-                  value={p.id}
-                  checked={checked}
-                  disabled={!!running && !checked}
-                  onChange={() => setChoice(p.id)}
-                  className="sr-only"
-                />
-                <span className="font-medium">{providerName(p.id)}</span>
-                <span className="text-xs text-muted-foreground">{t(`share.provider.${p.id}_hint` as MessageKey)}</span>
+                <input type="radio" name="share-provider" value={c.kind} checked={checked} disabled={locked} onChange={() => setChoice(c.id)} className="sr-only" />
+                <span className="font-medium">{t(c.name as MessageKey)}</span>
+                <span className="text-xs text-muted-foreground">{t(c.hint as MessageKey)}</span>
                 <span className={cn("text-xs", p.binary.found ? "text-status-done" : "text-status-blocked")}>
                   {p.binary.found ? t("share.installed") : t("share.missing")}
                 </span>
@@ -158,10 +145,28 @@ function ShareBody({
             )
           })}
         </div>
-        {running && running.id !== choice ? (
-          <p className="text-xs text-muted-foreground">{t("share.running_other", { provider: providerName(running.id) })}</p>
-        ) : null}
       </fieldset>
+
+      {tailscale && selected?.binary.found ? (
+        <div role="radiogroup" aria-label={t("share.mode")} className="inline-flex rounded-md border p-0.5">
+          {(["tailscale-serve", "tailscale-funnel"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={selected.id === id}
+              disabled={!!running && running.id !== id}
+              onClick={() => setChoice(id)}
+              className={cn("h-7 rounded px-2.5 text-xs disabled:opacity-50", selected.id === id ? "bg-secondary font-medium" : "text-muted-foreground hover:text-foreground")}
+            >
+              {t(id === "tailscale-serve" ? "share.mode.serve" : "share.mode.funnel")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {running && running.id !== choice ? (
+        <p className="text-xs text-muted-foreground">{t("share.running_other", { provider: providerName(running.id) })}</p>
+      ) : null}
 
       {selected ? (
         !selected.binary.found ? (
@@ -182,14 +187,7 @@ function ShareBody({
 
       {selected?.id === "tailscale-funnel" ? <p className="text-xs text-muted-foreground">{t("share.funnel_note")}</p> : null}
 
-      <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer select-none">{t("tunnel.limits_title")}</summary>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          {(["tunnel.limit.address", "tunnel.limit.revoke", "tunnel.limit.polling", "tunnel.limit.testing"] as const).map((key) => (
-            <li key={key}>{t(key)}</li>
-          ))}
-        </ul>
-      </details>
+      <p className="border-t pt-3 text-xs text-muted-foreground">{t("share.footer")}</p>
     </div>
   )
 }
@@ -200,7 +198,6 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
   const [actionError, setActionError] = useState<string | null>(null)
 
   const state: TunnelState = status?.state ?? "idle"
-  const meta = STATE_META[state] ?? STATE_META.idle
   const up = state === "starting" || state === "running"
 
   const act = async (action: () => Promise<TunnelStatus>) => {
@@ -217,47 +214,37 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
   }
 
   const problem = actionError ?? (state === "error" || status?.last_error ? status?.last_error ?? null : null)
+  const stop = (
+    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void act(stopTunnel)} className="border-status-failed/40 text-status-failed hover:text-status-failed">
+      {busy ? t("tunnel.stopping") : t("tunnel.stop")}
+    </Button>
+  )
 
   return (
-    <div className="space-y-3 rounded-lg border p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={meta.badge} className="gap-1.5">
-          <Circle className="h-2 w-2 fill-current" aria-hidden />
-          {t(meta.label)}
-        </Badge>
-        {state === "running" && status?.started_at ? <Uptime since={status.started_at} /> : null}
-        {provider.binary.version ? (
-          <span className="truncate font-mono text-[11px] text-muted-foreground">{provider.binary.version}</span>
-        ) : null}
-        <span className="ml-auto">
-          {up ? (
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void act(stopTunnel)}>
-              {busy ? t("tunnel.stopping") : t("tunnel.stop")}
-            </Button>
-          ) : (
-            <Button type="button" size="sm" disabled={busy || state === "stopping"} onClick={() => void act(() => startTunnel(provider.id))}>
-              {busy ? t("tunnel.starting") : t("share.generate")}
-            </Button>
-          )}
-        </span>
-      </div>
-
+    <div className="space-y-3">
       {status?.share_url && status.portal_url ? (
-        <div className="space-y-2">
-          <LinkRow label={t("tunnel.link.portal")} hint={t("tunnel.link.portal_hint")} copyLabel={t("tunnel.link.portal_copy")} url={status.portal_url} />
-          <LinkRow
-            label={t("tunnel.link.dashboard")}
-            hint={t("tunnel.link.dashboard_hint")}
-            copyLabel={t("tunnel.link.dashboard_copy")}
-            url={status.share_url}
-          />
+        <div className="space-y-3">
+          <p className="flex items-center gap-1.5 text-xs text-status-done">
+            <Circle className="h-1.5 w-1.5 fill-current" aria-hidden />
+            {t("share.live")}
+            {status.started_at ? <Uptime since={status.started_at} /> : null}
+          </p>
+          <LinkField label={t("share.client_link")} copyLabel={t("tunnel.link.portal_copy")} url={status.portal_url} primary />
+          <LinkField label={t("share.operator_link")} copyLabel={t("tunnel.link.dashboard_copy")} url={status.share_url} />
+          {stop}
         </div>
-      ) : up && status?.url ? (
-        <p className="text-muted-foreground">{t("tunnel.orphan", { url: status.url })}</p>
       ) : up ? (
-        <p className="text-muted-foreground">{t("share.waiting")}</p>
+        <div className="space-y-2">
+          <p className="text-muted-foreground">{status?.url ? t("tunnel.orphan", { url: status.url }) : t("share.waiting")}</p>
+          {stop}
+        </div>
       ) : (
-        <p className="text-muted-foreground">{t("tunnel.two_links")}</p>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-3">
+          <span className="min-w-0 flex-1">{t("share.idle")}</span>
+          <Button type="button" size="sm" disabled={busy || state === "stopping"} onClick={() => void act(() => startTunnel(provider.id))} className="bg-brand text-white hover:bg-brand/90">
+            {busy ? t("tunnel.starting") : t("share.generate")}
+          </Button>
+        </div>
       )}
 
       {problem ? (
@@ -276,56 +263,23 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
   )
 }
 
+/** A program that is missing: this machine's install steps, as one block to copy, and a way back. */
 function InstallGuide({ provider, checking, onCheck }: { provider: TunnelProvider; checking: boolean; onCheck: () => void }) {
-  const [selected, setSelected] = useState(provider.recommended_guide || provider.guides[0]?.id)
-  const guide = provider.guides.find((g) => g.id === selected) ?? provider.guides[0]
+  const guide = provider.guides.find((g) => g.id === provider.recommended_guide) ?? provider.guides[0]
   return (
-    <section className="space-y-4 rounded-lg border border-status-blocked/40 bg-status-blocked/5 p-3" aria-label={t("share.install_title", { command: provider.command })}>
-      <div className="space-y-1">
-        <p className="font-medium">{t("share.install_title", { command: provider.command })}</p>
-        <p className="text-xs text-muted-foreground">{t("share.install_intro")}</p>
-      </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("tunnel.install_method")}>
-        {provider.guides.map((g) => (
-          <Button
-            key={g.id}
-            type="button"
-            size="sm"
-            variant={g.id === guide?.id ? "default" : "outline"}
-            aria-pressed={g.id === guide?.id}
-            onClick={() => setSelected(g.id)}
-          >
-            {g.label}
-            {g.id === provider.recommended_guide ? ` · ${t("tunnel.this_machine")}` : ""}
-          </Button>
-        ))}
-      </div>
-      {guide ? (
-        <ol className="space-y-3">
-          {guide.steps.map((step, i) => (
-            <li key={step.title} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-medium tabular-nums">{i + 1}</span>
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs font-medium">{step.title}</p>
-                <CommandBlock command={step.command} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-3">
+    <section
+      role="status"
+      aria-label={t("share.install_title", { command: provider.command })}
+      className="space-y-2.5 rounded-lg border border-status-blocked/40 bg-status-blocked/10 p-3"
+    >
+      <p className="font-medium text-status-blocked">{t("share.install_title", { command: provider.command })}</p>
+      <p>{t("share.install_intro")}</p>
+      {guide ? <CommandBlock command={guide.steps.map((s) => s.command).join("\n")} /> : null}
+      <div className="flex flex-wrap items-center gap-2">
         <CheckAgain checking={checking} onCheck={onCheck} />
-        {provider.docs_url ? (
-          <a
-            href={provider.docs_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
-          >
-            {t("share.other_systems")}
-            <ExternalLink className="h-3 w-3" aria-hidden />
-          </a>
-        ) : null}
+        <a href="/system/tools" className="inline-flex h-7 items-center rounded-md border px-2.5 text-xs hover:bg-secondary">
+          {t("share.all_tools")}
+        </a>
       </div>
     </section>
   )
@@ -350,21 +304,15 @@ function Notice({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function LinkRow({ label, hint, copyLabel, url }: { label: string; hint: string; copyLabel: string; url: string }) {
+function LinkField({ label, copyLabel, url, primary }: { label: string; copyLabel: string; url: string; primary?: boolean }) {
   return (
-    <div className="rounded-md border px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{hint}</span>
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-1.5 font-mono text-xs hover:underline">
-          <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{url}</span>
-        </a>
-        <CopyButton text={url} label={copyLabel} />
-      </div>
-    </div>
+    <label className="block space-y-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-2">
+        <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-8 min-w-0 flex-1 rounded-md border bg-muted/40 px-2.5 font-mono text-xs" />
+        <CopyButton text={url} label={copyLabel} primary={primary} />
+      </span>
+    </label>
   )
 }
 
@@ -377,7 +325,7 @@ function CommandBlock({ command }: { command: string }) {
   )
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
+function CopyButton({ text, label, iconOnly, primary }: { text: string; label: string; iconOnly?: boolean; primary?: boolean }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
@@ -390,9 +338,16 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     }
   }
   return (
-    <Button type="button" size="sm" variant="outline" onClick={() => void copy()} aria-label={label} className="ml-auto h-7 shrink-0 gap-1.5 px-2">
-      <Copy className="h-3.5 w-3.5" aria-hidden />
-      {copied ? t("common.copied") : t("common.copy")}
+    <Button
+      type="button"
+      size="sm"
+      variant={primary ? "default" : "outline"}
+      onClick={() => void copy()}
+      aria-label={label}
+      title={iconOnly ? label : undefined}
+      className={cn("h-8 shrink-0 gap-1.5", iconOnly ? "w-8 px-0" : "px-3")}
+    >
+      {iconOnly ? <Copy className="h-3.5 w-3.5" aria-hidden /> : copied ? t("common.copied") : t("common.copy")}
     </Button>
   )
 }

@@ -1,21 +1,24 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { Navigate, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Languages, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, ScrollText, Search, Share, Sun, X } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { Navigate, NavLink, useLocation, useNavigate } from "react-router-dom"
+import { Languages, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Share, Sun } from "lucide-react"
 import { CommandPalette, ShortcutsDialog } from "@/components/CommandPalette"
 import { SharePanel } from "@/components/SharePanel"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip } from "@/components/ui/tooltip"
 import { LANGS, LANGUAGE_NAMES, setLanguage, t, useLanguage } from "@/i18n"
 import { useAuth } from "@/hooks/useAuth"
+import type { Now } from "@/hooks/useNow"
+import { useTunnelCapabilities } from "@/hooks/useTunnelCapabilities"
 import { isPortfolioNavVisible, usePortfolio } from "@/hooks/usePortfolio"
 import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed"
 import { useWhoami } from "@/hooks/useWhoami"
 import { releasesSeen, useReleases } from "@/hooks/useReleases"
 import { TAB_ICONS, findTab, homePath, isPathAllowed, visibleDestinations, type NavDestination } from "@/lib/nav"
+import { apiClient } from "@/lib/api"
 import { isMac, useKeyboardShortcuts } from "@/lib/shortcuts"
 import { nextTheme, useTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
-import { LogsPage } from "@/pages/LogsPage"
 
 interface AppLayoutProps {
   children: ReactNode
@@ -25,6 +28,7 @@ const THEME_ICON = { dark: Moon, light: Sun, system: Monitor } as const
 // The phone's bottom bar: the visible destinations plus "More".
 const BOTTOM_COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5" }
 const SHARE_PATH = "/delivery/share"
+const LOGS_PATH = "/system/logs"
 
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 // One row of the sidebar, Linear-sized: 32px tall, 13px text.
@@ -79,7 +83,18 @@ function LanguageToggle({ compact }: { compact: boolean }) {
 }
 
 /** The destinations. Each link opens the destination's first page this session may see. */
-function DestinationLinks({ destinations, currentId, collapsed }: { destinations: NavDestination[]; currentId?: string; collapsed: boolean }) {
+function DestinationLinks({
+  destinations,
+  currentId,
+  collapsed,
+  badges = {},
+}: {
+  destinations: NavDestination[]
+  currentId?: string
+  collapsed: boolean
+  /** A short note at the end of a destination's row, by destination id ("3 in flight" on Now). */
+  badges?: Record<string, ReactNode>
+}) {
   return (
     <>
       {destinations.map((d) => {
@@ -102,6 +117,7 @@ function DestinationLinks({ destinations, currentId, collapsed }: { destinations
               >
                 <Icon className={cn("h-4 w-4 shrink-0", active && "text-brand")} aria-hidden />
                 {collapsed ? null : <span>{t(d.label)}</span>}
+                {collapsed || !badges[d.id] ? null : <span className="ml-auto text-[11px] font-normal text-status-running">{badges[d.id]}</span>}
               </NavLink>,
             )}
           </div>
@@ -125,7 +141,17 @@ function useUnseenRelease(enabled: boolean): boolean {
  * The page header: where you are (destination › page) and, when the
  * destination has more than one page, its pages as view tabs.
  */
-function PageHeader({ destination, pathname }: { destination?: NavDestination; pathname: string }) {
+function PageHeader({
+  destination,
+  pathname,
+  project,
+  runLive,
+}: {
+  destination?: NavDestination
+  pathname: string
+  project: string
+  runLive: boolean
+}) {
   const { search } = useLocation()
   const unseen = useUnseenRelease(destination?.id === "now")
   if (!destination) return null
@@ -139,8 +165,13 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
     <div className="sticky top-14 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:top-0">
       <div className="flex min-h-12 items-center gap-3 overflow-x-auto px-4 md:px-6">
         <p className="hidden shrink-0 items-center gap-2 text-[13px] md:flex">
-          <span className="text-muted-foreground">{t(destination.label)}</span>
-          {currentTab && currentTab.label !== destination.label ? (
+          <span className="text-muted-foreground">{project}</span>
+          <span className="text-muted-foreground" aria-hidden>
+            ›
+          </span>
+          <span className="font-medium">{t(destination.label)}</span>
+          {/* The page's own name only when no view tab already says it. */}
+          {currentTab && currentTab.label !== destination.label && (tabs.length < 2 || currentTab.offTabs) ? (
             <>
               <span className="text-muted-foreground" aria-hidden>
                 ›
@@ -177,48 +208,14 @@ function PageHeader({ destination, pathname }: { destination?: NavDestination; p
             })}
           </nav>
         ) : null}
+        {runLive ? (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-status-done/14 px-2 py-0.5 text-xs text-status-done">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-done" aria-hidden />
+            {t("shell.run_live")}
+          </span>
+        ) : null}
       </div>
     </div>
-  )
-}
-
-/**
- * The event log as a panel over whatever page is open, so following a run
- * never means leaving the page that raised the question. `?logs=1` opens it,
- * which is also what the old /logs address redirects to.
- */
-function LogsDrawer({ onClose, collapsed }: { onClose: () => void; collapsed: boolean }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-  return (
-    <section
-      aria-label={t("nav.logs")}
-      className={cn(
-        "fixed inset-x-0 bottom-16 z-40 h-[62vh] border-t bg-background shadow-[0_-12px_32px_-12px_rgb(0_0_0/0.35)] md:bottom-0",
-        collapsed ? "md:left-14" : "md:left-60",
-      )}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={t("nav.close_logs")}
-        className={cn(
-          "absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
-          focusRing,
-        )}
-      >
-        <X className="h-4 w-4" aria-hidden />
-      </button>
-      {/* LogsPage sizes itself for a full page; inside the panel it fills the panel instead. */}
-      <div className="h-full pb-4 pl-4 pr-14 pt-4 md:pl-6 [&>div]:h-full">
-        <LogsPage />
-      </div>
-    </section>
   )
 }
 
@@ -228,7 +225,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [collapsed, , toggle] = useSidebarCollapsed()
   const { data: whoami } = useWhoami()
   const { pathname } = useLocation()
-  const [params, setParams] = useSearchParams()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -257,24 +253,32 @@ export function AppLayout({ children }: AppLayoutProps) {
     error: portfolioError,
   })
 
+  // The workspace block and the live signals: the project, its repository,
+  // what is running. /api/now is the operator's (the Now page reads the same
+  // cache entry); the repository comes with the Share panel's capabilities,
+  // for the local operator only.
+  const { data: now } = useQuery({
+    queryKey: ["tasks", "now"],
+    queryFn: async () => (await apiClient.get<Now>("/api/now")).data,
+    enabled: !isStakeholder,
+    refetchInterval: 30_000,
+  })
+  const { data: caps } = useTunnelCapabilities()
+  const project = now?.project || "orch"
+  const repoSlug = caps?.repo?.slug
+  const inFlight = now?.working.length ?? 0
+  const runLive = now?.run?.status === "live"
+  const isLocal = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(window.location.hostname)
+
   const destinations = visibleDestinations({ isStakeholder, allowedRoutes, portfolioAvailable })
   // The main navigation is the four places; System's pages are listed apart.
   const places = destinations.filter((d) => d.id !== "system")
   const systemTabs = destinations.find((d) => d.id === "system")?.tabs ?? []
   const currentId = findTab(pathname)?.destination.id
   const current = destinations.find((d) => d.id === currentId)
-  const canSeeLogs = !isStakeholder || (allowedRoutes ? allowedRoutes.includes("api_events") : false)
+  const canSeeLogs = destinations.some((d) => d.tabs.some((tab) => tab.to === LOGS_PATH))
   const canShare = destinations.some((d) => d.tabs.some((tab) => tab.to === SHARE_PATH))
-  // The System group is the operator's; a stakeholder allowed the log sees it among the controls.
-  const showSystem = systemTabs.length > 0 || (canSeeLogs && !isStakeholder)
-  const logsOpen = canSeeLogs && params.get("logs") === "1"
-
-  const setLogs = (open: boolean) => {
-    const next = new URLSearchParams(params)
-    if (open) next.set("logs", "1")
-    else next.delete("logs")
-    setParams(next, { replace: true })
-  }
+  const showSystem = systemTabs.length > 0
 
   useKeyboardShortcuts({
     destinations,
@@ -288,22 +292,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   if (!isPathAllowed(pathname, { isStakeholder, allowedRoutes })) {
     return <Navigate to={homePath(destinations)} replace />
   }
-
-  const logsButton = (compact: boolean, onOpen = () => setLogs(!logsOpen)) =>
-    compactable(
-      compact,
-      t("nav.logs"),
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-pressed={logsOpen}
-        aria-label={compact ? t("nav.logs") : undefined}
-        className={cn(sideRow, compact ? "justify-center" : "gap-2.5 px-2.5", logsOpen && "bg-sidebar-active text-sidebar-foreground")}
-      >
-        <ScrollText className="h-4 w-4 shrink-0" aria-hidden />
-        {compact ? null : <span>{t("nav.logs")}</span>}
-      </button>,
-    )
 
   const shareButton = (compact: boolean, onOpen = () => setShareOpen(true)) =>
     compactable(
@@ -353,7 +341,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       {collapsed ? null : (
         <>
-          <span className="flex-1 text-left">{t("palette.open")}</span>
+          <span className="flex-1 text-left">{t("shell.search")}</span>
           <kbd className="font-mono text-[11px] text-sidebar-muted">{searchKeys}</kbd>
         </>
       )}
@@ -448,12 +436,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         <DialogContent aria-label={t("nav.more")} className="max-w-sm gap-px self-end bg-sidebar p-3 text-sidebar-foreground md:hidden">
           {showSystem ? <p className="px-2.5 py-1 text-[11px] font-medium text-sidebar-muted">{t("nav.system")}</p> : null}
           {systemLinks(false, () => setMoreOpen(false))}
-          {canSeeLogs
-            ? logsButton(false, () => {
-                setMoreOpen(false)
-                setLogs(true)
-              })
-            : null}
           <div className="my-2 border-t" />
           <LanguageToggle compact={false} />
           <ThemeToggle compact={false} />
@@ -479,8 +461,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className={cn("flex h-12 items-center", collapsed ? "justify-center" : "justify-between pl-4 pr-2")}>
           {collapsed ? null : (
             <div className="flex min-w-0 items-center gap-2.5">
-              <img src="/favicon.svg" alt="Orch" className="h-6 w-6 shrink-0" />
-              <span className="text-[14px] font-semibold tracking-[-0.01em]">orch</span>
+              <img src="/favicon.svg" alt="orch" className="h-6 w-6 shrink-0" />
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-[13px] font-semibold">{project}</span>
+                {repoSlug ? <span className="truncate text-[11px] text-sidebar-muted">{repoSlug}</span> : null}
+              </span>
             </div>
           )}
           <Tooltip content={`${toggleLabel} ([)`}>
@@ -504,7 +489,12 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="flex-1 space-y-4 overflow-y-auto px-2">
           <nav aria-label={t("nav.main")} className="space-y-px">
-            <DestinationLinks destinations={places} currentId={currentId} collapsed={collapsed} />
+            <DestinationLinks
+              destinations={places}
+              currentId={currentId}
+              collapsed={collapsed}
+              badges={inFlight > 0 ? { now: t("shell.in_flight", { count: inFlight }) } : undefined}
+            />
           </nav>
           {showSystem ? (
             <section aria-label={t("nav.system")} className="space-y-px">
@@ -514,17 +504,28 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <p className="px-2.5 pb-1 text-[11px] font-medium text-sidebar-muted">{t("nav.system")}</p>
               )}
               {systemLinks(collapsed)}
-              {canSeeLogs ? logsButton(collapsed) : null}
             </section>
           ) : null}
         </div>
 
-        <div className="space-y-px border-t p-2">
-          {canShare ? <div className="pb-2">{shareButton(collapsed)}</div> : null}
-          {canSeeLogs && !showSystem ? logsButton(collapsed) : null}
-          <LanguageToggle compact={collapsed} />
-          <ThemeToggle compact={collapsed} />
-          {logoutButton(collapsed)}
+        <div className="space-y-2 p-2">
+          {canShare ? shareButton(collapsed) : null}
+          {/* Who this session is and where it is served from, with the session's controls beside it. */}
+          <div className={cn("flex items-center", collapsed ? "flex-col gap-px" : "gap-1 pl-2.5")}>
+            {collapsed ? null : (
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-xs text-sidebar-muted">
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", isLocal ? "bg-status-done" : "bg-status-running")} aria-hidden />
+                <span className="truncate">
+                  {t(isStakeholder ? "shell.client" : "shell.operator")} · {t(isLocal ? "shell.local" : "shell.remote")}
+                </span>
+              </span>
+            )}
+            <div className={cn("flex", collapsed ? "w-full flex-col gap-px" : "shrink-0 [&>*]:w-8")}>
+              <LanguageToggle compact />
+              <ThemeToggle compact />
+              {logoutButton(true)}
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -532,11 +533,10 @@ export function AppLayout({ children }: AppLayoutProps) {
         className={cn(
           "min-w-0 flex-1 pb-20 transition-[margin-left] duration-200 ease-out md:pb-0",
           collapsed ? "md:ml-14" : "md:ml-60",
-          logsOpen && "pb-[calc(62vh+5rem)] md:pb-[62vh]",
         )}
       >
-        <PageHeader destination={current} pathname={pathname} />
-        <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 md:py-8 lg:px-10">{children}</div>
+        <PageHeader destination={current} pathname={pathname} project={project} runLive={runLive} />
+        <div className="w-full px-4 py-6 md:px-6">{children}</div>
       </main>
 
       {canShare ? (
@@ -551,15 +551,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Dialog>
       ) : null}
 
-      {logsOpen ? <LogsDrawer onClose={() => setLogs(false)} collapsed={collapsed} /> : null}
-
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         destinations={destinations}
         isStakeholder={isStakeholder}
         canSeeLogs={canSeeLogs}
-        onOpenLogs={() => setLogs(true)}
+        onOpenLogs={() => navigate(LOGS_PATH)}
         onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} destinations={destinations} />

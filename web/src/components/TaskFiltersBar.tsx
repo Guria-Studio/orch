@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -32,71 +32,84 @@ const STATUS_OPTIONS = [
   { value: "done", meta: STATUS.done },
 ]
 
+// "" is "no filter" in the URL; Radix keeps "" for "nothing chosen", so the
+// "all" choice has its own value.
+const ALL = "__all"
+
+/** A filter as a compact chip: dashed "+ Status" until set, then its value. */
+function FilterChip({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  children: ReactNode
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v === ALL ? "" : v)}>
+      <SelectTrigger
+        aria-label={label}
+        className={cn(
+          "h-7 w-auto gap-1.5 px-2.5 text-xs max-md:h-9 [&>svg]:h-3 [&>svg]:w-3",
+          value ? "border-solid border-input text-foreground" : "border-dashed text-muted-foreground",
+        )}
+      >
+        <SelectValue placeholder={`+ ${label}`} />
+      </SelectTrigger>
+      <SelectContent>{children}</SelectContent>
+    </Select>
+  )
+}
+
 /**
- * Shared filters bar used by Kanban + Tasks pages. Owns only presentation —
- * the parent owns the `TaskFilters` state and the debounce mapping.
+ * Shared filters bar used by Kanban + Tasks pages: a compact search and one
+ * chip per filter. Owns only presentation — the parent owns the
+ * `TaskFilters` state and the debounce mapping.
  */
 export function TaskFiltersBar({ value, onChange, phaseOptions, modelOptions }: TaskFiltersBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[200px] flex-1">
+      <div className="relative w-full sm:w-64">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
+          type="search"
           value={value.search}
           onChange={(e) => onChange({ ...value, search: e.target.value })}
           placeholder={t("filters.search")}
           aria-label={t("filters.search")}
-          className="pl-8"
+          className="h-7 pl-8 text-xs max-md:h-9"
         />
       </div>
-      <div className="w-40">
-        <Select value={value.status} onValueChange={(v) => onChange({ ...value, status: v })}>
-          <SelectTrigger aria-label={t("filters.status")}>
-            <SelectValue placeholder={t("filters.all_statuses")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("filters.all_statuses")}</SelectItem>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                <span className="inline-flex items-center gap-2">
-                  <s.meta.icon className={cn("h-3.5 w-3.5", s.meta.text)} aria-hidden />
-                  {t(s.meta.label)}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="w-36">
-        <Select value={value.phase} onValueChange={(v) => onChange({ ...value, phase: v })}>
-          <SelectTrigger aria-label={t("filters.phase_label")}>
-            <SelectValue placeholder={t("filters.all_phases")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("filters.all_phases")}</SelectItem>
-            {phaseOptions.map((p) => (
-              <SelectItem key={p} value={String(p)}>
-                {t("filters.phase", { phase: p })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="w-52">
-        <Select value={value.model} onValueChange={(v) => onChange({ ...value, model: v })}>
-          <SelectTrigger aria-label={t("filters.model")}>
-            <SelectValue placeholder={t("filters.all_models")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("filters.all_models")}</SelectItem>
-            {modelOptions.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterChip label={t("filters.status")} value={value.status} onChange={(v) => onChange({ ...value, status: v })}>
+        <SelectItem value={ALL}>{t("filters.all_statuses")}</SelectItem>
+        {STATUS_OPTIONS.map((s) => (
+          <SelectItem key={s.value} value={s.value}>
+            <span className="inline-flex items-center gap-2">
+              <s.meta.icon className={cn("h-3.5 w-3.5", s.meta.text)} aria-hidden />
+              {t(s.meta.label)}
+            </span>
+          </SelectItem>
+        ))}
+      </FilterChip>
+      <FilterChip label={t("filters.phase_label")} value={value.phase} onChange={(v) => onChange({ ...value, phase: v })}>
+        <SelectItem value={ALL}>{t("filters.all_phases")}</SelectItem>
+        {phaseOptions.map((p) => (
+          <SelectItem key={p} value={String(p)}>
+            {t("filters.phase", { phase: p })}
+          </SelectItem>
+        ))}
+      </FilterChip>
+      <FilterChip label={t("filters.model")} value={value.model} onChange={(v) => onChange({ ...value, model: v })}>
+        <SelectItem value={ALL}>{t("filters.all_models")}</SelectItem>
+        {modelOptions.map((m) => (
+          <SelectItem key={m} value={m}>
+            {m}
+          </SelectItem>
+        ))}
+      </FilterChip>
     </div>
   )
 }

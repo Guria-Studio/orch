@@ -18,6 +18,7 @@ import { EmptyTasks } from "@/components/EmptyTasks"
 import { t } from "@/i18n"
 import { criticalPathMatters, STATUS } from "@/lib/status"
 import { useEventStream } from "@/hooks/useEventStream"
+import { NewTaskButton } from "@/components/NewTaskButton"
 import { useFullscreen } from "@/hooks/useFullscreen"
 import { useTasks } from "@/hooks/useTasks"
 import { cn } from "@/lib/utils"
@@ -103,54 +104,33 @@ export function KanbanPage() {
   }, [data])
 
   return (
-    // Fixed viewport column ONLY on xl (where all 4 columns fit in one row).
-    // On smaller breakpoints the columns stack and the page scrolls naturally
-    // — locking height there would push filters/header off-screen. `h-full`
-    // instead of `h-[calc(100vh-4rem)]` at xl doesn't work because AppLayout
-    // doesn't stretch this child; we need the explicit viewport calc.
-    // 4rem accounts for AppLayout's py-8 (2rem top + 2rem bottom).
-    <div className="flex flex-col gap-4 text-[13px] xl:h-[calc(100vh-4rem)]">
-      <header className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("kanban.title")}</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
-            {data
-              ? t("kanban.done_of", { done: data.summary.done, total: data.summary.total })
-              : t("tasks.loading")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    // On xl the board fills the viewport under the layout's header and each
+    // column scrolls on its own; below that the page scrolls. The five
+    // columns keep a 240px minimum and scroll sideways on a narrow screen.
+    <div className="flex flex-col gap-3 text-[13px] xl:h-[calc(100vh-9rem)]">
+      <h1 className="sr-only">{t("kanban.title")}</h1>
+      {/* As in the design: the page's actions on top, then the filter bar on its own row. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {data ? t("kanban.done_of", { done: data.summary.done, total: data.summary.total }) : t("tasks.loading")}
+        </span>
+        <Button type="button" variant="outline" size="sm" onClick={toggleFullscreen} className="gap-1.5">
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" aria-hidden /> : <Maximize2 className="h-3.5 w-3.5" aria-hidden />}
+          {isFullscreen ? t("common.exit_fullscreen") : t("common.fullscreen")}
+        </Button>
+        <NewTaskButton />
+      </div>
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b pb-3">
+        <TaskFiltersBar value={filters} onChange={setFilters} phaseOptions={phaseOptions} modelOptions={modelOptions} />
+        <span className="ml-auto">
           <LiveStatusPill status={streamStatus} lastEventAt={lastEventAt} />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={toggleFullscreen}
-            title={isFullscreen ? t("common.exit_fullscreen") : t("common.fullscreen")}
-            aria-label={isFullscreen ? t("common.exit_fullscreen") : t("common.fullscreen")}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex-shrink-0">
-        <TaskFiltersBar
-          value={filters}
-          onChange={setFilters}
-          phaseOptions={phaseOptions}
-          modelOptions={modelOptions}
-        />
+        </span>
       </div>
 
       {isLoading ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid min-h-0 flex-1 grid-cols-[repeat(5,minmax(240px,1fr))] gap-3 overflow-x-auto">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-full" />
+            <Skeleton key={i} className="h-64 xl:h-full" />
           ))}
         </div>
       ) : isError ? (
@@ -162,35 +142,20 @@ export function KanbanPage() {
       ) : !data || data.tasks.length === 0 ? (
         <EmptyTasks />
       ) : (
-        // `grid-rows-1` forces the single row to `1fr`, so columns get a
-        // bounded height and their inner `overflow-y-auto` finally has
-        // something to scroll against. `bg-background` + inner padding keep
-        // the fullscreen surface presentable when the browser hands us the
-        // whole viewport with no chrome.
-        <div
-          ref={boardRef}
-          className={cn(
-            "grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-5",
-            // xl-only: this row fills the parent's remaining height (1fr) so
-            // each KanbanColumn is bounded and its inner overflow-y-auto has
-            // something to scroll against. Below xl the row is `auto` and
-            // the page scrolls, matching the natural stacked layout.
-            "xl:min-h-0 xl:flex-1 xl:grid-rows-1",
-            "bg-background",
-            isFullscreen && "p-4",
-          )}
-        >
-          {COLUMNS.map((status) => (
-            <KanbanColumn
-              key={status}
-              title={t(STATUS[status].label)}
-              status={status}
-              showCriticalPath={data ? criticalPathMatters(data.tasks) : false}
-              tasks={grouped ? grouped[status] : []}
-              taskStatusMap={taskStatusMap}
-              onCardClick={openTask}
-            />
-          ))}
+        <div ref={boardRef} className={cn("min-h-0 flex-1 overflow-x-auto bg-background", isFullscreen && "p-4")}>
+          <div className="grid h-full min-w-[1240px] grid-cols-[repeat(5,minmax(240px,1fr))] gap-3 xl:grid-rows-1">
+            {COLUMNS.map((status) => (
+              <KanbanColumn
+                key={status}
+                title={t(STATUS[status].label)}
+                status={status}
+                showCriticalPath={criticalPathMatters(data.tasks)}
+                tasks={grouped ? grouped[status] : []}
+                taskStatusMap={taskStatusMap}
+                onCardClick={openTask}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

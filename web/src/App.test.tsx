@@ -19,6 +19,7 @@ vi.mock("@/pages/GraphPage", () => ({ GraphPage: Where }))
 vi.mock("@/pages/KanbanPage", () => ({ KanbanPage: Where }))
 vi.mock("@/pages/ListPage", () => ({ ListPage: Where }))
 vi.mock("@/pages/LoginPage", () => ({ LoginPage: Where }))
+vi.mock("@/pages/LogsPage", () => ({ LogsPage: Where }))
 vi.mock("@/pages/UsagePage", () => ({ UsagePage: Where }))
 vi.mock("@/pages/MilestonesPage", () => ({ MilestonesPage: Where }))
 vi.mock("@/pages/NowPage", () => ({ NowPage: Where }))
@@ -49,7 +50,7 @@ describe("routes", () => {
     ["/cost/metrics", "/cost/usage"],
     ["/ci", "/delivery/ci"],
     ["/tunnel", "/delivery/share"],
-    ["/logs", "/?logs=1"],
+    ["/logs", "/system/logs"],
     ["/work", "/work/list"],
     ["/nowhere", "/"],
   ])("sends the old address %s to %s", (from, to) => {

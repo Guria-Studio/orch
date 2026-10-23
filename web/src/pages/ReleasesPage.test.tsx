@@ -33,7 +33,9 @@ describe("ReleasesPage", () => {
   it("lists each release's notes, marking yours and what upgrading brings", () => {
     render(<ReleasesPage />)
     expect(screen.getByText(/You run v0.17.0\. 1 newer release is available\./)).toBeInTheDocument()
-    expect(screen.getByText("orch upgrade")).toBeInTheDocument()
+    // The approved design names the upgrade command on the newer release's
+    // own chip rather than in a separate command box above the list.
+    expect(screen.queryByText("orch upgrade")).toBeNull()
 
     const newer = screen.getByTestId("release-v0.18.0")
     expect(within(newer).getByText("Available — orch upgrade")).toBeInTheDocument()

@@ -1,21 +1,27 @@
 import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useBudgetSummary, type BudgetRow } from "@/hooks/useBudgetSummary"
 import { useQuota, type ProviderQuota, type QuotaWindow } from "@/hooks/useQuota"
-import { fmt, t, type MessageKey } from "@/i18n"
+import { t, type MessageKey } from "@/i18n"
 import { formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
+type Source = "reported" | "estimated" | "none"
+
+const SOURCE_TONE: Record<Source, string> = {
+  reported: "bg-status-done/15 text-status-done",
+  estimated: "bg-brand/15 text-brand",
+  none: "bg-muted text-muted-foreground",
+}
+
 /**
- * System › Providers and quota: one card per provider with the two numbers
- * that say how close it is to a limit — what the provider itself reported
- * about its subscription windows (claude's 5-hour and weekly, from its
- * latest dispatch), and orch's own budget window from budgets.yaml, which
- * pauses dispatches at its threshold. The first sees use outside orch too;
- * the second is the one `orch run` acts on.
+ * System › Providers and quota: one card per provider with how close it is
+ * to a limit — the subscription windows the provider itself reported
+ * (claude's 5-hour and weekly, from its latest dispatch; "reported"), or
+ * orch's own budget window from budgets.yaml ("estimated"), which pauses
+ * dispatches at its threshold.
  */
 export function QuotaPage() {
   const quota = useQuota()
@@ -26,10 +32,20 @@ export function QuotaPage() {
   const names = [...new Set([...reported.map((q) => q.backend), ...rows.map((r) => r.provider)])].sort()
 
   return (
-    <div className="max-w-5xl space-y-6 text-[13px]">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("quota.title")}</h1>
-        <p className="max-w-3xl text-muted-foreground">{t("quota.intro")}</p>
+    <div className="space-y-5 text-[13px]">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="sr-only">{t("quota.title")}</h1>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+          {(["reported", "estimated"] as const).map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <SourceChip source={s} />
+              {t(`quota.legend.${s}` as MessageKey)}
+            </span>
+          ))}
+        </div>
+        {budget.data?.available ? (
+          <span className="text-xs text-muted-foreground">{t("quota.preset", { preset: budget.data.preset })}</span>
+        ) : null}
       </header>
 
       {quota.isError ? (
@@ -45,86 +61,81 @@ export function QuotaPage() {
       ) : names.length === 0 ? (
         <p className="rounded-lg border border-dashed p-6 text-muted-foreground">{t("quota.none")}</p>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <section aria-label={t("quota.title")} className="grid gap-3 lg:grid-cols-2">
           {names.map((name) => (
             <ProviderCard key={name} name={name} quota={reported.find((q) => q.backend === name)} budget={rows.find((r) => r.provider === name)} />
           ))}
-        </div>
+        </section>
       )}
     </div>
+  )
+}
+
+function SourceChip({ source }: { source: Source }) {
+  return (
+    <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", SOURCE_TONE[source])}>{t(`quota.source.${source}` as MessageKey)}</span>
   )
 }
 
 function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQuota; budget?: BudgetRow }) {
   // Read once per mount: the relative times need not tick.
   const [now] = useState(() => Date.now())
+  const source: Source = quota ? "reported" : budget ? "estimated" : "none"
+  const note = quota
+    ? t("quota.note.reported", { time: formatRelative(quota.seen_at, now) })
+    : budget
+      ? t("quota.note.estimated", { pct: budget.threshold_pct })
+      : t("quota.note.none")
   return (
-    <section aria-labelledby={`quota-${name}`} className="space-y-4 rounded-lg border bg-card p-3.5">
-      <header className="flex items-center gap-2">
+    <article aria-labelledby={`quota-${name}`} className="rounded-lg border bg-card">
+      <header className="flex items-center gap-2 border-b px-3.5 py-2.5">
         <h2 id={`quota-${name}`} className="font-mono text-sm font-medium">
           {name}
         </h2>
-        {budget?.over_threshold ? <Badge variant="warning">{t("quota.paused")}</Badge> : null}
+        <span className="ml-auto">
+          <SourceChip source={source} />
+        </span>
       </header>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>{t("quota.reported")}</span>
-          {quota ? <span title={quota.seen_at}>{t("quota.seen", { time: formatRelative(quota.seen_at, now) })}</span> : null}
-        </div>
-        {quota ? (
-          quota.windows.map((w) => <WindowBar key={w.window} w={w} now={now} />)
-        ) : (
-          <p className="text-xs text-muted-foreground">{t("quota.no_report")}</p>
-        )}
-      </div>
-
-      <div className="space-y-2 border-t pt-3">
-        <p className="text-xs text-muted-foreground">{t("quota.counted")}</p>
-        {budget ? (
-          <Meter
-            label={t("budget.hours", { hours: budget.window_hours })}
+      <div className="space-y-2.5 px-3.5 py-3">
+        {quota ? quota.windows.map((w) => <ReportedRow key={w.window} w={w} now={now} />) : null}
+        {!quota && budget ? (
+          <WindowRow
+            label={t("quota.window.budget", { hours: budget.window_hours })}
             pct={budget.pct}
-            detail={t("quota.tokens_of", { used: fmt.number(budget.tokens_used), budget: fmt.number(budget.token_budget) })}
-            right={budget.reset_at ? t("quota.resets", { time: formatRelative(budget.reset_at, now) }) : t("quota.threshold", { pct: budget.threshold_pct })}
-            warn={budget.over_threshold}
+            reset={budget.reset_at ? formatRelative(budget.reset_at, now) : ""}
+            warn={budget.over_threshold || budget.pct >= 80}
           />
-        ) : (
-          <p className="text-xs text-muted-foreground">{t("quota.no_budget")}</p>
-        )}
+        ) : null}
+        <p className="text-xs text-muted-foreground">{note}</p>
       </div>
-    </section>
+    </article>
   )
 }
 
-function WindowBar({ w, now }: { w: QuotaWindow; now: number }) {
-  const pct = Math.round(w.utilization * 100)
+function ReportedRow({ w, now }: { w: QuotaWindow; now: number }) {
   const known = w.window === "five_hour" || w.window === "seven_day"
+  const pct = Math.round(w.utilization * 100)
   return (
-    <Meter
+    <WindowRow
       label={known ? t(`quota.window.${w.window}` as MessageKey) : w.window}
       pct={pct}
-      right={w.resets_at > 0 ? t("quota.resets", { time: formatRelative(new Date(w.resets_at * 1000).toISOString(), now) }) : ""}
+      reset={w.resets_at > 0 ? formatRelative(new Date(w.resets_at * 1000).toISOString(), now) : ""}
       warn={pct >= 80}
     />
   )
 }
 
-function Meter({ label, pct, detail, right, warn }: { label: string; pct: number; detail?: string; right: string; warn: boolean }) {
+/** One window: label, bar, percentage and when it resets, on one line. */
+function WindowRow({ label, pct, reset, warn }: { label: string; pct: number; reset: string; warn: boolean }) {
   const clamped = Math.max(0, Math.min(100, pct))
   return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-2">
-        <span>{label}</span>
-        <span className="text-xs text-muted-foreground">{right}</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped}>
-        <div className={cn("h-full rounded-full", warn ? "bg-status-blocked" : "bg-brand")} style={{ width: `${clamped}%` }} />
-      </div>
-      <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-        <span>{detail ?? ""}</span>
-        <span>{pct}%</span>
-      </div>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)_3rem_6.5rem] items-center gap-3 max-sm:grid-cols-[6rem_minmax(0,1fr)_3rem]">
+      <span className="truncate">{label}</span>
+      <span className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped}>
+        <span className={cn("block h-full rounded-full", warn ? "bg-status-blocked" : "bg-brand")} style={{ width: `${clamped}%` }} />
+      </span>
+      <span className="text-right tabular-nums">{pct}%</span>
+      <span className="truncate text-right text-xs text-muted-foreground max-sm:hidden">{reset}</span>
     </div>
   )
 }

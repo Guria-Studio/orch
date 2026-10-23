@@ -50,10 +50,10 @@ export function ClientPage() {
     refetchInterval: (query) => ((query.state.data?.refresh_interval_s ?? 0) > 0 ? query.state.data!.refresh_interval_s * 1000 : false),
   })
 
-  if (isLoading) return <Skeleton className="h-64 w-full max-w-3xl" />
+  if (isLoading) return <Skeleton className="h-64 w-full" />
   if (isError || !data) {
     return (
-      <Alert variant="destructive" className="max-w-3xl">
+      <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>{copy[lang].loadError}</AlertTitle>
         <AlertDescription>{error?.message ?? tr("common.unknown_error")}</AlertDescription>
@@ -81,17 +81,11 @@ export function ClientPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-8 text-[13px]">
+    <div className="space-y-8 text-[13px]">
       <header className="space-y-4">
+        {/* The layout's breadcrumb names the page; the project's name is for screen readers. */}
+        <h1 className="sr-only">{name}</h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            {data.branding?.logo ? <img src={data.branding.logo} alt="" className="h-8 w-auto max-w-[140px] object-contain" /> : null}
-            <h1 className="truncate text-xl font-semibold tracking-[-0.01em]">{name}</h1>
-          </div>
-          <span className="text-xs text-muted-foreground" title={data.generated_at}>
-            {t.updated(relativeTime(data.generated_at, lang))}
-          </span>
-        </div>
         <div role="tablist" aria-label={name} className="flex gap-1">
           {views.map((v) => (
             <button
@@ -108,6 +102,11 @@ export function ClientPage() {
               {v.label}
             </button>
           ))}
+        </div>
+          <span className="flex items-center gap-3 text-xs text-muted-foreground" title={data.generated_at}>
+            {data.branding?.logo ? <img src={data.branding.logo} alt="" className="h-6 w-auto max-w-[120px] object-contain" /> : null}
+            {t.updated(relativeTime(data.generated_at, lang))}
+          </span>
         </div>
       </header>
 
@@ -139,8 +138,37 @@ function Overview({ data, lang, onRoadmap }: { data: StakeholderSnapshot; lang: 
   const [showAll, setShowAll] = useState(false)
   const quality = qualityLine(data.quality, lang)
 
+  const phases = [...data.milestones].sort((a, b) => a.phase - b.phase)
+  const kpis = [
+    { label: tr("client.kpi.done"), value: t.progress(summary.done, summary.total) },
+    { label: tr("client.kpi.phase"), value: cur ? phaseName(cur.name) : "—" },
+    { label: tr("client.kpi.eta"), value: summary.eta_date ? formatDay(summary.eta_date, lang) : "—" },
+  ]
+
   return (
     <div className="space-y-8">
+      <section className="grid gap-3 sm:grid-cols-3">
+        {kpis.map((k) => (
+          <div key={k.label} className="space-y-1.5 rounded-lg border px-3.5 py-3">
+            <p className="text-xs text-muted-foreground">{k.label}</p>
+            <p className="text-2xl font-semibold tracking-[-0.02em]">{k.value}</p>
+          </div>
+        ))}
+      </section>
+
+      <section aria-labelledby="client-phases" className="space-y-2.5">
+        <SectionTitle id="client-phases">{tr("client.phases")}</SectionTitle>
+        {phases.map((m) => (
+          <div key={m.phase} className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)_3rem] items-center gap-3.5">
+            <span className="truncate font-medium">{phaseName(m.name)}</span>
+            <span className="h-1.5 overflow-hidden rounded-full bg-secondary">
+              <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.round(m.percent_done)}%` }} />
+            </span>
+            <span className="text-right tabular-nums text-muted-foreground">{Math.round(m.percent_done)}%</span>
+          </div>
+        ))}
+      </section>
+
       <section aria-labelledby="client-status" className="space-y-3">
         <h2 id="client-status" className="text-2xl font-semibold leading-tight tracking-[-0.02em]">
           {line.headline}

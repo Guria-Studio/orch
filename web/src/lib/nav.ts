@@ -14,6 +14,7 @@ import {
   ListIcon,
   Milestone,
   Radio,
+  ScrollText,
   Send,
   Settings,
   Sparkles,
@@ -109,6 +110,8 @@ export const DESTINATIONS: NavDestination[] = [
       { to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true },
       { to: "/system/skills", label: "nav.skills", route: "api_skills", operatorOnly: true },
       { to: "/system/settings", label: "nav.settings", route: "api_config_effective", operatorOnly: true },
+      // The event log; a stakeholder whose allow-list grants it sees it too.
+      { to: "/system/logs", label: "nav.logs", route: "api_events", operatorOnly: true },
     ],
   },
 ]
@@ -134,6 +137,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/system/tools": Wrench,
   "/system/skills": BookOpen,
   "/system/settings": Settings,
+  "/system/logs": ScrollText,
 }
 
 /**
@@ -153,6 +157,7 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/ci": "/delivery/ci",
   "/tests": "/delivery/tests",
   "/tunnel": "/delivery/share",
+  "/logs": "/system/logs",
   "/portfolio": "/now/portfolio",
   "/summary": "/delivery/summary",
 }

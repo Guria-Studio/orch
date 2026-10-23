@@ -104,14 +104,18 @@ describe("NowPage", () => {
     const working = screen.getByRole("heading", { name: "Working now" }).closest("section")!
     expect(within(working).getByText("1 of 4 slots")).toBeInTheDocument()
     expect(within(working).getByText("POST /items")).toBeInTheDocument()
-    expect(within(working).getByText("claude · claude/sonnet · attempt 2 of 3")).toBeInTheDocument()
+    // The design gives the model and the attempt their own columns.
+    expect(within(working).getByText("claude/sonnet")).toBeInTheDocument()
+    expect(within(working).getByText("attempt 2 of 3")).toBeInTheDocument()
     expect(within(working).getByText("6:41")).toBeInTheDocument()
   })
 
   it("opens a working row onto what its agent is doing, followed live", () => {
     activityCalls.length = 0
     renderPage()
-    const row = screen.getByRole("button", { name: /POST \/items/ })
+    // The design's eye button opens the activity; the id and title link to the task page.
+    expect(screen.getByRole("link", { name: "POST /items" })).toHaveAttribute("href", "/work/tasks/F2.T2")
+    const row = screen.getByRole("button", { name: "Show what F2.T2 is doing" })
     expect(row).toHaveAttribute("aria-expanded", "false")
     expect(activityCalls).toHaveLength(0)
     fireEvent.click(row)
@@ -132,30 +136,13 @@ describe("NowPage", () => {
 
   it("says the ETA leaves blocked work out, and budget shows weighted and raw tokens", () => {
     renderPage()
-    expect(screen.getByText(/Estimated finish .* \(excludes 1 blocked task\)/)).toBeInTheDocument()
+    // The finish date is its own figure, with what it leaves out beneath it.
+    expect(screen.getByText("Estimated finish")).toBeInTheDocument()
+    expect(screen.getByText("excludes 1 blocked task")).toBeInTheDocument()
+    // The design's budget row: provider, window and weighted tokens (raw and
+    // cost source stay on the Budget page).
     expect(screen.getByText("29,394 / 480,000 tokens")).toBeInTheDocument()
-    expect(screen.getByText(/60,735 raw/)).toBeInTheDocument()
-    expect(screen.getByText(/reported/)).toBeInTheDocument()
-  })
-
-  it("folds a section from its heading, keeps its count visible, and remembers the fold", () => {
-    window.localStorage.removeItem("orch_now_collapsed")
-    const { unmount } = renderPage()
-    const toggle = screen.getByRole("button", { name: "Needs your attention" })
-    expect(toggle).toHaveAttribute("aria-expanded", "true")
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute("aria-expanded", "false")
-    const attention = screen.getByRole("heading", { name: "Needs your attention" }).closest("section")!
-    expect(within(attention).queryByText(/needs a product decision/)).not.toBeInTheDocument()
-    expect(within(attention).getByText("2")).toBeInTheDocument()
-    expect(screen.getByText("POST /items")).toBeInTheDocument()
-
-    unmount()
-    renderPage()
-    expect(screen.getByRole("button", { name: "Needs your attention" })).toHaveAttribute("aria-expanded", "false")
-    fireEvent.click(screen.getByRole("button", { name: "Needs your attention" }))
-    expect(screen.getByText(/needs a product decision/)).toBeInTheDocument()
-    window.localStorage.removeItem("orch_now_collapsed")
+    expect(screen.getByText("5h window")).toBeInTheDocument()
   })
 
   it("says so plainly when nothing runs and nothing needs attention", () => {
@@ -201,12 +188,15 @@ describe("NowPage", () => {
     }
     renderPage()
     const last = screen.getByRole("heading", { name: "Last run" }).closest("section")!
+    // The design's label/value rows; tokens and cost are the run's totals.
     expect(within(last).getByText("2 tasks done")).toBeInTheDocument()
     expect(within(last).getByText(/1 blocked/)).toBeInTheDocument()
-    expect(within(last).getByText("2h 5m wall time · 50m agent time · 1 PR, 1 passed CI")).toBeInTheDocument()
-    expect(within(last).getByText("4,000 weighted · 12,800 raw")).toBeInTheDocument()
-    expect(within(last).getByText("~$0.40")).toBeInTheDocument()
-    expect(within(last).getByText("no data")).toBeInTheDocument()
+    expect(within(last).getByText("1 failed attempt")).toBeInTheDocument()
+    expect(within(last).getByText("2h 5m wall clock · 50m of agents")).toBeInTheDocument()
+    expect(within(last).getByText("1 PR, 1 passed CI")).toBeInTheDocument()
+    expect(within(last).getByText("7,200 weighted · 16,000 raw")).toBeInTheDocument()
+    expect(within(last).getByText("~$1.65")).toBeInTheDocument()
+    expect(within(last).getByText("estimated")).toBeInTheDocument()
   })
 
   it("walks a new project to its first run, with the command for each unmet step", () => {

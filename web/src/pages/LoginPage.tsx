@@ -1,13 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/useAuth"
@@ -27,38 +20,33 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-9 w-9 items-center justify-center">
-            <img src="/favicon.svg" alt="Orch" className="h-9 w-9" />
-          </div>
-          <CardTitle className="text-base">{t("login.title")}</CardTitle>
-          <CardDescription>
-            {t("login.paste")}{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">orch dashboard --token …</code>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="token">{t("login.token")}</Label>
-              <Input
-                id="token"
-                type="password"
-                autoComplete="off"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={t("login.placeholder")}
-                autoFocus
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={!value.trim()}>
-              {t("login.enter")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-[13px]">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="space-y-2">
+          <img src="/favicon.svg" alt="" className="h-7 w-7" />
+          <h1 className="text-lg font-semibold tracking-[-0.01em]">{t("login.title")}</h1>
+          <p className="text-muted-foreground">{t("login.paste")}</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="token" className="text-xs text-muted-foreground">
+            {t("login.token")}
+          </Label>
+          <Input
+            id="token"
+            type="password"
+            autoComplete="off"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={t("login.placeholder")}
+            autoFocus
+          />
+        </div>
+        <Button type="submit" className="w-full" disabled={!value.trim()}>
+          {t("login.enter")}
+        </Button>
+        <p className="text-xs text-muted-foreground">{t("login.link_hint")}</p>
+      </form>
+      <p className="font-mono text-xs text-muted-foreground">{window.location.origin}</p>
     </div>
   )
 }

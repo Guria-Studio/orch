@@ -20,15 +20,19 @@ vi.mock("@/hooks/useBudgetSummary", () => ({
 }))
 
 describe("QuotaPage", () => {
-  // claude's own windows where it reported them; orch's budget window where
-  // one is configured; and each card says which it lacks.
-  it("shows the reported windows and orch's budget window per provider", () => {
+  // One card per provider, as in the design: claude's own windows labelled
+  // "reported"; codex, which only has orch's budget window, "estimated" with
+  // its threshold.
+  it("shows the reported windows, or orch's budget window, per provider", () => {
     render(<QuotaPage />)
-    const claude = screen.getByRole("region", { name: "claude" })
-    expect(within(claude).getByRole("progressbar", { name: "5-hour window" })).toHaveAttribute("aria-valuenow", "87")
-    expect(within(claude).getByText("No budget window for this provider.")).toBeInTheDocument()
-    const codex = screen.getByRole("region", { name: "codex" })
-    expect(within(codex).getByText("Paused")).toBeInTheDocument()
-    expect(within(codex).getByText(/No dispatch has reported/)).toBeInTheDocument()
+    const claude = screen.getByRole("article", { name: "claude" })
+    expect(within(claude).getByText("reported")).toBeInTheDocument()
+    expect(within(claude).getByRole("progressbar", { name: "Session (5h)" })).toHaveAttribute("aria-valuenow", "87")
+    expect(within(claude).getByRole("progressbar", { name: "Weekly (7d)" })).toHaveAttribute("aria-valuenow", "13")
+    const codex = screen.getByRole("article", { name: "codex" })
+    expect(within(codex).getByText("estimated")).toBeInTheDocument()
+    expect(within(codex).getByRole("progressbar", { name: "5h window" })).toHaveAttribute("aria-valuenow", "92")
+    expect(within(codex).getByText(/Pauses at 90%/)).toBeInTheDocument()
+    expect(screen.getByText("Preset conservative · budgets.yaml")).toBeInTheDocument()
   })
 })

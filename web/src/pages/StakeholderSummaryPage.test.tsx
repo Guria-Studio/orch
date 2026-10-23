@@ -1,8 +1,13 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen } from "@testing-library/react"
+import { render as rtlRender, screen } from "@testing-library/react"
+import type { ReactElement } from "react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { StakeholderSummaryShapeError } from "@/hooks/useStakeholderSummary"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
+
+// The page links to Delivery › Client view, so it renders inside a router.
+const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 // Bug 26's own review (PR #205, opus-2's finding): fixing the login wall
 // means an operator or a stakeholder with a valid token actually reaches
@@ -68,11 +73,14 @@ describe("StakeholderSummaryPage", () => {
     mockUseWhoami.mockReturnValue({ data: { profile: "stakeholder", routes: ["stakeholder_summary_json"] } })
     const { unmount } = render(<StakeholderSummaryPage />)
     expect(screen.queryByText("Project configuration")).not.toBeInTheDocument()
+    // The client is already looking at their own view.
+    expect(screen.queryByRole("link", { name: "View as client" })).not.toBeInTheDocument()
     unmount()
 
     mockUseWhoami.mockReturnValue({ data: { profile: "operator" } })
     render(<StakeholderSummaryPage />)
     expect(screen.getByText("Project configuration")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View as client" })).toHaveAttribute("href", "/delivery/client")
   })
 
   it("shows a named 'not available' state when the route isn't implemented (shape error)", () => {

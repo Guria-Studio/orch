@@ -52,11 +52,8 @@ export function UsagePage() {
 
   return (
     <div className="space-y-6 text-[13px]">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("usage.title")}</h1>
-          <p className="text-muted-foreground">{t("usage.intro")}</p>
-        </div>
+      <header className="flex flex-wrap items-center justify-end gap-4">
+        <h1 className="sr-only">{t("usage.title")}</h1>
         <div role="radiogroup" aria-label={t("usage.period")} className="inline-flex rounded-md border p-0.5">
           {PERIODS.map((p) => (
             <button
@@ -91,12 +88,22 @@ export function UsagePage() {
 
 function UsageBody({ data }: { data: MetricsResponse }) {
   const estimated = data.estimated_cost_usd > 0
-  const kpis: { label: MessageKey; value: string; tone?: string }[] = [
+  const cachedPct = data.tokens_in > 0 ? `${Math.round((data.cache_read_tokens / data.tokens_in) * 100)}%` : ""
+  const kpis: { label: MessageKey; value: string; tone?: string; sub?: string }[] = [
     { label: "usage.kpi.dispatches", value: fmt.number(data.dispatches) },
     { label: "usage.kpi.input", value: fmt.number(data.tokens_in), tone: "text-[#d97757]" },
-    { label: "usage.kpi.cached", value: fmt.number(data.cache_read_tokens), tone: "text-[#4a8fe0]" },
+    {
+      label: "usage.kpi.cached",
+      value: fmt.number(data.cache_read_tokens),
+      tone: "text-[#4a8fe0]",
+      sub: cachedPct ? t("usage.cached_share", { pct: cachedPct }) : undefined,
+    },
     { label: "usage.kpi.output", value: fmt.number(data.tokens_out), tone: "text-[#3fa38a]" },
-    { label: "usage.kpi.cost", value: `${estimated ? "~" : ""}${fmt.usd(data.total_cost_usd)}` },
+    {
+      label: "usage.kpi.cost",
+      value: `${estimated ? "~" : ""}${fmt.usd(data.total_cost_usd)}`,
+      sub: estimated ? t("usage.cost_estimated") : undefined,
+    },
   ]
   return (
     <>
@@ -105,11 +112,10 @@ function UsageBody({ data }: { data: MetricsResponse }) {
           <div key={k.label} className="rounded-lg border bg-card px-3.5 py-3">
             <p className="text-xs text-muted-foreground">{t(k.label)}</p>
             <p className={cn("mt-1 text-xl font-semibold tabular-nums tracking-[-0.01em]", k.tone)}>{k.value}</p>
-            {k.label === "usage.kpi.cost" && estimated ? <p className="mt-1 text-[11px] text-muted-foreground">{t("usage.cost_estimated")}</p> : null}
+            {k.sub ? <p className="mt-1 text-[11px] text-muted-foreground">{k.sub}</p> : null}
           </div>
         ))}
       </section>
-      {data.estimate_hours_total > 0 ? <p className="text-xs text-muted-foreground">{t("usage.hours", { hours: data.estimate_hours_total })}</p> : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <DayChart rows={data.by_backend_day} />
@@ -118,17 +124,17 @@ function UsageBody({ data }: { data: MetricsResponse }) {
 
       <section aria-labelledby="usage-models" className="space-y-2">
         <h2 id="usage-models" className="text-xs font-medium text-muted-foreground">
-          {t("metrics.table")}
+          {t("usage.models")}
         </h2>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[560px]">
             <thead className="border-b text-xs text-muted-foreground">
               <tr>
-                <th className="px-3.5 py-2 text-left font-medium">{t("metrics.col.model")}</th>
-                <th className="px-3.5 py-2 text-right font-medium">{t("metrics.col.tasks")}</th>
-                <th className="px-3.5 py-2 text-right font-medium">{t("metrics.col.tokens_in")}</th>
-                <th className="px-3.5 py-2 text-right font-medium">{t("metrics.col.tokens_out")}</th>
-                <th className="px-3.5 py-2 text-right font-medium">{t("metrics.col.cost")}</th>
+                <th className="px-3.5 py-2 text-left font-medium">{t("usage.col.model")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.tasks")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.input")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.output")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.cost")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -235,45 +241,34 @@ function Recent({ data }: { data: MetricsResponse }) {
       {data.recent.length === 0 ? (
         <p className="py-6 text-center text-muted-foreground">{t("usage.none")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-xs">
-            <thead className="text-muted-foreground">
-              <tr>
-                <th className="py-1.5 pr-2 text-left font-medium">{t("usage.col.task")}</th>
-                <th className="py-1.5 pr-2 text-left font-medium">{t("usage.col.backend")}</th>
-                <th className="py-1.5 pr-2 text-right font-medium">{t("usage.col.in_out")}</th>
-                <th className="py-1.5 text-right font-medium">{t("usage.col.when")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {data.recent.map((r, i) => (
-                <tr key={`${r.ts}-${r.task_id}-${i}`}>
-                  <td className="py-1.5 pr-2 font-mono">
-                    {r.task_id ? (
-                      <Link to={taskPath(r.task_id)} className="hover:underline">
-                        {r.task_id}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="max-w-[12rem] truncate py-1.5 pr-2">
-                    <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ backgroundColor: backendColor(r.backend) }} aria-hidden />
-                    {r.model || r.backend}
-                    {r.estimated ? <span className="ml-1.5 text-muted-foreground">· {t("usage.estimated")}</span> : null}
-                  </td>
-                  <td className="whitespace-nowrap py-1.5 pr-2 text-right tabular-nums">
-                    {fmt.number(r.tokens_in)}
-                    <span className="text-[#d97757]" aria-hidden>↑</span> {fmt.number(r.tokens_out)}
-                    <span className="text-[#3fa38a]" aria-hidden>↓</span>
-                  </td>
-                  <td className="whitespace-nowrap py-1.5 text-right text-muted-foreground" title={r.ts}>
-                    {formatRelative(r.ts, now)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="overflow-x-auto text-xs">
+          <div className="grid min-w-[420px] grid-cols-[4.5rem_minmax(0,1fr)_8.5rem_4.5rem] gap-x-3 border-b py-1.5 text-muted-foreground">
+            <span>{t("usage.col.task")}</span>
+            <span>{t("usage.col.model")}</span>
+            <span className="text-right">{t("usage.col.in_out")}</span>
+            <span className="text-right">{t("usage.col.when")}</span>
+          </div>
+          {data.recent.map((r, i) => (
+            <Link
+              key={`${r.ts}-${r.task_id}-${i}`}
+              to={taskPath(r.task_id)}
+              className="grid min-w-[420px] grid-cols-[4.5rem_minmax(0,1fr)_8.5rem_4.5rem] items-center gap-x-3 border-b py-1.5 last:border-0 hover:bg-secondary"
+            >
+              <span className="truncate font-mono">{r.task_id || "—"}</span>
+              <span className="truncate">
+                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ backgroundColor: backendColor(r.backend) }} aria-hidden />
+                {r.model || r.backend}
+              </span>
+              <span className="whitespace-nowrap text-right tabular-nums">
+                {fmt.number(r.tokens_in)}
+                <span className="text-[#d97757]" aria-hidden>↑</span> {fmt.number(r.tokens_out)}
+                <span className="text-[#3fa38a]" aria-hidden>↓</span>
+              </span>
+              <span className="whitespace-nowrap text-right text-muted-foreground" title={r.ts}>
+                {formatRelative(r.ts, now)}
+              </span>
+            </Link>
+          ))}
         </div>
       )}
     </section>

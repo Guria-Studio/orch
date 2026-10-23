@@ -62,6 +62,7 @@ export function ActivityFeed({
   provider,
   className,
   full = false,
+  wrap = full,
 }: {
   taskId: string
   live: boolean
@@ -69,6 +70,8 @@ export function ActivityFeed({
   className?: string
   // The task's own page: the feed fills the viewport and its rows wrap.
   full?: boolean
+  // Rows wrap without the feed filling the viewport (the task page's All tab).
+  wrap?: boolean
 }) {
   const { steps, exists, loaded, failed } = useTaskActivity(taskId, live)
   const listRef = useRef<HTMLOListElement | null>(null)
@@ -109,7 +112,7 @@ export function ActivityFeed({
           className={cn("space-y-1 overflow-auto", full ? "h-[calc(100dvh-12rem)] min-h-64" : "max-h-64")}
         >
           {steps.map((step, i) => (
-            <StepRow key={i} step={step} wrap={full} />
+            <StepRow key={i} step={step} wrap={wrap} />
           ))}
         </ol>
       ) : null}

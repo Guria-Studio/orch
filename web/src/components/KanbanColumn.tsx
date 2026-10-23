@@ -16,39 +16,24 @@ export interface KanbanColumnProps {
 }
 
 /**
- * A neutral lane: the status lives in the header (shape + color + count), not
- * in a tinted fill, so five columns side by side stay quiet and the cards
- * carry the attention.
+ * An open lane, Linear-style: no fill, no border — the status lives in the
+ * header (a ring in its color, the name, the count), so the cards carry the
+ * attention.
  */
 export function KanbanColumn({ title, status, tasks, taskStatusMap, onCardClick, showCriticalPath }: KanbanColumnProps) {
-  const meta = STATUS[status]
-  const Icon = meta.icon
   return (
-    <section
-      className={cn("flex h-full min-h-[200px] flex-col overflow-hidden rounded-lg border bg-muted/30")}
-      aria-label={title}
-    >
-      <header className="flex flex-shrink-0 items-center justify-between gap-2 px-3 py-2">
-        <div className="flex items-center gap-2 text-[13px] font-medium">
-          <Icon className={cn("h-4 w-4", meta.text)} aria-hidden />
-          {title}
-        </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {tasks.length}
-        </span>
+    <section className="flex h-full min-h-[200px] min-w-0 flex-col gap-2" aria-label={title}>
+      <header className="flex h-7 flex-shrink-0 items-center gap-2 px-1 text-[13px] font-medium">
+        <span className={cn("h-3 w-3 rounded-full border-2 border-current", STATUS[status].text)} aria-hidden />
+        {title}
+        <span className="font-normal tabular-nums text-muted-foreground">{tasks.length}</span>
       </header>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-1.5">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
         {tasks.length === 0 ? (
-          <p className="px-2 py-4 text-center text-xs text-muted-foreground">{t("kanban.empty_column")}</p>
+          <p className="rounded-lg border border-dashed p-4 text-center text-[13px] text-muted-foreground">{t("kanban.empty_column")}</p>
         ) : (
           tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              taskStatusMap={taskStatusMap}
-              onClick={onCardClick}
-              showCriticalPath={showCriticalPath}
-            />
+            <TaskCard key={task.id} task={task} taskStatusMap={taskStatusMap} onClick={onCardClick} showCriticalPath={showCriticalPath} />
           ))
         )}
       </div>

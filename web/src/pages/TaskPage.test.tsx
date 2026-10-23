@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -29,8 +29,11 @@ const task = {
 } as unknown as Task
 
 const get = vi.fn()
-vi.mock("@/lib/api", () => ({ apiClient: { get: (...args: unknown[]) => get(...args) } }))
-vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: { profile: "stakeholder" } }) }))
+const editTask = vi.hoisted(() => vi.fn())
+const moveTask = vi.hoisted(() => vi.fn())
+let profile = "stakeholder"
+vi.mock("@/lib/api", () => ({ apiClient: { get: (...args: unknown[]) => get(...args) }, editTask, moveTask }))
+vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: { profile } }) }))
 
 function Where() {
   const { pathname, search } = useLocation()
@@ -55,6 +58,9 @@ const location = () => screen.getByRole("status", { name: "location" }).textCont
 
 beforeEach(() => {
   window.localStorage.clear()
+  profile = "stakeholder"
+  editTask.mockReset().mockResolvedValue({ message: "ok" })
+  moveTask.mockReset().mockResolvedValue({ message: "ok" })
   get.mockReset()
   get.mockImplementation((url: string) =>
     Promise.resolve({
@@ -117,32 +123,44 @@ describe("TaskPage", () => {
     expect(items[2].querySelector("time")).toHaveAttribute("dateTime", "2026-10-12T21:36:00Z")
   })
 
-  // #404: the details get 70% and the activity 30% by default; the split
-  // moves with the keyboard (and the pointer), keeps 20% for each side,
-  // resets on a double click, and survives a reload.
-  it("splits details and activity 70/30, resizable and remembered", async () => {
+  // #421: the properties are edited in place; a change goes through the same
+  // editor as `orch task edit`, a status through the board's move.
+  it("saves an edited estimate and moves the status, for the local operator", async () => {
+    profile = "operator"
     renderAt([taskPath("F6.1.T1")])
-    const handle = await screen.findByRole("separator", { name: "Resize the details and the activity" })
-    const grid = handle.parentElement!
-    expect(handle).toHaveAttribute("aria-valuenow", "70")
-    expect(grid.style.getPropertyValue("--details")).toBe("70fr")
-    expect(grid.style.getPropertyValue("--activity")).toBe("30fr")
+    const estimate = await screen.findByRole("spinbutton", { name: "Est." })
+    fireEvent.change(estimate, { target: { value: "3.5" } })
+    fireEvent.blur(estimate)
+    await waitFor(() => expect(editTask).toHaveBeenCalledWith("F6.1.T1", { estimate_hours: 3.5 }))
 
-    fireEvent.keyDown(handle, { key: "ArrowLeft" })
-    expect(handle).toHaveAttribute("aria-valuenow", "65")
-    expect(window.localStorage.getItem("orch.taskSplit")).toBe("65")
-    for (let i = 0; i < 20; i++) fireEvent.keyDown(handle, { key: "ArrowLeft" })
-    expect(handle).toHaveAttribute("aria-valuenow", "20")
-
-    fireEvent.doubleClick(handle)
-    expect(handle).toHaveAttribute("aria-valuenow", "70")
-    expect(grid.style.getPropertyValue("--activity")).toBe("30fr")
+    // A running task is the run's: stop it first, the server says.
+    expect(screen.getByRole("combobox", { name: "Status" })).toBeDisabled()
   })
 
-  it("opens at the split the operator left", async () => {
-    window.localStorage.setItem("orch.taskSplit", "55")
+  it("moves a task that is not running to another status", async () => {
+    profile = "operator"
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url.includes("/activity") ? { offset: 0, exists: false, steps: [] } : { ...task, status: "todo" } }),
+    )
     renderAt([taskPath("F6.1.T1")])
-    expect(await screen.findByRole("separator", { name: "Resize the details and the activity" })).toHaveAttribute("aria-valuenow", "55")
+    fireEvent.change(await screen.findByRole("combobox", { name: "Status" }), { target: { value: "done" } })
+    await waitFor(() => expect(moveTask).toHaveBeenCalledWith("F6.1.T1", "done", ""))
+  })
+
+  it("shows the server's reason when an edit is refused", async () => {
+    profile = "operator"
+    editTask.mockRejectedValueOnce(new Error("F6.1.T1 depends on itself"))
+    renderAt([taskPath("F6.1.T1")])
+    const estimate = await screen.findByRole("spinbutton", { name: "Est." })
+    fireEvent.change(estimate, { target: { value: "1" } })
+    fireEvent.blur(estimate)
+    expect(await screen.findByRole("alert")).toHaveTextContent("F6.1.T1 depends on itself")
+  })
+
+  it("is read-only for a stakeholder", async () => {
+    renderAt([taskPath("F6.1.T1")])
+    expect(await screen.findByRole("spinbutton", { name: "Est." })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
   })
 
   it("goes to the list when it was opened straight from a link", async () => {

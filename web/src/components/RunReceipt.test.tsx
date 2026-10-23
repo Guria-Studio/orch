@@ -34,7 +34,7 @@ describe("RunReceipt", () => {
   it("copies the Markdown, remembering the opt-out", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal("navigator", { clipboard: { writeText } })
-    render(<RunReceipt payload={payload} now={0} />)
+    render(<RunReceipt payload={payload} />)
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Built with orch/ }))
     expect(window.localStorage.getItem("orch.receipt.builtWith")).toBe("off")
@@ -46,7 +46,7 @@ describe("RunReceipt", () => {
 
   it("shows the text to select when the clipboard is refused", async () => {
     vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } })
-    render(<RunReceipt payload={payload} now={0} />)
+    render(<RunReceipt payload={payload} />)
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy as Markdown" }))
     })
@@ -59,7 +59,7 @@ describe("RunReceipt", () => {
     const createObjectURL = vi.fn().mockReturnValue("blob:card")
     vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {})
-    render(<RunReceipt payload={payload} now={0} />)
+    render(<RunReceipt payload={payload} />)
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Built with orch/ }))
     await act(async () => {
@@ -79,7 +79,7 @@ describe("RunReceipt", () => {
       constructor(public items: Record<string, unknown>) {}
     })
     receiptImage.mockResolvedValue(new Blob(["png"]))
-    render(<RunReceipt payload={payload} now={0} />)
+    render(<RunReceipt payload={payload} />)
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy image" }))
     })
@@ -95,7 +95,7 @@ describe("RunReceipt", () => {
 
   it("hides Copy image where the clipboard cannot take one", () => {
     vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn() } })
-    render(<RunReceipt payload={payload} now={0} />)
+    render(<RunReceipt payload={payload} />)
     expect(screen.queryByRole("button", { name: "Copy image" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Download image" })).toBeInTheDocument()
   })

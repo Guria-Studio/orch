@@ -33,8 +33,9 @@ describe("UsagePage", () => {
     expect(useMetrics).toHaveBeenLastCalledWith("7d")
     expect(screen.getByText("1,500")).toBeInTheDocument()
     expect(screen.getByText("~$3.49")).toBeInTheDocument()
-    expect(screen.getByText("~ partly estimated from pricing.yaml, not actual billing")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "T-2" })).toHaveAttribute("href", "/work/tasks/T-2")
+    expect(screen.getByText("Part estimated with pricing.yaml")).toBeInTheDocument()
+    // Each recent dispatch is one row-wide link to its task, as in the design.
+    expect(screen.getByRole("link", { name: /^T-2/ })).toHaveAttribute("href", "/work/tasks/T-2")
     fireEvent.click(screen.getByRole("radio", { name: "30D" }))
     expect(useMetrics).toHaveBeenLastCalledWith("30d")
   })

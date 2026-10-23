@@ -1,7 +1,5 @@
-import { AlertTriangle, Clock, ExternalLink } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isPortfolioDisabled, usePortfolio } from "@/hooks/usePortfolio"
@@ -67,127 +65,118 @@ export function PortfolioPage() {
 
   if (!data) return null
 
+  const down = data.projects.filter((p) => !p.available).length
+  const cols = "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_7rem_6rem]"
+
   return (
-    <div className="space-y-6 text-[13px]">
-      <header>
+    <div className="space-y-4 text-[13px]">
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("portfolio.title")}</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
-          {t("portfolio.projects", { count: data.projects.length })}
-          {data.unavailable.length > 0 ? ` · ${t("portfolio.unavailable", { count: data.unavailable.length })}` : ""}
+        <p className="ml-auto flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
+          <span>{t("portfolio.projects", { count: data.projects.length })}</span>
+          {down > 0 ? <span className="text-status-blocked">{t("portfolio.unavailable", { count: down })}</span> : null}
+          {data.unavailable.length > 0 ? <span>{t("portfolio.skipped", { count: data.unavailable.length })}</span> : null}
         </p>
       </header>
 
-      <div className="space-y-3">
-        {data.projects.map((p) => (
-          <ProjectRow key={p.project_id} project={p} />
-        ))}
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <div className={cn("hidden gap-x-4 border-b px-3.5 py-2 text-xs text-muted-foreground sm:grid", cols)}>
+          <span>{t("portfolio.col.project")}</span>
+          <span>{t("portfolio.col.progress")}</span>
+          <span>{t("portfolio.col.eta")}</span>
+          <span>{t("portfolio.col.blockers")}</span>
+          <span className="text-right">{t("portfolio.col.spend")}</span>
+        </div>
+        <ul className="divide-y">
+          {data.projects.map((p) => (
+            <ProjectRow key={p.project_id} project={p} cols={cols} />
+          ))}
+        </ul>
+        {data.unavailable.length > 0 ? (
+          <details className="border-t">
+            <summary className="cursor-pointer select-none px-3.5 py-2.5 text-xs text-muted-foreground">
+              {t("portfolio.skipped", { count: data.unavailable.length })}
+            </summary>
+            <ul className="space-y-1 px-3.5 pb-3 font-mono text-xs text-muted-foreground">
+              {data.unavailable.map((u) => (
+                <li key={u.root} className="flex gap-1.5 truncate">
+                  <span>{u.root}</span>—<span>{u.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
       </div>
-
-      {data.unavailable.length > 0 ? (
-        <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer select-none px-3.5 py-2.5 text-[13px] font-medium text-muted-foreground">
-            {t("portfolio.skipped", { count: data.unavailable.length })}
-          </summary>
-          <div className="space-y-1 border-t px-3.5 py-2.5 text-xs text-muted-foreground">
-            {data.unavailable.map((u) => (
-              <div key={u.root} className="flex items-center justify-between gap-4">
-                <span className="truncate font-mono">{u.root}</span>
-                <span className="shrink-0">{u.reason}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      ) : null}
     </div>
   )
 }
 
 function ConfidenceDot({ confidence }: { confidence: PortfolioProject["confidence"] }) {
   if (confidence === "none") return null
+  const label = confidence === "high" ? t("portfolio.high_confidence") : t("portfolio.low_confidence")
   return (
     <span
-      className={cn(
-        "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-        confidence === "high" ? "bg-status-done" : "bg-status-blocked",
-      )}
-      title={confidence === "high" ? t("portfolio.high_confidence") : t("portfolio.low_confidence")}
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", confidence === "high" ? "bg-status-done" : "bg-status-blocked")}
     />
   )
 }
 
-function ProjectRow({ project }: { project: PortfolioProject }) {
+function ProjectRow({ project, cols }: { project: PortfolioProject; cols: string }) {
   if (!project.available) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="flex items-center justify-between gap-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate font-medium text-muted-foreground">
-              {project.project_name}
-            </div>
-            <div className="truncate font-mono text-xs text-muted-foreground">
-              {project.root}
-            </div>
-          </div>
-          <Badge variant="danger" className="shrink-0">
-            {project.reason || t("portfolio.unavailable_one")}
-          </Badge>
-        </CardContent>
-      </Card>
+      <li className={cn("grid gap-x-4 gap-y-1 px-3.5 py-2.5", cols)}>
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-muted-foreground">{project.project_name}</span>
+          <span className="block truncate font-mono text-xs text-muted-foreground">{project.root}</span>
+        </span>
+        <span className="self-center text-xs text-status-failed sm:col-span-4">
+          {t("portfolio.unavailable_one")}
+          {project.reason ? (
+            <>
+              {" · "}
+              <span>{project.reason}</span>
+            </>
+          ) : null}
+        </span>
+      </li>
     )
   }
 
-  const href = `/p/${encodeURIComponent(project.project_id)}/`
-  const blockedLabel = project.blocked > 0 ? t("portfolio.blocked", { count: project.blocked }) : t("portfolio.no_blockers")
-
+  const blocked = project.blocked > 0
   return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3">
-        <div className="min-w-[10rem] flex-1 basis-48">
-          <a
-            href={href}
-            className="flex items-center gap-1.5 truncate font-medium hover:underline"
-          >
-            <span className="truncate">{project.project_name}</span>
-            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
-          </a>
-          <div className="mt-1 flex items-center gap-2">
-            <Progress value={project.percent_done} className="h-1.5 w-32" />
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {project.done}/{project.total} · {project.percent_done.toFixed(0)}%
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs">
-          <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+    <li>
+      <a href={`/p/${encodeURIComponent(project.project_id)}/`} className={cn("grid items-center gap-x-4 gap-y-1.5 px-3.5 py-2.5 hover:bg-accent/40", cols)}>
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{project.project_name}</span>
+          <span className="block truncate font-mono text-xs text-muted-foreground">{project.root}</span>
+        </span>
+        <span className="flex min-w-0 items-center gap-2">
+          <Progress value={project.percent_done} className="h-1.5 min-w-0 flex-1" />
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {project.done}/{project.total} · {project.percent_done.toFixed(0)}%
+          </span>
+        </span>
+        <span className="flex items-center gap-1.5 text-xs">
           <ConfidenceDot confidence={project.confidence} />
           {project.eta_date ? (
             <span className="tabular-nums">{t("portfolio.eta", { date: fmt.day(project.eta_date) })}</span>
           ) : (
             <span className="text-muted-foreground">{t("portfolio.no_eta")}</span>
           )}
-        </div>
-
-        <Badge variant={project.blocked > 0 ? "warning" : "muted"} className="shrink-0">
-          {blockedLabel}
-        </Badge>
-
-        <div className="text-xs tabular-nums text-muted-foreground">
-          {project.spend.available && project.spend.total_cost_usd !== undefined
-            ? fmt.usd(project.spend.total_cost_usd)
-            : t("portfolio.spend_hidden")}
-        </div>
-
-        {project.blockers[0] ? (
-          <div className="min-w-[12rem] flex-1 basis-56 truncate text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {project.blockers[0].title}
-            </span>
-            {": "}
-            {project.blockers[0].reason}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+        </span>
+        <span
+          className={cn("justify-self-start rounded-md px-1.5 py-0.5 text-[11px]", blocked ? "bg-status-blocked/14 text-status-blocked" : "bg-secondary text-muted-foreground")}
+          title={project.blockers[0] ? `${project.blockers[0].title}: ${project.blockers[0].reason}` : undefined}
+        >
+          {blocked ? t("portfolio.blocked", { count: project.blocked }) : t("portfolio.no_blockers")}
+        </span>
+        <span className="text-xs tabular-nums text-muted-foreground sm:text-right">
+          {project.spend.available && project.spend.total_cost_usd !== undefined ? fmt.usd(project.spend.total_cost_usd) : t("portfolio.spend_hidden")}
+        </span>
+      </a>
+    </li>
   )
 }

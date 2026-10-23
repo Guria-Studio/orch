@@ -1,8 +1,13 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen } from "@testing-library/react"
+import { render as rtlRender, screen } from "@testing-library/react"
+import type { ReactElement } from "react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { SprintHealth } from "@/lib/types"
 import { PacePage } from "@/pages/PacePage"
+
+// Each blocked task links to its page, so the page renders inside a router.
+const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 const mockUseSprintHealth = vi.fn()
 vi.mock("@/hooks/useSprintHealth", () => ({ useSprintHealth: () => mockUseSprintHealth() }))
@@ -54,6 +59,7 @@ describe("PacePage", () => {
     render(<PacePage />)
     expect(screen.getByText("Stripe webhook handler")).toBeInTheDocument()
     expect(screen.getByText("Waiting on keys")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Stripe webhook handler/ })).toHaveAttribute("href", "/work/tasks/F2.T5")
     expect(screen.getByText("2 tasks")).toHaveClass("text-status-blocked")
   })
 })

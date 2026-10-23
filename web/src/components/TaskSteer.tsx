@@ -40,47 +40,43 @@ export function TaskSteer({ task }: { task: Task }) {
   }
 
   return (
-    <section className="space-y-2 border-t pt-4">
-      <h3 className="text-xs font-medium text-muted-foreground">{t("steer.title")}</h3>
+    <section aria-labelledby="steer-title" className="space-y-2 rounded-[10px] border bg-card p-3">
+      <h2 id="steer-title" className="text-xs font-medium text-muted-foreground">
+        {t("steer.title")}
+      </h2>
       <textarea
         aria-label={t("steer.placeholder")}
-        className="min-h-16 w-full rounded-md border bg-background p-2 text-[13px]"
+        className="min-h-16 w-full resize-y rounded-md border bg-background px-2.5 py-2 text-[13px]"
         placeholder={t("steer.placeholder")}
+        rows={3}
         value={note}
         maxLength={2000}
         onChange={(e) => setNote(e.target.value)}
       />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy || note.trim() === ""}
-          onClick={() => run(async () => (await noteTask(task.id, note), t("steer.noted")))}
-        >
-          {t("steer.note")}
-        </Button>
-        {running ? (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => run(async () => (await stopTask(task.id, false, note)).message)}
-            >
-              {t("steer.redirect")}
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={busy}
-              onClick={() => run(async () => (await stopTask(task.id, true, note)).message)}
-            >
-              {t("steer.stop_hold")}
-            </Button>
-          </>
-        ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-muted-foreground">{t("steer.hint")}</p>
+        <div className="ml-auto flex flex-wrap gap-1.5">
+          {running ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-status-failed/40 text-status-failed hover:text-status-failed"
+                disabled={busy}
+                onClick={() => run(async () => (await stopTask(task.id, true, note)).message)}
+              >
+                {t("steer.stop_hold")}
+              </Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => run(async () => (await stopTask(task.id, false, note)).message)}>
+                {t("steer.redirect")}
+              </Button>
+            </>
+          ) : null}
+          <Button size="sm" disabled={busy || note.trim() === ""} onClick={() => run(async () => (await noteTask(task.id, note), t("steer.noted")))}>
+            {t("steer.note")}
+          </Button>
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground">{t("steer.hint")}</p>
       {result ? <p className="text-xs" role="status">{result}</p> : null}
       {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
     </section>
