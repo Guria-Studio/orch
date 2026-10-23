@@ -166,7 +166,7 @@ func (s Steer) Move(ctx context.Context, taskID string, to model.Status, note st
 		return s.Stop(ctx, taskID, to == model.StatusBlocked, note)
 	}
 	if err := s.Backend.Transition(ctx, taskID, to, state.Note{Author: OperatorAuthor, Body: note}); err != nil {
-		return StopResult{}, err
+		return StopResult{}, fmt.Errorf("moving %s to %s: %w", taskID, to, err)
 	}
 	return StopResult{TaskID: taskID, From: t.Status, To: to,
 		Message: fmt.Sprintf("%s %s -> %s", taskID, t.Status, to)}, nil

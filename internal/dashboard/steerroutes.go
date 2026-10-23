@@ -34,7 +34,10 @@ type steerBody struct {
 // steerGate answers whether the handler may go on, and the body it sent.
 func (s *Server) steerGate(w http.ResponseWriter, r *http.Request) (steerBody, bool) {
 	var body steerBody
-	return body, s.operatorWrite(w, r, s.steer != nil, &body)
+	// Two statements: in one return, Go leaves unspecified whether body is
+	// read before or after operatorWrite fills it.
+	ok := s.operatorWrite(w, r, s.steer != nil, &body)
+	return body, ok
 }
 
 // operatorWrite gates every write the dashboard makes — steer and task edits:
