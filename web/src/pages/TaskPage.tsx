@@ -615,7 +615,7 @@ export function TaskPage() {
   const arrow = "flex h-7 w-7 items-center justify-center rounded-md border bg-card text-foreground/80 hover:text-foreground disabled:opacity-40"
 
   return (
-    <div className="-mx-4 -my-6 text-[13px] md:-mx-6 md:-my-8 lg:-mx-10">
+    <div className="text-[13px]">
       <div className="flex flex-wrap items-center gap-1.5 border-b px-4 py-2 md:px-6">
         <Button variant="ghost" size="sm" onClick={back} className="gap-1 text-muted-foreground">
           <ArrowLeft className="h-4 w-4" aria-hidden />
