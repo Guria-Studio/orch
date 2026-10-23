@@ -40,6 +40,19 @@ export default defineConfig(() => ({
       '/api': {
         target: 'http://127.0.0.1:7420',
         changeOrigin: true,
+        // Node holds a proxied response's headers until the first body byte,
+        // and the event stream sends none until something happens: flush
+        // them, or the page sits on "Connecting…" through the dev server.
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, _req, res) => {
+            if (String(proxyRes.headers['content-type'] ?? '').startsWith('text/event-stream')) res.flushHeaders()
+          })
+        },
+      },
+      // The client portal's snapshot, which the Client view page reads
+      '/stakeholder/data.json': {
+        target: 'http://127.0.0.1:7420',
+        changeOrigin: true,
       },
       // Proxy /logs/stream (SSE) to the FastAPI backend
       '/logs/stream': {

@@ -3,6 +3,7 @@ package providers
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -725,4 +726,21 @@ func contains(hay []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// The real capture's rate_limit_event carries the subscription's windows;
+// they reach Result.Quota as reported, sorted by name.
+func TestClaude2_1_301ParseReadsTheQuota(t *testing.T) {
+	out := readFixture(t, "claude", "2.1.301", "stream-success.jsonl")
+	got := ClaudeProvider{}.Parse(0, out).Quota
+	want := []QuotaWindow{
+		{Window: "five_hour", Utilization: 0.03, ResetsAt: 1792155000},
+		{Window: "seven_day", Utilization: 0.07, ResetsAt: 1792551600},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Quota = %+v, want %+v", got, want)
+	}
+	if q := (ClaudeProvider{}).Parse(0, []byte(`{"type":"result","subtype":"success","is_error":false}`)).Quota; q != nil {
+		t.Errorf("a json run with no rate_limit_event has Quota %+v, want nil", q)
+	}
 }

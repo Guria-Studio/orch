@@ -35,6 +35,9 @@ const (
 	// over the budget window. Written when the task starts waiting, with the
 	// provider and reset estimate, so status and the dashboard can show it.
 	EventBudgetSkip = "budget_skip"
+	// EventProviderSkip marks a ready task deferred because the operator
+	// turned its provider off (`orch provider disable`).
+	EventProviderSkip = "provider_skip"
 	// EventReconciled marks a dispatch row whose process was gone.
 	EventReconciled = "reconciled"
 	// EventPRCreated marks a pull request opened for a finished task.
@@ -157,6 +160,12 @@ func outcomeEvent(runID string, d Dispatch, o Outcome, ts string, attempt int) s
 	}
 	if len(o.Result.PermissionDenials) > 0 {
 		ev.Extra["permission_denials"] = o.Result.PermissionDenials
+	}
+	// The subscription windows the CLI reported (claude's 5-hour and weekly),
+	// kept on the outcome so the dashboard reads the latest per backend
+	// without a table of its own.
+	if len(o.Result.Quota) > 0 {
+		ev.Extra["quota"] = o.Result.Quota
 	}
 	if o.Stopped {
 		// The run's answer to the operator's request, and the attempt's

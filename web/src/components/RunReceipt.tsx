@@ -3,8 +3,7 @@ import { Check, ClipboardCopy, Download, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { receiptImage, receiptMarkdown, type ReceiptPayload } from "@/hooks/useReceipt"
 import { fmt, t } from "@/i18n"
-import { formatDuration, formatRelative } from "@/lib/time"
-import { cn } from "@/lib/utils"
+import { formatDuration } from "@/lib/time"
 
 const BUILT_WITH_KEY = "orch.receipt.builtWith"
 
@@ -20,8 +19,8 @@ function readBuiltWith(): boolean {
 // plain-http pages); the button only shows where it can work.
 const canCopyImage = () => typeof ClipboardItem !== "undefined" && typeof navigator.clipboard?.write === "function"
 
-/** The last finished run: what it did, how long, what it cost, and a copy as Markdown or as an image. */
-export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: number }) {
+/** The last finished run as label/value rows — tasks, attempts, time, PRs, tokens, cost — and a copy as Markdown or as an image. */
+export function RunReceipt({ payload }: { payload: ReceiptPayload }) {
   const r = payload.receipt
   const [builtWith, setBuiltWith] = useState(readBuiltWith)
   const [copied, setCopied] = useState(false)
@@ -77,58 +76,71 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
     }
   }
   const prsPassed = r.prs.filter((p) => p.ci_status === "success").length
+  const weighted = r.providers.reduce((n, p) => n + p.weighted_tokens, 0)
+  const raw = r.providers.reduce((n, p) => n + p.tokens_in + p.tokens_out, 0)
+  const priced = r.providers.some((p) => p.cost_source !== "no_data")
+  const estimated = r.estimated_cost_usd > 0
+  const rows: [string, React.ReactNode][] = [
+    [
+      t("receipt.row.tasks"),
+      <span key="tasks">
+        {t("receipt.done", { count: r.done.length })}
+        {r.blocked.length > 0 ? <span className="text-status-blocked"> · {t("receipt.blocked", { count: r.blocked.length })}</span> : null}
+      </span>,
+    ],
+    [t("receipt.row.attempts"), t("receipt.failed_attempts", { count: r.failed_attempts })],
+    [t("receipt.row.time"), t("receipt.times_short", { wall: formatDuration(r.wall_seconds), agent: formatDuration(r.agent_seconds) })],
+    [t("receipt.row.prs"), t("receipt.prs", { count: r.prs.length, passed: prsPassed })],
+    [
+      t("receipt.row.tokens"),
+      raw > 0
+        ? weighted !== raw
+          ? t("receipt.tokens_weighted", { weighted: fmt.number(weighted), raw: fmt.number(raw) })
+          : t("receipt.tokens", { raw: fmt.number(raw) })
+        : t("receipt.dispatches", { count: r.dispatches }),
+    ],
+    [
+      t("receipt.row.cost"),
+      priced ? (
+        <span key="cost">
+          <span>{`${estimated ? "~" : ""}${fmt.usd(r.total_cost_usd)}`}</span>
+          {estimated ? <span className="ml-1.5 text-muted-foreground">{t("now.cost.estimated")}</span> : null}
+        </span>
+      ) : (
+        <span key="cost" className="text-muted-foreground">
+          {t("now.cost.no_data")}
+        </span>
+      ),
+    ],
+  ]
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4">
-        <p className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={r.run_id}>
-          {r.run_id}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {r.finished_at ? t("receipt.finished", { time: formatRelative(r.finished_at, now) }) : t("receipt.unfinished")}
-        </p>
-      </div>
-
-      <p className="px-4 pt-2 text-sm">
-        <span className="font-semibold tabular-nums">{t("receipt.done", { count: r.done.length })}</span>
-        {r.blocked.length > 0 ? (
-          <span className="text-status-blocked"> · {t("receipt.blocked", { count: r.blocked.length })}</span>
-        ) : null}
-        {r.failed_attempts > 0 ? (
-          <span className="text-muted-foreground"> · {t("receipt.failed_attempts", { count: r.failed_attempts })}</span>
-        ) : null}
-      </p>
-      <p className="px-4 pt-1 text-xs text-muted-foreground tabular-nums">
-        {t("receipt.times", { wall: formatDuration(r.wall_seconds), agent: formatDuration(r.agent_seconds) })}
-        {r.prs.length > 0 ? ` · ${t("receipt.prs", { count: r.prs.length, passed: prsPassed })}` : null}
-      </p>
-
-      <ul className="mt-3 divide-y border-t">
-        {r.providers.map((p) => (
-          <li key={p.provider} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 px-4 py-2 text-sm">
-            <span className="min-w-0">
-              <span className="font-medium">{p.provider}</span>
-              <span className="ml-2 font-mono text-[11px] text-muted-foreground tabular-nums">
-                {p.tokens_in + p.tokens_out > 0
-                  ? p.weighted_tokens !== p.tokens_in + p.tokens_out
-                    ? t("receipt.tokens_weighted", {
-                        weighted: fmt.number(p.weighted_tokens),
-                        raw: fmt.number(p.tokens_in + p.tokens_out),
-                      })
-                    : t("receipt.tokens", { raw: fmt.number(p.tokens_in + p.tokens_out) })
-                  : t("receipt.dispatches", { count: p.dispatches })}
-              </span>
-            </span>
-            <span className={cn("font-mono text-xs tabular-nums", p.cost_source === "no_data" && "text-muted-foreground")}>
-              {p.cost_source === "no_data" ? t("now.cost.no_data") : `${p.cost_source === "estimated" ? "~" : ""}${fmt.usd(p.cost_usd)}`}
-              {p.cost_source !== "no_data" ? <span className="ml-1 text-muted-foreground">{t(`now.cost.${p.cost_source}`)}</span> : null}
-            </span>
-          </li>
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3.5 py-3">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 tabular-nums">{value}</dd>
+          </div>
         ))}
-      </ul>
+      </dl>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 border-t px-3.5 py-3">
+        <Button type="button" size="sm" variant="outline" onClick={copy}>
+          {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />}
+          {copied ? t("common.copied") : t("receipt.copy")}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={download}>
+          <Download className="h-4 w-4" aria-hidden />
+          {t("receipt.download_image")}
+        </Button>
+        {canCopyImage() ? (
+          <Button type="button" size="sm" variant="ghost" onClick={copyImage}>
+            {imageCopied ? <Check className="h-4 w-4" aria-hidden /> : <ImageIcon className="h-4 w-4" aria-hidden />}
+            {imageCopied ? t("common.copied") : t("receipt.copy_image")}
+          </Button>
+        ) : null}
+        <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <input
             id="receipt-built-with"
             type="checkbox"
@@ -138,30 +150,14 @@ export function RunReceipt({ payload, now }: { payload: ReceiptPayload; now: num
           />
           {t("receipt.built_with")}
         </label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={download}>
-            <Download className="h-4 w-4" aria-hidden />
-            {t("receipt.download_image")}
-          </Button>
-          {canCopyImage() ? (
-            <Button type="button" size="sm" variant="outline" onClick={copyImage}>
-              {imageCopied ? <Check className="h-4 w-4" aria-hidden /> : <ImageIcon className="h-4 w-4" aria-hidden />}
-              {imageCopied ? t("common.copied") : t("receipt.copy_image")}
-            </Button>
-          ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={copy}>
-            {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />}
-            {copied ? t("common.copied") : t("receipt.copy")}
-          </Button>
-        </div>
       </div>
       {imageFailed ? (
-        <p role="alert" className="border-t px-4 py-2 text-xs text-status-blocked">
+        <p role="alert" className="border-t px-3.5 py-2 text-xs text-status-blocked">
           {t("receipt.image_failed")}
         </p>
       ) : null}
       {manual ? (
-        <div className="border-t px-4 py-3">
+        <div className="border-t px-3.5 py-3">
           <p className="mb-2 text-xs text-muted-foreground">{t("receipt.copy_manual")}</p>
           <textarea
             ref={area}

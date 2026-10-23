@@ -299,3 +299,18 @@ func TestPhasePercentRoundsTheWayPythonRounds(t *testing.T) {
 		})
 	}
 }
+
+// ?phase= is the summary of one phase: its tasks, and the spend they made.
+func TestStakeholderSummaryForOnePhase(t *testing.T) {
+	s := portfolioServer(t, "demo", ProfileOperator, "", summaryState())
+	req := httptest.NewRequest(http.MethodGet, "/stakeholder/summary?phase=1", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	var body stakeholderSummaryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v\n%s", err, rec.Body.String())
+	}
+	if body.Summary.Total != 1 || body.Summary.Blocked != 1 || body.Summary.Done != 0 {
+		t.Errorf("phase 1 summary = %+v, want T-3 alone", body.Summary)
+	}
+}

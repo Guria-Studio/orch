@@ -109,8 +109,8 @@ func TestLoadMigrationsIsAContiguousRun(t *testing.T) {
 			t.Errorf("migration %s is empty", m.name)
 		}
 	}
-	if got, want := ms[len(ms)-1].version, 8; got != want {
-		t.Errorf("highest migration is %d, want %d — bump this when 009 ships", got, want)
+	if got, want := ms[len(ms)-1].version, 9; got != want {
+		t.Errorf("highest migration is %d, want %d — bump this when 010 ships", got, want)
 	}
 }
 
@@ -167,15 +167,15 @@ func TestOpenFreshAppliesEveryMigration(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	if applied != 8 {
-		t.Errorf("applied %d migrations on a fresh DB, want 8", applied)
+	if applied != 9 {
+		t.Errorf("applied %d migrations on a fresh DB, want 9", applied)
 	}
 	v, err := db.SchemaVersion(ctx)
 	if err != nil {
 		t.Fatalf("SchemaVersion: %v", err)
 	}
-	if v != 8 {
-		t.Errorf("user_version = %d, want 8", v)
+	if v != 9 {
+		t.Errorf("user_version = %d, want 9", v)
 	}
 }
 
@@ -221,15 +221,15 @@ func TestOpenPythonWrittenDatabaseAppliesOnlyGoOnlyMigrations(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	if applied != 3 {
-		t.Errorf("applied %d migrations to a v0.11.0 (schema 5) database, want 3 (006 to 008, Go-only)", applied)
+	if applied != 4 {
+		t.Errorf("applied %d migrations to a v0.11.0 (schema 5) database, want 4 (006 to 009, Go-only)", applied)
 	}
 	v, err := db.SchemaVersion(ctx)
 	if err != nil {
 		t.Fatalf("SchemaVersion: %v", err)
 	}
-	if v != 8 {
-		t.Errorf("user_version = %d, want 8", v)
+	if v != 9 {
+		t.Errorf("user_version = %d, want 9", v)
 	}
 }
 

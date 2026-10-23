@@ -21,30 +21,30 @@ export function FirstRunChecklist({
 
   return (
     <section aria-labelledby="now-first-run">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 id="now-first-run" className="text-sm font-semibold tracking-[-0.01em]">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 id="now-first-run" className="text-xs font-medium text-muted-foreground">
           {t("onboarding.title")}
         </h2>
         <span className="text-xs text-muted-foreground tabular-nums">
           {t("onboarding.progress", { done: doneCount, total: required.length })}
         </span>
       </div>
-      <div className="overflow-hidden rounded-xl border bg-card">
-        <div className="flex gap-1 px-4 pt-4" aria-hidden>
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="flex gap-1 px-3.5 pt-3.5" aria-hidden>
           {required.map((i) => (
             <span key={i.id} className={cn("h-1.5 flex-1 rounded-full", i.done ? "bg-status-done" : "bg-muted")} />
           ))}
         </div>
         <ul className="divide-y">
           {onboarding.items.map((item) => (
-            <li key={item.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-3 px-4 py-3">
+            <li key={item.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-3 px-3.5 py-2.5">
               {item.done ? (
                 <Check className="mt-0.5 h-4 w-4 text-status-done" aria-label={t("onboarding.done")} />
               ) : (
                 <Circle className="mt-0.5 h-4 w-4 text-muted-foreground" aria-label={t("onboarding.todo")} />
               )}
               <div className="min-w-0">
-                <p className={cn("text-sm", item.done ? "text-muted-foreground" : "font-medium")}>
+                <p className={cn(item.done ? "text-muted-foreground" : "font-medium")}>
                   {t(`onboarding.${item.id}`)}
                   {item.optional ? <span className="ml-2 text-xs font-normal text-muted-foreground">{t("onboarding.optional")}</span> : null}
                 </p>
@@ -63,7 +63,7 @@ export function FirstRunChecklist({
             </li>
           ))}
         </ul>
-        <div className="flex justify-end border-t px-4 py-3">
+        <div className="flex justify-end border-t px-3.5 py-3">
           <Button type="button" size="sm" variant="outline" onClick={onRecheck} disabled={checking}>
             <RefreshCw className={cn("h-4 w-4", checking && "animate-spin motion-reduce:animate-none")} aria-hidden />
             {t("onboarding.recheck")}

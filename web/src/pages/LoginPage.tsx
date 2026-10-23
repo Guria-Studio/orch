@@ -1,22 +1,18 @@
 import { useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/useAuth"
+import { useTunnelCapabilities } from "@/hooks/useTunnelCapabilities"
 import { t } from "@/i18n"
 
 export function LoginPage() {
   const [value, setValue] = useState("")
   const { setToken } = useAuth()
   const navigate = useNavigate()
+  // The capabilities answer this machine's operator without a token, repository included.
+  const repo = useTunnelCapabilities().data?.repo?.slug
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -27,38 +23,34 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center">
-            <img src="/favicon.svg" alt="Orch" className="h-12 w-12" />
-          </div>
-          <CardTitle className="text-lg">{t("login.title")}</CardTitle>
-          <CardDescription>
-            {t("login.paste")}{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">orch dashboard --token …</code>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="token">{t("login.token")}</Label>
-              <Input
-                id="token"
-                type="password"
-                autoComplete="off"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={t("login.placeholder")}
-                autoFocus
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={!value.trim()}>
-              {t("login.enter")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="flex min-h-screen flex-col items-center bg-background px-4 pb-10 pt-[120px] text-[13px]">
+      <form onSubmit={handleSubmit} className="flex w-full max-w-[360px] flex-col gap-5">
+        <div className="flex flex-col items-center gap-3.5 text-center">
+          <img src="/favicon.svg" alt="" className="h-10 w-10" />
+          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("login.title")}</h1>
+          <p className="leading-5 text-muted-foreground">{t("login.paste")}</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="token" className="text-xs text-foreground/80">
+            {t("login.token")}
+          </Label>
+          <Input
+            id="token"
+            type="password"
+            autoComplete="off"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={t("login.placeholder")}
+            className="h-10 rounded-lg font-mono text-[13px]"
+            autoFocus
+          />
+        </div>
+        <Button type="submit" className="h-11 w-full rounded-lg bg-brand text-white hover:bg-brand/90" disabled={!value.trim()}>
+          {t("login.enter")}
+        </Button>
+        <p className="text-center text-xs leading-[18px] text-muted-foreground">{t("login.link_hint")}</p>
+      </form>
+      <p className="mt-auto pt-10 text-xs text-muted-foreground">{repo ? `${repo} · ${window.location.origin}` : window.location.origin}</p>
     </div>
   )
 }

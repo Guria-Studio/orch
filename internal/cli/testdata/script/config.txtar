@@ -24,6 +24,22 @@ stderr 'config load failed'
 exec orch config show --project-root noconfig --project-id noconfig
 stdout 'no config file found — every value above is a default'
 
+# orch config set / unset: the same config.Set the Settings page saves
+# through. A credential is confirmed without being echoed; a bad value
+# changes nothing.
+exec orch config set --project-root noconfig --project-id noconfig tunnel.enabled true notifications.slack_webhook https://hooks.example/T0/secret
+stdout '^tunnel.enabled = true$'
+stdout '^notifications.slack_webhook = \(set\)$'
+! stdout 'secret'
+exec orch config show --project-root noconfig --project-id noconfig
+stdout '  enabled: true'
+! exec orch config set --project-root noconfig --project-id noconfig tunnel.enabled maybe
+stderr 'want true or false'
+! exec orch config set --project-root noconfig --project-id noconfig tunnel.enabled
+stderr 'want KEY VALUE pairs'
+exec orch config unset --project-root noconfig --project-id noconfig tunnel.enabled
+stdout 'tunnel.enabled unset'
+
 -- broken/tasks.json --
 {"meta":{},"phases":[],"tasks":[]}
 -- broken/scripts/task-start.sh --

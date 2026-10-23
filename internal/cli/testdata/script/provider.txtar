@@ -1,0 +1,24 @@
+# orch provider disable / enable / list — the switch the dashboard's
+# Providers and quota page flips, through the real CLI.
+
+exec orch provider list --project-root proj --project-id proj
+stdout 'every provider is on'
+
+exec orch provider disable codex --reason 'quota spent' --project-root proj --project-id proj
+stdout 'codex: off'
+
+exec orch provider list --project-root proj --project-id proj
+stdout 'codex\s+off\s+quota spent'
+
+exec orch provider list --json --project-root proj --project-id proj
+stdout '"backend": "codex"'
+stdout '"disabled": true'
+
+exec orch provider enable codex --project-root proj --project-id proj
+stdout 'codex: on'
+
+exec orch provider list --project-root proj --project-id proj
+stdout 'codex\s+on'
+
+! exec orch provider disable ngrok --project-root proj --project-id proj
+stderr 'unknown provider "ngrok"'

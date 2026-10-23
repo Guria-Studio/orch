@@ -7,7 +7,7 @@ import type { ProjectConfig } from "@/lib/types"
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1 text-sm">
+    <div className="flex items-baseline justify-between gap-4 py-1 text-[13px]">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right font-mono text-xs tabular-nums">{value}</span>
     </div>
@@ -38,7 +38,7 @@ function isEmpty(config: ProjectConfig): boolean {
 function ConfigBody({ config }: { config: ProjectConfig }) {
   if (isEmpty(config)) {
     return (
-      <p className="py-2 text-sm text-muted-foreground">
+      <p className="py-2 text-[13px] text-muted-foreground">
         {t("config.none")}
       </p>
     )
@@ -164,7 +164,7 @@ export function ProjectConfigWidget() {
     <Card>
       <CardContent className="p-0">
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-5 py-4 text-sm font-medium hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3.5 py-2.5 font-medium hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" />
             <span>{t("config.title")}</span>
           </summary>
@@ -176,7 +176,7 @@ export function ProjectConfigWidget() {
                 <Skeleton className="h-4 w-52" />
               </div>
             ) : isError ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {t("config.load_failed")}
                 {error?.message ? `: ${error.message}` : ""}
               </p>

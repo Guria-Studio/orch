@@ -189,6 +189,10 @@ func (f *fakeState) LastEventByTask(_ context.Context, taskIDs []string) (map[st
 	return f.lastEvents, nil
 }
 
+func (f *fakeState) ProviderStates(context.Context) ([]state.ProviderState, error) {
+	return nil, nil
+}
+
 func (f *fakeState) StakeholderToken(context.Context) (string, time.Time, bool, error) {
 	return f.stakeholderTokenHash, time.Time{}, f.stakeholderTokenOK, f.stakeholderTokenErr
 }
@@ -409,6 +413,10 @@ func TestTaskDetail(t *testing.T) {
 	if got.SpecRef != "specs/f0.md#T1" || got.DepCount != 0 {
 		t.Errorf("spec_ref = %q, dep_count = %d", got.SpecRef, got.DepCount)
 	}
+	// "Attempt N of M": M is the retry policy's cap, 2 by default.
+	if got.MaxAttempts == nil || *got.MaxAttempts != 2 {
+		t.Errorf("max_attempts = %v, want 2", got.MaxAttempts)
+	}
 
 	// The list endpoint omits the field rather than shipping it false: it is
 	// the same answer the `parallelizable=1` filter already gives there.
@@ -452,6 +460,9 @@ func TestGraphNodesAndEdges(t *testing.T) {
 		if !n.OnPath {
 			t.Errorf("%s is not on the critical path of a straight chain", n.ID)
 		}
+	} // The node card names its model, as the design draws it.
+	if got.Nodes[0].Model == "" {
+		t.Errorf("node %s has no model", got.Nodes[0].ID)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
@@ -852,5 +853,43 @@ func TestDispatchLeavesOutDependenciesWhosePRMerged(t *testing.T) {
 	v.mu.Unlock()
 	if calls != 2 {
 		t.Errorf("PRState asked %d times, want 2", calls)
+	}
+}
+
+type stubProviders struct{ states []state.ProviderState }
+
+func (p stubProviders) ProviderStates(context.Context) ([]state.ProviderState, error) {
+	return p.states, nil
+}
+
+// A provider the operator turned off (`orch provider disable`) gets no
+// dispatch: its ready task waits, recorded once as a provider_skip, and goes
+// as soon as the provider is back on.
+func TestADisabledProviderLeavesItsTasksWaiting(t *testing.T) {
+	routes := map[string]model.RouteEntry{"claude/opus": route(model.BackendClaude, "opus", false)}
+	tasks := []model.Task{task("C-1", 1, "claude/opus")}
+	f := newSchedulerFixture(t, tasks, routes, SchedulerOptions{
+		Mode: ModeAuto, GlobalMax: 4, PerProvider: map[string]int{"claude": 4},
+	})
+	fb := newFakeBackend()
+	f.s.Backend = fb
+	f.s.Providers = stubProviders{states: []state.ProviderState{{Backend: "claude", Disabled: true, Reason: "quota spent"}}}
+
+	for i := 0; i < 3; i++ {
+		started, err := f.s.Refill(context.Background())
+		if err != nil || started != 0 {
+			t.Fatalf("Refill %d: started %d, %v; want 0", i, started, err)
+		}
+	}
+	if got := fb.eventTypes("C-1"); len(got) != 1 || got[0] != EventProviderSkip {
+		t.Fatalf("events for C-1 = %v, want exactly one %q", got, EventProviderSkip)
+	}
+	if got := f.s.DeferReasons()["C-1"]; got != "provider-disabled:claude" {
+		t.Errorf("defer reason = %q", got)
+	}
+
+	f.s.Providers = stubProviders{states: []state.ProviderState{{Backend: "claude", Disabled: false}}}
+	if started, err := f.s.Refill(context.Background()); err != nil || started != 1 {
+		t.Errorf("after enabling: started %d, %v; want 1", started, err)
 	}
 }

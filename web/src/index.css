@@ -5,83 +5,83 @@
    paint), not the OS media query, so the operator's toggle wins. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* "Mesa de despacho": a dispatch console. Graphite ground, one brand violet
-   reserved for identity, focus and selection, and a status scale where red
-   means failed and nothing else. Light is the same system on paper. */
+/* Linear-style backoffice: near-black neutral ground, one indigo reserved for
+   identity, focus, selection and "done", and a status scale where red means
+   failed and nothing else. Light is the same system on paper. */
 @layer base {
   :root {
-    --background: #f6f6f9;
-    --foreground: #15151c;
+    --background: #fcfcfd;
+    --foreground: #1b1c1f;
     --card: #ffffff;
-    --card-foreground: #15151c;
+    --card-foreground: #1b1c1f;
     --popover: #ffffff;
-    --popover-foreground: #15151c;
-    --primary: #15151c;
+    --popover-foreground: #1b1c1f;
+    --primary: #1b1c1f;
     --primary-foreground: #ffffff;
-    --secondary: #ececf2;
-    --secondary-foreground: #15151c;
-    --muted: #ececf2;
-    --muted-foreground: #5e5e6e;
-    --accent: #e6e6ee;
-    --accent-foreground: #15151c;
-    --destructive: #d1343a;
+    --secondary: #f1f1f4;
+    --secondary-foreground: #1b1c1f;
+    --muted: #f1f1f4;
+    --muted-foreground: #5f6169;
+    --accent: #ececf0;
+    --accent-foreground: #1b1c1f;
+    --destructive: #c7333a;
     --destructive-foreground: #ffffff;
-    --border: #dcdce5;
-    --input: #d2d2dc;
-    --ring: #5a43db;
-    --brand: #5a43db;
-    --sidebar: #ececf2;
-    --sidebar-foreground: #15151c;
-    --sidebar-muted: #5e5e6e;
-    --sidebar-active: #dcdce5;
+    --border: #e4e4e9;
+    --input: #d9d9e0;
+    --ring: #5e6ad2;
+    --brand: #5e6ad2;
+    --sidebar: #f5f5f7;
+    --sidebar-foreground: #1b1c1f;
+    --sidebar-muted: #5f6169;
+    --sidebar-active: #e7e7ec;
 
-    --status-queued: #6b6b7b;
-    --status-running: #2f6bd6;
-    --status-blocked: #b86e0b;
-    --status-failed: #d1343a;
-    --status-done: #1e8a4c;
+    --status-queued: #6b6f78;
+    --status-running: #8a6700;
+    --status-blocked: #9a5208;
+    --status-failed: #c7333a;
+    --status-done: #4a55c0;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
   }
 
   .dark {
-    --background: #101116;
-    --foreground: #e9e9f0;
-    --card: #17181f;
-    --card-foreground: #e9e9f0;
-    --popover: #1b1c24;
-    --popover-foreground: #e9e9f0;
-    --primary: #e9e9f0;
-    --primary-foreground: #101116;
-    --secondary: #1f2029;
-    --secondary-foreground: #e9e9f0;
-    --muted: #1f2029;
-    --muted-foreground: #9a9baa;
-    --accent: #23242e;
-    --accent-foreground: #e9e9f0;
-    --destructive: #e5484d;
+    --background: #0f1011;
+    --foreground: #f7f8f8;
+    --card: #141516;
+    --card-foreground: #f7f8f8;
+    --popover: #18191b;
+    --popover-foreground: #f7f8f8;
+    --primary: #f7f8f8;
+    --primary-foreground: #0f1011;
+    --secondary: #1c1d21;
+    --secondary-foreground: #f7f8f8;
+    --muted: #1c1d21;
+    --muted-foreground: #8a8f98;
+    --accent: #1c1d21;
+    --accent-foreground: #f7f8f8;
+    --destructive: #eb5757;
     --destructive-foreground: #ffffff;
-    --border: #262833;
-    --input: #2e303c;
-    --ring: #8b7bff;
-    --brand: #8b7bff;
-    --sidebar: #0b0c10;
-    --sidebar-foreground: #e9e9f0;
-    --sidebar-muted: #9a9baa;
-    --sidebar-active: #1f2029;
+    --border: #23252a;
+    --input: #2a2c31;
+    --ring: #5e6ad2;
+    --brand: #7c86e0;
+    --sidebar: #0b0c0d;
+    --sidebar-foreground: #d0d6e0;
+    --sidebar-muted: #8a8f98;
+    --sidebar-active: #1c1d21;
 
-    --status-queued: #8b8d9c;
-    --status-running: #4c82e8;
-    --status-blocked: #d98b1c;
-    --status-failed: #e5484d;
-    --status-done: #3fb06a;
+    --status-queued: #8a8f98;
+    --status-running: #f2c94c;
+    --status-blocked: #f2994a;
+    --status-failed: #eb5757;
+    --status-done: #7c86e0;
 
     color-scheme: dark;
   }
 }
 
 @theme inline {
-  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --color-background: var(--background);
@@ -131,7 +131,7 @@
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01";
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
   }
   ::selection {

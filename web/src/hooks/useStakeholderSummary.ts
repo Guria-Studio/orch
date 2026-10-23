@@ -32,8 +32,8 @@ export class StakeholderSummaryShapeError extends Error {
   }
 }
 
-export async function fetchStakeholderSummary(): Promise<StakeholderSummary> {
-  const { data } = await apiClient.get<StakeholderSummary | unknown>("/stakeholder/summary")
+export async function fetchStakeholderSummary(phase = ""): Promise<StakeholderSummary> {
+  const { data } = await apiClient.get<StakeholderSummary | unknown>("/stakeholder/summary", { params: phase ? { phase } : undefined })
   if (!data || typeof (data as StakeholderSummary).summary !== "object") {
     throw new StakeholderSummaryShapeError()
   }
@@ -74,10 +74,11 @@ export function shouldRetryStakeholderSummary(failureCount: number, error: unkno
   return failureCount < 2
 }
 
-export function useStakeholderSummary() {
+/** The client summary of the project, or of one phase with `phase` ("" for all). */
+export function useStakeholderSummary(phase = "") {
   return useQuery<StakeholderSummary, Error>({
-    queryKey: ["stakeholder", "summary"],
-    queryFn: fetchStakeholderSummary,
+    queryKey: ["stakeholder", "summary", phase],
+    queryFn: () => fetchStakeholderSummary(phase),
     refetchInterval: (query) => {
       const data = query.state.data
       if (!data) return DEFAULT_INTERVAL_MS

@@ -13,7 +13,6 @@ import { GraphPage } from "@/pages/GraphPage"
 import { KanbanPage } from "@/pages/KanbanPage"
 import { ListPage } from "@/pages/ListPage"
 import { LoginPage } from "@/pages/LoginPage"
-import { MetricsPage } from "@/pages/MetricsPage"
 import { MilestonesPage } from "@/pages/MilestonesPage"
 import { NowPage } from "@/pages/NowPage"
 import { PacePage } from "@/pages/PacePage"
@@ -21,6 +20,13 @@ import { PortfolioPage } from "@/pages/PortfolioPage"
 import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TaskPage } from "@/pages/TaskPage"
+import { ClientPage } from "@/pages/ClientPage"
+import { QuotaPage } from "@/pages/QuotaPage"
+import { LogsPage } from "@/pages/LogsPage"
+import { SettingsPage } from "@/pages/SettingsPage"
+import { SkillsPage } from "@/pages/SkillsPage"
+import { ToolsPage } from "@/pages/ToolsPage"
+import { UsagePage } from "@/pages/UsagePage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
 const queryClient = new QueryClient({
@@ -43,11 +49,17 @@ const PAGES: Record<string, ReactNode> = {
   "/work/phases": <MilestonesPage />,
   "/work/pace": <PacePage />,
   "/cost/budget": <BudgetPage />,
-  "/cost/metrics": <MetricsPage />,
+  "/cost/usage": <UsagePage />,
+  "/delivery/client": <ClientPage />,
   "/delivery/summary": <StakeholderSummaryPage />,
   "/delivery/ci": <CIPage />,
   "/delivery/tests": <TestsPage />,
   "/delivery/share": <TunnelPage />,
+  "/system/providers": <QuotaPage />,
+  "/system/tools": <ToolsPage />,
+  "/system/skills": <SkillsPage />,
+  "/system/settings": <SettingsPage />,
+  "/system/logs": <LogsPage />,
 }
 
 /** A redirect that keeps the query string, so filters and `?token=` survive it. */
@@ -88,7 +100,6 @@ export function AppRoutes() {
       <Route path="/work" element={<Redirect to="/work/list" />} />
       <Route path="/cost" element={<Redirect to="/cost/budget" />} />
       <Route path="/delivery" element={<Redirect to="/delivery/summary" />} />
-      <Route path="/logs" element={<Redirect to="/?logs=1" />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

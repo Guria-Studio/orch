@@ -1,0 +1,37 @@
+# orch budget set: edits one provider's rolling window in the active preset
+# of the project's budgets.yaml, keeping comments; the dashboard's Quota page
+# goes through the same function (budget.SetLimits).
+
+exec orch budget set claude --tokens 1200000 --threshold 75 --project-root budproj --project-id budproj
+stdout 'claude: 1200000 tokens per 5h window, pauses at 75%'
+exec cat budproj/.orchestrator/budgets.yaml
+stdout '# Tune token_budget to your plan\.'
+stdout 'token_budget: 1200000'
+stdout 'threshold_pct: 75'
+
+# A refused edit names the problem and leaves the file alone.
+! exec orch budget set claude --threshold 150 --project-root budproj --project-id budproj
+stderr 'threshold_pct must be more than 0 and at most 100'
+! exec orch budget set claude --project-root budproj --project-id budproj
+stderr 'nothing to change'
+exec cat budproj/.orchestrator/budgets.yaml
+stdout 'threshold_pct: 75'
+
+-- budproj/tasks.json --
+{"meta":{},"phases":[],"tasks":[
+  {"id":"A","phase":0,"title":"A","model":"claude/claude-sonnet-4-6","dependencies":[]}
+]}
+-- budproj/scripts/task-start.sh --
+#!/usr/bin/env bash
+exit 0
+-- budproj/.orchestrator/config.yaml --
+budgets_config: budgets.yaml
+budgets_preset: conservative
+-- budproj/.orchestrator/budgets.yaml --
+# Tune token_budget to your plan.
+presets:
+  conservative:
+    claude:
+      window_hours: 5
+      token_budget: 800000
+      threshold_pct: 60

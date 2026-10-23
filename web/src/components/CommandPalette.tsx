@@ -59,6 +59,8 @@ interface Item {
   iconClass?: string
   prefix?: string
   detail?: string
+  /** What the entry does, on hover, when the detail is only its action. */
+  title?: string
   mono?: boolean
   run: () => void
 }
@@ -164,11 +166,14 @@ function Palette({
     navigate(to)
   }
 
+  const letters = Object.fromEntries(Object.entries(GO_KEYS).map(([key, id]) => [id, key]))
   for (const d of destinations) {
-    for (const tab of d.tabs) {
+    d.tabs.forEach((tab, i) => {
       const label = d.tabs.length > 1 ? `${t(d.label)} › ${t(tab.label)}` : t(d.label)
-      all.push({ key: `go:${tab.to}`, section: "goto", label, search: label, icon: TAB_ICONS[tab.to] ?? d.icon, run: go(tab.to) })
-    }
+      // A destination's first page is where `g` + its letter goes.
+      const detail = i === 0 && letters[d.id] ? `g ${letters[d.id]}` : undefined
+      all.push({ key: `go:${tab.to}`, section: "goto", label, search: label, detail, icon: TAB_ICONS[tab.to] ?? d.icon, run: go(tab.to) })
+    })
   }
 
   if (searching) {
@@ -263,7 +268,7 @@ function Palette({
 
   if (!isStakeholder) {
     for (const { command, hint } of COMMANDS) {
-      all.push({ key: `cmd:${command}`, section: "commands", label: command, search: `${command} ${t(hint)}`, detail: t(hint), mono: true, icon: Terminal, run: () => void copy(command) })
+      all.push({ key: `cmd:${command}`, section: "commands", label: command, search: `${command} ${t(hint)}`, title: t(hint), detail: t("common.copy"), mono: true, icon: Terminal, run: () => void copy(command) })
     }
     if (searching) {
       for (const task of tasks) {
@@ -275,7 +280,8 @@ function Palette({
           section: "commands",
           label: unblock.command,
           search: `${unblock.command} ${task.title} unblock`,
-          detail: t("palette.cmd.unblock", { id: task.id }),
+          title: t("palette.cmd.unblock", { id: task.id }),
+          detail: t("common.copy"),
           mono: true,
           icon: Terminal,
           run: () => void copy(unblock.command),
@@ -392,6 +398,7 @@ function Palette({
                       }}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => item.run()}
+                      title={item.title}
                       className={cn(
                         "flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm",
                         selected ? "bg-muted text-foreground" : "text-foreground/90",
@@ -428,7 +435,17 @@ function Palette({
               </span>
             )
           ) : (
-            <span>{t("palette.hint")}</span>
+            <span className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <Kbd>↑↓</Kbd> {t("palette.foot.move")}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Kbd>↵</Kbd> {t("palette.foot.open")}
+              </span>
+              <span className="ml-auto flex items-center gap-1.5">
+                <Kbd>?</Kbd> {t("palette.foot.shortcuts")}
+              </span>
+            </span>
           )}
         </div>
       </div>
@@ -441,8 +458,11 @@ export function ShortcutsDialog({ open, onOpenChange, destinations }: { open: bo
   const letters = Object.fromEntries(Object.entries(GO_KEYS).map(([key, id]) => [id, key]))
   const rows: { keys: string[][]; label: string }[] = [
     { keys: [[isMac() ? "⌘" : "Ctrl", "K"]], label: t("shortcuts.palette") },
-    ...destinations.map((d) => ({ keys: [["g"], [letters[d.id]]], label: t("shortcuts.go", { destination: t(d.label) }) })),
+    ...destinations
+      .filter((d) => letters[d.id])
+      .map((d) => ({ keys: [["g"], [letters[d.id]]], label: t("shortcuts.go", { destination: t(d.label) }) })),
     ...(destinations.some((d) => d.tabs.some((tab) => tab.to === "/work/list")) ? [{ keys: [["/"]], label: t("shortcuts.search") }] : []),
+    { keys: [["["]], label: t("shortcuts.sidebar") },
     { keys: [["?"]], label: t("shortcuts.help") },
     { keys: [["Esc"]], label: t("shortcuts.close") },
   ]

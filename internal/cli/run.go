@@ -203,6 +203,9 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	// And a dependency's PR, so one already merged is not merged into its
 	// dependent's worktree a second time (#345).
 	scheduler.PRs = engine.NewStateRecorder(backend)
+	// What `orch provider disable` turned off, read every tick so a switch
+	// flipped mid-run takes effect without a restart.
+	scheduler.Providers = backend
 	// Built unconditionally: with no webhook configured it is a
 	// working no-op, so the engine never has to ask whether the
 	// operator wanted notifications.

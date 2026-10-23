@@ -230,3 +230,83 @@ func BlockerMessage(path string) string {
 		"config file is present. Rename it while you use the dashboard tunnel "+
 		"(for example: mv %s %s.bak).", path, path, path)
 }
+
+// TailscaleDocsURL is Tailscale's download page, for any system the guides miss.
+const TailscaleDocsURL = "https://tailscale.com/download"
+
+// Tailscale guide ids, stable on the wire.
+const (
+	GuideTailscaleLinux = "tailscale-linux"
+	GuideTailscaleBrew  = "tailscale-brew"
+)
+
+// TailscaleInstallGuides are the ways to get a logged-in tailscale, from
+// Tailscale's own install script and Homebrew formula. Logging in is a step:
+// serve and funnel both need a node on a tailnet.
+func TailscaleInstallGuides() []InstallGuide {
+	login := InstallStep{Title: "Log this machine in to your tailnet", Command: "sudo tailscale up"}
+	check := InstallStep{Title: "Check it is on PATH and logged in", Command: "tailscale status"}
+	return []InstallGuide{
+		{ID: GuideTailscaleLinux, Label: "Linux (install script)", Steps: []InstallStep{
+			{Title: "Install", Command: "curl -fsSL https://tailscale.com/install.sh | sh"},
+			login, check,
+		}},
+		{ID: GuideTailscaleBrew, Label: "macOS (Homebrew)", Steps: []InstallStep{
+			{Title: "Install", Command: "brew install tailscale"},
+			{Title: "Start the daemon", Command: "sudo brew services start tailscale"},
+			login, check,
+		}},
+	}
+}
+
+// ProviderCapability is what this machine has for one provider: whether its
+// binary is on PATH and how to get it when not.
+type ProviderCapability struct {
+	ID               string         `json:"id"`
+	Command          string         `json:"command"`
+	Binary           Binary         `json:"binary"`
+	Guides           []InstallGuide `json:"guides"`
+	RecommendedGuide string         `json:"recommended_guide"`
+	DocsURL          string         `json:"docs_url"`
+	// Blocker is a reason the provider cannot start although its binary is
+	// there (cloudflared's config file); "" when none.
+	Blocker string `json:"blocker,omitempty"`
+}
+
+// DescribeProviders looks every provider up on PATH, each binary once.
+// commandOverride replaces every provider's binary, for tests.
+func DescribeProviders(host Host, commandOverride string) []ProviderCapability {
+	binaries := map[string]Binary{}
+	lookup := func(command string) Binary {
+		if commandOverride != "" {
+			command = commandOverride
+		}
+		if b, ok := binaries[command]; ok {
+			return b
+		}
+		b := LookupBinary(command)
+		binaries[command] = b
+		return b
+	}
+	tailscaleGuide := ""
+	switch host.OS {
+	case "linux":
+		tailscaleGuide = GuideTailscaleLinux
+	case "darwin":
+		tailscaleGuide = GuideTailscaleBrew
+	}
+	var out []ProviderCapability
+	for _, id := range Providers() {
+		c := ProviderCapability{ID: id, Command: CommandFor(id), Binary: lookup(CommandFor(id))}
+		if id == ProviderCloudflared {
+			c.Guides, c.RecommendedGuide, c.DocsURL = InstallGuides(host.Arch), host.RecommendedGuide, DocsURL
+			if path := ConfigBlocker(); path != "" {
+				c.Blocker = BlockerMessage(path)
+			}
+		} else {
+			c.Guides, c.RecommendedGuide, c.DocsURL = TailscaleInstallGuides(), tailscaleGuide, TailscaleDocsURL
+		}
+		out = append(out, c)
+	}
+	return out
+}

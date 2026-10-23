@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CommandPalette } from "@/components/CommandPalette"
@@ -27,6 +28,16 @@ vi.mock("@/hooks/usePortfolio", () => ({
 }))
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ clearToken: vi.fn() }) }))
 vi.mock("@/pages/LogsPage", () => ({ LogsPage: () => <p>event log</p> }))
+// The layout reads the project and what is running from /api/now, and the
+// repository from the Share panel's capabilities.
+const apiGet = vi.hoisted(() => vi.fn(() => new Promise(() => {})))
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  apiClient: { get: apiGet },
+}))
+vi.mock("@/hooks/useTunnelCapabilities", () => ({
+  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" } } }),
+}))
 
 const OPERATOR_NAV = DESTINATIONS.map((d) => ({ ...d, tabs: d.tabs.filter((tab) => !tab.portfolioGated) }))
 
@@ -75,7 +86,7 @@ describe("CommandPalette", () => {
     const { input, onOpenChange } = renderPalette()
     type(input, "budget")
     const options = screen.getAllByRole("option")
-    expect(options[0]).toHaveTextContent("Cost › Budget")
+    expect(options[0]).toHaveTextContent("Usage › Budget")
     expect(options[0]).toHaveAttribute("aria-selected", "true")
     expect(input).toHaveAttribute("aria-activedescendant", options[0].id)
     key(input, "ArrowUp") // wraps to the last result
@@ -98,14 +109,14 @@ describe("CommandPalette", () => {
   it("adds a filter to the ones already set on a filtered page", () => {
     const { input } = renderPalette("/work/kanban?phase=2")
     type(input, "status blocked")
-    fireEvent.click(within(screen.getByRole("group", { name: "Filter the work" })).getAllByRole("option")[0])
+    fireEvent.click(within(screen.getByRole("group", { name: "Filters" })).getAllByRole("option")[0])
     expect(location()).toBe("/work/kanban?phase=2&status=blocked")
   })
 
   it("starts the task list fresh when filtering from another page", () => {
     const { input } = renderPalette("/cost/budget?logs=1")
     type(input, "model codex")
-    fireEvent.click(within(screen.getByRole("group", { name: "Filter the work" })).getByRole("option"))
+    fireEvent.click(within(screen.getByRole("group", { name: "Filters" })).getByRole("option"))
     expect(location()).toBe("/work/list?model=codex%2Fgpt-5")
   })
 
@@ -114,7 +125,7 @@ describe("CommandPalette", () => {
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } })
     const { input, onOpenChange } = renderPalette()
     type(input, "F2.T3")
-    const commands = screen.getByRole("group", { name: "Copy a command" })
+    const commands = screen.getByRole("group", { name: "Commands" })
     expect(within(commands).getByRole("option")).toHaveTextContent("orch task set --id F2.T3 --status todo")
     type(input, "doctor")
     await act(async () => key(input, "Enter"))
@@ -134,7 +145,7 @@ describe("CommandPalette", () => {
   it("offers a client no commands and no task search", () => {
     const { input } = renderPalette("/", { isStakeholder: true, canSeeLogs: false })
     type(input, "o")
-    expect(screen.queryByRole("group", { name: "Copy a command" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Commands" })).not.toBeInTheDocument()
     expect(screen.queryByRole("group", { name: "Tasks" })).not.toBeInTheDocument()
     expect(screen.queryByText("Open the event log")).not.toBeInTheDocument()
   })
@@ -159,19 +170,21 @@ describe("CommandPalette", () => {
 
 function renderLayout(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="*"
-          element={
-            <AppLayout>
-              <input aria-label="notes" />
-              <Where />
-            </AppLayout>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <AppLayout>
+                <input aria-label="notes" />
+                <Where />
+              </AppLayout>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
@@ -188,7 +201,7 @@ describe("keyboard shortcuts", () => {
     renderLayout("/")
     fireEvent.keyDown(document.body, { key: "g" })
     fireEvent.keyDown(document.body, { key: "c" })
-    expect(location()).toBe("/cost/budget")
+    expect(location()).toBe("/cost/usage")
   })
 
   it("ignores letters typed into a field", () => {

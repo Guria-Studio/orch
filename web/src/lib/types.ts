@@ -88,6 +88,8 @@ export interface Task {
   pr_url?: string | null
   ci_status?: CiStatus | null
   ci_attempts?: number
+  /** The retry policy's cap, only on GET /api/task/{id}: the M of "attempt N of M". */
+  max_attempts?: number
 }
 
 export interface TasksSummary {
@@ -226,7 +228,7 @@ export interface ProjectConfig {
 }
 
 /**
- * Dashboard tunnel (Cloudflare quick tunnel) — the shapes of
+ * Dashboard tunnel (Cloudflare quick tunnel or tailscale serve/funnel) — the shapes of
  * `/api/tunnel/capabilities` and `/api/tunnel/status`
  * (internal/dashboard/tunnelroutes.go, internal/tunnel). Keep these in
  * lock-step with the Go structs.
@@ -257,6 +259,34 @@ export interface TunnelInstallGuide {
   steps: TunnelInstallStep[]
 }
 
+export type TunnelProviderId = "cloudflared" | "tailscale-serve" | "tailscale-funnel"
+
+export interface TunnelBinary {
+  found: boolean
+  path?: string
+  version?: string
+}
+
+/** One provider as this machine has it (tunnel.ProviderCapability). */
+export interface TunnelProvider {
+  id: TunnelProviderId
+  command: string
+  binary: TunnelBinary
+  guides: TunnelInstallGuide[]
+  recommended_guide: string
+  docs_url: string
+  /** Why it cannot start although the binary is there (cloudflared's config file). */
+  blocker?: string
+}
+
+/** The repository the dashboard serves (vcs.Repo); credentials already stripped. */
+export interface TunnelRepo {
+  remote: string
+  host: string
+  slug: string
+  branch: string
+}
+
 export interface TunnelCapabilities {
   enabled: boolean
   provider: string | null
@@ -264,12 +294,15 @@ export interface TunnelCapabilities {
   reason: TunnelCapabilityReason
   reasons: string[]
   // Only for the local operator (every gate but the binary passed).
-  binary?: { found: boolean; path?: string; version?: string }
+  binary?: TunnelBinary
   host?: { os: string; arch: string; recommended_guide: string }
   guides?: TunnelInstallGuide[]
   docs_url?: string
   /** A cloudflared config file that stops quick tunnels from starting. */
   config_blocker?: string
+  providers?: TunnelProvider[]
+  repo?: TunnelRepo
+  local_url?: string
 }
 
 export interface TunnelStatus {
@@ -285,8 +318,10 @@ export interface TunnelStatus {
   phase: TunnelState
   /** The tunnel URL with this start's token, for the operator dashboard. */
   share_url: string | null
-  /** The same, for the client portal at /stakeholder/. */
+  /** The same SPA with a client-level token: the stakeholder's view. */
   portal_url: string | null
+  /** The provider's last output lines, where it explains a failure. */
+  log_tail: string[]
 }
 
 // ---- Sprint health (Sprint F-5) --------------------------------------------
@@ -322,6 +357,8 @@ export interface GraphNode {
   status: string
   phase: number
   on_critical_path: boolean
+  /** The task's route, "claude/sonnet"; the card shows its provider. */
+  model?: string
 }
 
 export interface GraphEdge {

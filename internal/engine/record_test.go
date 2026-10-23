@@ -501,3 +501,30 @@ func TestRecordStartNamesTheRouteEffort(t *testing.T) {
 		t.Errorf("dispatch event = %+v, want effort high, service_tier default", events)
 	}
 }
+
+// The subscription windows claude reported reach the outcome event, where
+// the dashboard's quota page reads the latest per backend.
+func TestRecordFinishCarriesTheQuota(t *testing.T) {
+	ctx := context.Background()
+	b := openBackend(t)
+	d := recordDispatch("B-021")
+	out := Outcome{
+		Result: providers.Result{
+			Success: true,
+			Quota:   []providers.QuotaWindow{{Window: "five_hour", Utilization: 0.4, ResetsAt: 1792155000}},
+		},
+		StartedAt: time.Date(2026, 9, 11, 18, 30, 0, 0, time.UTC),
+	}
+	if err := RecordFinish(ctx, b, "run-1", d, out, 1); err != nil {
+		t.Fatalf("RecordFinish: %v", err)
+	}
+	events, err := b.Events(ctx, "B-021", 0)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Events = %v, %v", events, err)
+	}
+	got, _ := events[0].Extra["quota"].([]any)
+	first, _ := got[0].(map[string]any)
+	if len(got) != 1 || first["window"] != "five_hour" || !numericEquals(first["utilization"], 0.4) {
+		t.Errorf("extra quota = %#v", events[0].Extra["quota"])
+	}
+}

@@ -1,8 +1,6 @@
-import { useState } from "react"
-import { AlertTriangle, CircleCheck, CircleDashed, CircleX, Download, FlaskConical, TriangleAlert } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import { AlertTriangle, Download, FlaskConical } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useTicker } from "@/hooks/useNow"
 import { useTestReport, useTestRuns } from "@/hooks/useTests"
@@ -12,11 +10,11 @@ import { formatRelative } from "@/lib/time"
 import { t } from "@/i18n"
 import { cn } from "@/lib/utils"
 
-const STATUS: Record<E2EStatus, { label: `tests.status.${E2EStatus}`; variant: "success" | "danger" | "warning" | "muted"; icon: typeof CircleCheck }> = {
-  passed: { label: "tests.status.passed", variant: "success", icon: CircleCheck },
-  failed: { label: "tests.status.failed", variant: "danger", icon: CircleX },
-  flaky: { label: "tests.status.flaky", variant: "warning", icon: TriangleAlert },
-  skipped: { label: "tests.status.skipped", variant: "muted", icon: CircleDashed },
+const STATUS: Record<E2EStatus, { label: `tests.status.${E2EStatus}` }> = {
+  passed: { label: "tests.status.passed" },
+  failed: { label: "tests.status.failed" },
+  flaky: { label: "tests.status.flaky" },
+  skipped: { label: "tests.status.skipped" },
 }
 
 const ENABLE_SNIPPET = `verify:
@@ -43,11 +41,10 @@ export function TestsPage() {
   const selected = list.find((r) => runKey(r) === picked) ?? list[0]
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("tests.title")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">{t("tests.intro")}</p>
-      </header>
+    <div className="space-y-4 text-[13px]">
+      {/* The layout's header names the page; the artboard keeps only this line. */}
+      <h1 className="sr-only">{t("tests.title")}</h1>
+      <p className="text-xs text-muted-foreground">{t("tests.intro")}</p>
 
       {runs.isError ? (
         <Alert variant="destructive">
@@ -60,24 +57,20 @@ export function TestsPage() {
       {runs.isLoading ? <Skeleton className="h-48 w-full" /> : null}
 
       {runs.data && list.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FlaskConical className="h-4 w-4" />
-              {t("tests.empty_title")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>{t("tests.empty_body")}</p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs text-foreground">{ENABLE_SNIPPET}</pre>
-          </CardContent>
-        </Card>
+        <section className="space-y-3 rounded-lg border bg-card p-4">
+          <h2 className="flex items-center gap-2 font-medium">
+            <FlaskConical className="h-4 w-4" aria-hidden />
+            {t("tests.empty_title")}
+          </h2>
+          <p className="text-muted-foreground">{t("tests.empty_body")}</p>
+          <pre className="overflow-x-auto rounded-md border bg-background p-3 font-mono text-xs">{ENABLE_SNIPPET}</pre>
+        </section>
       ) : null}
 
       {selected ? (
-        <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-          <nav aria-label={t("tests.runs")} className="space-y-1">
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("tests.runs")}</h2>
+        <div className="flex flex-wrap overflow-hidden rounded-lg border">
+          <nav aria-label={t("tests.runs")} className="flex max-w-[340px] flex-[1_1_300px] flex-col border-r max-md:max-w-none max-md:border-b max-md:border-r-0">
+            <span className="px-4 pb-2 pt-3 text-xs font-medium text-muted-foreground">{t("tests.runs")}</span>
             {list.map((r) => (
               <RunRow key={runKey(r)} run={r} now={now} active={runKey(r) === runKey(selected)} onPick={() => setPicked(runKey(r))} />
             ))}
@@ -89,6 +82,8 @@ export function TestsPage() {
   )
 }
 
+const dot = (cls: string) => <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", cls)} aria-hidden />
+
 function RunRow({ run, now, active, onPick }: { run: E2ERun; now: number; active: boolean; onPick: () => void }) {
   return (
     <button
@@ -97,48 +92,55 @@ function RunRow({ run, now, active, onPick }: { run: E2ERun; now: number; active
       aria-current={active ? "true" : undefined}
       data-testid={`run-${run.task_id}-${run.attempt}`}
       className={cn(
-        "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "border-primary/40 bg-primary/5" : "border-transparent hover:bg-muted",
+        "flex w-full flex-col gap-1 border-b px-4 py-2.5 text-left transition-colors last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+        active ? "bg-secondary" : "hover:bg-secondary/60",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono font-medium">{run.task_id}</span>
-        <span className="text-xs text-muted-foreground">{formatRelative(run.at, now)}</span>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="text-muted-foreground">{t("tests.attempt", { n: run.attempt })}</span>
-        <Badge variant={run.failed > 0 ? "danger" : "success"}>{counts(run.passed, run.failed)}</Badge>
-        {run.flaky > 0 ? <Badge variant="warning">{t("tests.flaky_count", { count: run.flaky })}</Badge> : null}
-      </div>
+      <span className="flex items-center gap-2">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", run.failed > 0 ? "bg-status-blocked" : "bg-status-done")} aria-hidden />
+        <span className="font-mono text-xs">{run.task_id}</span>
+        <span className="text-xs text-muted-foreground">{t("tests.attempt", { n: run.attempt })}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{formatRelative(run.at, now)}</span>
+      </span>
+      <span className="text-xs">
+        <span>{counts(run.passed, run.failed)}</span>
+        {run.flaky > 0 ? <span> · {t("tests.flaky_count", { count: run.flaky })}</span> : null}
+      </span>
     </button>
   )
 }
 
 function RunReport({ run }: { run: E2ERun }) {
   const report = useTestReport(run)
+  const body = (children: ReactNode) => (
+    <section className="flex min-w-0 flex-[999_1_480px] flex-col gap-4 p-5" aria-label={`${run.task_id} — ${t("tests.attempt", { n: run.attempt })}`}>
+      {children}
+    </section>
+  )
 
   if (report.isError) {
-    return (
+    return body(
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>{t("tests.report_failed")}</AlertTitle>
         <AlertDescription>{describeLoadError(report.error)}</AlertDescription>
-      </Alert>
+      </Alert>,
     )
   }
-  if (!report.data) return <Skeleton className="h-64 w-full" />
+  if (!report.data) return body(<Skeleton className="h-64 w-full" />)
 
   const rep = report.data
-  return (
-    <section className="min-w-0 space-y-4" aria-label={`${run.task_id} — ${t("tests.attempt", { n: run.attempt })}`}>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <h2 className="font-mono text-lg font-semibold">{run.task_id}</h2>
-        <span className="text-muted-foreground">{t("tests.attempt", { n: run.attempt })}</span>
-        <Badge variant={rep.stats.failed > 0 ? "danger" : "success"}>
-          {counts(rep.stats.passed, rep.stats.failed)}
-        </Badge>
-        {rep.stats.skipped > 0 ? <Badge variant="muted">{t("tests.skipped_count", { count: rep.stats.skipped })}</Badge> : null}
-        {rep.app_url ? <span className="text-xs text-muted-foreground">{t("tests.app_at", { url: rep.app_url })}</span> : null}
+  return body(
+    <>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 className="text-[15px] font-semibold">
+          <span className="font-mono">{run.task_id}</span> · {t("tests.attempt", { n: run.attempt })}
+        </h2>
+        <span className="text-xs text-status-done">{t("tests.passed_count", { count: rep.stats.passed })}</span>
+        <span className="text-xs text-status-blocked">{t("tests.failed_count", { count: rep.stats.failed })}</span>
+        <span className="text-xs text-status-running">{t("tests.flaky_count", { count: rep.stats.flaky })}</span>
+        <span className="text-xs text-muted-foreground">{t("tests.skipped_count", { count: rep.stats.skipped })}</span>
+        {rep.app_url ? <span className="ml-auto text-xs text-muted-foreground">{t("tests.app_at", { url: rep.app_url })}</span> : null}
       </div>
 
       {rep.errors?.length ? (
@@ -153,88 +155,121 @@ function RunReport({ run }: { run: E2ERun }) {
         </Alert>
       ) : null}
 
-      {rep.tests.length === 0 ? <p className="text-sm text-muted-foreground">{t("tests.no_tests")}</p> : null}
-      <ul className="space-y-2">
-        {byAttention(rep.tests).map((test, i) => (
-          <TestRow key={`${test.file}:${test.line}:${test.project ?? ""}:${i}`} run={run} test={test} />
-        ))}
-      </ul>
-    </section>
+      {rep.tests.length === 0 ? <p className="text-muted-foreground">{t("tests.no_tests")}</p> : null}
+      {rep.tests.length > 0 ? (
+        <ul className="divide-y rounded-lg border">
+          {byAttention(rep.tests).map((test, i) => (
+            <TestRow key={`${test.file}:${test.line}:${test.project ?? ""}:${i}`} run={run} test={test} />
+          ))}
+        </ul>
+      ) : null}
+    </>,
   )
 }
 
+const STATUS_TONE: Record<E2EStatus, { text: string; bg: string }> = {
+  passed: { text: "text-status-done", bg: "bg-status-done" },
+  failed: { text: "text-status-blocked", bg: "bg-status-blocked" },
+  flaky: { text: "text-status-running", bg: "bg-status-running" },
+  skipped: { text: "text-muted-foreground", bg: "bg-muted-foreground" },
+}
+
+// A test is a row (status, name, retries). A failing or flaky one opens on
+// what it left behind, as the artboard's "failed test" panel: the error, the
+// last step and all of them, the screenshot, the video and the trace.
 function TestRow({ run, test }: { run: E2ERun; test: E2ETest }) {
-  const meta = STATUS[test.status]
-  const Icon = meta.icon
+  const tone = STATUS_TONE[test.status]
   const shot = attachment(test, "screenshot")
   const video = attachment(test, "video")
   const trace = attachment(test, "trace")
   const context = attachment(test, "error-context")
   const open = test.status === "failed" || test.status === "flaky"
   const where = test.location ?? `${test.file}:${test.line}`
+  const steps = test.steps ?? []
 
   return (
     <li data-testid={`test-${test.title}`}>
-      <details open={open} className="group rounded-md border bg-card">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Icon className={cn("h-4 w-4 shrink-0", test.status === "failed" ? "text-status-failed" : test.status === "passed" ? "text-status-done" : "text-muted-foreground")} aria-hidden />
-          <span className="sr-only">{t(meta.label)}</span>
-          <span className="min-w-0 flex-1 truncate font-medium">{test.title}</span>
-          {test.retries > 0 ? <Badge variant="warning">{t("tests.retries", { count: test.retries })}</Badge> : null}
-          <span className="font-mono text-xs text-muted-foreground">{seconds(test.duration_ms)}</span>
+      <details open={open} className="group">
+        <summary className="grid h-[38px] cursor-pointer list-none grid-cols-[90px_minmax(0,1fr)_110px] items-center gap-x-3.5 px-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+          <span className={cn("inline-flex items-center gap-1.5 text-xs", tone.text)}>
+            {dot(tone.bg)}
+            {t(STATUS[test.status].label)}
+          </span>
+          <span className="truncate">{test.title}</span>
+          <span className="text-right text-xs text-muted-foreground">{test.retries > 0 ? t("tests.retries", { count: test.retries }) : seconds(test.duration_ms)}</span>
         </summary>
-        <div className="space-y-3 border-t px-3 py-3 text-sm">
+        <article
+          aria-label={test.title}
+          className={cn("mx-3.5 mb-3.5 flex flex-col gap-3 rounded-lg border bg-card p-4", open && "border-status-blocked/40")}
+        >
+          <span className="font-medium">{test.title}</span>
           <p className="font-mono text-xs text-muted-foreground">{where}</p>
-          {test.steps?.length ? (
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground">{open ? t("tests.last_step") : t("tests.steps")}</h3>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-                {test.steps.map((s, i) => (
-                  <li key={`${s}-${i}`} className={cn(open && i === test.steps!.length - 1 && "font-medium text-status-failed")}>{s}</li>
-                ))}
-              </ol>
+          {test.error ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">{t("tests.error_context")}</span>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-2.5 font-mono text-xs text-status-blocked">{test.error}</pre>
             </div>
           ) : null}
-          {test.error ? <pre className="max-h-72 overflow-auto rounded-md bg-muted p-3 font-mono text-xs">{test.error}</pre> : null}
-          {shot || video ? (
+          {steps.length || shot?.path ? (
             <div className="grid gap-3 md:grid-cols-2">
+              {steps.length ? (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{open ? t("tests.last_step") : t("tests.steps")}</span>
+                  <span>{steps[steps.length - 1]}</span>
+                  {steps.length > 1 ? (
+                    <details>
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
+                        {t("tests.steps")} ({steps.length})
+                      </summary>
+                      <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs">
+                        {steps.map((s, i) => (
+                          <li key={`${s}-${i}`}>{s}</li>
+                        ))}
+                      </ol>
+                    </details>
+                  ) : null}
+                </div>
+              ) : null}
               {shot?.path ? (
-                <figure className="space-y-1">
+                <figure className="flex flex-col gap-1.5">
                   <figcaption className="text-xs text-muted-foreground">{t("tests.screenshot")}</figcaption>
                   <a href={attachmentUrl(run, shot.path)} target="_blank" rel="noreferrer">
-                    <img src={attachmentUrl(run, shot.path)} alt={`${t("tests.screenshot")}: ${test.title}`} loading="lazy" className="max-w-full rounded border" />
+                    <img src={attachmentUrl(run, shot.path)} alt={`${t("tests.screenshot")}: ${test.title}`} loading="lazy" className="max-w-full rounded-md border" />
                   </a>
                 </figure>
               ) : null}
-              {video?.path ? (
-                <figure className="space-y-1">
-                  <figcaption className="text-xs text-muted-foreground">{t("tests.video")}</figcaption>
-                  <video src={attachmentUrl(run, video.path)} controls preload="metadata" className="max-w-full rounded border" aria-label={`${t("tests.video")}: ${test.title}`} />
-                </figure>
-              ) : null}
             </div>
           ) : null}
+          {video?.path ? (
+            <figure className="flex flex-col gap-1.5">
+              <figcaption className="text-xs text-muted-foreground">{t("tests.video")}</figcaption>
+              <video src={attachmentUrl(run, video.path)} controls preload="metadata" className="max-w-full rounded-md border" aria-label={`${t("tests.video")}: ${test.title}`} />
+            </figure>
+          ) : null}
           {trace?.path || context?.path ? (
-            <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
               {trace?.path ? (
-                <a className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline" href={attachmentUrl(run, trace.path, true)}>
+                <a
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  href={attachmentUrl(run, trace.path, true)}
+                >
                   <Download className="h-3.5 w-3.5" aria-hidden />
                   {t("tests.download_trace")}
                 </a>
               ) : null}
-              {trace ? (
-                <span className="text-muted-foreground">
-                  {t("tests.trace_hint")} <code className="font-mono">npx playwright show-trace {trace.source}</code>
-                </span>
-              ) : null}
               {context?.path ? (
-                <a className="font-medium text-primary underline-offset-2 hover:underline" href={attachmentUrl(run, context.path)} target="_blank" rel="noreferrer">
+                <a className="inline-flex h-7 items-center rounded-md border px-2.5 text-xs hover:bg-secondary" href={attachmentUrl(run, context.path)} target="_blank" rel="noreferrer">
                   {t("tests.error_context")}
                 </a>
               ) : null}
+              {trace ? (
+                <span className="text-xs text-muted-foreground">
+                  {t("tests.trace_hint")} <code className="font-mono text-foreground">npx playwright show-trace {trace.source}</code>
+                </span>
+              ) : null}
             </div>
           ) : null}
-        </div>
+        </article>
       </details>
     </li>
   )

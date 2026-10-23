@@ -212,7 +212,7 @@ func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Items = append(out.Items, vcsItem)
 
-	tun := doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker())
+	tun := doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker(), tunnel.LookupBinary(tunnel.TailscaleCommand))
 	out.Items = append(out.Items, onboardingItem{
 		ID: "tunnel", Optional: true, Link: "/delivery/share",
 		Done: tun.Status != doctor.StatusWarn && tun.Status != doctor.StatusError, Detail: tun.Detail,

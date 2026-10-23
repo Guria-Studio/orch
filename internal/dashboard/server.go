@@ -67,6 +67,8 @@ type Server struct {
 	// value doesn't change while the process runs, so there is nothing to
 	// re-resolve about it the way there is for the database's.
 	fallbackTokenHash string
+	// tools is the last doctor.Tools answer, for the sidebar's missing count.
+	tools toolsCache
 }
 
 // StateReader is the slice of the state backend the dashboard reads.
@@ -98,6 +100,9 @@ type StateReader interface {
 	// CountDoneLastNDays is the numerator of velocity: tasks that finished
 	// inside the window.
 	CountDoneLastNDays(ctx context.Context, days int) (int, error)
+	// ProviderStates is which providers the operator turned off, for the
+	// Providers and quota page.
+	ProviderStates(ctx context.Context) ([]state.ProviderState, error)
 	// LastEventByTask is the newest event per task id, which is how a blocked
 	// task explains itself. The sprint panel asks only about the blocked ones.
 	LastEventByTask(ctx context.Context, taskIDs []string) (map[string]state.Event, error)
@@ -315,13 +320,17 @@ func (s *Server) gated(r route) http.Handler {
 		// no profile's rules were written for that: a relayed request needs a
 		// token before anything else is decided (tunnelroutes.go).
 		if s.tunnelUp() && !isLocalRequest(req) {
-			switch s.tunnelledVerdict(req, r.name) {
+			verdict, portal := s.tunnelledVerdict(req, r.name)
+			switch verdict {
 			case Unauthorized:
 				writePlain(w, http.StatusUnauthorized, "unauthorized")
 				return
 			case Forbidden:
 				writePlain(w, http.StatusForbidden, "forbidden")
 				return
+			}
+			if portal {
+				req = req.WithContext(context.WithValue(req.Context(), portalViewKey{}, true))
 			}
 		}
 		var expectedHash string
@@ -435,7 +444,7 @@ func (s *Server) registerRoutes() {
 	// registration order, so "/api/whoami" wins over "/" wherever this line
 	// sits — but keeping it last is how a reader sees that everything above
 	// is gated and this one thing is not.
-	s.mux.Handle("/", s.pages())
+	s.mux.Handle("/", s.static)
 }
 
 // writePlain sends a bare status line.

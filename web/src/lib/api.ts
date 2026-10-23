@@ -3,6 +3,7 @@ import type {
   Portfolio,
   ProjectConfig,
   TunnelCapabilities,
+  TunnelProviderId,
   TunnelStatus,
 } from "@/lib/types"
 
@@ -83,9 +84,9 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
   return data
 }
 
-async function tunnelAction(action: "start" | "stop"): Promise<TunnelStatus> {
+async function tunnelAction(action: "start" | "stop", body?: object): Promise<TunnelStatus> {
   try {
-    const { data } = await apiClient.post<TunnelStatus>(`/api/tunnel/${action}`)
+    const { data } = await apiClient.post<TunnelStatus>(`/api/tunnel/${action}`, body)
     return data
   } catch (err) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -93,7 +94,7 @@ async function tunnelAction(action: "start" | "stop"): Promise<TunnelStatus> {
   }
 }
 
-export const startTunnel = () => tunnelAction("start")
+export const startTunnel = (provider: TunnelProviderId) => tunnelAction("start", { provider })
 export const stopTunnel = () => tunnelAction("stop")
 
 /** What `POST /api/task/{id}/stop` did (project.StopResult). */
@@ -154,6 +155,9 @@ async function taskWrite<T>(method: "post" | "patch", path: string, body: object
 
 export const addTask = (task: TaskFields & { id: string; backlog?: boolean }) =>
   taskWrite<{ task_id: string; status: string }>("post", "/api/tasks", task)
+/** Turns a provider off or back on, as `orch provider disable|enable` does; its tasks wait while off. */
+export const setProvider = (backend: string, disabled: boolean, reason = "") =>
+  taskWrite<{ backend: string; disabled: boolean }>("post", `/api/provider/${encodeURIComponent(backend)}/${disabled ? "disable" : "enable"}`, { reason })
 export const editTask = (id: string, fields: TaskFields) =>
   taskWrite<{ message: string }>("patch", `/api/task/${encodeURIComponent(id)}`, fields)
 /** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */

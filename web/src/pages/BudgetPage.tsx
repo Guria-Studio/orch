@@ -90,7 +90,7 @@ function CostCell({ row }: { row: BudgetRow }) {
 function Header({ children }: { children?: ReactNode }) {
   return (
     <header className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("budget.title")}</h1>
+      <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("budget.title")}</h1>
       {children}
     </header>
   )
@@ -103,7 +103,7 @@ export function BudgetPage() {
     return (
       <div className="space-y-6">
         <Header />
-        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-lg" />
       </div>
     )
   }
@@ -129,7 +129,7 @@ export function BudgetPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 text-[13px]">
       <Header>
         <p className="text-sm text-muted-foreground">
           {t("budget.preset")} <span className="font-medium text-foreground">{data.preset}</span> {t("budget.from")}{" "}
@@ -138,8 +138,8 @@ export function BudgetPage() {
         <Explanation />
       </Header>
 
-      <section className="space-y-3 rounded-xl border bg-card p-5" aria-labelledby="window-heading">
-        <h2 id="window-heading" className="text-base font-semibold">
+      <section className="space-y-3 rounded-lg border bg-card p-4" aria-labelledby="window-heading">
+        <h2 id="window-heading" className="text-xs font-medium text-muted-foreground">
           {t("budget.chart_title")}
         </h2>
         <div className="overflow-x-auto">
@@ -154,10 +154,10 @@ export function BudgetPage() {
       </section>
 
       <section className="space-y-3" aria-labelledby="providers-heading">
-        <h2 id="providers-heading" className="text-lg font-semibold">
+        <h2 id="providers-heading" className="text-xs font-medium text-muted-foreground">
           {t("budget.providers")}
         </h2>
-        <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
+        <div className="overflow-x-auto rounded-lg border bg-card [&_th]:whitespace-nowrap">
           <Table>
             <TableHeader>
               <TableRow>
@@ -207,13 +207,13 @@ export function BudgetPage() {
       </section>
 
       <section className="space-y-3" aria-labelledby="waiting-heading">
-        <h2 id="waiting-heading" className="text-lg font-semibold">
+        <h2 id="waiting-heading" className="text-xs font-medium text-muted-foreground">
           {t("budget.waiting")}
         </h2>
         {data.waiting.length === 0 ? (
-          <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">{t("budget.waiting_none")}</p>
+          <p className="rounded-lg border border-dashed p-5 text-muted-foreground">{t("budget.waiting_none")}</p>
         ) : (
-          <ul className="divide-y rounded-xl border bg-card px-5 text-sm">
+          <ul className="divide-y rounded-lg border bg-card px-3.5">
             {data.waiting.map((w) => (
               <li key={w.task_id} className="flex flex-wrap items-baseline justify-between gap-2 py-3">
                 <span>

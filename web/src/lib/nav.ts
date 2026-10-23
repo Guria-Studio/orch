@@ -1,8 +1,11 @@
 import {
   Activity,
   BarChart3,
+  BookOpen,
   BriefcaseBusiness,
   CalendarClock,
+  Gauge,
+  Eye,
   FileText,
   FlaskConical,
   GitFork,
@@ -11,10 +14,13 @@ import {
   ListIcon,
   Milestone,
   Radio,
+  ScrollText,
   Send,
+  Settings,
   Sparkles,
   Wallet,
   Workflow,
+  Wrench,
 } from "lucide-react"
 import type { MessageKey } from "@/i18n"
 
@@ -30,10 +36,13 @@ export interface NavTab {
   operatorOnly?: boolean
   // G8.5: hidden whenever the dashboard wasn't started with --portfolio.
   portfolioGated?: boolean
+  // A page reached from elsewhere (Share: the sidebar's button), so it is not
+  // one of its destination's view tabs. Still gated and addressable.
+  offTabs?: boolean
 }
 
 export interface NavDestination {
-  id: "now" | "work" | "cost" | "delivery"
+  id: "now" | "work" | "cost" | "delivery" | "system"
   label: MessageKey
   icon: typeof Activity
   tabs: NavTab[]
@@ -41,8 +50,9 @@ export interface NavDestination {
 
 /**
  * Four places, each answering one question: what is happening now, where the
- * work stands, what it costs, and what has been delivered. Every page is a tab
- * of exactly one of them.
+ * work stands, what it costs, and what has been delivered — plus System, the
+ * machine and project setup, listed apart. Every page is a tab of exactly one
+ * of them.
  */
 export const DESTINATIONS: NavDestination[] = [
   {
@@ -69,11 +79,11 @@ export const DESTINATIONS: NavDestination[] = [
   },
   {
     id: "cost",
-    label: "nav.cost",
+    label: "nav.usage",
     icon: Wallet,
     tabs: [
+      { to: "/cost/usage", label: "nav.usage", route: "api_metrics", operatorOnly: true },
       { to: "/cost/budget", label: "nav.budget", route: "api_budget_summary" },
-      { to: "/cost/metrics", label: "nav.metrics", route: "api_metrics", operatorOnly: true },
     ],
   },
   {
@@ -81,10 +91,27 @@ export const DESTINATIONS: NavDestination[] = [
     label: "nav.delivery",
     icon: Send,
     tabs: [
+      // First: it is where a client's link lands, and what the operator checks before sending one.
+      { to: "/delivery/client", label: "nav.client", route: "stakeholder_snapshot_json" },
       { to: "/delivery/summary", label: "nav.summary", route: "stakeholder_summary_json" },
       { to: "/delivery/ci", label: "nav.ci", route: "api_ci", operatorOnly: true },
       { to: "/delivery/tests", label: "nav.tests", route: "api_tests", operatorOnly: true },
-      { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true },
+      { to: "/delivery/share", label: "nav.share", route: "api_tunnel_status", operatorOnly: true, offTabs: true },
+    ],
+  },
+  // System is not a fifth place in the main navigation: the sidebar lists its
+  // pages under their own heading, and the phone keeps them behind More.
+  {
+    id: "system",
+    label: "nav.system",
+    icon: Wrench,
+    tabs: [
+      { to: "/system/providers", label: "nav.providers", route: "api_quota", operatorOnly: true },
+      { to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true },
+      { to: "/system/skills", label: "nav.skills", route: "api_skills", operatorOnly: true },
+      // The event log; a stakeholder whose allow-list grants it sees it too.
+      { to: "/system/logs", label: "nav.logs", route: "api_events", operatorOnly: true },
+      { to: "/system/settings", label: "nav.settings", route: "api_config_effective", operatorOnly: true },
     ],
   },
 ]
@@ -100,11 +127,17 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/work/phases": Milestone,
   "/work/pace": CalendarClock,
   "/cost/budget": Wallet,
-  "/cost/metrics": BarChart3,
+  "/cost/usage": BarChart3,
+  "/system/providers": Gauge,
+  "/delivery/client": Eye,
   "/delivery/summary": FileText,
   "/delivery/ci": Workflow,
   "/delivery/tests": FlaskConical,
   "/delivery/share": Radio,
+  "/system/tools": Wrench,
+  "/system/skills": BookOpen,
+  "/system/settings": Settings,
+  "/system/logs": ScrollText,
 }
 
 /**
@@ -119,10 +152,12 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/pace": "/work/pace",
   "/sprint": "/work/pace",
   "/budget": "/cost/budget",
-  "/metrics": "/cost/metrics",
+  "/metrics": "/cost/usage",
+  "/cost/metrics": "/cost/usage",
   "/ci": "/delivery/ci",
   "/tests": "/delivery/tests",
   "/tunnel": "/delivery/share",
+  "/logs": "/system/logs",
   "/portfolio": "/now/portfolio",
   "/summary": "/delivery/summary",
 }

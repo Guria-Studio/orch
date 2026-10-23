@@ -6,17 +6,17 @@ import {
   useState,
 } from "react"
 import { AlertTriangle, ChevronDown, Search } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LiveStatusPill } from "@/components/LiveStatusPill"
 import { useDebouncedValue } from "@/components/TaskFiltersBar"
 import { useEventsHistory } from "@/hooks/useEventsHistory"
 import { useLiveLogs } from "@/hooks/useLiveLogs"
 import { t } from "@/i18n"
+import { taskPath } from "@/lib/nav"
 import { cn } from "@/lib/utils"
 import type { FormattedEvent } from "@/lib/types"
 
@@ -36,37 +36,30 @@ const EVENT_TYPE_OPTIONS = ["dispatch", "success", "fail", "timeout", "block", "
  * still renders.
  */
 // Same scale as task status: red only for failures, amber for anything that
-// waits (warnings, blocks), blue for information.
-const SEVERITY_DOT_CLASS: Record<string, string> = {
-  ok: "bg-status-done",
-  success: "bg-status-done",
-  err: "bg-status-failed",
-  danger: "bg-status-failed",
-  warn: "bg-status-blocked",
-  warning: "bg-status-blocked",
-  block: "bg-status-blocked",
-  info: "bg-status-running",
-  muted: "bg-status-queued",
+// waits (warnings, blocks), blue for information. The event type is a pill
+// tinted with it.
+const SEVERITY_PILL_CLASS: Record<string, string> = {
+  ok: "bg-status-done/14 text-status-done",
+  success: "bg-status-done/14 text-status-done",
+  err: "bg-status-failed/14 text-status-failed",
+  danger: "bg-status-failed/14 text-status-failed",
+  warn: "bg-status-blocked/14 text-status-blocked",
+  warning: "bg-status-blocked/14 text-status-blocked",
+  block: "bg-status-blocked/14 text-status-blocked",
+  info: "bg-status-running/14 text-status-running",
+  muted: "bg-muted text-muted-foreground",
 }
 
-const SEVERITY_TEXT_CLASS: Record<string, string> = {
-  ok: "text-status-done",
-  success: "text-status-done",
-  err: "text-status-failed",
-  danger: "text-status-failed",
-  warn: "text-status-blocked",
-  warning: "text-status-blocked",
-  block: "text-status-blocked",
-  info: "text-status-running",
-  muted: "text-muted-foreground",
+function pillClass(sev: string): string {
+  return SEVERITY_PILL_CLASS[sev] ?? SEVERITY_PILL_CLASS.muted
 }
 
-function dotClass(sev: string): string {
-  return SEVERITY_DOT_CLASS[sev] ?? SEVERITY_DOT_CLASS.muted
-}
-
-function textClass(sev: string): string {
-  return SEVERITY_TEXT_CLASS[sev] ?? SEVERITY_TEXT_CLASS.muted
+// The live stream's state, on the Following button's dot.
+const LIVE_DOT: Record<string, string> = {
+  open: "bg-status-done",
+  connecting: "bg-status-running animate-pulse",
+  error: "bg-status-blocked animate-pulse",
+  closed: "bg-status-failed",
 }
 
 function eventKey(ev: FormattedEvent): string {
@@ -193,39 +186,41 @@ export function LogsPage() {
   }
 
   return (
-    // h-[calc(100vh-4rem)] accounts for AppLayout's py-8 (2rem top + 2rem bottom).
-    // Flex column so header + toolbar (+ optional alert) stay at natural height and
-    // the terminal grows to consume all remaining vertical space.
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-6">
-      <header className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("logs.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
-            {history.isLoading
-              ? t("logs.loading")
-              : t("logs.shown", { count: filtered.length })}
-          </p>
+    // h-[calc(100vh-6rem)] accounts for AppLayout's page header (3rem) and its
+    // py-6 (1.5rem top + 1.5rem bottom). Flex column so header + toolbar
+    // (+ optional alert) stay at natural height and the terminal grows to
+    // consume all remaining vertical space.
+    <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 text-[13px]">
+      {/* The layout's header names the page (System › Logs), as in the design. */}
+      <h1 className="sr-only">{t("logs.title")}</h1>
+      <header className="flex flex-shrink-0 flex-wrap items-center gap-3">
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {history.isLoading ? t("logs.loading") : t("logs.shown", { count: filtered.length })}
+        </p>
+        <div className="ml-auto flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleToggleFollow} aria-pressed={followTail} className={cn(followTail && "bg-secondary")}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", followTail ? LIVE_DOT[live.status] ?? "bg-status-queued" : "bg-status-queued")} aria-hidden />
+            {followTail ? t("logs.following") : t("logs.follow")}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={live.clear}>
+            {t("logs.clear")}
+          </Button>
         </div>
-        <LiveStatusPill
-          status={live.status}
-          lastEventAt={live.lastEventAt}
-        />
       </header>
 
-      {/* Toolbar */}
-      <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+      <div role="search" className="flex flex-shrink-0 flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("logs.filter")}
-            className="pl-9"
+            className="pl-8"
             aria-label={t("logs.filter")}
           />
         </div>
-        <div className="w-40">
+        <div className="w-44">
           <Select value={eventType} onValueChange={setEventType}>
             <SelectTrigger aria-label={t("logs.event_type")}>
               <SelectValue placeholder={t("logs.all_types")} />
@@ -245,28 +240,9 @@ export function LogsPage() {
           value={taskIdInput}
           onChange={(e) => setTaskIdInput(e.target.value)}
           placeholder={t("logs.task_id")}
-          className="h-10 w-[200px] font-mono text-xs"
+          className="w-[200px] font-mono text-xs"
           aria-label={t("logs.task_id_label")}
         />
-        <Button
-          type="button"
-          variant={followTail ? "default" : "outline"}
-          size="sm"
-          onClick={handleToggleFollow}
-          className="h-10"
-          aria-pressed={followTail}
-        >
-          {followTail ? t("logs.following") : t("logs.follow")}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={live.clear}
-          className="h-10"
-        >
-          {t("logs.clear")}
-        </Button>
       </div>
 
       {history.isError ? (
@@ -286,7 +262,7 @@ export function LogsPage() {
         <div
           ref={containerRef}
           className={cn(
-            "flex-1 rounded-xl border bg-card font-mono text-xs text-card-foreground",
+            "flex-1 rounded-lg border bg-card font-mono text-xs text-card-foreground",
             "overflow-auto",
           )}
         >
@@ -304,42 +280,25 @@ export function LogsPage() {
               {t("logs.waiting")}
             </div>
           ) : (
-            <ul className="divide-y divide-border/60">
+            <ol className="divide-y divide-border/60">
               {filtered.map((ev) => (
                 <li
                   key={eventKey(ev)}
-                  className="flex items-baseline gap-2.5 px-3 py-1.5 hover:bg-accent/50"
+                  className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] items-baseline gap-x-3 px-3.5 py-1.5 hover:bg-accent/50"
                 >
-                  <span className="tabular-nums text-muted-foreground">
-                    {extractHms(ev.ts)}
-                  </span>
-                  <span
-                    className={cn(
-                      "inline-block h-2 w-2 rounded-full shrink-0",
-                      dotClass(ev.severity),
-                    )}
-                    aria-hidden
-                  />
-                  <Badge
-                    variant="outline"
-                    className="bg-transparent px-1.5 py-0 font-mono text-[11px] font-normal"
-                  >
-                    {ev.task_id}
-                  </Badge>
-                  <span
-                    className={cn(
-                      "text-[11px] font-medium",
-                      textClass(ev.severity),
-                    )}
-                  >
-                    {ev.event_type}
-                  </span>
-                  <span className="truncate text-foreground/85">
-                    {extractTail(ev)}
-                  </span>
+                  <span className="tabular-nums text-muted-foreground">{extractHms(ev.ts)}</span>
+                  <span className={cn("rounded px-1.5 py-px text-[11px] font-medium", pillClass(ev.severity))}>{ev.event_type}</span>
+                  {ev.task_id && ev.task_id !== "—" ? (
+                    <Link to={taskPath(ev.task_id)} className="text-foreground hover:underline">
+                      {ev.task_id}
+                    </Link>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                  <span className="truncate text-foreground/85">{extractTail(ev)}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           )}
         </div>
 

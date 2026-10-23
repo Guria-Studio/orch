@@ -412,7 +412,7 @@ func setUpTunnel(cfg config.Config, paths config.Paths, dashCfg dashboard.Config
 // startTunnelFromCLI starts the tunnel and prints its links once cloudflared
 // reports the URL, which takes a few seconds.
 func startTunnelFromCLI(ctx context.Context, cmd *cobra.Command, server *dashboard.Server, timeoutS int) error {
-	if _, err := server.StartTunnel(); err != nil {
+	if _, err := server.StartTunnel(tunnel.Provider); err != nil {
 		return fmt.Errorf("starting the tunnel: %w", err)
 	}
 	if timeoutS <= 0 {

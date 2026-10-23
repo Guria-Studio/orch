@@ -69,13 +69,14 @@ func fixtureBackend(t *testing.T) *state.SQLite {
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}
-	// 3, not 0: migrations 006 (stakeholder tokens), 007 (spend cache
-	// tokens) and 008 (spend reasoning and attempt), all Go-only with no
-	// Python counterpart, still apply on top of this v0.11.0 fixture. See
+	// 4, not 0: migrations 006 (stakeholder tokens), 007 (spend cache
+	// tokens), 008 (spend reasoning and attempt) and 009 (provider state),
+	// all Go-only with no Python counterpart, still apply on top of this
+	// v0.11.0 fixture. See
 	// internal/state/migrate_test.go's
 	// TestOpenPythonWrittenDatabaseAppliesOnlyGoOnlyMigrations.
-	if applied != 3 {
-		t.Fatalf("fixture needed %d migrations, want 3 (006 to 008)", applied)
+	if applied != 4 {
+		t.Fatalf("fixture needed %d migrations, want 4 (006 to 009)", applied)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return state.NewSQLite(db, "billing-api", "/tmp/billing-api")

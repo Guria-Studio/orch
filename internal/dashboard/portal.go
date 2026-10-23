@@ -10,9 +10,10 @@ import (
 // site, mounted at /stakeholder/, reading the same snapshot from
 // /stakeholder/data.json instead of a file beside it.
 //
-// A stakeholder dashboard sends every page request to it, so the links
-// already shared as /?token=… open the portal. The operator dashboard keeps
-// its SPA at / and can open /stakeholder/ to see what a client sees.
+// Every dashboard serves its SPA at /, a stakeholder's too: the client's view
+// is the SPA's Delivery › Client view page, which reads this same snapshot,
+// so links shared as /?token=… open the backoffice with the client's pages.
+// /stakeholder/ stays the page `orch publish` exports, viewable here as is.
 
 const (
 	portalPrefix = "/stakeholder/"
@@ -65,23 +66,5 @@ func (s *Server) portalHandler() http.Handler {
 		r2 := r.Clone(r.Context())
 		r2.URL.Path = "/" + name
 		files.ServeHTTP(w, r2)
-	})
-}
-
-// pages is what "/" serves: the SPA, except on a stakeholder dashboard with a
-// portal, where every page request goes to the portal with its query (the
-// token) intact.
-func (s *Server) pages() http.Handler {
-	if s.cfg.Profile != ProfileStakeholder || s.portal == nil {
-		return s.static
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := portalPrefix
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		// The path is the constant portalPrefix; only the query is carried, and
-		// a query cannot change where the redirect goes.
-		http.Redirect(w, r, target, http.StatusFound) //nolint:gosec // G710: fixed same-origin path
 	})
 }
