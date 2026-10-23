@@ -21,6 +21,7 @@ import { PortfolioPage } from "@/pages/PortfolioPage"
 import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TaskPage } from "@/pages/TaskPage"
+import { ClientPage } from "@/pages/ClientPage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
@@ -45,6 +46,7 @@ const PAGES: Record<string, ReactNode> = {
   "/work/pace": <PacePage />,
   "/cost/budget": <BudgetPage />,
   "/cost/metrics": <MetricsPage />,
+  "/delivery/client": <ClientPage />,
   "/delivery/summary": <StakeholderSummaryPage />,
   "/delivery/ci": <CIPage />,
   "/delivery/tests": <TestsPage />,

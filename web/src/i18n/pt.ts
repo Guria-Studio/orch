@@ -45,6 +45,7 @@ export const pt = {
   "nav.pace": "Ritmo",
   "nav.budget": "Orçamento",
   "nav.metrics": "Métricas",
+  "nav.client": "Visão do cliente",
   "nav.summary": "Resumo para o cliente",
   "nav.ci": "CI",
   "nav.tests": "Testes",

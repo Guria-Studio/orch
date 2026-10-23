@@ -45,6 +45,7 @@ export const es = {
   "nav.pace": "Ritmo",
   "nav.budget": "Presupuesto",
   "nav.metrics": "Métricas",
+  "nav.client": "Vista cliente",
   "nav.summary": "Resumen para el cliente",
   "nav.ci": "CI",
   "nav.tests": "Tests",

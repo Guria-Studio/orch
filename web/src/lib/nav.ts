@@ -3,6 +3,7 @@ import {
   BarChart3,
   BriefcaseBusiness,
   CalendarClock,
+  Eye,
   FileText,
   FlaskConical,
   GitFork,
@@ -86,6 +87,8 @@ export const DESTINATIONS: NavDestination[] = [
     label: "nav.delivery",
     icon: Send,
     tabs: [
+      // First: it is where a client's link lands, and what the operator checks before sending one.
+      { to: "/delivery/client", label: "nav.client", route: "stakeholder_snapshot_json" },
       { to: "/delivery/summary", label: "nav.summary", route: "stakeholder_summary_json" },
       { to: "/delivery/ci", label: "nav.ci", route: "api_ci", operatorOnly: true },
       { to: "/delivery/tests", label: "nav.tests", route: "api_tests", operatorOnly: true },
@@ -114,6 +117,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/work/pace": CalendarClock,
   "/cost/budget": Wallet,
   "/cost/metrics": BarChart3,
+  "/delivery/client": Eye,
   "/delivery/summary": FileText,
   "/delivery/ci": Workflow,
   "/delivery/tests": FlaskConical,

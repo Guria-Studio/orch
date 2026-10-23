@@ -5,6 +5,7 @@ import { DESTINATIONS, LEGACY_REDIRECTS, findTab, homePath, isPathAllowed, visib
 // (internal/dashboard/access.go DefaultStakeholderRoutes).
 const STAKEHOLDER_ROUTES = [
   "stakeholder_summary_json",
+  "stakeholder_snapshot_json",
   "api_tunnel_capabilities",
   "api_whoami",
   "api_docs_list",
@@ -32,8 +33,9 @@ describe("visibleDestinations", () => {
   // the server answered 403 on.
   it("shows a stakeholder only the pages whose data route the server allows", () => {
     const ds = visibleDestinations({ isStakeholder: true, allowedRoutes: STAKEHOLDER_ROUTES, portfolioAvailable: false })
-    expect(shape(ds)).toEqual({ delivery: ["/delivery/summary"] })
-    expect(homePath(ds)).toBe("/delivery/summary")
+    expect(shape(ds)).toEqual({ delivery: ["/delivery/client", "/delivery/summary"] })
+    // A client's link lands on what the portal used to show them.
+    expect(homePath(ds)).toBe("/delivery/client")
   })
 
   it("follows a wider allow-list when the server grants one", () => {
@@ -44,7 +46,7 @@ describe("visibleDestinations", () => {
     })
     expect(shape(ds)).toEqual({
       work: ["/work/list", "/work/kanban", "/work/pace"],
-      delivery: ["/delivery/summary"],
+      delivery: ["/delivery/client", "/delivery/summary"],
     })
   })
 

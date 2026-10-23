@@ -84,28 +84,19 @@ func TestPortalIsServedAndItsDataIsGated(t *testing.T) {
 	}
 }
 
-// Links already shared as /?token=… keep working: a stakeholder dashboard
-// sends every page request to the portal, token included.
-func TestStakeholderPagesRedirectToThePortal(t *testing.T) {
-	s := newPortalServer(t, ProfileStakeholder)
-	for path, want := range map[string]string{
-		"/?token=" + portalToken: "/stakeholder/?token=" + portalToken,
-		"/kanban":                "/stakeholder/",
-	} {
-		resp := get(t, s, path)
-		_ = resp.Body.Close()
-		if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != want {
-			t.Errorf("GET %s = %d → %q, want 302 → %q", path, resp.StatusCode, resp.Header.Get("Location"), want)
+// Links already shared as /?token=… keep working: they open the SPA on every
+// profile, whose Client view page reads the portal's snapshot; the exported
+// portal stays at /stakeholder/.
+func TestEveryProfileServesTheSPAAtTheRoot(t *testing.T) {
+	for _, profile := range []Profile{ProfileStakeholder, ProfileOperator} {
+		s := newPortalServer(t, profile)
+		resp := get(t, s, "/?token="+portalToken)
+		if got := body(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(got, "id=root") {
+			t.Errorf("%s: GET / = %d %q, want the SPA", profile, resp.StatusCode, got)
 		}
-	}
-
-	// An operator keeps the SPA at / and can preview the portal.
-	op := newPortalServer(t, ProfileOperator)
-	if got := body(t, get(t, op, "/")); !strings.Contains(got, "id=root") {
-		t.Errorf("operator / served %q, want the SPA", got)
-	}
-	if resp := get(t, op, "/stakeholder/data.json"); resp.StatusCode != http.StatusOK {
-		t.Errorf("operator portal data = %d, want 200", resp.StatusCode)
+		if resp := get(t, s, "/stakeholder/data.json?token="+portalToken); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: portal data = %d, want 200", profile, resp.StatusCode)
+		}
 	}
 }
 

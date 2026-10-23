@@ -208,21 +208,22 @@ matters for your setup, do not bind the portfolio beyond localhost.
 token would suggest a shared one exists, and a tunnel is configured per project
 — there is no single project here to take one from.
 
-### What a stakeholder session sees: the client portal
+### What a stakeholder session sees: the backoffice, filtered
 
-A stakeholder dashboard serves the **client portal** — the same page
-`orch publish` writes as a static site — at `/stakeholder/`, and sends every
-other page request there with its query intact, so a link shared as
-`/?token=…` opens the portal. The portal's files are ungated (they are code,
-like the SPA's); its data, `/stakeholder/data.json`, is gated by the token
-(`stakeholder_snapshot_json` on the default allow-list) and is built per
-request by the same function `orch publish` uses, with
-`refresh_interval_s: 30`, so the open page refreshes itself. A wrong or
-rotated token shows "this link is no longer valid" in words.
+Every dashboard serves the SPA at `/`, a stakeholder's too, so a link shared
+as `/?token=…` opens the backoffice. `/api/whoami` returns the session's
+allow-list (`routes`) and the SPA shows only the pages whose data route is
+on it. With the default list that is **Delivery › Client view** — what the
+client portal showed: the status in a sentence, what arrived since the last
+visit, the roadmap by name and the shared documents — and the client
+summary. Client view reads `/stakeholder/data.json`, gated by the token
+(`stakeholder_snapshot_json` on the default allow-list) and built per request
+by the same function `orch publish` uses, with `refresh_interval_s: 30`, so
+the open page refreshes itself.
 
-An operator dashboard keeps its SPA at `/` and can open `/stakeholder/` to see
-exactly what a client sees. `/api/whoami` still returns a stakeholder session's
-allow-list (`routes`), which the SPA uses for its own navigation.
+The exported portal itself stays at `/stakeholder/`: its files are ungated
+(they are code, like the SPA's) and it reads the same `data.json`. The
+operator opens Client view to see what a client sees.
 
 ### `/stakeholder/summary`
 
@@ -371,17 +372,21 @@ That is the whole configuration. A config that still sets `provider`,
 
 ### Starting it
 
-**From the dashboard** — open **Delivery → Share** (`/delivery/share`; the old `/tunnel` redirects there) at `http://127.0.0.1:7420`. The page
-shows one of:
+**From the dashboard** — press **Share** in the sidebar (or open
+`/delivery/share`; the old `/tunnel` redirects there) at
+`http://127.0.0.1:7420`. The panel names the repository, branch and local
+address, lets you share through **Cloudflare** or **Tailscale** (tailnet or
+public; see [`CONFIG.md`](CONFIG.md#tunnel)), and shows one of:
 
 - **The tunnel is off** — `tunnel.enabled` is not set; it shows the two lines
   to add.
-- **Install cloudflared** — step-by-step commands for this machine, each with
-  a copy button, and **Check again** (no restart needed).
-- **Sharing** — **Start the tunnel** / **Stop sharing**, the state and uptime,
-  and once Cloudflare assigns the address, two links, each with its own token:
-  the **client portal** (`/stakeholder/`, what to send a client) and the
-  **full dashboard** (for yourself or your team).
+- **Install cloudflared / tailscale** — step-by-step commands for this
+  machine, each with a copy button, and **Check again** (no restart needed).
+- **Sharing** — **Generate links** / **Stop sharing**, the state and uptime,
+  and once the provider assigns the address, two links, each with its own
+  token: the **client** link (what to send a client: the backoffice with the
+  client's pages only) and the **full dashboard** (for yourself or your
+  team). When the provider fails, its own last lines are shown.
 
 **From the CLI** — `orch dashboard --tunnel` starts it once the dashboard is
 listening and prints both links; Ctrl+C stops both. A tunnel started from the

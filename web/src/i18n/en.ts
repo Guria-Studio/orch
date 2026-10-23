@@ -42,6 +42,7 @@ export const en = {
   "nav.pace": "Pace",
   "nav.budget": "Budget",
   "nav.metrics": "Metrics",
+  "nav.client": "Client view",
   "nav.summary": "Client summary",
   "nav.ci": "CI",
   "nav.tests": "Tests",

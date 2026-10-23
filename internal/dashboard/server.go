@@ -432,7 +432,7 @@ func (s *Server) registerRoutes() {
 	// registration order, so "/api/whoami" wins over "/" wherever this line
 	// sits — but keeping it last is how a reader sees that everything above
 	// is gated and this one thing is not.
-	s.mux.Handle("/", s.pages())
+	s.mux.Handle("/", s.static)
 }
 
 // writePlain sends a bare status line.

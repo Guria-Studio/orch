@@ -41,6 +41,11 @@ export default defineConfig(() => ({
         target: 'http://127.0.0.1:7420',
         changeOrigin: true,
       },
+      // The client portal's snapshot, which the Client view page reads
+      '/stakeholder/data.json': {
+        target: 'http://127.0.0.1:7420',
+        changeOrigin: true,
+      },
       // Proxy /logs/stream (SSE) to the FastAPI backend
       '/logs/stream': {
         target: 'http://127.0.0.1:7420',
