@@ -57,6 +57,8 @@ export interface MetricsResponse {
   tokens_out: number
   by_backend_day: MetricsBackendDay[]
   recent: MetricsRecent[]
+  /** Per by_model row: the provider that ran it and whether its cost is priced from pricing.yaml. */
+  model_sources?: { model: string; backend: string; estimated: boolean }[]
 }
 
 async function fetchMetrics(period: UsagePeriod): Promise<MetricsResponse> {

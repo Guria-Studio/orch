@@ -135,3 +135,32 @@ func parseTS(ts string) time.Time {
 	}
 	return t
 }
+
+// modelSource is one by_model row's provider and cost source.
+type modelSource struct {
+	Model     string `json:"model"`
+	Backend   string `json:"backend"`
+	Estimated bool   `json:"estimated"`
+}
+
+// modelSources names each model's provider (the backend of its rows; a model
+// two providers ran lists the first seen) and whether any of its rows was
+// unpriced by the CLI, sorted by model.
+func modelSources(spends []state.Spend) []modelSource {
+	byModel := map[string]*modelSource{}
+	for _, s := range spends {
+		m := modelOrUnknown(s.Model)
+		src := byModel[m]
+		if src == nil {
+			src = &modelSource{Model: m, Backend: s.Backend}
+			byModel[m] = src
+		}
+		src.Estimated = src.Estimated || s.Estimated || s.CostUSD <= 0
+	}
+	out := make([]modelSource, 0, len(byModel))
+	for _, src := range byModel {
+		out = append(out, *src)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Model < out[j].Model })
+	return out
+}

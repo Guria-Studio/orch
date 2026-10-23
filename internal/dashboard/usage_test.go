@@ -62,6 +62,11 @@ func TestMetricsForTheUsagePage(t *testing.T) {
 		t.Errorf("by_backend_day = %+v", got.ByBackendDay)
 	}
 
+	if len(got.ModelSources) != 2 || got.ModelSources[0].Model != "claude-sonnet-4-6" || got.ModelSources[0].Backend != "claude" ||
+		got.ModelSources[0].Estimated || got.ModelSources[1].Backend != "codex" || !got.ModelSources[1].Estimated {
+		t.Errorf("model_sources = %+v; want claude reported, codex's gpt-5 estimated", got.ModelSources)
+	}
+
 	if resp := get(t, s, "/api/metrics?period=1y"); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("unknown period = %d, want 400", resp.StatusCode)
 	}

@@ -27,6 +27,16 @@ const SOURCE_TONE: Record<Source, string> = {
  * orch's own budget window from budgets.yaml ("estimated"), which pauses
  * dispatches at its threshold.
  */
+// The product each backend's CLI is, as the cards name it: orch runs the CLI
+// under the operator's own login, so the quota is that session's.
+const PRODUCT: Record<string, string> = {
+  claude: "Claude Code",
+  codex: "OpenAI Codex",
+  opencode: "opencode",
+  gemini: "Gemini CLI",
+  agy: "Antigravity",
+}
+
 export function QuotaPage() {
   const quota = useQuota()
   const budget = useBudgetSummary()
@@ -139,9 +149,12 @@ function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQ
   return (
     <article aria-labelledby={`quota-${name}`} className={cn("rounded-lg border bg-card", off && "opacity-80")}>
       <header className="flex items-center gap-2 border-b px-3.5 py-2.5">
-        <h2 id={`quota-${name}`} className="font-mono text-sm font-medium">
-          {name}
-        </h2>
+        <span className="flex min-w-0 flex-col">
+          <h2 id={`quota-${name}`} className="font-semibold">
+            {name}
+          </h2>
+          {PRODUCT[name] ? <span className="text-xs text-muted-foreground">{t("quota.cli_session", { product: PRODUCT[name] })}</span> : null}
+        </span>
         <span className="ml-auto">
           <SourceChip source={source} />
         </span>

@@ -83,17 +83,6 @@ export function TaskFiltersBar({ value, onChange, phaseOptions, modelOptions }: 
           className="h-7 pl-8 text-xs max-md:h-9"
         />
       </div>
-      <FilterChip label={t("filters.status")} value={value.status} onChange={(v) => onChange({ ...value, status: v })}>
-        <SelectItem value={ALL}>{t("filters.all_statuses")}</SelectItem>
-        {STATUS_OPTIONS.map((s) => (
-          <SelectItem key={s.value} value={s.value}>
-            <span className="inline-flex items-center gap-2">
-              <s.meta.icon className={cn("h-3.5 w-3.5", s.meta.text)} aria-hidden />
-              {t(s.meta.label)}
-            </span>
-          </SelectItem>
-        ))}
-      </FilterChip>
       <FilterChip label={t("filters.phase_label")} value={value.phase} onChange={(v) => onChange({ ...value, phase: v })}>
         <SelectItem value={ALL}>{t("filters.all_phases")}</SelectItem>
         {phaseOptions.map((p) => (
@@ -107,6 +96,17 @@ export function TaskFiltersBar({ value, onChange, phaseOptions, modelOptions }: 
         {modelOptions.map((m) => (
           <SelectItem key={m} value={m}>
             {m}
+          </SelectItem>
+        ))}
+      </FilterChip>
+      <FilterChip label={t("filters.status")} value={value.status} onChange={(v) => onChange({ ...value, status: v })}>
+        <SelectItem value={ALL}>{t("filters.all_statuses")}</SelectItem>
+        {STATUS_OPTIONS.map((s) => (
+          <SelectItem key={s.value} value={s.value}>
+            <span className="inline-flex items-center gap-2">
+              <s.meta.icon className={cn("h-3.5 w-3.5", s.meta.text)} aria-hidden />
+              {t(s.meta.label)}
+            </span>
           </SelectItem>
         ))}
       </FilterChip>

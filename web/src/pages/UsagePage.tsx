@@ -127,33 +127,42 @@ function UsageBody({ data }: { data: MetricsResponse }) {
           {t("usage.models")}
         </h2>
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[560px]">
+          <table className="w-full min-w-[720px]">
             <thead className="border-b text-xs text-muted-foreground">
               <tr>
+                <th className="px-3.5 py-2 text-left font-medium">{t("usage.col.provider")}</th>
                 <th className="px-3.5 py-2 text-left font-medium">{t("usage.col.model")}</th>
                 <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.tasks")}</th>
                 <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.input")}</th>
                 <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.output")}</th>
                 <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.cost")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.source")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {data.by_model.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3.5 py-6 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-3.5 py-6 text-center text-muted-foreground">
                     {t("usage.none")}
                   </td>
                 </tr>
               ) : (
-                data.by_model.map((row) => (
-                  <tr key={row.model}>
-                    <td className="px-3.5 py-2 font-mono text-xs">{row.model}</td>
-                    <td className="px-3.5 py-2 text-right tabular-nums">{row.tasks_total}</td>
-                    <td className="px-3.5 py-2 text-right tabular-nums">{fmt.number(row.tokens_in)}</td>
-                    <td className="px-3.5 py-2 text-right tabular-nums">{fmt.number(row.tokens_out)}</td>
-                    <td className="px-3.5 py-2 text-right tabular-nums">{fmt.usd(row.cost_usd)}</td>
-                  </tr>
-                ))
+                data.by_model.map((row) => {
+                  const src = data.model_sources?.find((m) => m.model === row.model)
+                  return (
+                    <tr key={row.model}>
+                      <td className="px-3.5 py-2">{src?.backend ?? "—"}</td>
+                      <td className="px-3.5 py-2 font-mono text-xs">{row.model}</td>
+                      <td className="px-3.5 py-2 text-right tabular-nums">{row.tasks_total}</td>
+                      <td className="px-3.5 py-2 text-right tabular-nums">{fmt.number(row.tokens_in)}</td>
+                      <td className="px-3.5 py-2 text-right tabular-nums">{fmt.number(row.tokens_out)}</td>
+                      <td className="px-3.5 py-2 text-right tabular-nums">{fmt.usd(row.cost_usd)}</td>
+                      <td className={cn("px-3.5 py-2 text-right text-xs", src?.estimated ? "text-status-blocked" : "text-status-done")}>
+                        {src ? t(src.estimated ? "usage.source.estimated" : "usage.source.reported") : "—"}
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
+import { StatusRing } from "@/components/StatusRing"
 import { TaskSteer } from "@/components/TaskSteer"
 import { useTicker } from "@/hooks/useNow"
 import { useEventsHistory } from "@/hooks/useEventsHistory"
@@ -39,22 +40,6 @@ function asComment(raw: unknown): TaskComment | null {
     body: c.body,
     kind: typeof c.kind === "string" ? c.kind : undefined,
   }
-}
-
-/** The status ring every task row uses: the status color as a hollow (or filled, when done) circle. */
-function StatusRing({ status }: { status: string }) {
-  const key = statusKey(status)
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-block h-3 w-3 shrink-0 rounded-full border-2 border-current",
-        STATUS[key].text,
-        key === "done" && "bg-current",
-        key === "in_progress" && "border-r-transparent",
-      )}
-    />
-  )
 }
 
 type ActivityTab = "all" | "comments" | "agent"

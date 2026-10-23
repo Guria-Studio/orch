@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils"
 import { t, type MessageKey } from "@/i18n"
 import type { TunnelCapabilities, TunnelProvider, TunnelProviderId, TunnelState, TunnelStatus } from "@/lib/types"
 
+// The forges a remote names by host, as the design prints them.
+const HOST_NAMES: Record<string, string> = { "github.com": "GitHub", "gitlab.com": "GitLab" }
+
 const providerName = (id: TunnelProviderId) => t(`share.provider.${id}` as MessageKey)
 
 /**
@@ -102,7 +105,7 @@ function ShareBody({
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="truncate font-medium">{caps.repo.slug || caps.repo.remote}</span>
               {caps.repo.branch ? <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px]">{caps.repo.branch}</span> : null}
-              {caps.repo.host ? <span className="text-xs text-muted-foreground">{caps.repo.host}</span> : null}
+              {caps.repo.host ? <span className="text-xs text-muted-foreground">{HOST_NAMES[caps.repo.host] ?? caps.repo.host}</span> : null}
             </>
           ) : (
             <span className="text-muted-foreground">{t("share.no_repo")}</span>
@@ -139,7 +142,7 @@ function ShareBody({
                 <span className="font-medium">{t(c.name as MessageKey)}</span>
                 <span className="text-xs text-muted-foreground">{t(c.hint as MessageKey)}</span>
                 <span className={cn("text-xs", p.binary.found ? "text-status-done" : "text-status-blocked")}>
-                  {p.binary.found ? t("share.installed") : t("share.missing")}
+                  {p.binary.found ? t("share.installed_cmd", { command: p.command }) : t("share.missing")}
                 </span>
               </label>
             )

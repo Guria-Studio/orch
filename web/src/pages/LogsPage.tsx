@@ -186,13 +186,14 @@ export function LogsPage() {
   }
 
   return (
-    // h-[calc(100vh-7rem)] accounts for AppLayout's page header (3rem) and its
-    // py-8 (2rem top + 2rem bottom); inside the logs drawer, h-full wins.
-    // Flex column so header + toolbar (+ optional alert) stay at natural height and
-    // the terminal grows to consume all remaining vertical space.
-    <div className="flex h-[calc(100vh-7rem)] flex-col gap-4 text-[13px]">
+    // h-[calc(100vh-6rem)] accounts for AppLayout's page header (3rem) and its
+    // py-6 (1.5rem top + 1.5rem bottom). Flex column so header + toolbar
+    // (+ optional alert) stay at natural height and the terminal grows to
+    // consume all remaining vertical space.
+    <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 text-[13px]">
+      {/* The layout's header names the page (System › Logs), as in the design. */}
+      <h1 className="sr-only">{t("logs.title")}</h1>
       <header className="flex flex-shrink-0 flex-wrap items-center gap-3">
-        <h1 className="text-[13px] font-medium">{t("logs.title")}</h1>
         <p className="text-xs text-muted-foreground tabular-nums">
           {history.isLoading ? t("logs.loading") : t("logs.shown", { count: filtered.length })}
         </p>

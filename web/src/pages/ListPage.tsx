@@ -1,9 +1,10 @@
 import { useMemo } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, ArrowDownUp, ChevronRight, GitBranch, Lock, Route } from "lucide-react"
+import { AlertTriangle, ArrowDownUp, GitBranch, Lock, Route } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyTasks } from "@/components/EmptyTasks"
+import { StatusRing } from "@/components/StatusRing"
 import { Explain } from "@/components/Explain"
 import { LiveStatusPill } from "@/components/LiveStatusPill"
 import { NewTaskButton } from "@/components/NewTaskButton"
@@ -45,10 +46,6 @@ const SORT_OPTIONS = [
 
 // Group order: what is moving first, what is finished last.
 const GROUP_ORDER: StatusKey[] = ["in_progress", "todo", "blocked", "failed", "backlog", "done"]
-
-function shortModel(model: string): string {
-  return model.includes("/") ? (model.split("/").pop() ?? model) : model
-}
 
 /**
  * Work › List, as a Linear issue list: tasks grouped by status under
@@ -110,10 +107,11 @@ export function ListPage() {
 
   return (
     <div className="space-y-4 text-[13px]">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      {/* The layout's header names the page, as in the design; the title stays for screen readers. */}
+      <h1 className="sr-only">{t("tasks.title")}</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-[-0.01em]">{t("tasks.title")}</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground tabular-nums">
+          <p className="text-xs text-muted-foreground tabular-nums">
             {data ? t("tasks.shown", { count: data.count, total: data.total }) : t("tasks.loading")}
             {showCriticalPath ? (
               <span className="ml-3 inline-flex items-center gap-1 align-middle">
@@ -178,12 +176,10 @@ export function ListPage() {
         <div className="overflow-hidden rounded-lg border">
           {groups.map(({ key, tasks }) => {
             const meta = STATUS[key]
-            const Icon = meta.icon
             return (
               <details key={key} open className="group/status border-b last:border-b-0">
-                <summary className="flex h-9 cursor-pointer list-none items-center gap-2 border-b bg-card px-3.5 font-medium select-none [&::-webkit-details-marker]:hidden">
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open/status:rotate-90" aria-hidden />
-                  <Icon className={cn("h-3.5 w-3.5", meta.text)} aria-hidden />
+                <summary className="flex h-9 cursor-pointer list-none items-center gap-2 border-b bg-card px-5 font-medium select-none [&::-webkit-details-marker]:hidden">
+                  <StatusRing status={key} />
                   {t(meta.label)}
                   <span className="font-normal tabular-nums text-muted-foreground">{tasks.length}</span>
                 </summary>
@@ -198,12 +194,12 @@ export function ListPage() {
                           to={taskPath(task.id)}
                           title={task.last_updated ? `${task.title} · ${fmt.dateTime(task.last_updated)}` : task.title}
                           className={cn(
-                            "grid h-10 grid-cols-[14px_auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3.5 transition-colors hover:bg-accent/50",
-                            "md:grid-cols-[14px_5.5rem_minmax(0,1fr)_9.5rem_3rem_3.5rem]",
+                            "grid h-10 grid-cols-[16px_auto_minmax(0,1fr)_auto] items-center gap-x-3.5 px-5 transition-colors hover:bg-accent/50",
+                            "md:grid-cols-[16px_64px_minmax(0,1fr)_96px_72px_56px]",
                             "focus-visible:bg-accent/50 focus-visible:outline-none",
                           )}
                         >
-                          <Icon className={cn("h-3.5 w-3.5", meta.text)} aria-label={t(meta.label)} />
+                          <StatusRing status={key} label={t(meta.label)} />
                           <span className="truncate font-mono text-xs text-muted-foreground">{task.id}</span>
                           <span className="flex min-w-0 items-center gap-1.5">
                             {showCriticalPath && task.on_critical_path ? (
@@ -220,10 +216,10 @@ export function ListPage() {
                           <span className="hidden min-w-0 md:block">
                             {task.model ? (
                               <span
-                                className="inline-block max-w-full truncate rounded-full border px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
+                                className="inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-xs text-foreground/80"
                                 title={task.model}
                               >
-                                {shortModel(task.model)}
+                                {task.model.split("/")[0]}
                               </span>
                             ) : null}
                           </span>

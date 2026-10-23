@@ -193,7 +193,7 @@ describe("TaskPage", () => {
   it("is read-only for a stakeholder", async () => {
     renderAt([taskPath("F6.1.T1")])
     expect(await screen.findByRole("spinbutton", { name: "Est." })).toBeDisabled()
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Edit prompt" })).not.toBeInTheDocument()
   })
 
   it("goes to the list when it was opened straight from a link", async () => {

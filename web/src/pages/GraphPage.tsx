@@ -230,9 +230,13 @@ export function GraphPage() {
               value={phase}
               onChange={(e) => setPhase(e.target.value)}
               aria-label={t("filters.phase_label")}
-              className="h-8 rounded-md border bg-card px-2 text-[13px] text-foreground max-md:h-10"
+              className={cn(
+                "h-7 rounded-md border bg-transparent px-2.5 text-xs max-md:h-10",
+                phase ? "border-input text-foreground" : "border-dashed text-muted-foreground",
+              )}
             >
-              <option value="">{t("filters.all_phases")}</option>
+              {/* As the design's chip: "+ Phase" until one is chosen. */}
+              <option value="">{`+ ${t("filters.phase_label")}`}</option>
               {phases.map((p) => (
                 <option key={p} value={String(p)}>
                   {t("filters.phase", { phase: p })}

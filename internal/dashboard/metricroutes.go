@@ -51,6 +51,11 @@ type metricsPayload struct {
 	TokensOut           int               `json:"tokens_out"`
 	ByBackendDay        []backendDayStats `json:"by_backend_day"`
 	Recent              []recentSpend     `json:"recent"`
+	// ModelSources says, per model in by_model, which provider ran it and
+	// whether any of its cost is priced from pricing.yaml (the Usage table's
+	// Provider and Source columns). Apart from by_model, whose rows are a
+	// frozen golden.
+	ModelSources []modelSource `json:"model_sources"`
 }
 
 // byDayWindow is how many days the chart shows. Python's default, and it is
@@ -97,6 +102,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		Dispatches:         len(spends),
 		ByBackendDay:       metricsByBackendDay(spends, table, days),
 		Recent:             recentSpends(spends, table, recentShown),
+		ModelSources:       modelSources(spends),
 	}
 	for _, sp := range spends {
 		payload.TokensIn += sp.TokensIn
