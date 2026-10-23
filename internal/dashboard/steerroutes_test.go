@@ -15,7 +15,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
-// newSteerServer is a dashboard with the stop/note endpoints over a real
+// newSteerServer is a dashboard with the operator's write endpoints over a real
 // database whose T-1 is in-progress.
 func newSteerServer(t *testing.T, profile Profile, token string) (*Server, state.Backend) {
 	t.Helper()
@@ -37,11 +37,13 @@ func newSteerServer(t *testing.T, profile Profile, token string) (*Server, state
 	if err := backend.Transition(ctx, "T-1", model.StatusInProgress, state.Note{}); err != nil {
 		t.Fatal(err)
 	}
+	stateDir := t.TempDir()
 	s, err := New(cfg(profile, token), Options{
 		Static: spaHandler(t),
 		State:  backend,
 		Paths:  config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")},
-		Steer:  &project.Steer{Backend: backend, StateDir: filepath.Join(t.TempDir(), "state")},
+		Steer:  &project.Steer{Backend: backend, StateDir: stateDir},
+		Editor: &project.TaskEditor{TasksJSON: filepath.Join(root, "tasks.json"), StateDir: stateDir, Backend: backend, Source: "dashboard"},
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
@@ -22,8 +23,8 @@ func (s *Server) steerRoutes() []route {
 	}
 }
 
-// steerRequestLimit bounds a request body: a note is a few lines.
-const steerRequestLimit = 16 << 10
+// steerRequestLimit bounds a request body: a note, or a task's definition.
+const steerRequestLimit = 64 << 10
 
 type steerBody struct {
 	Hold bool   `json:"hold"`
@@ -33,8 +34,19 @@ type steerBody struct {
 // steerGate answers whether the handler may go on, and the body it sent.
 func (s *Server) steerGate(w http.ResponseWriter, r *http.Request) (steerBody, bool) {
 	var body steerBody
+	// Two statements: in one return, Go leaves unspecified whether body is
+	// read before or after operatorWrite fills it.
+	ok := s.operatorWrite(w, r, s.steer != nil, &body)
+	return body, ok
+}
+
+// operatorWrite gates every write the dashboard makes — steer and task edits:
+// on (else 404), the operator profile, from this machine and the dashboard's
+// own origin (else 403), so a tunnel cannot reach it. It decodes the body into
+// dst; an empty body leaves it zero.
+func (s *Server) operatorWrite(w http.ResponseWriter, r *http.Request, on bool, dst any) bool {
 	switch {
-	case s.steer == nil:
+	case !on:
 		writeJSON(w, http.StatusNotFound, errorPayload{Detail: "not found"})
 	case s.cfg.Profile != ProfileOperator:
 		writeJSON(w, http.StatusForbidden, errorPayload{Detail: "operator only"})
@@ -43,14 +55,14 @@ func (s *Server) steerGate(w http.ResponseWriter, r *http.Request) (steerBody, b
 	case !sameOriginLocal(r):
 		writeJSON(w, http.StatusForbidden, errorPayload{Detail: "cross-origin request refused"})
 	default:
-		err := json.NewDecoder(io.LimitReader(r.Body, steerRequestLimit)).Decode(&body)
+		err := json.NewDecoder(io.LimitReader(r.Body, steerRequestLimit)).Decode(dst)
 		if err != nil && !errors.Is(err, io.EOF) {
 			writeJSON(w, http.StatusBadRequest, errorPayload{Detail: "the body is not JSON: " + err.Error()})
-			return body, false
+			return false
 		}
-		return body, true
+		return true
 	}
-	return body, false
+	return false
 }
 
 // steerFailed answers a refused or failed write.
@@ -58,7 +70,7 @@ func (s *Server) steerFailed(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, state.ErrTaskNotFound):
 		writeJSON(w, http.StatusNotFound, errorPayload{Detail: err.Error()})
-	case errors.Is(err, state.ErrIllegalTransition):
+	case errors.Is(err, state.ErrIllegalTransition), errors.Is(err, project.ErrRunOwnsTask):
 		writeJSON(w, http.StatusConflict, errorPayload{Detail: err.Error()})
 	default:
 		s.log.Error("dashboard steer failed", "err", err)

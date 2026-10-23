@@ -53,6 +53,10 @@ func (CodexProvider) Argv(req Request) []string {
 	if e := req.Route.Effort; e != nil && *e != "" {
 		argv = append(argv, "-c", fmt.Sprintf("model_reasoning_effort=%q", *e))
 	}
+	// The route's service tier, else ~/.codex/config.toml's (#416).
+	if t := req.Route.ServiceTier; t != nil && *t != "" {
+		argv = append(argv, "-c", fmt.Sprintf("service_tier=%q", *t))
+	}
 	// --approve-for-me's workspace-write sandbox lets the agent write its
 	// worktree and /tmp only; the project's orch.db is elsewhere (#387).
 	for _, dir := range req.WritableDirs {
@@ -72,7 +76,14 @@ func (CodexProvider) DefaultOutputPath(logsDir, taskID string) string {
 // substrings, case-sensitively, as in Python.
 var codexNonFatalWarnings = []string{
 	"Skill descriptions were shortened",
+	codexTierNotAdvertised,
 }
+
+// codexTierNotAdvertised ends codex's warning for a service_tier the model
+// does not offer: "Configured service tier `flex` is not advertised as
+// supported for model `gpt-6-astra` and will be omitted from requests." The
+// run goes on at the standard tier (#416), and the warning stays in its log.
+const codexTierNotAdvertised = "will be omitted from requests"
 
 // Parse reads the JSONL event stream from a finished run's captured output.
 func (CodexProvider) Parse(exitCode int, output []byte) Result {
@@ -118,6 +129,7 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 		CacheReadTokens:     u.cacheRead,
 		CacheCreationTokens: u.cacheWrite,
 		TokensOut:           u.out,
+		ReasoningTokens:     u.reasoning,
 		Stdout:              text,
 		Text:                codexText(events),
 		ErrorMessage:        errMsg,
@@ -216,8 +228,8 @@ func codexErrorMessage(ev event) string {
 // input_tokens counts them: cacheRead (cached_input_tokens) and cacheWrite
 // (cache_write_input_tokens) are part of it, not added to it (#389).
 type codexUsage struct {
-	cost                           float64
-	in, cacheRead, cacheWrite, out int
+	cost                                      float64
+	in, cacheRead, cacheWrite, out, reasoning int
 }
 
 // sumCodexUsage sums the token counts on every `turn.completed` event.
@@ -239,7 +251,9 @@ func sumCodexUsage(events []event) codexUsage {
 		u.in += toInt(usage["input_tokens"])
 		u.cacheRead += toInt(usage["cached_input_tokens"])
 		u.cacheWrite += toInt(usage["cache_write_input_tokens"])
+		// output_tokens already counts the reasoning (#417).
 		u.out += toInt(usage["output_tokens"])
+		u.reasoning += toInt(usage["reasoning_output_tokens"])
 	}
 	return u
 }

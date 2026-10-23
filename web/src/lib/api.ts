@@ -124,6 +124,43 @@ async function steer<T>(id: string, action: "stop" | "note", body: { hold?: bool
 export const stopTask = (id: string, hold: boolean, note: string) => steer<StopResult>(id, "stop", { hold, note })
 export const noteTask = (id: string, note: string) => steer<{ message: string }>(id, "note", { note })
 
+/** A task's definition fields, as `PATCH /api/task/{id}` takes them; unset ones stay. */
+export interface TaskFields {
+  title?: string
+  description?: string
+  model?: string
+  reason?: string
+  spec_ref?: string
+  phase?: number
+  estimate_hours?: number
+  dependencies?: string[]
+  files?: string[]
+}
+
+/**
+ * The operator's task management (v0.22): add, edit and move a task through
+ * the same editor as `orch task add|edit`. Local operator only, like steer; a
+ * refused edit (an unknown dependency, a cycle, a model with no route) rejects
+ * with the server's `detail`.
+ */
+async function taskWrite<T>(method: "post" | "patch", path: string, body: object): Promise<T> {
+  try {
+    const { data } = await apiClient.request<T>({ method, url: path, data: body })
+    return data
+  } catch (err) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    throw new Error(detail ?? (err instanceof Error ? err.message : `${method} ${path} failed`))
+  }
+}
+
+export const addTask = (task: TaskFields & { id: string; backlog?: boolean }) =>
+  taskWrite<{ task_id: string; status: string }>("post", "/api/tasks", task)
+export const editTask = (id: string, fields: TaskFields) =>
+  taskWrite<{ message: string }>("patch", `/api/task/${encodeURIComponent(id)}`, fields)
+/** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */
+export const moveTask = (id: string, status: string, note = "") =>
+  taskWrite<StopResult>("post", `/api/task/${encodeURIComponent(id)}/status`, { status, note })
+
 /**
  * Thrown by `getPortfolio` when `/api/portfolio` answered with something
  * that isn't a portfolio payload — a single-project dashboard has no

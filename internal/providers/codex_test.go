@@ -508,3 +508,43 @@ func TestCodexParseCountsCachedInput(t *testing.T) {
 		}
 	}
 }
+
+// #417: codex counts reasoning inside output_tokens; the result keeps both.
+func TestCodexReasoningIsPartOfTheOutput(t *testing.T) {
+	res := CodexProvider{}.Parse(0, readFixture(t, "codex", "0.154.0", "reasoning.jsonl"))
+	if res.TokensOut != 37 || res.ReasoningTokens != 30 {
+		t.Errorf("out %d, reasoning %d; want 37, 30", res.TokensOut, res.ReasoningTokens)
+	}
+}
+
+// TestCodexArgvForwardsTheRouteServiceTier is #416: a global Fast mode in
+// ~/.codex/config.toml (service_tier = "priority") was forced on every orch
+// dispatch. A route's service_tier now overrides it; "default" is the
+// standard tier (checked against codex 0.154). No tier, no override.
+func TestCodexArgvForwardsTheRouteServiceTier(t *testing.T) {
+	tier := "default"
+	route := codexRoute("gpt-5.6-codex")
+	route.ServiceTier = &tier
+	argv := CodexProvider{}.Argv(Request{Route: route})
+	found := false
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == "-c" && argv[i+1] == `service_tier="default"` {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("argv does not set the route's service tier: %v", argv)
+	}
+	if contains(CodexProvider{}.Argv(Request{Route: codexRoute("gpt-5.6-codex")}), "-c") {
+		t.Error("a route with no service tier overrides codex's config")
+	}
+}
+
+// A tier the model does not offer is codex's warning, not a failure: the run
+// answered at the standard tier, so orch must not fail and retry it (#416).
+func TestCodexTierTheModelDoesNotOfferIsNotAFailure(t *testing.T) {
+	res := CodexProvider{}.Parse(0, readFixture(t, "codex", "0.154.0", "tier-not-advertised.jsonl"))
+	if !res.Success || res.Text != "ok" {
+		t.Errorf("Parse = success %v, text %q, error %q; want a success", res.Success, res.Text, res.ErrorMessage)
+	}
+}

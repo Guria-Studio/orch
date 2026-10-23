@@ -351,22 +351,22 @@ func (s *seeder) dispatch(t spec, at time.Time, attempt int) {
 }
 
 func (s *seeder) succeed(t spec, at time.Time, dur time.Duration) {
-	cost := s.spend(t, at, dur)
+	cost := s.spend(t, at, dur, 1)
 	s.event("success", t, at, map[string]any{"attempt": 1, "cost_usd": cost, "duration_s": dur.Seconds()})
 }
 
 func (s *seeder) fail(t spec, at time.Time, dur time.Duration, attempt int, reason string) {
-	s.spend(t, at, dur)
+	s.spend(t, at, dur, attempt)
 	s.event("fail", t, at, map[string]any{"attempt": attempt, "reason": reason, "exit_code": 1, "failure_class": "tests"})
 }
 
 // spend records what each provider really reports: claude a dollar figure,
 // codex tokens only (the dashboard prices them), opencode an estimate,
 // gemini nothing.
-func (s *seeder) spend(t spec, at time.Time, dur time.Duration) float64 {
+func (s *seeder) spend(t spec, at time.Time, dur time.Duration, attempt int) float64 {
 	in := 18000 + int(t.est*9000)
 	out := 2500 + int(t.est*1400)
-	row := state.Spend{TS: stamp(at), TaskID: t.id, Backend: backend(t.model), Model: cliModel(t.model), DurationS: dur.Seconds()}
+	row := state.Spend{TS: stamp(at), TaskID: t.id, Backend: backend(t.model), Model: cliModel(t.model), DurationS: dur.Seconds(), Attempt: attempt}
 	switch backend(t.model) {
 	case "claude":
 		row.TokensIn, row.TokensOut = in, out
@@ -378,7 +378,8 @@ func (s *seeder) spend(t spec, at time.Time, dur time.Duration) float64 {
 			row.CostUSD *= 5
 		}
 	case "codex":
-		row.TokensIn, row.TokensOut = in, out
+		// codex counts its reasoning inside the output (#417).
+		row.TokensIn, row.TokensOut, row.ReasoningTokens = in, out, out/3
 	case "opencode":
 		row.TokensIn, row.TokensOut, row.Estimated = in, out, true
 	}

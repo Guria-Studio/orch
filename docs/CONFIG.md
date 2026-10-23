@@ -298,12 +298,19 @@ typical_dispatch_tokens: 200000
 
 Two different guardrails:
 
-- **The rolling window** (`budgets.yaml`) rations each provider's quota across
-  a run. Every dispatch's tokens are summed per provider over the preset's
-  `window_hours`: input and output at full weight, prompt-cache reads at 10%
+- **The rolling window** (`budgets.yaml`) rations each provider's tokens across
+  a run. It is **orch's own guardrail, not your provider plan's quota**: a
+  ChatGPT or Claude subscription's 5-hour limit is the provider's, and orch
+  cannot see it — set `token_budget` and `window_hours` below what your plan
+  allows, and the provider may still cut you off first (#417). Every
+  dispatch's tokens are summed per provider over the preset's
+  `window_hours`: input and output (reasoning included: codex and agy count it
+  in their output, and orch adds opencode's, which it reports apart) at full
+  weight, prompt-cache reads at 10%
   and cache writes at 125% of an input token (what Anthropic bills for them;
   claude and opencode report the breakdown). Spend rows keep the raw counts,
-  and the Budget page shows both. When the weighted sum reaches `threshold_pct` of `token_budget`, orch
+  and the Budget page shows both; `orch report usage` splits them by kind,
+  model, task and attempt. When the weighted sum reaches `threshold_pct` of `token_budget`, orch
   stops sending that provider new tasks (it writes a `budget_skip` event, and
   `orch status` shows `defer_reason: blocked-by-budget:<provider> until <reset>`);
   when every configured provider is capped the run sleeps until the earliest

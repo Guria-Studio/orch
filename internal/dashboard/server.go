@@ -55,6 +55,8 @@ type Server struct {
 	releases func(ctx context.Context) ([]update.Release, error)
 	// steer is Options.Steer.
 	steer *project.Steer
+	// editor is Options.Editor.
+	editor *project.TaskEditor
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
@@ -163,6 +165,10 @@ type Options struct {
 	// project's state, and it writes requests the run acts on — the same
 	// ones `orch task stop|note` write.
 	Steer *project.Steer
+	// Editor is what the task add and edit endpoints write tasks.json
+	// through (v0.22) — the same editor as `orch task add|edit|set`. Nil
+	// turns them off.
+	Editor *project.TaskEditor
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -191,6 +197,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		version:  opts.Version,
 		releases: opts.Releases,
 		steer:    opts.Steer,
+		editor:   opts.Editor,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,

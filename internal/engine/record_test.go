@@ -87,6 +87,9 @@ func TestRecordStart(t *testing.T) {
 	if got := ev.Extra["pid"]; !numericEquals(got, 4242) {
 		t.Errorf("extra pid = %v (%T), want 4242", got, got)
 	}
+	if _, ok := ev.Extra["service_tier"]; ok {
+		t.Errorf("a route with no service tier recorded one: %v", ev.Extra)
+	}
 	if _, ok := ev.Extra["effort"]; ok {
 		t.Errorf("a route with no effort recorded one: %v", ev.Extra)
 	}
@@ -115,12 +118,12 @@ func TestRecordFinishSuccess(t *testing.T) {
 		Result: providers.Result{
 			Success: true, ExitCode: 0,
 			CostUSD: 0.0475971, TokensIn: 60132, TokensOut: 603,
-			CacheCreationTokens: 19792, CacheReadTokens: 40321,
+			CacheCreationTokens: 19792, CacheReadTokens: 40321, ReasoningTokens: 120,
 		},
 		StartedAt: start,
 		Duration:  90 * time.Second,
 	}
-	if err := RecordFinish(ctx, b, "run-1", d, out, 1); err != nil {
+	if err := RecordFinish(ctx, b, "run-1", d, out, 2); err != nil {
 		t.Fatalf("RecordFinish: %v", err)
 	}
 
@@ -144,6 +147,10 @@ func TestRecordFinishSuccess(t *testing.T) {
 	}
 	if s.DurationS != 90 {
 		t.Errorf("DurationS = %v, want 90", s.DurationS)
+	}
+	// #417: what part of the output was reasoning, and which attempt paid.
+	if s.ReasoningTokens != 120 || s.Attempt != 2 {
+		t.Errorf("reasoning %d, attempt %d; want 120, 2", s.ReasoningTokens, s.Attempt)
 	}
 	if s.Model != "claude-haiku-4-5-20251001" {
 		t.Errorf("Model = %q", s.Model)
@@ -480,8 +487,9 @@ func TestRecordStartNamesTheRouteEffort(t *testing.T) {
 	ctx := context.Background()
 	b := openBackend(t)
 	d := recordDispatch("B-021")
-	high := "high"
+	high, tier := "high", "default"
 	d.Req.Route.Effort = &high
+	d.Req.Route.ServiceTier = &tier // #416
 	if err := RecordStart(ctx, b, "run-1", d, &Spawned{PID: 4243, StartedAt: time.Now()}, 1); err != nil {
 		t.Fatalf("RecordStart: %v", err)
 	}
@@ -489,8 +497,8 @@ func TestRecordStartNamesTheRouteEffort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if len(events) != 1 || events[0].Extra["effort"] != "high" {
-		t.Errorf("dispatch event = %+v, want effort high", events)
+	if len(events) != 1 || events[0].Extra["effort"] != "high" || events[0].Extra["service_tier"] != "default" {
+		t.Errorf("dispatch event = %+v, want effort high, service_tier default", events)
 	}
 }
 

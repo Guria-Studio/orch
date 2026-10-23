@@ -143,6 +143,8 @@ func TestLoadRejectsMalformedFiles(t *testing.T) {
 		{"an empty cli_model", "k:\n  backend: claude\n  cli_model: \"\"\n  tier: standard\n", "missing non-empty cli_model"},
 		{"a missing cli_model", "k:\n  backend: claude\n  tier: standard\n", "missing non-empty cli_model"},
 		{"an invalid effort", "k:\n  backend: agy\n  cli_model: m\n  tier: cheap\n  effort: extreme\n", "effort"},
+		{"an unknown service_tier", "k:\n  backend: codex\n  cli_model: m\n  tier: standard\n  service_tier: turbo\n", "service_tier"},
+		{"a service_tier on a non-codex route", "k:\n  backend: claude\n  cli_model: m\n  tier: standard\n  service_tier: default\n", "codex routes only"},
 		{
 			// FR-D-8. A dangling escalation would be discovered at attempt 3
 			// of a failing task, which is the worst possible moment.
@@ -865,3 +867,17 @@ func TestLoadAcceptsTheEmptyShapes(t *testing.T) {
 		}
 	}
 }
+
+// #416: a codex route may name its service tier; it reaches the entry.
+func TestLoadReadsACodexServiceTier(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "model_router.yaml")
+	write(t, path, "codex/x:\n  backend: codex\n  cli_model: m\n  tier: standard\n  service_tier: default\n")
+	r, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r["codex/x"].ServiceTier; got == nil || *got != "default" {
+		t.Errorf("service_tier = %v, want default", got)
+	}
+}
+

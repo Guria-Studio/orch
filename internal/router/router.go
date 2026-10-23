@@ -86,6 +86,11 @@ var validTiers = map[model.Tier]bool{
 
 var validEfforts = map[string]bool{"low": true, "medium": true, "high": true}
 
+// validServiceTiers are the values codex knows for service_tier (codex
+// 0.154). Which ones a model takes is codex's call: one it does not
+// advertise is dropped, and the run says so (codexTierNotAdvertised).
+var validServiceTiers = map[string]bool{"default": true, "priority": true, "fast": true, "flex": true}
+
 // Load reads model_router.yaml and validates every row.
 //
 // A missing file is an error here, unlike config.yaml: a project with tasks
@@ -187,6 +192,18 @@ func validateEntry(path, key string, e model.RouteEntry) error {
 		return &FormatError{Path: path, Msg: fmt.Sprintf(
 			"entry %s field `effort` must be one of 'low' | 'medium' | 'high', got %s",
 			pyfmt.Quote(key), pyfmt.Quote(*e.Effort))}
+	}
+	if e.ServiceTier != nil {
+		if e.Backend != model.BackendCodex {
+			return &FormatError{Path: path, Msg: fmt.Sprintf(
+				"entry %s field `service_tier` applies to codex routes only, not %s",
+				pyfmt.Quote(key), pyfmt.Quote(string(e.Backend)))}
+		}
+		if !validServiceTiers[*e.ServiceTier] {
+			return &FormatError{Path: path, Msg: fmt.Sprintf(
+				"entry %s field `service_tier` must be one of 'default' | 'priority' | 'fast' | 'flex', got %s",
+				pyfmt.Quote(key), pyfmt.Quote(*e.ServiceTier))}
+		}
 	}
 	return nil
 }
