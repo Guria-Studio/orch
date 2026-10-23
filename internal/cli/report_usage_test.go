@@ -34,7 +34,9 @@ func TestReportUsageAgainstTheDemo(t *testing.T) {
 	}
 
 	text := run("--top", "3")
-	for _, want := range []string{"Total: ", "cached input", "By model", "By task (heaviest 3 of", "not your provider plan's quota"} {
+	// The demo's F2.T5 failed twice before it passed, and its codex rows carry reasoning.
+	for _, want := range []string{"Total: ", "Retries: ", "cached input", "By model", "By task (heaviest 3 of",
+		"      attempt 2: ", "not your provider plan's quota"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text lacks %q:\n%s", want, text)
 		}
@@ -44,7 +46,19 @@ func TestReportUsageAgainstTheDemo(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("--json")), &u); err != nil {
 		t.Fatal(err)
 	}
-	if u.Total.Dispatches == 0 || len(u.ByModel) == 0 || len(u.ByTask) <= 3 || u.Total.CachedInput == 0 {
+	if u.Total.Dispatches == 0 || len(u.ByModel) == 0 || len(u.ByTask) <= 3 || u.Total.CachedInput == 0 ||
+		u.Total.Reasoning == 0 || u.RetryTokens == 0 {
 		t.Errorf("--json = %+v; want the demo's dispatches, models, tasks and cache reads", u.Total)
+	}
+}
+
+// Before any dispatch the text says so, and still says what the numbers are not.
+func TestWriteUsageWithNoDispatch(t *testing.T) {
+	var b bytes.Buffer
+	if err := writeUsage(&b, usage.Build(nil), 10); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.String(); !strings.HasPrefix(got, "No dispatch has been recorded yet.\n") || !strings.Contains(got, "not your provider plan's quota") {
+		t.Errorf("text:\n%s", got)
 	}
 }
