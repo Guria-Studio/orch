@@ -29,7 +29,7 @@ func TestInstalledTierDefaultsOnlyNameInstalledCLIs(t *testing.T) {
 		{"nothing installed", only(), map[string]string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := InstalledTierDefaults(tc.installed)
+			got, err := InstalledTierDefaults(tc.installed, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

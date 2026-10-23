@@ -15,12 +15,14 @@ import (
 // InstalledTierDefaults picks each tier's default model among the packaged
 // routes whose CLI installed accepts — router.OnPath for a real machine — so
 // a new project never defaults to a CLI that is not there (#376, #377). A
-// tier no installed backend serves is left out.
-func InstalledTierDefaults(installed func(model.Backend) bool) (map[string]string, error) {
+// tier no installed backend serves is left out. A route whose CLI listed its
+// models without the route's (lists, DiscoverModels) is not a candidate (#397).
+func InstalledTierDefaults(installed func(model.Backend) bool, lists ModelLists) (map[string]string, error) {
 	rtr, err := PackagedRouter()
 	if err != nil {
 		return nil, err
 	}
+	rtr, _ = lists.Available(rtr)
 	out := map[string]string{}
 	for _, tier := range []model.Tier{model.TierPremium, model.TierStandard, model.TierCheap} {
 		if k := rtr.ForTier(tier, installed); k != "" {
@@ -46,12 +48,14 @@ func PackagedRouter() (router.Router, error) {
 // SeedInstalledRoutes appends to root's model_router.yaml the packaged routes
 // whose CLI installed accepts and the file does not have yet, and returns
 // their keys. A blank project's router is empty; a planner choosing models
-// for it then has real routes, with their tiers, to choose from (#377).
-func SeedInstalledRoutes(root string, installed func(model.Backend) bool) ([]string, error) {
+// for it then has real routes, with their tiers, to choose from (#377). Routes
+// lists says their CLI no longer runs are left out (#397).
+func SeedInstalledRoutes(root string, installed func(model.Backend) bool, lists ModelLists) ([]string, error) {
 	packaged, err := PackagedRouter()
 	if err != nil {
 		return nil, err
 	}
+	packaged, _ = lists.Available(packaged)
 	path := filepath.Join(root, ".orchestrator", "model_router.yaml")
 	have, err := router.Load(path)
 	if err != nil {
