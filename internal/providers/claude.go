@@ -2,6 +2,7 @@ package providers
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/model"
@@ -79,6 +80,7 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 			Success:      false,
 			Stdout:       withoutStreamEvents(text),
 			ErrorMessage: "could not parse claude JSON envelope",
+			Quota:        claudeQuota(text),
 		}
 	}
 
@@ -105,7 +107,41 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 		Text:                asString(env["result"]),
 		ErrorMessage:        errMsg,
 		PermissionDenials:   claudeDenials(env),
+		Quota:               claudeQuota(text),
 	}
+}
+
+// claudeQuota reads the last rate_limit_event of a stream-json run: claude
+// emits one per run with the subscription's windows (five_hour, seven_day),
+// each with its utilization (0–1) and reset time. Windows come sorted by
+// name, so the result does not depend on map order. nil when the run printed
+// none — a `json` run, or one killed before the event.
+func claudeQuota(output string) []QuotaWindow {
+	var windows map[string]any
+	for _, line := range strings.Split(output, "\n") {
+		obj, ok := decodeObject([]byte(strings.TrimSpace(line)))
+		if !ok || asString(obj["type"]) != "rate_limit_event" {
+			continue
+		}
+		info, _ := obj["rate_limit_info"].(map[string]any)
+		if w, ok := info["unifiedWindows"].(map[string]any); ok {
+			windows = w
+		}
+	}
+	if len(windows) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(windows))
+	for name := range windows {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]QuotaWindow, 0, len(names))
+	for _, name := range names {
+		w, _ := windows[name].(map[string]any)
+		out = append(out, QuotaWindow{Window: name, Utilization: toFloat(w["utilization"]), ResetsAt: int64(toFloat(w["resetsAt"]))})
+	}
+	return out
 }
 
 // claudeDenials reads `permission_denials`: one object per refused call, with

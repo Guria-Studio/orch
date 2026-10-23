@@ -138,6 +138,22 @@ type Result struct {
 	// could do nothing looks the same from its exit code (#231). claude and
 	// agy report them (agy as its denied_actions' display names, #383).
 	PermissionDenials []string
+
+	// Quota is the subscription usage the CLI reported during the run, newest
+	// report wins: claude's rate_limit_event carries its 5-hour and weekly
+	// windows. nil when the CLI says nothing — every other backend today.
+	Quota []QuotaWindow
+}
+
+// QuotaWindow is one usage window of a provider's subscription, as the
+// provider reported it: how much of it is used and when it resets.
+type QuotaWindow struct {
+	// Window is the provider's own name for it ("five_hour", "seven_day").
+	Window string `json:"window"`
+	// Utilization is the used fraction, 0 to 1.
+	Utilization float64 `json:"utilization"`
+	// ResetsAt is when the window resets, Unix seconds; 0 when not given.
+	ResetsAt int64 `json:"resets_at"`
 }
 
 // Provider is the adapter contract. One implementation per external CLI.

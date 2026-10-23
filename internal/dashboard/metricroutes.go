@@ -38,6 +38,19 @@ type metricsPayload struct {
 	ByModel            []modelStats `json:"by_model"`
 	ByDay              []dayStats   `json:"by_day"`
 	EstimateHoursTotal float64      `json:"estimate_hours_total"`
+
+	// The Usage page's additions (usage.go): which period the figures cover,
+	// the dispatch and token totals, the per-backend day series its chart
+	// stacks, and the latest dispatches. Without `?period=` they cover all
+	// of history, like the fields above.
+	Period              string            `json:"period"`
+	Dispatches          int               `json:"dispatches"`
+	TokensIn            int               `json:"tokens_in"`
+	CacheReadTokens     int               `json:"cache_read_tokens"`
+	CacheCreationTokens int               `json:"cache_creation_tokens"`
+	TokensOut           int               `json:"tokens_out"`
+	ByBackendDay        []backendDayStats `json:"by_backend_day"`
+	Recent              []recentSpend     `json:"recent"`
 }
 
 // byDayWindow is how many days the chart shows. Python's default, and it is
@@ -55,23 +68,43 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "metrics", err)
 		return
 	}
-	// All of history, not a window: the totals on this page are lifetime
-	// figures and the by-day table does its own truncating.
-	spends, err := s.state.AllSpend(r.Context(), time.Time{})
+	// All of history unless the Usage page asks for a period: the totals are
+	// lifetime figures and the by-day table does its own truncating.
+	period, since, ok := usagePeriod(r.URL.Query().Get("period"), time.Now())
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, errorPayload{Detail: "period: one of today, 24h, 7d, 30d, all"})
+		return
+	}
+	spends, err := s.state.AllSpend(r.Context(), since)
 	if err != nil {
 		s.failRead(w, "metrics", err)
 		return
 	}
 
 	table := s.pricing()
-	writeJSON(w, http.StatusOK, metricsPayload{
+	days := byDayWindow
+	if period == "30d" {
+		days = 30
+	}
+	payload := metricsPayload{
 		ProjectID:          s.paths.ID,
 		TotalCostUSD:       totalCost(spends, table),
 		EstimatedCostUSD:   estimatedCost(spends, table),
 		ByModel:            metricsByModel(spends, table),
-		ByDay:              metricsByDay(spends, table, byDayWindow),
+		ByDay:              metricsByDay(spends, table, days),
 		EstimateHoursTotal: round1(view.Summary.EstimateHoursTotal),
-	})
+		Period:             period,
+		Dispatches:         len(spends),
+		ByBackendDay:       metricsByBackendDay(spends, table, days),
+		Recent:             recentSpends(spends, table, recentShown),
+	}
+	for _, sp := range spends {
+		payload.TokensIn += sp.TokensIn
+		payload.CacheReadTokens += sp.CacheReadTokens
+		payload.CacheCreationTokens += sp.CacheCreationTokens
+		payload.TokensOut += sp.TokensOut
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 // pricing loads the price table, project overrides included.

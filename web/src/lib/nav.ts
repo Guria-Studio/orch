@@ -3,6 +3,7 @@ import {
   BarChart3,
   BriefcaseBusiness,
   CalendarClock,
+  Gauge,
   Eye,
   FileText,
   FlaskConical,
@@ -75,11 +76,11 @@ export const DESTINATIONS: NavDestination[] = [
   },
   {
     id: "cost",
-    label: "nav.cost",
+    label: "nav.usage",
     icon: Wallet,
     tabs: [
+      { to: "/cost/usage", label: "nav.usage", route: "api_metrics", operatorOnly: true },
       { to: "/cost/budget", label: "nav.budget", route: "api_budget_summary" },
-      { to: "/cost/metrics", label: "nav.metrics", route: "api_metrics", operatorOnly: true },
     ],
   },
   {
@@ -101,7 +102,10 @@ export const DESTINATIONS: NavDestination[] = [
     id: "system",
     label: "nav.system",
     icon: Wrench,
-    tabs: [{ to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true }],
+    tabs: [
+      { to: "/system/providers", label: "nav.providers", route: "api_quota", operatorOnly: true },
+      { to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true },
+    ],
   },
 ]
 
@@ -116,7 +120,8 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/work/phases": Milestone,
   "/work/pace": CalendarClock,
   "/cost/budget": Wallet,
-  "/cost/metrics": BarChart3,
+  "/cost/usage": BarChart3,
+  "/system/providers": Gauge,
   "/delivery/client": Eye,
   "/delivery/summary": FileText,
   "/delivery/ci": Workflow,
@@ -137,7 +142,8 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/pace": "/work/pace",
   "/sprint": "/work/pace",
   "/budget": "/cost/budget",
-  "/metrics": "/cost/metrics",
+  "/metrics": "/cost/usage",
+  "/cost/metrics": "/cost/usage",
   "/ci": "/delivery/ci",
   "/tests": "/delivery/tests",
   "/tunnel": "/delivery/share",

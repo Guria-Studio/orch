@@ -13,7 +13,6 @@ import { GraphPage } from "@/pages/GraphPage"
 import { KanbanPage } from "@/pages/KanbanPage"
 import { ListPage } from "@/pages/ListPage"
 import { LoginPage } from "@/pages/LoginPage"
-import { MetricsPage } from "@/pages/MetricsPage"
 import { MilestonesPage } from "@/pages/MilestonesPage"
 import { NowPage } from "@/pages/NowPage"
 import { PacePage } from "@/pages/PacePage"
@@ -22,7 +21,9 @@ import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 import { TaskPage } from "@/pages/TaskPage"
 import { ClientPage } from "@/pages/ClientPage"
+import { QuotaPage } from "@/pages/QuotaPage"
 import { ToolsPage } from "@/pages/ToolsPage"
+import { UsagePage } from "@/pages/UsagePage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
 const queryClient = new QueryClient({
@@ -45,12 +46,13 @@ const PAGES: Record<string, ReactNode> = {
   "/work/phases": <MilestonesPage />,
   "/work/pace": <PacePage />,
   "/cost/budget": <BudgetPage />,
-  "/cost/metrics": <MetricsPage />,
+  "/cost/usage": <UsagePage />,
   "/delivery/client": <ClientPage />,
   "/delivery/summary": <StakeholderSummaryPage />,
   "/delivery/ci": <CIPage />,
   "/delivery/tests": <TestsPage />,
   "/delivery/share": <TunnelPage />,
+  "/system/providers": <QuotaPage />,
   "/system/tools": <ToolsPage />,
 }
 

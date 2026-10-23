@@ -75,7 +75,7 @@ describe("CommandPalette", () => {
     const { input, onOpenChange } = renderPalette()
     type(input, "budget")
     const options = screen.getAllByRole("option")
-    expect(options[0]).toHaveTextContent("Cost › Budget")
+    expect(options[0]).toHaveTextContent("Usage › Budget")
     expect(options[0]).toHaveAttribute("aria-selected", "true")
     expect(input).toHaveAttribute("aria-activedescendant", options[0].id)
     key(input, "ArrowUp") // wraps to the last result
@@ -188,7 +188,7 @@ describe("keyboard shortcuts", () => {
     renderLayout("/")
     fireEvent.keyDown(document.body, { key: "g" })
     fireEvent.keyDown(document.body, { key: "c" })
-    expect(location()).toBe("/cost/budget")
+    expect(location()).toBe("/cost/usage")
   })
 
   it("ignores letters typed into a field", () => {

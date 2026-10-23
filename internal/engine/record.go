@@ -152,6 +152,12 @@ func outcomeEvent(runID string, d Dispatch, o Outcome, ts string, attempt int) s
 	if len(o.Result.PermissionDenials) > 0 {
 		ev.Extra["permission_denials"] = o.Result.PermissionDenials
 	}
+	// The subscription windows the CLI reported (claude's 5-hour and weekly),
+	// kept on the outcome so the dashboard reads the latest per backend
+	// without a table of its own.
+	if len(o.Result.Quota) > 0 {
+		ev.Extra["quota"] = o.Result.Quota
+	}
 	if o.Stopped {
 		// The run's answer to the operator's request, and the attempt's
 		// outcome in one row: cancelled, not failed.

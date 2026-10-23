@@ -51,10 +51,10 @@ describe("AppLayout", () => {
     renderAt("/")
     const sidebar = screen.getByRole("navigation", { name: "Main" })
     const bottom = screen.getByRole("navigation", { name: "Main (small screens)" })
-    expect(hrefs(sidebar)).toEqual(["/", "/work/list", "/cost/budget", "/delivery/client"])
+    expect(hrefs(sidebar)).toEqual(["/", "/work/list", "/cost/usage", "/delivery/client"])
     expect(hrefs(bottom)).toEqual(hrefs(sidebar))
     // System's pages sit under their own heading, not among the places.
-    expect(hrefs(screen.getByRole("region", { name: "System" }))).toEqual(["/system/tools"])
+    expect(hrefs(screen.getByRole("region", { name: "System" }))).toEqual(["/system/providers", "/system/tools"])
     expect(bottom).toHaveClass("md:hidden")
     expect(sidebar.closest("aside")).toHaveClass("hidden", "md:flex")
   })
