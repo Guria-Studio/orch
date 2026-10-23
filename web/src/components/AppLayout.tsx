@@ -541,12 +541,15 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {canShare ? (
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent className="max-w-2xl gap-5">
-            <DialogHeader>
-              <DialogTitle>{t("share.title")}</DialogTitle>
-              <DialogDescription>{t("share.intro")}</DialogDescription>
+          {/* As the design draws it: a titled bar over the panel, nothing in between. */}
+          <DialogContent className="max-w-[620px] gap-0 p-0">
+            <DialogHeader className="border-b px-5 py-4 pr-12">
+              <DialogTitle className="text-[15px]">{t("share.title")}</DialogTitle>
+              <DialogDescription className="sr-only">{t("share.intro")}</DialogDescription>
             </DialogHeader>
-            <SharePanel />
+            <div className="px-5 py-4">
+              <SharePanel />
+            </div>
           </DialogContent>
         </Dialog>
       ) : null}

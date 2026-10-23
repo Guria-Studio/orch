@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, FileText, GitPullRequest } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, FileText, GitPullRequest, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
 import { TaskSteer } from "@/components/TaskSteer"
 import { useTicker } from "@/hooks/useNow"
+import { useEventsHistory } from "@/hooks/useEventsHistory"
 import { useTaskDetail } from "@/hooks/useTaskDetail"
 import { useTasks } from "@/hooks/useTasks"
 import { useWhoami } from "@/hooks/useWhoami"
@@ -18,7 +19,7 @@ import { taskPath } from "@/lib/nav"
 import { STATUS, statusKey, statusMeta } from "@/lib/status"
 import { formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
-import type { Task } from "@/lib/types"
+import type { FormattedEvent, Task } from "@/lib/types"
 
 interface TaskComment {
   at: string
@@ -56,47 +57,6 @@ function StatusRing({ status }: { status: string }) {
   )
 }
 
-// The task's comment trail as a timeline (#405): who wrote it, when, and what.
-// orch's own notes mostly repeat a status the properties already show, so they
-// are muted next to what an agent or the operator wrote.
-function CommentTimeline({ comments, label }: { comments: TaskComment[]; label: string }) {
-  const now = useTicker(60_000)
-  return (
-    <ul aria-label={label} className="flex flex-col">
-      {comments.map((c, i) => {
-        const muted = c.author === "orch"
-        const operator = c.kind === "operator_note"
-        return (
-          <li key={`${c.at}-${i}`} data-muted={muted ? "true" : undefined} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 pb-3.5">
-            <span className="flex justify-center pt-1" aria-hidden>
-              <span className={cn("h-2 w-2 rounded-full", muted ? "bg-muted-foreground" : operator ? "bg-brand" : "bg-status-running")} />
-            </span>
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-baseline gap-x-1.5">
-                <span className={cn("font-medium", muted && "text-muted-foreground")}>{c.author}</span>
-                {operator ? <span className="rounded border px-1 text-[10px] text-muted-foreground">{t("task.operator_note")}</span> : null}
-                {c.at ? (
-                  <time dateTime={c.at} title={fmt.dateTime(c.at)} className="text-xs text-muted-foreground">
-                    · {formatRelative(c.at, now)}
-                  </time>
-                ) : null}
-              </div>
-              <p
-                className={cn(
-                  "whitespace-pre-wrap break-words leading-5",
-                  muted ? "text-muted-foreground" : "rounded-lg border bg-card px-2.5 py-2 text-foreground/90",
-                )}
-              >
-                {c.body}
-              </p>
-            </div>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
-
 type ActivityTab = "all" | "comments" | "agent"
 
 const ACTIVITY_TABS: { id: ActivityTab; label: MessageKey }[] = [
@@ -105,12 +65,132 @@ const ACTIVITY_TABS: { id: ActivityTab; label: MessageKey }[] = [
   { id: "agent", label: "task.activity_agent" },
 ]
 
-/** The comments as a timeline and the agent's latest dispatch, filtered by tab. */
-function Activity({ task }: { task: Task }) {
+// Events that are an agent's own outcome, shown under its backend's name.
+const AGENT_EVENTS = new Set(["success", "fail", "timeout"])
+const DOT: Record<string, string> = {
+  dispatch: "bg-muted-foreground",
+  success: "bg-status-done",
+  pr_merged: "bg-status-done",
+  pr_auto_merged: "bg-status-done",
+  ci_success: "bg-status-done",
+  fail: "bg-status-failed",
+  timeout: "bg-status-failed",
+  verify_failed: "bg-status-blocked",
+  block: "bg-status-blocked",
+  ci_blocked: "bg-status-blocked",
+  ci_failure_retry: "bg-status-blocked",
+  budget_pause: "bg-status-blocked",
+}
+
+interface TimelineItem {
+  at: string
+  who: string
+  verb: string
+  body?: string
+  dot: string
+  muted: boolean
+  operator: boolean
+  comment: boolean
+}
+
+/** What an event says, in words; the type itself for one this page does not know. */
+function eventItem(e: FormattedEvent): TimelineItem {
+  const extra = (e.raw?.extra ?? {}) as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined)
+  const key = `task.ev.${e.event_type}` as MessageKey
+  const known = t(key) !== key
+  const who = AGENT_EVENTS.has(e.event_type)
+    ? e.backend || "agent"
+    : e.event_type === "verify_failed"
+      ? "verify"
+      : e.event_type.startsWith("ci_") || e.event_type.startsWith("pr_")
+        ? "CI"
+        : e.event_type === "operator_stop" || e.event_type === "task_edited" || e.event_type === "task_added"
+          ? t("task.ev.operator")
+          : "orch"
+  return {
+    at: e.ts,
+    who,
+    verb: known
+      ? t(key, { attempt: String(extra.attempt ?? ""), model: String(extra.cli_model ?? e.backend ?? "") })
+      : e.event_type.replaceAll("_", " "),
+    body: str(extra.reason) ?? str(extra.error) ?? str(extra.detail) ?? str(extra.note),
+    dot: DOT[e.event_type] ?? "bg-status-running",
+    muted: who === "orch",
+    operator: false,
+    comment: false,
+  }
+}
+
+function commentItem(c: TaskComment): TimelineItem {
+  const operator = c.kind === "operator_note"
+  return {
+    at: c.at,
+    who: c.author,
+    verb: operator ? t("task.ev.note") : t("task.ev.commented"),
+    body: c.body,
+    dot: operator ? "bg-brand" : c.author === "orch" ? "bg-muted-foreground" : "bg-status-running",
+    muted: c.author === "orch",
+    operator,
+    comment: true,
+  }
+}
+
+function Timeline({ items, label }: { items: TimelineItem[]; label: string }) {
+  const now = useTicker(60_000)
+  return (
+    <ol aria-label={label} className="flex flex-col">
+      {items.map((x, i) => (
+        <li key={`${x.at}-${i}`} data-muted={x.muted ? "true" : undefined} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 pb-3.5">
+          <span className="flex justify-center pt-1" aria-hidden>
+            <span className={cn("h-2 w-2 rounded-full", x.dot)} />
+          </span>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span className={cn("font-medium", x.muted && "text-muted-foreground")}>{x.who}</span>
+              <span className="text-muted-foreground">{x.verb}</span>
+              {x.operator ? <span className="rounded border px-1 text-[10px] text-muted-foreground">{t("task.operator_note")}</span> : null}
+              {x.at ? (
+                <time dateTime={x.at} title={fmt.dateTime(x.at)} className="text-xs text-muted-foreground">
+                  · {formatRelative(x.at, now)}
+                </time>
+              ) : null}
+            </div>
+            {x.body ? (
+              <p
+                className={cn(
+                  "whitespace-pre-wrap break-words leading-5",
+                  x.comment && !x.muted
+                    ? "rounded-lg border bg-card px-2.5 py-2 text-foreground/90"
+                    : "rounded-md border bg-sidebar px-2.5 py-1.5 font-mono text-xs text-muted-foreground",
+                )}
+              >
+                {x.body}
+              </p>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * The task's history as one timeline, as the design draws it: orch's events
+ * for this task (dispatches with their attempt and model, outcomes, verify,
+ * CI and PRs, stops and edits) interleaved with the comments by time. The
+ * Agent tab is the latest dispatch's own log.
+ */
+function Activity({ task, events }: { task: Task; events: FormattedEvent[] }) {
   const [tab, setTab] = useState<ActivityTab>("all")
   const live = statusKey(task.status) === "in_progress"
   const comments = task.comments.map(asComment).filter((c): c is TaskComment => c !== null)
-  const shown = tab === "comments" ? comments.filter((c) => c.author !== "orch") : comments
+  // orch's own comments restate an event the timeline already shows; with events, they go.
+  const timeline = [...events.map(eventItem), ...comments.filter((c) => events.length === 0 || c.author !== "orch").map(commentItem)].sort(
+    (a, b) => (Date.parse(a.at) || Infinity) - (Date.parse(b.at) || Infinity),
+  )
+  const people = comments.filter((c) => c.author !== "orch").map(commentItem)
+  const shown = tab === "comments" ? people : timeline
   return (
     <section aria-labelledby="task-activity" className="space-y-3.5">
       <div className="flex flex-wrap items-center gap-2.5 border-b pb-2.5">
@@ -141,22 +221,21 @@ function Activity({ task }: { task: Task }) {
           </span>
         ) : null}
       </div>
-      {tab !== "agent" && shown.length > 0 ? <CommentTimeline comments={shown} label={t("task.comments", { count: tab === "all" ? task.comments.length : shown.length })} /> : null}
-      {tab === "comments" && shown.length === 0 ? <p className="text-muted-foreground">{t("task.no_comments")}</p> : null}
-      {tab !== "comments" ? (
-        <div className="space-y-1.5">
-          {tab === "all" ? <p className="text-xs text-muted-foreground">{t("task.agent_latest")}</p> : null}
-          {/* The model's route names its provider: "claude/sonnet". */}
-          <ActivityFeed
-            key={task.id}
-            taskId={task.id}
-            live={live}
-            provider={task.model.split("/")[0]}
-            className="rounded-md border bg-sidebar p-2.5"
-            full={tab === "agent"}
-            wrap
-          />
-        </div>
+      {tab !== "agent" ? (
+        shown.length > 0 ? (
+          <Timeline items={shown} label={t("task.comments", { count: task.comments.length })} />
+        ) : (
+          <p className="text-muted-foreground">{tab === "comments" ? t("task.no_comments") : t("task.no_activity")}</p>
+        )
+      ) : null}
+      {tab === "all" ? (
+        <button type="button" onClick={() => setTab("agent")} className="h-7 rounded-md border px-2.5 text-xs text-foreground/90 hover:bg-secondary">
+          {t("task.full_log")}
+        </button>
+      ) : null}
+      {tab === "agent" ? (
+        // The model's route names its provider: "claude/sonnet".
+        <ActivityFeed key={task.id} taskId={task.id} live={live} provider={task.model.split("/")[0]} className="rounded-md border bg-sidebar p-2.5" full wrap />
       ) : null}
     </section>
   )
@@ -239,12 +318,17 @@ function Properties({
   canEdit,
   save,
   move,
+  attempt,
+  onFold,
 }: {
   task: Task
   all: Task[]
   canEdit: boolean
   save: (fields: TaskFields) => void
   move: (status: string) => void
+  /** The latest dispatch's attempt, from the task's events. */
+  attempt?: number
+  onFold: () => void
 }) {
   const now = useTicker(60_000)
   const [adding, setAdding] = useState(false)
@@ -256,7 +340,19 @@ function Properties({
   const running = key === "in_progress"
 
   return (
-    <aside aria-label={t("task.properties")} className="flex min-w-0 flex-col gap-5 border-t px-4 py-5 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
+    <aside aria-label={t("task.properties")} className="flex min-w-0 flex-col gap-5 border-t px-4 py-5 lg:w-[330px] lg:shrink-0 lg:border-l lg:border-t-0">
+      <div className="-mb-2 flex items-center justify-between">
+        <h2 className="text-xs font-medium text-muted-foreground">{t("task.properties")}</h2>
+        <button
+          type="button"
+          onClick={onFold}
+          aria-label={t("task.hide_properties")}
+          aria-expanded
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <PanelRightClose className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
       <dl className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
         <Prop label={t("tasks.col.status")}>
           <span className="flex items-center gap-1 pl-2">
@@ -277,6 +373,11 @@ function Properties({
             </select>
           </span>
         </Prop>
+        {attempt ? (
+          <Prop label={t("task.attempt")}>
+            <span className="pl-2 tabular-nums">{attempt}</span>
+          </Prop>
+        ) : null}
         <Prop label={t("tasks.col.model")}>
           <InlineField label={t("tasks.col.model")} value={task.model} list="task-models" disabled={!canEdit} onSave={(model) => save({ model })} />
           <datalist id="task-models">
@@ -446,6 +547,20 @@ function DefinitionEditor({ task, onSave, onCancel }: { task: Task; onSave: (f: 
 export function TaskPage() {
   const { id = "" } = useParams()
   const { data, isLoading, isError, error } = useTaskDetail(id)
+  const [propsFolded, setPropsFolded] = useState(readPropsFolded)
+  const foldProps = (folded: boolean) => {
+    setPropsFolded(folded)
+    try {
+      window.localStorage.setItem(PROPS_FOLDED_KEY, folded ? "1" : "0")
+    } catch {
+      // A browser that keeps nothing still folds; it just forgets.
+    }
+  }
+  const { data: history } = useEventsHistory({ taskId: id, enabled: id !== "" })
+  // Newest last, as the timeline reads; the latest dispatch names the attempt.
+  const events = [...(history?.events ?? [])].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
+  const lastDispatch = [...events].reverse().find((e) => e.event_type === "dispatch")
+  const attempt = Number((lastDispatch?.raw?.extra as Record<string, unknown> | undefined)?.attempt) || undefined
   const { data: list } = useTasks()
   const { data: whoami } = useWhoami()
   const queryClient = useQueryClient()
@@ -590,15 +705,40 @@ export function TaskPage() {
                 </section>
               ) : null}
 
-              <Activity task={data} />
+              <Activity task={data} events={events} />
               <TaskSteer task={data} />
             </div>
           </div>
-          <Properties task={data} all={all} canEdit={canEdit} save={save} move={move} />
+          {propsFolded ? (
+            <aside aria-label={t("task.properties")} className="flex justify-end border-t px-2 py-3 lg:w-11 lg:shrink-0 lg:justify-center lg:border-l lg:border-t-0">
+              <button
+                type="button"
+                onClick={() => foldProps(false)}
+                aria-label={t("task.show_properties")}
+                aria-expanded={false}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <PanelRightOpen className="h-4 w-4" aria-hidden />
+              </button>
+            </aside>
+          ) : (
+            <Properties task={data} all={all} canEdit={canEdit} save={save} move={move} attempt={attempt} onFold={() => foldProps(true)} />
+          )}
         </div>
       ) : null}
     </div>
   )
+}
+
+const PROPS_FOLDED_KEY = "orch.taskPropsFolded"
+
+/** Whether the properties panel was left folded in this browser. */
+function readPropsFolded(): boolean {
+  try {
+    return window.localStorage.getItem(PROPS_FOLDED_KEY) === "1"
+  } catch {
+    return false
+  }
 }
 
 /** A link to a task's page, for places that list tasks. */

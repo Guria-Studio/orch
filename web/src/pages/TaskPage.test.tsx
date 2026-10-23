@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -41,7 +41,7 @@ function Where() {
 }
 
 function renderAt(entries: string[]) {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
         <Routes>
@@ -66,12 +66,40 @@ beforeEach(() => {
     Promise.resolve({
       data: url.startsWith("/api/task/F6.1.T1/activity")
         ? { offset: 10, exists: true, steps: [{ kind: "tool", tool: "Bash", detail: longCall }] }
-        : task,
+        : url === "/api/events"
+          ? {
+              count: 2,
+              events: [
+                { ts: "2026-10-12T21:30:00Z", task_id: "F6.1.T1", event_type: "dispatch", backend: "claude", human: "", severity: "info", raw: { extra: { attempt: 2, cli_model: "claude-sonnet-4-6" } } },
+                { ts: "2026-10-12T21:40:00Z", task_id: "F6.1.T1", event_type: "verify_failed", backend: "claude", human: "", severity: "warn", raw: { extra: { reason: "2 tests failed" } } },
+              ],
+            }
+          : task,
     }),
   )
 })
 
 describe("TaskPage", () => {
+  // The design's timeline: the task's own events, in words, with the attempt
+  // the latest dispatch carried shown among the properties.
+  it("folds the properties panel and remembers it", async () => {
+    const { unmount } = renderAt([taskPath("F6.1.T1")])
+    fireEvent.click(await screen.findByRole("button", { name: "Hide the properties" }))
+    expect(screen.queryByRole("combobox", { name: "Status" })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("orch.taskPropsFolded")).toBe("1")
+    unmount()
+    renderAt([taskPath("F6.1.T1")])
+    fireEvent.click(await screen.findByRole("button", { name: "Show the properties" }))
+    expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument()
+  })
+
+  it("draws the task's events as the activity timeline", async () => {
+    renderAt([taskPath("F6.1.T1")])
+    expect(await screen.findByText("dispatched attempt 2 to claude-sonnet-4-6")).toBeInTheDocument()
+    expect(screen.getByText("2 tests failed")).toBeInTheDocument()
+    expect(within(screen.getByRole("complementary", { name: "Properties" })).getByText("2")).toBeInTheDocument()
+  })
+
   it("opens a task straight from its address, dots in the id and all", async () => {
     renderAt([taskPath("F6.1.T1")])
     expect(await screen.findByRole("heading", { name: "Refill the slot once" })).toBeInTheDocument()
@@ -80,6 +108,7 @@ describe("TaskPage", () => {
 
   it("wraps a long tool call in the feed instead of cutting it", async () => {
     renderAt([taskPath("F6.1.T1")])
+    fireEvent.click(await screen.findByRole("tab", { name: "Agent" }))
     const line = await screen.findByText(longCall)
     expect(line).toHaveClass("break-all")
     expect(line).not.toHaveClass("truncate")
