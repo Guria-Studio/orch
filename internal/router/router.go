@@ -586,3 +586,72 @@ func nodeKindName(k yaml.Kind) string {
 		return "unknown"
 	}
 }
+
+// SetRoute points an existing route at another backend and CLI model: what
+// `orch router suggest --apply` writes (#457).
+//
+// Like AddMissing it edits the text rather than re-dumping the mapping, so
+// the comments, the order and every other field survive: only the two values
+// change, each on its own line, a trailing comment kept. A flow-style entry
+// (`key: {backend: …}`) is refused rather than reformatted. The result is
+// parsed again before it is written, so a value that would not read back
+// leaves the file as it was.
+func SetRoute(path, key string, backend model.Backend, cliModel string) error {
+	raw, err := os.ReadFile(path) // #nosec G304 -- the router path is the caller's project layout
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if _, err := Parse(path, raw); err != nil {
+		return err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil || len(doc.Content) == 0 {
+		return &FormatError{Path: path, Msg: fmt.Sprintf("no route %s", pyfmt.Quote(key))}
+	}
+	top := doc.Content[0]
+	var row *yaml.Node
+	for i := 0; i+1 < len(top.Content); i += 2 {
+		if top.Content[i].Value == key {
+			row = top.Content[i+1]
+		}
+	}
+	if row == nil {
+		return &FormatError{Path: path, Msg: fmt.Sprintf("no route %s", pyfmt.Quote(key))}
+	}
+	if row.Style&yaml.FlowStyle != 0 {
+		return &FormatError{Path: path, Msg: fmt.Sprintf(
+			"entry %s is written in flow style ({...}); edit it by hand", pyfmt.Quote(key))}
+	}
+	lines := strings.Split(string(raw), "\n")
+	want := map[string]string{"backend": string(backend), "cli_model": cliModel}
+	for i := 0; i+1 < len(row.Content); i += 2 {
+		k, v := row.Content[i], row.Content[i+1]
+		value, ok := want[k.Value]
+		if !ok {
+			continue
+		}
+		if v.Kind != yaml.ScalarNode || v.Line != k.Line || v.Line > len(lines) {
+			return &FormatError{Path: path, Msg: fmt.Sprintf(
+				"entry %s field `%s` is not a one-line value; edit it by hand", pyfmt.Quote(key), k.Value)}
+		}
+		line := lines[v.Line-1]
+		head, rest := line[:v.Column-1], line[v.Column-1:]
+		end := len(rest)
+		if c := v.LineComment + k.LineComment; c != "" {
+			if at := strings.LastIndex(rest, c); at >= 0 {
+				end = len(strings.TrimRight(rest[:at], " \t"))
+			}
+		}
+		lines[v.Line-1] = head + value + rest[end:]
+	}
+	out := []byte(strings.Join(lines, "\n"))
+	got, err := Parse(path, out)
+	if err != nil {
+		return err
+	}
+	if e := got[key]; e.Backend != backend || e.CLIModel != cliModel {
+		return &FormatError{Path: path, Msg: fmt.Sprintf(
+			"entry %s did not read back as %s/%s; edit it by hand", pyfmt.Quote(key), backend, cliModel)}
+	}
+	return os.WriteFile(path, out, 0o600) // #nosec G703 -- the router path Load just read
+}

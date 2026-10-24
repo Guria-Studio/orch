@@ -29,6 +29,7 @@ func newRouterCmd(flags *projectFlags) *cobra.Command {
 	cmd.AddCommand(newRouterValidateCmd(flags))
 	cmd.AddCommand(newRouterAddMissingCmd(flags))
 	cmd.AddCommand(newRouterRefreshCmd(flags))
+	cmd.AddCommand(newRouterSuggestCmd(flags))
 	return cmd
 }
 
