@@ -71,6 +71,56 @@ func TestAVerifyRejectionTheNextAttemptFixedBecomesADraftLesson(t *testing.T) {
 	}
 }
 
+// A rejection the review backed with findings drafts its lesson from them
+// (#475): one line per blocking finding, the findings' files as its area,
+// the minor ones left out.
+func TestAVerifyRejectionsFindingsBecomeTheDraftLesson(t *testing.T) {
+	v := &scriptedVerifier{answers: []string{"# Local verify failed\n\n## Review\nsee the findings", ""},
+		findings: []VerifyFinding{
+			{Severity: "blocking", File: "internal/auth/login.go", Line: 42, Title: "Error handling: dropped error", Detail: "err is ignored"},
+			{Severity: "blocking", File: "internal/auth/token.go", Line: 7, Title: "Tests: no test for expiry"},
+			{Severity: "minor", File: "README.md", Line: 1, Title: "Wording"},
+			{Severity: "blocking", File: "internal/auth/login.go", Line: 90, Title: "Logging: secret in a log line"},
+		}}
+	f, remote := verifyFixture(t, v, 2)
+	f.s.Opts.Cfg.Knowledge.Enabled = true
+	ctx := context.Background()
+
+	f.runOnce(t)
+	if _, err := f.s.Refill(ctx); err != nil {
+		t.Fatalf("Refill: %v", err)
+	}
+	if _, err := f.s.DrainWait(ctx, 30*time.Second); err != nil {
+		t.Fatalf("DrainWait: %v", err)
+	}
+
+	// #nosec G204 -- fixed git subcommand on a temp repo this test made.
+	out, err := exec.Command("git", "-C", remote, "ls-tree", "-r", "--name-only", "orch/C-1", ".orch/knowledge").CombinedOutput()
+	if err != nil {
+		t.Fatalf("ls-tree: %v\n%s", err, out)
+	}
+	files := strings.Fields(string(out))
+	if len(files) != 1 {
+		t.Fatalf("lessons in the pushed branch = %v, want one draft", files)
+	}
+	body := remoteFile(t, remote, "orch/C-1", files[0])
+	for _, want := range []string{
+		"- internal/auth/login.go:42 Error handling: dropped error",
+		"- internal/auth/token.go:7 Tests: no test for expiry",
+		"- internal/auth/login.go:90 Logging: secret in a log line",
+		"area:\n    - internal/auth/login.go\n    - internal/auth/token.go\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the draft lesson is missing %q:\n%s", want, body)
+		}
+	}
+	for _, unwanted := range []string{"Wording", "README.md", "see the findings"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("the draft lesson carries %q:\n%s", unwanted, body)
+		}
+	}
+}
+
 // A conflict the agent resolved leaves a draft lesson in the PR (#451): the
 // files, the base commits that touched them, under the files' area.
 func TestAResolvedConflictBecomesADraftLesson(t *testing.T) {

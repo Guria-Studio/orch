@@ -212,6 +212,9 @@ type Scheduler struct {
 	// verifyRejected is what the local verify last rejected, by task, until
 	// an attempt passes and it becomes a draft lesson (#451).
 	verifyRejected map[string]string
+	// verifyFindings are the blocking and minor findings of that rejection,
+	// for a draft lesson built from them rather than the reason (#475).
+	verifyFindings map[string][]VerifyFinding
 	// landConflicts counts each task's local-merge conflict retries.
 	landConflicts map[string]int
 	// exhausted is each provider out of quota, until its reset (#439).
@@ -307,6 +310,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		conflictRetry:  make(map[string]*prompt.Conflict),
 		verifyAttempts: make(map[string]int),
 		verifyRejected: make(map[string]string),
+		verifyFindings: make(map[string][]VerifyFinding),
 		landConflicts:  make(map[string]int),
 		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),

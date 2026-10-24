@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/knowledge"
@@ -55,19 +56,19 @@ func (s *Scheduler) recordLessonsUsed(ctx context.Context, taskID string, backen
 // where the reviewer keeps, edits or drops them.
 func (s *Scheduler) captureLessons(ctx context.Context, entry *InFlight) {
 	id := entry.Task.ID
-	rejected := s.verifyRejected[id]
+	rejected, findings := s.verifyRejected[id], s.verifyFindings[id]
 	delete(s.verifyRejected, id)
+	delete(s.verifyFindings, id)
 	if !s.Opts.Cfg.Knowledge.Captures() || s.Worktree == nil {
 		return
 	}
 	note := s.agentNote(ctx, id)
 	if rejected != "" {
-		body := "The local verify rejected an attempt at " + id + ":\n" + firstLines(rejected, 6)
+		l := verifyLesson(id, rejected, findings, entry.Task.Files)
 		if note != "" {
-			body += "\n\nThe attempt that passed: " + note
+			l.Body += "\n\nThe attempt that passed: " + note
 		}
-		s.writeLesson(entry, knowledge.Lesson{Title: "Verify rejected " + id + ": " + firstLines(rejected, 1),
-			Area: entry.Task.Files, Tags: []string{"verify"}, Source: "verify", Body: body})
+		s.writeLesson(entry, l)
 	}
 	if c := entry.Conflict; c != nil {
 		body := fmt.Sprintf("%s's pull request conflicted with %s in %s.", id, c.Base, strings.Join(c.Files, ", "))
@@ -80,6 +81,49 @@ func (s *Scheduler) captureLessons(ctx context.Context, entry *InFlight) {
 		s.writeLesson(entry, knowledge.Lesson{Title: "Conflict with " + c.Base + " in " + strings.Join(c.Files, ", "),
 			Area: c.Files, Tags: []string{"conflict"}, Source: "conflict", Body: body})
 	}
+}
+
+// keepRejection keeps what the local verify rejected — the reason, and the
+// review's findings when it had any — until an attempt passes.
+func (s *Scheduler) keepRejection(id string, out Outcome) {
+	s.verifyRejected[id] = out.VerifyFailure
+	if out.Verify != nil {
+		s.verifyFindings[id] = out.Verify.Findings
+	} else {
+		delete(s.verifyFindings, id)
+	}
+}
+
+// verifyLesson is the draft a rejection leaves: one line per blocking finding
+// (file:line title) under the findings' files (#475), or, with none, the
+// reason's first lines under the task's files.
+func verifyLesson(id, rejected string, findings []VerifyFinding, taskFiles []string) knowledge.Lesson {
+	var lines, area []string
+	for _, f := range findings {
+		if f.Severity != "blocking" { // internal/ci.SeverityBlocking; ci imports engine
+			continue
+		}
+		where := f.File
+		if where != "" && f.Line > 0 {
+			where += fmt.Sprintf(":%d", f.Line)
+		}
+		lines = append(lines, strings.TrimSpace(where+" "+f.Title))
+		if f.File != "" && !slices.Contains(area, f.File) {
+			area = append(area, f.File)
+		}
+	}
+	l := knowledge.Lesson{Tags: []string{"verify"}, Source: "verify", Area: taskFiles}
+	if len(lines) == 0 {
+		l.Title = "Verify rejected " + id + ": " + firstLines(rejected, 1)
+		l.Body = "The local verify rejected an attempt at " + id + ":\n" + firstLines(rejected, 6)
+		return l
+	}
+	if len(area) > 0 {
+		l.Area = area
+	}
+	l.Title = "Verify rejected " + id + ": " + lines[0]
+	l.Body = "The local verify rejected an attempt at " + id + ":\n- " + strings.Join(lines, "\n- ")
+	return l
 }
 
 func (s *Scheduler) writeLesson(entry *InFlight, l knowledge.Lesson) {
