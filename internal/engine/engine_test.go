@@ -891,3 +891,45 @@ func TestWaitIsIdempotent(t *testing.T) {
 		t.Errorf("exit = %d, want 0", first.exit)
 	}
 }
+
+// lastEnv is what the child sees for key: os/exec keeps the last duplicate.
+func lastEnv(env []string, key string) string {
+	val := ""
+	for _, kv := range env {
+		if k, v, _ := strings.Cut(kv, "="); k == key {
+			val = v
+		}
+	}
+	return val
+}
+
+// TestSpawnTrustsTheWorktreeForGemini: gemini refuses to run in a directory it
+// was not told to trust (exit 55, testdata/gemini/0.59.0/untrusted-directory.log),
+// and every dispatch runs in a fresh worktree, so orch tells it to trust the
+// workspace — unless the operator's own environment says otherwise.
+func TestSpawnTrustsTheWorktreeForGemini(t *testing.T) {
+	t.Setenv(FakeProviderEnv, fakeDir(t, model.BackendGemini, "G-1", "ok\n", 0, ""))
+	spawn := func(env []string) []string {
+		t.Helper()
+		sp, err := Spawn(context.Background(), SpawnRequest{
+			Provider:   providers.GeminiProvider{},
+			Req:        providers.Request{TaskID: "G-1", Route: model.RouteEntry{Backend: model.BackendGemini, CLIModel: "gemini-2.5-flash"}},
+			PromptPath: promptFile(t, "hi"),
+			LogPath:    filepath.Join(t.TempDir(), "G-1.log"),
+			Cwd:        t.TempDir(),
+			Env:        env,
+		})
+		if err != nil {
+			t.Fatalf("Spawn: %v", err)
+		}
+		sp.Wait(10 * time.Second)
+		return sp.cmd.Env
+	}
+
+	if got := lastEnv(spawn([]string{"HOME=/h"}), "GEMINI_CLI_TRUST_WORKSPACE"); got != "true" {
+		t.Errorf("GEMINI_CLI_TRUST_WORKSPACE = %q, want true", got)
+	}
+	if got := lastEnv(spawn([]string{"GEMINI_CLI_TRUST_WORKSPACE=false"}), "GEMINI_CLI_TRUST_WORKSPACE"); got != "false" {
+		t.Errorf("the operator's GEMINI_CLI_TRUST_WORKSPACE=false became %q", got)
+	}
+}
