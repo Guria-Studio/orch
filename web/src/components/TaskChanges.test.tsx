@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   moveTask: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
+const ci = vi.hoisted(() => ({ provider: "github" }))
+vi.mock("@/hooks/useCI", () => ({ useCI: () => ({ data: { config: { provider: ci.provider } } }) }))
 
 const task = { id: "F1.T2", title: "Refill", status: "done", pr_url: "https://github.com/o/r/pull/7", comments: [] } as unknown as Task
 
@@ -39,15 +41,16 @@ const events = [
   },
 ] as unknown as FormattedEvent[]
 
-function renderChanges(canAct: boolean, evs: FormattedEvent[] = events) {
+function renderChanges(canAct: boolean, evs: FormattedEvent[] = events, shown: Task = task) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <TaskChanges task={task} events={evs} canAct={canAct} />
+      <TaskChanges task={shown} events={evs} canAct={canAct} />
     </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
+  ci.provider = "github"
   for (const f of Object.values(api)) f.mockReset()
   api.getTaskDiff.mockResolvedValue(diff)
   api.acceptTask.mockResolvedValue({ message: "F1.T2 accepted" })
@@ -144,6 +147,21 @@ describe("TaskChanges", () => {
     // The pass is about the diff shown; the earlier send-back's finding is not anchored in it.
     await screen.findByText("2 files changed on orch/F1.T2 against origin/main")
     expect(screen.queryByText("line 3 · B is never tested: add a test")).not.toBeInTheDocument()
+  })
+
+  // With vcs.provider local there is no PR: Accept merges the task's branch
+  // into the base here, and is offered until the task has landed.
+  it("accepts in local mode, where there is no PR", async () => {
+    ci.provider = "local"
+    const local = { ...task, pr_url: undefined } as unknown as Task
+    const { unmount } = renderChanges(true, events, local)
+    expect(await screen.findByText(/Accept merges the task's branch into the base here/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+    await waitFor(() => expect(api.acceptTask).toHaveBeenCalledWith("F1.T2"))
+    unmount()
+
+    renderChanges(true, events, { ...local, merged_locally: true } as Task)
+    expect(await screen.findByRole("button", { name: "Accept" })).toBeDisabled()
   })
 
   it("says why there is nothing to show", async () => {
