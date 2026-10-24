@@ -286,7 +286,13 @@ type Dispatch struct {
 	TDD bool `yaml:"tdd"`
 }
 
-// VCS drives PR creation and CI polling through the `gh` / `glab` CLIs.
+// VCSProviderLocal is vcs.provider's value for a repository with no forge:
+// each finished task is squash-merged into the base branch locally, nothing
+// is pushed and no PR is opened (#455).
+const VCSProviderLocal = "local"
+
+// VCS drives PR creation and CI polling through the `gh` / `glab` CLIs, or,
+// with Provider "local", merges finished tasks into the base here.
 type VCS struct {
 	Provider        string `yaml:"provider"`
 	Host            string `yaml:"host"`

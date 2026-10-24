@@ -342,6 +342,40 @@ first-try success before and since the first lesson. See
 **Concurrency, budgets, retries** are all config-driven, not flags — see
 [`CONFIG.md`](CONFIG.md).
 
+### Starting without GitHub
+
+A repository with no remote yet — or a machine without `gh` — does not need
+pull requests to get work onto the base branch. Set `vcs.provider: local`
+(`orch init` writes it for you in that case; `orch start` too once the
+repository has a commit):
+
+```yaml
+dispatch:
+  worktree_mode: true
+vcs:
+  provider: local
+```
+
+Each task still works on its own branch, in its own worktree. When it finishes
+and passes the local verify, orch **squash-merges it into
+`dispatch.base_branch` right here** — one commit per task, titled like the PR
+would be — and deletes the branch. Tasks merge one at a time, and a dependent
+is only dispatched once its dependencies are on the base, so it starts from
+their work. Nothing is pushed and `gh` is never run. A task whose work
+conflicts with the base gets the base merged into its worktree and goes back to
+its agent to resolve the conflict, `retry.conflict` times, then blocks naming
+the files (its work stays on `orch/<task-id>`). If the base branch is checked
+out with uncommitted changes to the same files, the merge is refused and the
+task blocks: commit or stash, then `orch task-status <id> todo`.
+
+`orch status` shows `merged_locally` as the task's last event, the dashboard
+says "Merged locally" where a PR link would be, and the run receipt lists the
+merges. `orch doctor` does not ask for a remote or `gh`.
+
+**Moving to GitHub later**: create the repository, `git remote add origin
+<url>`, `git push -u origin main`, then set `vcs.provider: github` (and
+`gh auth login`). From the next `orch run` on, each task opens a PR as usual.
+
 ---
 
 ## 6. Open the dashboard

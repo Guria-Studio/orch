@@ -182,6 +182,10 @@ func (w *fakeCIWorktree) MergeBase(context.Context, string, string) (worktree.Me
 	return w.merge, nil
 }
 
+func (w *fakeCIWorktree) LandLocally(context.Context, string, string, string) (worktree.Landing, error) {
+	return worktree.Landing{}, nil
+}
+
 func (w *fakeCIWorktree) Push(context.Context, string) error {
 	w.pushes++
 	return nil

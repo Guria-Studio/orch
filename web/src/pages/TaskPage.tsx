@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, FileText, GitPullRequest, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, FileText, GitMerge, GitPullRequest, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -444,7 +444,7 @@ function Properties({
         ) : null}
       </section>
 
-      {task.pr_url || task.spec_ref ? (
+      {task.pr_url || task.spec_ref || task.merged_locally ? (
         <section aria-labelledby="task-links" className="flex flex-col gap-1.5 border-t pt-4">
           <h3 id="task-links" className="text-xs font-medium text-muted-foreground">
             {t("task.links")}
@@ -464,6 +464,12 @@ function Properties({
                 </span>
               ) : null}
             </a>
+          ) : null}
+          {task.merged_locally ? (
+            <span className="flex items-center gap-2 px-2 py-1">
+              <GitMerge className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              {t("task.merged_locally")}
+            </span>
           ) : null}
           {task.spec_ref ? (
             <span className="flex min-w-0 items-center gap-2 px-2 py-1">

@@ -74,6 +74,7 @@ export const es = {
   "receipt.row.attempts": "Intentos",
   "receipt.row.time": "Tiempo",
   "receipt.row.prs": "PRs",
+  "receipt.row.merged": "Fusión local",
   "receipt.row.tokens": "Tokens",
   "receipt.row.cost": "Costo",
   "receipt.times_short": "{wall} de reloj · {agent} de agentes",
@@ -142,6 +143,7 @@ export const es = {
   "receipt.failed_attempts": { one: "{count} intento fallido", other: "{count} intentos fallidos" },
   "receipt.times": "{wall} de reloj · {agent} de agentes",
   "receipt.prs": { one: "{count} PR, {passed} pasaron CI", other: "{count} PRs, {passed} pasaron CI" },
+  "receipt.merged": { one: "{count} tarea en {base}", other: "{count} tareas en {base}" },
   "receipt.tokens": "{raw} tokens",
   "receipt.tokens_weighted": "{weighted} ponderados · {raw} sin ponderar",
   "receipt.dispatches": { one: "{count} despacho", other: "{count} despachos" },
@@ -244,6 +246,7 @@ export const es = {
 
   "task.hours": "{hours} h",
   "task.pr": "PR",
+  "task.merged_locally": "Fusionada localmente",
   "task.ready": "Lista para empezar",
   "task.on_critical_path": "En la ruta crítica",
   "task.deps_pending": "Algunas dependencias no están hechas",

@@ -83,6 +83,10 @@ func (s *Server) ciView() (ciPayload, error) {
 // something else, said the way the fix reads.
 func ciWarnings(c ciConfig, workflows []ci.Workflow) []string {
 	out := []string{}
+	if c.Provider == config.VCSProviderLocal {
+		// No PR, no CI on one: finished tasks merge into the base here.
+		return out
+	}
 	if c.AutoPR && !c.WorktreeMode {
 		out = append(out, "vcs.auto_pr is on but dispatch.worktree_mode is off: orch run refuses to start, because there is no branch to open a PR from.")
 	}

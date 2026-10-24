@@ -56,6 +56,17 @@ type Receipt struct {
 	TotalCostUSD     float64    `json:"total_cost_usd"`
 	EstimatedCostUSD float64    `json:"estimated_cost_usd"`
 	PRs              []PR       `json:"prs"`
+	// MergedLocally is the tasks squash-merged into the base here, in place
+	// of a PR (vcs.provider: local, #455).
+	MergedLocally []Merge `json:"merged_locally"`
+}
+
+// Merge is a task the run merged into the base here.
+type Merge struct {
+	TaskID string `json:"task_id"`
+	Title  string `json:"title"`
+	Base   string `json:"base"`
+	Commit string `json:"commit"`
 }
 
 // TaskRef names a task. On a blocked task, Cause says why it stopped:
@@ -151,7 +162,7 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 	sort.SliceStable(mine, func(i, j int) bool { return at(mine[i]).Before(at(mine[j])) })
 
 	ref := func(id string) TaskRef { return TaskRef{TaskID: id, Title: titles[id]} }
-	r := &Receipt{RunID: runID, StartedAt: mine[0].TS, Done: []TaskRef{}, Blocked: []TaskRef{}, Providers: []Provider{}, PRs: []PR{}}
+	r := &Receipt{RunID: runID, StartedAt: mine[0].TS, Done: []TaskRef{}, Blocked: []TaskRef{}, Providers: []Provider{}, PRs: []PR{}, MergedLocally: []Merge{}}
 	start, end := at(mine[0]), at(mine[len(mine)-1])
 
 	// outcome is each task's latest verdict in the run; why is what its
@@ -204,6 +215,10 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 			seenPR[url] = true
 			status := ci[e.TaskID].CIStatus
 			r.PRs = append(r.PRs, PR{TaskID: e.TaskID, Title: titles[e.TaskID], URL: url, CIStatus: status})
+		case "merged_locally":
+			base, _ := e.Extra["base"].(string)
+			commit, _ := e.Extra["commit"].(string)
+			r.MergedLocally = append(r.MergedLocally, Merge{TaskID: e.TaskID, Title: titles[e.TaskID], Base: base, Commit: commit})
 		case "sprint_done":
 			r.Finished, r.FinishedAt, end = true, e.TS, at(e)
 		}
@@ -403,6 +418,12 @@ func (r *Receipt) Markdown() string {
 				ciState = "no CI result"
 			}
 			fmt.Fprintf(&b, "- [#%s](%s) %s %s — %s\n", num, p.URL, p.TaskID, p.Title, ciState)
+		}
+	}
+	if len(r.MergedLocally) > 0 {
+		b.WriteString("\n**Merged locally**\n\n")
+		for _, m := range r.MergedLocally {
+			fmt.Fprintf(&b, "- %s %s — `%.7s` on %s\n", m.TaskID, m.Title, m.Commit, m.Base)
 		}
 	}
 	return b.String()

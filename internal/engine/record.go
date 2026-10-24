@@ -42,6 +42,9 @@ const (
 	EventReconciled = "reconciled"
 	// EventPRCreated marks a pull request opened for a finished task.
 	EventPRCreated = "pr_created"
+	// EventMergedLocally marks a finished task squash-merged into the base
+	// here, with nothing pushed (vcs.provider: local, #455). Go only.
+	EventMergedLocally = "merged_locally"
 
 	// EventSprintDone marks the run whose queue emptied (F4.7). Run-level,
 	// so its task_id is empty; the counts ride in `extra`. Go only —

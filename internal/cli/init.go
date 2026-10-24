@@ -125,6 +125,11 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 
 			recordInitTemplate(res.Root, opts.Template)
 			printInitResult(cmd, res, opts, scaffold.DiscoverySummary(router.OnPath, opts.Models, failed))
+			if err := runLocallyWhenNoForge(res.Root, false, func(format string, a ...any) {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), format+"\n", a...)
+			}); err != nil {
+				return fmt.Errorf("the project is initialized, but %w", err)
+			}
 			// orch's rules for the CLIs the project routes to (#400): the
 			// wizard asks, Enter accepts; batch writes them. A failure here
 			// is reported, but the project is already written.
@@ -230,6 +235,39 @@ const reportFindingsNotice = "report_findings is on: agents may file public issu
 // `orch start` (#377) installs the planning skills and has claude plan it.
 func planSteps() []string {
 	return []string{`orch start "<what you want to build>"`}
+}
+
+// runLocallyWhenNoForge sets vcs.provider: local in a project just scaffolded
+// in a repository with no remote, or on a machine without gh (#455), and says
+// so: finished tasks are then merged into the base here instead of waiting on
+// a pull request that cannot be opened. A directory that is not a repository
+// yet is left alone; baseProblem already says what to run there. inPlace is
+// `orch start`, which runs at once: with no commit to branch from yet, its
+// agents work in the checkout instead (#377).
+func runLocallyWhenNoForge(root string, inPlace bool, say func(string, ...any)) error {
+	remotes, err := exec.Command("git", "-C", root, "remote").Output() // #nosec G204 -- fixed git subcommand on the project root
+	if err != nil {
+		return nil
+	}
+	why := "no git remote"
+	if strings.TrimSpace(string(remotes)) != "" {
+		if _, err := exec.LookPath("gh"); err == nil {
+			return nil
+		}
+		why = "gh is not installed"
+	}
+	inPlace = inPlace && baseProblem(root, repoBranch(root)) != ""
+	if err := scaffold.RunLocally(root, inPlace); err != nil {
+		return fmt.Errorf("configuring a project with %s: %w", why, err)
+	}
+	if inPlace {
+		say("✓ %s: agents work in this directory, without branches or pull requests "+
+			"(once it has a commit, turn dispatch.worktree_mode on to have each task merged in locally)", why)
+		return nil
+	}
+	say("✓ %s: each task is merged into the base branch here once it passes — no push, no pull request (vcs.provider: local).\n"+
+		"  On GitHub later: push the base branch, then set vcs.provider: github in .orchestrator/config.yaml.", why)
+	return nil
 }
 
 // repoBranch is the branch HEAD names in dir's repository — known even before

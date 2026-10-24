@@ -158,7 +158,10 @@ doctor` warns (`compose.isolation`) about compose files at the root or one
 directory down that set a fixed `name:` or publish a fixed host port.
 
 With `worktree_mode` on and no git repo — or no remote — orch **degrades and
-says so** rather than failing: see `orch doctor`.
+says so** rather than failing: see `orch doctor`. With no remote and
+`vcs.provider: github`, each task's work stays on its local `orch/<task-id>`
+branch and nothing reaches the base; `vcs.provider: local` merges it in (see
+`vcs` below).
 
 **Where worktrees live.** Each task gets `<project>.worktrees/<task-id>/`, a
 directory *next to* the project, on branch `orch/<task-id>`:
@@ -218,7 +221,7 @@ dispatched agents:
 
 ```yaml
 vcs:
-  provider: github       # github | gitlab
+  provider: github       # github | gitlab | local
   host: github.com
   auto_pr: true          # open a PR per finished task
   ci_max_retries: 1      # CI-triggered re-dispatches before blocking
@@ -227,6 +230,17 @@ vcs:
 
 Needs `gh` (or `glab`) authenticated. Without it, PRs are skipped with a
 warning; worktrees still work.
+
+`provider: local` (#455) is for a repository with no remote or no `gh`: with
+`dispatch.worktree_mode` on, each task that finishes and passes the local
+verify is squash-merged into `dispatch.base_branch` in the repository itself,
+one at a time, and its branch deleted — nothing is pushed, no PR is opened,
+`auto_pr`, `host` and the `ci_*` keys are ignored. A task whose work conflicts
+with the base goes back to its agent with the base merged in
+(`retry.conflict`), then blocks naming the files. `orch init` writes `local`
+when the repository has no remote or `gh` is not on PATH; a project without
+the key keeps `github`. Moving to GitHub later: push the base branch, set
+`provider: github`. See the manual's "Starting without GitHub".
 
 ### `github`
 

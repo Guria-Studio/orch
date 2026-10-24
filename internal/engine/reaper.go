@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/providers"
 )
 
@@ -148,7 +149,12 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	if !stopped && !agentBlocked && !verifyFailed && !failingOver && out.Result.Success {
 		s.captureLessons(ctx, entry)
 	}
-	if !sendBack && !failingOver {
+	var land localLand
+	switch {
+	case sendBack || failingOver:
+	case s.Opts.LocalMerge && s.Worktree != nil && tidyOut.Result.Success:
+		land = s.landLocally(ctx, entry)
+	default:
 		prOpened, noPR = s.tidyWorktree(ctx, entry, tidyOut)
 	}
 
@@ -171,6 +177,12 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		return s.failOver(ctx, entry, out, failover)
 	case !out.Result.Success:
 		return s.handleFailure(ctx, entry, out)
+	case land.conflict != nil:
+		return s.resolveLandConflict(ctx, entry, land.conflict)
+	case land.block != "":
+		return s.blockTask(ctx, entry, truncateReason(land.block), out)
+	case land.landed:
+		return s.markLanded(ctx, entry, land.commit)
 	case prOpened:
 		// The work is pushed and under review. The CI poller decides
 		// whether it is done; marking it now would finish a task whose
@@ -261,17 +273,7 @@ func (s *Scheduler) prExpected() bool {
 // it, so a task that thinks it is waiting on CI would wait forever.
 func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string) string {
 	task := entry.Task
-
-	spec := task.SpecRef
-	if spec == "" {
-		spec = "n/a"
-	}
-	title := task.Title
-	if title == "" {
-		title = task.ID
-	}
-	body := strings.TrimSpace(fmt.Sprintf("Task: `%s`\nSpec: %s\n\n%s", task.ID, spec, task.Reason))
-	body += s.scopeSection(ctx, task)
+	title, body := s.prText(ctx, task)
 
 	prURL, created := existing, existing == ""
 	var err error
@@ -310,6 +312,99 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 		s.logger().Error("recording the pr_created event failed", "task", task.ID, "err", err)
 	}
 	return ""
+}
+
+// localLand is what landLocally decided.
+type localLand struct {
+	landed   bool
+	commit   string // "" when the task changed nothing
+	conflict *prompt.Conflict
+	block    string
+}
+
+// landLocally squash-merges a finished task into the base here
+// (vcs.provider: local, #455), in place of push and PR: the reaper finishes
+// one task at a time, so tasks land one at a time and a dependent is only
+// dispatched once its dependencies are on the base. A conflict with the base
+// is merged into the kept worktree for the agent to resolve (#438), up to
+// ConflictRetries times.
+func (s *Scheduler) landLocally(ctx context.Context, entry *InFlight) localLand {
+	id, base := entry.Task.ID, s.baseBranch()
+	s.commitWork(ctx, id, entry.Dispatch.Cwd)
+	title, body := s.prText(ctx, entry.Task)
+	res, err := s.Worktree.LandLocally(ctx, id, base, title+"\n\n"+body)
+	if err != nil {
+		s.logger().Error("merging the task into the base failed", "task", id, "err", err)
+		s.removeWorktree(ctx, id)
+		return localLand{block: "the agent exited cleanly but merging its work into " + base + " failed (its work is kept on " +
+			s.Worktree.BranchName(id) + "): " + err.Error()}
+	}
+	if len(res.Conflicts) == 0 {
+		return localLand{landed: true, commit: res.Commit}
+	}
+	files := strings.Join(res.Conflicts, ", ")
+	if s.landConflicts[id] >= s.Opts.ConflictRetries {
+		s.removeWorktree(ctx, id)
+		return localLand{block: "the work conflicts with " + base + " in " + files + " (kept on " + s.Worktree.BranchName(id) + ")"}
+	}
+	merge, err := s.Worktree.MergeBase(ctx, id, base)
+	if err != nil || len(merge.Conflicts) == 0 {
+		// The merge-tree said conflict and the real merge disagrees, or
+		// could not run: nothing for the agent to resolve.
+		s.removeWorktree(ctx, id)
+		return localLand{block: fmt.Sprintf("the work conflicts with %s in %s, and merging %s into its worktree failed: %v", base, files, base, err)}
+	}
+	return localLand{conflict: &prompt.Conflict{Base: base, Files: merge.Conflicts, Commits: merge.Commits}}
+}
+
+func (s *Scheduler) removeWorktree(ctx context.Context, id string) {
+	if err := s.Worktree.Remove(ctx, id); err != nil {
+		s.logger().Error("worktree: remove failed", "task", id, "err", err)
+	}
+}
+
+// resolveLandConflict sends a task whose local merge conflicts back to its
+// agent, in its worktree with the base merged in and the markers left there.
+func (s *Scheduler) resolveLandConflict(ctx context.Context, entry *InFlight, c *prompt.Conflict) error {
+	id := entry.Task.ID
+	s.landConflicts[id]++
+	s.retryWorktree[id] = entry.Dispatch.Cwd
+	s.conflictRetry[id] = c
+	s.logger().Warn("the task's work conflicts with the base; sending it back to its agent",
+		"task", id, "files", strings.Join(c.Files, ", "), "attempt", s.landConflicts[id])
+	if s.Backend != nil {
+		if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventCIConflictRetry, id,
+			string(entry.Route.Backend), map[string]any{
+				"agent": true, "local": true, "attempt": s.landConflicts[id], "files": c.Files,
+				"reason": "conflicts with " + c.Base + " in " + strings.Join(c.Files, ", ") + "; sent to the agent",
+			}); err != nil {
+			s.logger().Error("recording the conflict retry failed", "task", id, "err", err)
+		}
+		if err := transitionThroughTodo(ctx, s.Backend, id, model.StatusTodo, "the work conflicts with "+c.Base+"; sent back to its agent"); err != nil {
+			s.logger().Error("reopening the task failed", "task", id, "err", err)
+		}
+	}
+	if err := s.Queue.MarkTodo(id); err != nil {
+		s.logger().Error("resetting to todo failed", "task", id, "err", err)
+	}
+	s.retryQueue = append(s.retryQueue, RetryItem{Task: entry.Task, Route: entry.Route, Attempt: entry.Attempt + 1, EarliestAt: s.now()})
+	return nil
+}
+
+// markLanded finishes a task merged into the base here, and says so where
+// status and the dashboard read it: the task's last event.
+func (s *Scheduler) markLanded(ctx context.Context, entry *InFlight, commit string) error {
+	if err := s.markDone(ctx, entry); err != nil {
+		return err
+	}
+	s.logger().Info("merged locally", "task", entry.Task.ID, "base", s.baseBranch(), "commit", commit)
+	if s.Backend != nil {
+		if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventMergedLocally, entry.Task.ID,
+			string(entry.Route.Backend), map[string]any{"base": s.baseBranch(), "commit": commit}); err != nil {
+			s.logger().Error("recording the local merge failed", "task", entry.Task.ID, "err", err)
+		}
+	}
+	return nil
 }
 
 // markDone finishes a successful task.
@@ -539,6 +634,20 @@ func (s *Scheduler) RetryQueue() []RetryItem { return s.retryQueue }
 
 // SpentUSD is what a task has cost across every attempt.
 func (s *Scheduler) SpentUSD(taskID string) float64 { return s.spentUSD[taskID] }
+
+// prText is a task's PR title and body, and its local squash commit's message.
+func (s *Scheduler) prText(ctx context.Context, task model.Task) (title, body string) {
+	spec := task.SpecRef
+	if spec == "" {
+		spec = "n/a"
+	}
+	title = task.Title
+	if title == "" {
+		title = task.ID
+	}
+	body = strings.TrimSpace(fmt.Sprintf("Task: `%s`\nSpec: %s\n\n%s", task.ID, spec, task.Reason))
+	return title, body + s.scopeSection(ctx, task)
+}
 
 // scopeSection names, for the PR body, the files the agent changed outside
 // the task's file list (#318, #319, #320). The prompt lets an agent make the

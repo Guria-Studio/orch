@@ -511,6 +511,8 @@ type recordingWorktree struct {
 	setupEnv []string
 	// deps is what each Create was asked to merge in, by task.
 	deps map[string][]string
+	// land is what LandLocally answers.
+	land worktree.Landing
 }
 
 func (w *recordingWorktree) record(name string) {
@@ -578,7 +580,11 @@ func (w *recordingWorktree) Recreate(_ context.Context, taskID string) (string, 
 }
 func (w *recordingWorktree) MergeBase(context.Context, string, string) (worktree.MergeResult, error) {
 	w.record("merge_base")
-	return worktree.MergeResult{}, nil
+	return worktree.MergeResult{Conflicts: w.land.Conflicts, Commits: w.land.Commits}, nil
+}
+func (w *recordingWorktree) LandLocally(context.Context, string, string, string) (worktree.Landing, error) {
+	w.record("land")
+	return w.land, nil
 }
 func (w *recordingWorktree) BranchName(taskID string) string { return "orch/" + taskID }
 func (w *recordingWorktree) ChangedFiles(context.Context, string) ([]string, error) {
@@ -636,6 +642,56 @@ func TestWorktreeCallerContract(t *testing.T) {
 			status, _ := f.s.Queue.Status("C-1")
 			if tt.wantDone && status != model.StatusDone {
 				t.Errorf("status = %q, want done", status)
+			}
+		})
+	}
+}
+
+// TestLocalMerge: with vcs.provider local (#455) a finished task is landed on
+// the base here, never pushed; one that conflicts goes back to its agent in
+// its kept worktree with the base merged in, and once the retries are spent it
+// blocks naming the files.
+func TestLocalMerge(t *testing.T) {
+	conflict := worktree.Landing{Conflicts: []string{"a.go"}, Commits: []string{"abc main: a"}}
+	tests := []struct {
+		name      string
+		land      worktree.Landing
+		retries   int
+		wantCalls []string
+		want      model.Status
+		wantEvent string
+	}{
+		{"a clean land finishes the task", worktree.Landing{Commit: "abc123"}, 1,
+			[]string{"commit", "land"}, model.StatusDone, EventMergedLocally},
+		{"a conflict goes back to the agent", conflict, 1,
+			[]string{"commit", "land", "merge_base"}, model.StatusTodo, EventCIConflictRetry},
+		{"a conflict with no retries left blocks", conflict, 0,
+			[]string{"commit", "land", "remove"}, model.StatusBlocked, EventFail},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newReapFixture(t,
+				[]model.Task{task("C-1", 1, "claude/opus")},
+				map[string]fakeResponse{"C-1": okResponse()},
+				SchedulerOptions{WorktreeMode: true, LocalMerge: true, ConflictRetries: tt.retries})
+			wt := &recordingWorktree{dir: t.TempDir(), land: tt.land}
+			f.s.Worktree = wt
+
+			f.runOnce(t)
+
+			if got := wt.callList(); !equalStrings(got, append([]string{"create"}, tt.wantCalls...)) {
+				t.Errorf("calls = %v, want create then %v", got, tt.wantCalls)
+			}
+			if got, _ := f.s.Queue.Status("C-1"); got != tt.want {
+				t.Errorf("status = %q, want %q", got, tt.want)
+			}
+			if got := f.backend.eventTypes("C-1"); got[len(got)-1] != tt.wantEvent {
+				t.Errorf("events = %v, want %s last", got, tt.wantEvent)
+			}
+			if tt.want == model.StatusTodo {
+				if c := f.s.conflictRetry["C-1"]; c == nil || c.Files[0] != "a.go" || len(f.s.RetryQueue()) != 1 {
+					t.Errorf("conflict retry = %+v, queue %v; want a.go, queued once", c, f.s.RetryQueue())
+				}
 			}
 		})
 	}
