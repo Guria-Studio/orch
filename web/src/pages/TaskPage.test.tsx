@@ -131,6 +131,15 @@ describe("TaskPage", () => {
     expect(screen.getByText("now").tagName).toBe("STRONG")
   })
 
+  // vcs.provider: local (#455): the links say the work is on the base, in place of a PR.
+  it("says a task was merged locally among its links", async () => {
+    get.mockImplementation((url: string) => Promise.resolve({ data: url === "/api/task/F6.1.T1" ? { ...task, status: "done", merged_locally: true } : { events: [], steps: [] } }))
+    renderAt([taskPath("F6.1.T1")])
+    const links = await screen.findByRole("region", { name: "Links" })
+    expect(within(links).getByText("Merged locally")).toBeInTheDocument()
+    expect(within(links).queryByRole("link", { name: /PR/ })).not.toBeInTheDocument()
+  })
+
   it("goes back to the board it came from, filters and all", async () => {
     renderAt(["/work/kanban?status=blocked", taskPath("F6.1.T1")])
     fireEvent.click(await screen.findByRole("button", { name: "Back" }))
