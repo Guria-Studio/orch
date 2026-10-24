@@ -44,6 +44,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/pyfmt"
 	"github.com/hectorcanaimero/orch/internal/state"
@@ -107,6 +108,14 @@ type Options struct {
 	// Conflict is the merge of the base a conflict retry stopped on (#438).
 	// Nil, the block is not rendered.
 	Conflict *Conflict
+
+	// Knowledge are the project lessons picked for this task (#451), most
+	// relevant first. Empty, the block is not rendered.
+	Knowledge []knowledge.Lesson
+	// Learn invites the agent to record a lesson with orch_learn
+	// (knowledge.enabled). Off, the prompt is byte-identical to the one
+	// without the feature.
+	Learn bool
 }
 
 // Conflict is the base merged into a conflict retry's working dir, the files
@@ -168,20 +177,22 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 	}
 
 	return expand(template, map[string]string{
-		"id":             task.ID,
-		"title":          task.Title,
-		"description":    task.Description,
-		"files":          renderFiles(task.Files),
-		"spec_ref_line":  specLine,
-		"deps_block":     renderDepsBlock(completedDeps),
-		"notes_block":    renderNotesBlock(opts.OperatorNotes),
-		"feedback_block": feedbackBlock(opts.FeedbackFile),
-		"conflict_block": conflictBlock(opts.Conflict),
-		"model":          task.Model,
-		"working_dir":    workingDir,
-		"tdd_line":       tddLine(opts.TDD),
-		"compose_line":   composeLine(opts.ComposeProject),
-		"findings_block": findingsBlock(opts.ReportFindings),
+		"id":              task.ID,
+		"title":           task.Title,
+		"description":     task.Description,
+		"files":           renderFiles(task.Files),
+		"spec_ref_line":   specLine,
+		"deps_block":      renderDepsBlock(completedDeps),
+		"knowledge_block": knowledgeBlock(opts.Knowledge),
+		"notes_block":     renderNotesBlock(opts.OperatorNotes),
+		"feedback_block":  feedbackBlock(opts.FeedbackFile),
+		"conflict_block":  conflictBlock(opts.Conflict),
+		"model":           task.Model,
+		"working_dir":     workingDir,
+		"tdd_line":        tddLine(opts.TDD),
+		"compose_line":    composeLine(opts.ComposeProject),
+		"findings_block":  findingsBlock(opts.ReportFindings),
+		"learn_line":      learnLine(opts.Learn),
 	}), warnings
 }
 
@@ -384,6 +395,57 @@ func conflictBlock(c *Conflict) string {
 	return b.String()
 }
 
+// Caps on the knowledge block (#451): a lesson is a few lines, and the block
+// must never crowd out the task.
+const (
+	lessonMaxLines = 15
+	lessonMaxChars = 600
+	knowledgeMax   = 4000
+)
+
+// knowledgeBlock lists the project lessons picked for this task, or nothing.
+// After the dependencies: what the project learned is context, like what
+// they reported; the operator's notes still come last.
+func knowledgeBlock(lessons []knowledge.Lesson) string {
+	if len(lessons) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Project knowledge (lessons earlier tasks recorded in .orch/knowledge/; follow them\n" +
+		"unless the spec or the operator says otherwise):\n")
+	head := b.Len()
+	for _, l := range lessons {
+		var e strings.Builder
+		fmt.Fprintf(&e, "  - %s", l.Title)
+		if len(l.Area) > 0 {
+			fmt.Fprintf(&e, " [%s]", strings.Join(l.Area, ", "))
+		}
+		e.WriteString("\n")
+		lines := strings.Split(truncateRunes(strings.TrimSpace(l.Body), lessonMaxChars), "\n")
+		if len(lines) > lessonMaxLines {
+			lines = append(lines[:lessonMaxLines], "…")
+		}
+		for _, line := range lines {
+			fmt.Fprintf(&e, "    %s\n", strings.TrimRight(line, " \t"))
+		}
+		if b.Len()+e.Len() > knowledgeMax && b.Len() > head {
+			break
+		}
+		b.WriteString(e.String())
+	}
+	return b.String()
+}
+
+// learnLine invites the agent to leave a lesson for the tasks after it, or
+// is empty (knowledge.enabled off).
+func learnLine(on bool) string {
+	if !on {
+		return ""
+	}
+	return "- If you learned something a later task in this project should know (a convention,\n" +
+		"  a trap, what fixed a failure), record it once with orch_learn: title, lesson, area.\n"
+}
+
 // OperatorNotes picks the operator's notes out of a task's own comment
 // trail, oldest first: the entries whose kind is state.NoteKindOperator.
 func OperatorNotes(comments []json.RawMessage) []string {
@@ -565,6 +627,9 @@ func truncateRunes(s string, n int) string {
 //     file** (the CI logs). It follows the notes, under the same rule.
 //   - **The conflict block exists only on a conflict retry** (#438). It
 //     follows the feedback block, under the same rule.
+//   - **Project knowledge exists only when lessons were picked** (#451). It
+//     follows the dependency block, and the orch_learn line exists only with
+//     knowledge.enabled, under the same rule.
 const template = `TASK_ID={id}
 You are executing task {id}.
 
@@ -573,7 +638,7 @@ Title: {title}
 Description: {description}
 Files you may write: {files}
 Spec ref (READ FIRST): {spec_ref_line}
-{deps_block}{notes_block}{feedback_block}{conflict_block}
+{deps_block}{knowledge_block}{notes_block}{feedback_block}{conflict_block}
 Coordination protocol:
 1. Read the spec ref for the exact acceptance criteria for {id}.
 2. Do the work. {id} is already in-progress — the orchestrator moved it before launching you.
@@ -599,4 +664,4 @@ Constraints:
   manifest and lockfile of the package you work in for a dependency the task
   needs — edit it, and name each such file and why in your done note.
 - Report progress through one of the two channels above only.
-{tdd_line}{compose_line}{findings_block}`
+{tdd_line}{compose_line}{learn_line}{findings_block}`

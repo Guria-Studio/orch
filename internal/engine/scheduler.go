@@ -12,6 +12,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/providers"
@@ -152,6 +153,9 @@ type Scheduler struct {
 	// Verifier checks a clean exit's work in its worktree before the push
 	// (verify.enabled). Nil, or worktree mode off, verifies nothing.
 	Verifier Verifier
+	// Knowledge ranks the project lessons a prompt carries (knowledge.enabled,
+	// #451). Nil renders no lessons.
+	Knowledge knowledge.Ranker
 	// Log receives the operator-facing lines. Nil uses slog's default.
 	Log *slog.Logger
 
@@ -612,6 +616,8 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
 		Conflict:       s.conflictRetry[task.ID],
+		Knowledge:      s.lessonsFor(ctx, task, workdir),
+		Learn:          s.Opts.Cfg.Knowledge.Enabled,
 	})
 	delete(s.conflictRetry, task.ID)
 	if err != nil {

@@ -1,0 +1,94 @@
+# #451: an agent's orch_learn lesson is committed in its task's branch, and a
+# later, unrelated task touching the same area gets it in its prompt.
+#
+# The coding CLI is the usual ORCH_FAKE_PROVIDER, whose script runs `sleep`
+# first: bin/sleep stands in for the agent. It keeps the prompt it was given
+# and, as T-1, calls orch_learn through `orch mcp` the way an agent's MCP
+# client would. Between the two runs the branch is merged, as its PR would be.
+
+[!exec:git] skip
+[!exec:sh] skip
+
+chmod 0755 $WORK/bin/sleep
+env PATH=$WORK/bin:$PATH
+env ORCH_FAKE_PROVIDER=$WORK/fake
+env CHILD_OUT=$WORK/child
+mkdir $WORK/child
+
+cd $WORK/kproj
+exec git init -q --initial-branch=main .
+exec git config user.email orch@example.com
+exec git config user.name orch
+exec git config commit.gpgsign false
+exec git add -A
+exec git commit -q -m 'initial'
+
+exec orch run --no-push --skip-update-check
+
+# T-1 had no lessons to read, and was told how to leave one.
+! grep 'Project knowledge' $WORK/child/T-1.prompt
+grep 'record it once with orch_learn' $WORK/child/T-1.prompt
+grep '"path":".orch/knowledge/[0-9]+-auth-tokens-must-be-refreshed-before-a-retry.md"' $WORK/child/learn.json
+
+# The lesson is in T-1's branch, not loose in the project.
+! exists .orch/knowledge
+exec git log --name-only --format= orch/T-1
+stdout '^\.orch/knowledge/[0-9]+-auth-tokens-must-be-refreshed-before-a-retry\.md$'
+
+# T-1's PR is merged, and T-2 — no dependency on T-1, another file in the
+# same package — is added.
+exec git merge -q orch/T-1
+cp $WORK/tasks2.json tasks.json
+exec orch run --no-push --skip-update-check
+
+grep 'Project knowledge' $WORK/child/T-2.prompt
+grep '  - Auth tokens must be refreshed before a retry \[internal/auth/\]' $WORK/child/T-2.prompt
+grep '    A 401 from the API means the token expired' $WORK/child/T-2.prompt
+
+exec orch knowledge list
+stdout 'agent +internal/auth/ +Auth tokens must be refreshed before a retry'
+
+-- kproj/tasks.json --
+{"tasks":[{"id":"T-1","phase":1,"title":"log in","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":["internal/auth/login.go"],"specRef":"","reason":"because"}]}
+-- tasks2.json --
+{"tasks":[{"id":"T-1","phase":1,"title":"log in","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":["internal/auth/login.go"],"specRef":"","reason":"because"},{"id":"T-2","phase":1,"title":"session cookie","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":["internal/auth/session.go"],"specRef":"","reason":"because"}]}
+-- kproj/.orchestrator/config.yaml --
+concurrency:
+  global_max: 1
+  per_provider:
+    claude: 1
+dispatch:
+  worktree_mode: true
+  base_branch: main
+vcs:
+  auto_pr: false
+knowledge:
+  enabled: true
+-- kproj/.orchestrator/model_router.yaml --
+claude/haiku:
+  backend: claude
+  cli_model: claude-haiku-4-5
+  tier: cheap
+  is_premium: false
+-- kproj/scripts/task-start.sh --
+#!/bin/sh
+exec orch task-status "$1" in-progress
+-- kproj/scripts/task-finish.sh --
+#!/bin/sh
+exec orch task-status "$1" done
+-- fake/claude/_default.out --
+{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}
+-- bin/sleep --
+#!/bin/sh
+# The fake provider's first command, run by the dispatched child itself: the
+# agent. Its stdin is the prompt.
+cat > "$CHILD_OUT/$ORCH_TASK_ID.prompt"
+[ "$ORCH_TASK_ID" = T-1 ] || exit 0
+{
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"fake-agent","version":"0"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"orch_learn","arguments":{"title":"Auth tokens must be refreshed before a retry","lesson":"A 401 from the API means the token expired: refresh it, then retry once.","area":["internal/auth/"]}}}'
+  command -p sleep 1
+} | orch mcp > "$CHILD_OUT/learn.json"
+exit 0

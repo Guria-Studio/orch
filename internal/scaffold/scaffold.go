@@ -201,7 +201,8 @@ func Run(opts Options) (Result, error) {
 	}
 	w.reportFindings(opts)
 	w.verify()
-	w.conflictRetry()
+	w.ensureBlock(reRetryBlock, conflictRetryBlock, "retry.conflict")
+	w.ensureBlock(reKnowledgeBlock, knowledgeBlock, "knowledge")
 	w.stampTaskMeta(opts)
 	if opts.Template == "" && !opts.NoSampleTask {
 		res.SampleTask = w.sampleTask(opts.TierDefaults)
@@ -694,30 +695,45 @@ func (w *writer) verify() {
 
 var reVerifyBlock = regexp.MustCompile(`(?m)^verify:`)
 
-// conflictRetry gives a template project, whose config.yaml.tmpl has no
-// retry block, the retry.conflict a blank one gets from the packaged default
-// (#438). A template that writes its own retry block keeps it as written.
-func (w *writer) conflictRetry() {
+// ensureBlock gives a template project, whose config.yaml.tmpl is partial,
+// a block a blank one gets from the packaged default: retry.conflict (#438),
+// knowledge (#451). A template that writes its own block keeps it as written.
+func (w *writer) ensureBlock(re *regexp.Regexp, block, what string) {
 	if w.err != nil {
 		return
 	}
 	rel := filepath.Join(".orchestrator", "config.yaml")
 	raw, err := os.ReadFile(w.path(rel)) // #nosec G304 -- the file this scaffold just wrote
 	if err != nil {
-		w.fail("read %s to add retry.conflict: %w", rel, err)
+		w.fail("read %s to add %s: %w", rel, what, err)
 		return
 	}
 	body := string(raw)
-	if reRetryBlock.MatchString(body) {
+	if re.MatchString(body) {
 		return
 	}
 	if !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
-	w.write(rel, []byte(body+"\n"+conflictRetryBlock), 0o600)
+	w.write(rel, []byte(body+"\n"+block), 0o600)
 }
 
-var reRetryBlock = regexp.MustCompile(`(?m)^retry:`)
+var (
+	reRetryBlock     = regexp.MustCompile(`(?m)^retry:`)
+	reKnowledgeBlock = regexp.MustCompile(`(?m)^knowledge:`)
+)
+
+// knowledgeBlock is the knowledge block as the packaged default writes it.
+const knowledgeBlock = `# Project knowledge (#451): lessons under .orch/knowledge/, one markdown file
+# each, versioned with the code. Agents add them with orch_learn, orch drafts
+# them from a verify rejection the next attempt fixed or a resolved conflict,
+# and later tasks get the most relevant ones in their prompt. On in a new
+# project; a config without the block stays off.
+knowledge:
+  enabled: true
+  max_in_prompt: 5
+  auto_capture: true
+`
 
 // conflictRetryBlock is retry.conflict as the packaged default writes it.
 const conflictRetryBlock = `retry:

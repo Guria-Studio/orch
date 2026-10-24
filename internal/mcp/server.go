@@ -95,6 +95,9 @@ type Options struct {
 	// Findings files orch_report_finding's issues. Nil means
 	// `report_findings.enabled` is off: the tool is still listed, and says so.
 	Findings FindingsReporter
+	// Knowledge is knowledge.enabled: off, orch_learn and orch_knowledge_search
+	// are still listed, and say so.
+	Knowledge bool
 }
 
 // server holds the options every tool handler closes over.
@@ -200,6 +203,22 @@ func NewServer(opts Options) (*mcpsdk.Server, error) {
 			"does not count against max_attempts. With no orch run running it is a plain " +
 			"status change. Only when the operator asked for it.",
 	}, s.taskStop)
+
+	mcpsdk.AddTool(srv, &mcpsdk.Tool{
+		Name: "orch_learn",
+		Description: "Record one lesson for the tasks that come after yours in this project: " +
+			"a convention you discovered, a trap you fell into, what fixed a failure. It is " +
+			"written as a markdown file under .orch/knowledge/ in your working dir, committed " +
+			"with your work, and later tasks touching its area get it in their prompt. " +
+			"A few lines, about this project, no secrets. Once per lesson, then carry on.",
+	}, s.learn)
+
+	mcpsdk.AddTool(srv, &mcpsdk.Tool{
+		Name: "orch_knowledge_search",
+		Description: "Search the lessons earlier tasks recorded in .orch/knowledge/ (BM25 over " +
+			"their title, body, tags and area). Your prompt already carries the most relevant " +
+			"ones; search when you hit something they do not cover, and rephrase if nothing fits.",
+	}, s.knowledgeSearch)
 
 	return srv, nil
 }
