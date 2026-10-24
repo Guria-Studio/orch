@@ -157,6 +157,16 @@ verify:
   # e2e: [pnpm exec playwright test]
   # e2e_report: e2e-report.json
 
+# Project knowledge (#451): lessons under .orch/knowledge/, one markdown file
+# each, versioned with the code. Agents add them with orch_learn, orch drafts
+# them from a verify rejection the next attempt fixed or a resolved conflict,
+# and later tasks get the most relevant ones in their prompt. On in a new
+# project; a config without the block stays off.
+knowledge:
+  enabled: true
+  max_in_prompt: 5
+  auto_capture: true
+
 # Sprint G-1 — CI workflow auto-generation + auto-merge.
 # `orch init` generates .github/workflows/orch-ci.yml from this section
 # when it's absent from the target repo (never overwrites an existing one).

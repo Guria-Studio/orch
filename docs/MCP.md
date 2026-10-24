@@ -234,6 +234,30 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
   Without it the prompt is unchanged.
 - Returns `{filed, url?, duplicate?, commented?, similar?, message}`.
 
+### `orch_learn`
+
+`{title, lesson, area?, tags?, task_id?}` — records one lesson for the tasks
+after this one (#451): a convention, a trap, what fixed a failure, in a few
+lines (more than 20 is refused). It is written as a markdown file under
+`.orch/knowledge/` (`source: agent`, `task` from `task_id` or
+`ORCH_TASK_ID`) **in the task's worktree** when it has one — next to the
+project, `<project>.worktrees/<task>/` — and in the project root otherwise, so
+it is committed with the task's work and reaches the base through its PR.
+Later tasks whose files or spec fall under `area` get it first in their
+prompt's `Project knowledge` block. Needs `knowledge.enabled: true` (what
+`orch init` writes; absent is off): when off the tool is listed and answers
+with an error saying so. Returns `{id, path, message}`. See
+[`CONFIG.md`](CONFIG.md#knowledge--new-451).
+
+### `orch_knowledge_search`
+
+`{query, task_id?, limit?}` — searches the lessons in the task's worktree (or
+the project root) by BM25 over title, body, tags and area, best first,
+`limit` 5 by default. The prompt already carries the most relevant ones; this
+is for what they do not cover, and the agent rephrases as it likes. Returns
+`{lessons: [{id, title, area, tags, source, task, created, body, path}],
+message?}`; same opt-in as `orch_learn`.
+
 ### `orch_task_note`
 
 `{task_id, note}` — leaves a note for the task's agent on the operator's
@@ -261,7 +285,8 @@ steering a run without leaving the chat — not for a dispatched agent.
   engine is driven by `orch run`, and an agent that could dispatch other
   agents is a different product.
 - **No writes outside the status**, except the operator's notes and stop
-  requests (`orch_task_note`, `orch_task_stop`). Titles, descriptions,
+  requests (`orch_task_note`, `orch_task_stop`) and a lesson file in the
+  task's worktree (`orch_learn`). Titles, descriptions,
   dependencies and estimates live in `tasks.json`, which a human or `orch
   atomize` owns.
 - **No second view of the state.** The server shares one `state.Backend` with

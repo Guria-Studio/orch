@@ -62,6 +62,7 @@ func newMCPCmd(flags *projectFlags) *cobra.Command {
 				StateDir:    paths.StateDir(),
 				SpecRoot:    cfg.SpecRoot,
 				Version:     cmd.Root().Version,
+				Knowledge:   cfg.Knowledge.Enabled,
 			}
 			// A nil *budget.Gate must not be stored in the interface: the
 			// tool checks `Budget == nil`, and a typed nil is not nil.

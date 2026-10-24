@@ -53,6 +53,7 @@ type Config struct {
 	ReportFindings       ReportFindings `yaml:"report_findings"`
 	Portal               Portal         `yaml:"portal"`
 	Verify               Verify         `yaml:"verify"`
+	Knowledge            Knowledge      `yaml:"knowledge"`
 }
 
 // Verify checks an agent's work in its worktree after it exits cleanly and
@@ -104,6 +105,30 @@ type VerifyApp struct {
 	// ReadyTimeoutS is how long the app has to answer at URL.
 	ReadyTimeoutS int `yaml:"ready_timeout_s"`
 }
+
+// Knowledge is the project memory (#451): lessons under .orch/knowledge/ that
+// later tasks get in their prompt. Off when the key is absent; orch init and
+// orch start write it on.
+type Knowledge struct {
+	Enabled bool `yaml:"enabled"`
+	// MaxInPrompt is how many lessons a prompt carries; 0 means 5.
+	MaxInPrompt int `yaml:"max_in_prompt"`
+	// AutoCapture lets orch write draft lessons from what it saw: a verify
+	// rejection the next attempt fixed, a conflict the agent resolved. Nil
+	// (absent) means on.
+	AutoCapture *bool `yaml:"auto_capture"`
+}
+
+// Prompt is knowledge.max_in_prompt with its default.
+func (k Knowledge) Prompt() int {
+	if k.MaxInPrompt < 1 {
+		return 5
+	}
+	return k.MaxInPrompt
+}
+
+// Captures is whether orch writes draft lessons itself.
+func (k Knowledge) Captures() bool { return k.Enabled && (k.AutoCapture == nil || *k.AutoCapture) }
 
 // Portal configures what the client portal (`orch publish`) shows beyond the
 // project's status.

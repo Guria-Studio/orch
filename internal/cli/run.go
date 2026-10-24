@@ -18,6 +18,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/doctor"
 	"github.com/hectorcanaimero/orch/internal/engine"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/notify"
 	"github.com/hectorcanaimero/orch/internal/providers"
@@ -213,6 +214,10 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	// What `orch provider disable` turned off, read every tick so a switch
 	// flipped mid-run takes effect without a restart.
 	scheduler.Providers = backend
+	// The search index the prompt's project knowledge is ranked with (#451).
+	if r, ok := backend.(knowledge.Ranker); ok && cfg.Knowledge.Enabled {
+		scheduler.Knowledge = r
+	}
 	// Built unconditionally: with no webhook configured it is a
 	// working no-op, so the engine never has to ask whether the
 	// operator wanted notifications.

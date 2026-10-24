@@ -480,7 +480,8 @@ var defaultsDivergedFromPython = map[string]string{
 		"#399: `enabled: true` again — off by default meant almost nobody turned it on; init and start say so. " +
 		"feat/verify-default: a new project gets a `verify:` block with the local verify on (#398); " +
 		"a config without the block stays off. " +
-		"#438: a new project gets `retry.conflict.max_attempts: 1`; a config without it stays off",
+		"#438: a new project gets `retry.conflict.max_attempts: 1`; a config without it stays off. " +
+		"#451: a new project gets a `knowledge:` block with the project memory on; a config without it stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count",
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
@@ -1124,5 +1125,39 @@ func TestInitTurnsConflictRetriesOn(t *testing.T) {
 				t.Errorf("want exactly one retry block:\n%s", body)
 			}
 		})
+	}
+}
+
+// A new project keeps a project memory (#451) — blank or from any template,
+// whose config.yaml.tmpl carries no knowledge block — while a config without
+// the key stays off.
+func TestInitTurnsKnowledgeOn(t *testing.T) {
+	for _, template := range []string{"", "python-api", "nextjs-saas", "chatbot-whatsapp", "data-pipeline", "expo-mobile"} {
+		t.Run("template="+template, func(t *testing.T) {
+			res, err := Run(Options{Root: filepath.Join(t.TempDir(), "proj"), Template: template, Now: fixedNow})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			loaded, err := config.Load(filepath.Join(res.Root, ".orchestrator", "config.yaml"), res.Root)
+			if err != nil {
+				t.Fatalf("config.Load: %v", err)
+			}
+			k := loaded.Config.Knowledge
+			if !k.Enabled || k.Prompt() != 5 || !k.Captures() {
+				t.Errorf("knowledge = %+v, want enabled, 5 in the prompt, auto-capture on", k)
+			}
+			for _, w := range loaded.Warnings {
+				if strings.Contains(w, "knowledge") {
+					t.Errorf("config.Load warns about the knowledge block: %s", w)
+				}
+			}
+			if body := readFile(t, res, ".orchestrator/config.yaml"); strings.Count(body, "\nknowledge:") != 1 {
+				t.Errorf("want exactly one knowledge block:\n%s", body)
+			}
+		})
+	}
+	var absent config.Knowledge
+	if absent.Enabled || absent.Captures() {
+		t.Error("a config without the knowledge block is on")
 	}
 }
