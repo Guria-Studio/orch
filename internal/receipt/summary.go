@@ -3,6 +3,8 @@ package receipt
 import (
 	"fmt"
 	"strings"
+
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 )
 
 // Summary is a run's receipt in plain words (#456): what was built, what
@@ -99,7 +101,15 @@ func (s Summary) Text() string {
 	return b.String()
 }
 
-func retry(id string) string { return "orch task set --id " + id + " --status todo && orch run" }
+// retry is the command that retries a blocked task. A curation (#452) is not
+// in tasks.json, so `orch run` would never pick it up again: a fresh one is
+// its retry.
+func retry(id string) string {
+	if strings.HasPrefix(id, knowledge.CurateTaskPrefix) {
+		return "orch knowledge curate"
+	}
+	return "orch task set --id " + id + " --status todo && orch run"
+}
 
 // actionKey picks what to fix before the retry. A verify that could not
 // start the app is the config's to fix, not the agent's.

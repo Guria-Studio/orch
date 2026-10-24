@@ -31,6 +31,17 @@ import (
 // Dir is where a project keeps its lessons, relative to its root.
 const Dir = ".orch/knowledge"
 
+// MaxLines and MaxChars are how much of one lesson's body a dispatch prompt
+// carries; `orch knowledge curate` asks for lessons that fit.
+const (
+	MaxLines = 15
+	MaxChars = 600
+)
+
+// CurateTaskPrefix starts the id of every `orch knowledge curate` task
+// (#452): a task in the database only, never in tasks.json.
+const CurateTaskPrefix = "knowledge-curate-"
+
 // Sources are who can write a lesson.
 var Sources = []string{"agent", "verify", "review", "conflict", "operator"}
 
