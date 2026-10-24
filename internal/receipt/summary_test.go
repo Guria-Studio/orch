@@ -144,3 +144,14 @@ func TestSummaryNamesTheReviewFindings(t *testing.T) {
 		t.Errorf("summary = %q, want it to contain %q", got, want)
 	}
 }
+
+// A reason cut with "…" is not followed by the sentence's own ".".
+func TestSummaryCutReasonEndsOnce(t *testing.T) {
+	r := &Receipt{RunID: "r", Finished: true, Done: []TaskRef{}, Blocked: []TaskRef{{TaskID: "B", Cause: "verify", Reason: strings.Repeat("long reason ", 30)}}}
+	for _, lang := range []string{"en", "es", "pt"} {
+		line := r.Summary(lang, false).Lines[1]
+		if !strings.HasSuffix(line, "…") || strings.HasSuffix(line, "….") {
+			t.Errorf("%s: %q, want it to end on the cut's …", lang, line)
+		}
+	}
+}
