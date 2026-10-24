@@ -155,3 +155,20 @@ func TestSummaryCutReasonEndsOnce(t *testing.T) {
 		}
 	}
 }
+
+// A blocked curation is not in tasks.json, so `orch task set … && orch run`
+// cannot retry it: its next action is a fresh `orch knowledge curate` (#452).
+func TestSummaryRetriesACurationWithCurate(t *testing.T) {
+	r := summaryRun()
+	id := "knowledge-curate-20261024-155754"
+	r.Blocked[0].TaskID = id
+	for _, a := range r.Summary("en", false).Actions {
+		if strings.Contains(a.Text, id) {
+			if a.Command != "orch knowledge curate" {
+				t.Errorf("the curation's command = %q, want orch knowledge curate", a.Command)
+			}
+			return
+		}
+	}
+	t.Fatalf("no action names %s", id)
+}

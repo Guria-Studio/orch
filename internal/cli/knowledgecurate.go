@@ -22,9 +22,6 @@ import (
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
-// curatePrefix starts every curation task's id: knowledge-curate-<utc time>.
-const curatePrefix = "knowledge-curate-"
-
 // curateLogMax caps the commit list a curation prompt carries.
 const curateLogMax = 200
 
@@ -119,7 +116,7 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 	base := baseBranch(cfg)
 	task := curateTask(route, lessons, gitLogSince(paths.Root, base, lastDone), lastDone)
 	// A fresh id: a blocked curation's row keeps its own.
-	stem := curatePrefix + time.Now().UTC().Format("20060102-150405")
+	stem := knowledge.CurateTaskPrefix + time.Now().UTC().Format("20060102-150405")
 	task.ID = stem
 	for n := 2; ; n++ {
 		rows, err := backend.Tasks(ctx, state.TaskFilter{IDs: []string{task.ID}})
@@ -181,7 +178,7 @@ func lastCurations(ctx context.Context, backend state.Backend) (done, started ti
 		return done, started, fmt.Errorf("reading the tasks: %w", err)
 	}
 	for _, r := range rows {
-		if !strings.HasPrefix(r.ID, curatePrefix) {
+		if !strings.HasPrefix(r.ID, knowledge.CurateTaskPrefix) {
 			continue
 		}
 		if t, ok := state.ParseTS(r.FinishedAt); ok && r.Status == model.StatusDone && t.After(done) {

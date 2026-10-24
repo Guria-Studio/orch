@@ -38,6 +38,10 @@ const (
 	MaxChars = 600
 )
 
+// CurateTaskPrefix starts the id of every `orch knowledge curate` task
+// (#452): a task in the database only, never in tasks.json.
+const CurateTaskPrefix = "knowledge-curate-"
+
 // Sources are who can write a lesson.
 var Sources = []string{"agent", "verify", "review", "conflict", "operator"}
 
