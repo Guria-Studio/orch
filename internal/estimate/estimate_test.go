@@ -148,17 +148,22 @@ func TestCompute(t *testing.T) {
 }
 
 // A synthetic spend row (a verify review, an AI summary) is neither a task
-// nor an attempt: it does not move attempts_per_task (#470).
+// nor an attempt: it moves neither attempts_per_task nor the per-attempt cost
+// and duration a task is estimated from (#470).
 func TestAttemptsPerTaskIgnoresSyntheticSpend(t *testing.T) {
 	e := Compute(Input{Tasks: []model.Task{task("A", model.StatusTodo, "sonnet")}, Routes: routes, Slots: 1,
 		Spend: []state.Spend{
 			spend("X", "claude-sonnet", 1, 100), spend("X", "claude-sonnet", 1, 100),
-			spend(state.ReviewSpendID("X", 1), "claude-haiku", 0.1, 10),
-			spend(state.ReviewSpendID("X", 2), "claude-haiku", 0.1, 10),
-			spend(state.SummarySpendID("run-1"), "claude-haiku", 0.1, 10),
+			spend(state.ReviewSpendID("X", 1), "claude-sonnet", 0.1, 10),
+			spend(state.ReviewSpendID("X", 2), "claude-sonnet", 0.1, 10),
+			spend(state.SummarySpendID("run-1"), "claude-sonnet", 0.1, 10),
 		}})
 	if e.AttemptsPerTask != 2 || e.PastAttempts != 2 {
 		t.Errorf("attempts = %d past, %v per task, want 2 and 2", e.PastAttempts, e.AttemptsPerTask)
+	}
+	// Two attempts per task of the real rows' $1 and 100s each.
+	if e.CostUSD != 2 || e.WallS != 200 {
+		t.Errorf("estimate = $%v, %vs; want $2, 200s from the real attempts only", e.CostUSD, e.WallS)
 	}
 }
 
