@@ -46,6 +46,16 @@ type Verifier struct {
 	// RequireTests sends back a change that touches no test file
 	// (dispatch.tdd).
 	RequireTests bool
+	// Once runs the review: with its State set the review's spend is
+	// recorded under ReviewTaskID, with its Gate a reviewer over its budget
+	// window is refused before it spawns, and the review is skipped (#470).
+	Once engine.OneShot
+}
+
+// ReviewTaskID names the review of a task's attempt: its spend row's task id
+// and, under ORCH_FAKE_PROVIDER, the reviewer's canned response name.
+func ReviewTaskID(taskID string, attempt int) string {
+	return fmt.Sprintf("%s-verify-%d", taskID, attempt)
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -55,8 +65,8 @@ type Verifier struct {
 // A check that cannot run is not the agent's fault and does not fail it: a
 // detected command whose tool is not installed is skipped, so is a configured
 // one sh cannot find (a warning names its config key), and a review that
-// cannot complete (no other provider, a provider that is down, an answer that
-// does not parse) is logged and passes, as `orch ci review` without
+// cannot complete (no other provider, a provider that is down or over its
+// budget window, an answer that does not parse) is logged and passes, as `orch ci review` without
 // --blocking does. A gate that blocks on its own breakage teaches people to
 // turn it off.
 func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.VerifyResult {
@@ -79,7 +89,7 @@ func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.V
 	if res.Failure != "" || !v.Cfg.Review {
 		return res
 	}
-	res.Failure = v.review(ctx, req.TaskID, req.Writer, req.Dir, timeout, &res)
+	res.Failure = v.review(ctx, req, timeout, &res)
 	return res
 }
 
@@ -287,7 +297,8 @@ func skipNotFound(taskID, key, command, out string) {
 // review asks another provider to review the diff, and returns its blocking
 // findings for the agent, or "". A review that completes names its reviewer
 // and all its findings in res.
-func (v Verifier) review(ctx context.Context, taskID string, writer model.Backend, dir string, timeout time.Duration, res *engine.VerifyResult) string {
+func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout time.Duration, res *engine.VerifyResult) string {
+	taskID, writer, dir := req.TaskID, req.Writer, req.Dir
 	reviewer := v.reviewer(writer)
 	if reviewer == "" {
 		slog.Warn("verify: no other provider is installed to review; skipping the review", "task", taskID, "writer", writer)
@@ -302,7 +313,9 @@ func (v Verifier) review(ctx context.Context, taskID string, writer model.Backen
 		return ""
 	}
 	diff, cut := ci.TruncateDiff(diff, maxDiffBytes)
-	answer, err := ci.Ask(ctx, reviewer, v.Cfg.ReviewModel, ci.BuildPrompt(checklist(dir, v.Cfg.Checklist), diff, cut), timeout)
+	answer, err := ci.AskOnce(ctx, v.Once, ReviewTaskID(taskID, req.Attempt),
+		model.RouteEntry{Backend: reviewer, CLIModel: v.Cfg.ReviewModel},
+		ci.BuildPrompt(checklist(dir, v.Cfg.Checklist), diff, cut), timeout)
 	if err != nil {
 		slog.Warn("verify: the review did not complete; passing the work", "task", taskID, "reviewer", reviewer, "err", err)
 		return ""
