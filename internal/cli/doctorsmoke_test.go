@@ -104,6 +104,9 @@ func TestRenderSmoke(t *testing.T) {
 // --backend and --keep mean nothing without --smoke, and say so rather than
 // running the ordinary doctor.
 func TestDoctorSmokeFlagsNeedSmoke(t *testing.T) {
+	// Should the guard ever break, the ordinary doctor runs here and not in
+	// the package directory, where it would leave a database behind.
+	t.Chdir(t.TempDir())
 	for _, args := range [][]string{{"doctor", "--backend", "claude"}, {"doctor", "--keep"}} {
 		out, err := runOrch(t, "", args...)
 		var ee *exitError
