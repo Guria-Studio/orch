@@ -1,0 +1,32 @@
+# The Changes tab's actions from the CLI (#454): `orch task accept` merges a
+# task's PR, `orch task note --retry` sends the task back with the note.
+
+# Send back: done reopens to todo (TestTaskNoteRetryWritesTheNote reads the
+# note back from the database).
+exec orch tasks --project-root $WORK/rproj
+exec orch task set --id T-1 --status done --project-root $WORK/rproj
+exec orch task note --id T-1 --retry rename the flag --project-root $WORK/rproj
+stdout '^task T-1: sent back with the note \(T-1 done -> todo\)$'
+exec orch tasks --project-root $WORK/rproj --json
+stdout '"id":"T-1"[^}]*"status":"todo"'
+
+# Accept: a task that never opened a PR has nothing to merge.
+! exec orch task accept --id T-1 --project-root $WORK/rproj
+stderr 'T-1: the task has no PR to merge'
+
+# Local mode has no PR; its merge comes with #455.
+cp $WORK/local.yaml $WORK/rproj/.orchestrator/config.yaml
+! exec orch task accept --id T-1 --project-root $WORK/rproj
+stderr 'not implemented yet: see #455'
+
+-- local.yaml --
+vcs:
+  provider: local
+-- rproj/tasks.json --
+{"tasks":[{"id":"T-1","phase":1,"title":"add the flag","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":"","reason":""}]}
+-- rproj/.orchestrator/config.yaml --
+dispatch:
+  base_branch: main
+-- rproj/scripts/task-start.sh --
+#!/bin/sh
+exec orch task-status "$1" in-progress
