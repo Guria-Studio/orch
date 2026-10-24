@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useEventStream } from "@/hooks/useEventStream"
 import { useMetrics, type MetricsBackendDay, type MetricsResponse, type UsagePeriod } from "@/hooks/useMetrics"
+import { useRouterSuggest, type RouterSuggestResponse } from "@/hooks/useRouterSuggest"
 import { fmt, t, type MessageKey } from "@/i18n"
 import { taskPath } from "@/lib/nav"
 import { formatRelative } from "@/lib/time"
@@ -37,6 +38,7 @@ export function UsagePage() {
   const requested = params.get("period") as UsagePeriod | null
   const period: UsagePeriod = requested && PERIODS.includes(requested) ? requested : "7d"
   const { data, isLoading, isError, error } = useMetrics(period)
+  const routes = useRouterSuggest(period).data
   const queryClient = useQueryClient()
   const { lastEventAt } = useEventStream()
 
@@ -83,6 +85,7 @@ export function UsagePage() {
       ) : null}
 
       {isLoading || !data ? <Skeleton className="h-96 w-full" /> : <UsageBody data={data} />}
+      {routes ? <RoutesTable data={routes} /> : null}
     </div>
   )
 }
@@ -170,6 +173,85 @@ function UsageBody({ data }: { data: MetricsResponse }) {
         </div>
       </section>
     </>
+  )
+}
+
+/**
+ * `orch router suggest` (#457): per route key, how each route its tasks ran
+ * on did, and the change the numbers support. Applying it is the CLI's job.
+ */
+function RoutesTable({ data }: { data: RouterSuggestResponse }) {
+  const pct = (v: number) => `${Math.round(v * 100)}%`
+  return (
+    <section aria-labelledby="usage-routes" className="space-y-2">
+      <h2 id="usage-routes" className="text-xs font-medium text-muted-foreground">
+        {t("usage.routes")}
+      </h2>
+      <p className="text-xs text-muted-foreground">{t("usage.routes.hint", { n: String(data.min_sample) })}</p>
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[720px]">
+          <thead className="border-b text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3.5 py-2 text-left font-medium">{t("usage.routes.col.route")}</th>
+              <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.tasks")}</th>
+              <th className="px-3.5 py-2 text-right font-medium">{t("usage.routes.col.first_try")}</th>
+              <th className="px-3.5 py-2 text-right font-medium">{t("usage.routes.col.attempts")}</th>
+              <th className="px-3.5 py-2 text-right font-medium">{t("usage.routes.col.cost")}</th>
+              <th className="px-3.5 py-2 text-right font-medium">{t("usage.routes.col.time")}</th>
+            </tr>
+          </thead>
+          {data.kinds.length === 0 ? (
+            <tbody>
+              <tr>
+                <td colSpan={6} className="px-3.5 py-6 text-center text-muted-foreground">
+                  {t("usage.none")}
+                </td>
+              </tr>
+            </tbody>
+          ) : (
+            data.kinds.map((k) => (
+              <tbody key={k.kind} className="divide-y border-b last:border-0">
+                <tr className="bg-secondary/40">
+                  <th colSpan={6} scope="rowgroup" className="px-3.5 py-2 text-left font-mono text-xs font-medium">
+                    {k.kind}
+                  </th>
+                </tr>
+                {k.routes.map((r) => (
+                  <tr key={r.route}>
+                    <td className="px-3.5 py-2 font-mono text-xs">
+                      {r.route}
+                      {r.current ? <span className="ml-2 font-sans text-muted-foreground">{t("usage.routes.current")}</span> : null}
+                    </td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{r.tasks}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{pct(r.first_try_rate)}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{r.mean_attempts.toFixed(2)}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{fmt.usd(r.mean_cost_usd)}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{Math.round(r.mean_duration_s / 60)}m</td>
+                  </tr>
+                ))}
+                {k.suggestion ? (
+                  <tr>
+                    <td colSpan={6} className="px-3.5 py-2 text-xs">
+                      <span className="font-medium text-status-done">{t("usage.routes.suggest", { route: k.suggestion.to })}</span>{" "}
+                      <span className="text-muted-foreground">
+                        {k.suggestion.why === "stronger"
+                          ? t("usage.routes.stronger", { to: pct(k.suggestion.first_try_to), from: pct(k.suggestion.first_try_from), attempts: k.routes.find((r) => r.current)?.mean_attempts.toFixed(2) ?? "" })
+                          : t("usage.routes.cheaper", { to: pct(k.suggestion.first_try_to), from: pct(k.suggestion.first_try_from), share: pct(k.suggestion.cost_share) })}
+                      </span>
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            ))
+          )}
+        </table>
+      </div>
+      {data.kinds.some((k) => k.suggestion) ? (
+        <p className="text-xs text-muted-foreground">
+          {t("usage.routes.apply")} <code className="font-mono">orch router suggest --apply</code>
+        </p>
+      ) : null}
+    </section>
   )
 }
 

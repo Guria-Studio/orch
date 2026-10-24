@@ -32,6 +32,7 @@ func (s *Server) routes() []route {
 	out = append(out, s.activityRoutes()...)
 	out = append(out, s.receiptRoutes()...)
 	out = append(out, s.estimateRoutes()...)
+	out = append(out, s.routerSuggestRoutes()...)
 	out = append(out, s.releasesRoutes()...)
 	out = append(out, s.stakeholderRoutes()...)
 	out = append(out, s.portalRoutes()...)

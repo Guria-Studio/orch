@@ -53,6 +53,15 @@ type Config struct {
 	ReportFindings       ReportFindings `yaml:"report_findings"`
 	Portal               Portal         `yaml:"portal"`
 	Verify               Verify         `yaml:"verify"`
+	Update               Update         `yaml:"update"`
+}
+
+// Update is about the agent CLIs orch dispatches to (#448): whether `orch
+// doctor`, `orch run` and the dashboard's Tools page compare each one with its
+// latest release on the npm registry (once a day, cached in ~/.orch) and say
+// how to update it. orch never updates a CLI itself.
+type Update struct {
+	CheckCLIs bool `yaml:"check_clis"`
 }
 
 // Verify checks an agent's work in its worktree after it exits cleanly and

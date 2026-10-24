@@ -17,6 +17,10 @@ export interface Tool {
   /** Shell lines to copy, newline-separated; orch never runs them. */
   install?: string
   docs_url?: string
+  /** An agent CLI's latest release, when orch could read it (#448). */
+  latest?: string
+  /** Set when the installed CLI is older than latest: the command to copy. */
+  update?: string
 }
 
 /** A config.yaml shell command whose program is not installed (doctor.UnresolvedCommand). */

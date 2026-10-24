@@ -759,6 +759,23 @@ to read that file first. After `max_attempts` send-backs, the task is blocked
 with the failure as its reason. Each send-back is a `verify_failed` event.
 Without the block, or with `enabled: false`, a clean exit is pushed as before.
 
+### `update` — new (#448)
+
+```yaml
+update:
+  check_clis: true   # default
+```
+
+`orch doctor` (`backend.<name>.version`), `orch run` (a `note:` line at start)
+and the dashboard's Tools page compare each agent CLI's installed version with
+its npm package's latest release, read once a day per package and cached in
+`~/.orch/cli-versions.json`, and print the command that updates it for how it
+was installed. A registry that cannot be reached, or a CLI with no feed (agy,
+muse), is "unknown": no warning, never an error. orch never updates a CLI
+itself; after updating, `orch router refresh` shows the routes its new models
+bring. `false` turns the comparison off; `ORCH_NO_UPDATE_CHECK=1` turns it off
+along with orch's own update notice.
+
 ### Misc
 
 ```yaml
@@ -846,6 +863,8 @@ instead, because they belong to one invocation rather than to the project.
 | Variable | What it does |
 |---|---|
 | `ORCH_FAKE_PROVIDER` | Replay canned CLI output instead of running any coding CLI |
+| `ORCH_NO_UPDATE_CHECK` | Turns off orch's own update notice and gate and the agent CLIs' version check (`update.check_clis`) |
+| `ORCH_NPM_REGISTRY` | The npm registry the agent CLIs' version check reads (default `https://registry.npmjs.org`), for a mirror |
 | `DO_NOT_TRACK` | Disables telemetry (G8.6) regardless of `telemetry.enabled` — see [`TELEMETRY.md`](TELEMETRY.md) |
 
 ### `ORCH_FAKE_PROVIDER`

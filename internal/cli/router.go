@@ -12,6 +12,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/hectorcanaimero/orch/internal/scaffold"
 )
 
 // newRouterCmd is the `orch router` parent. `add-missing` ports Python's
@@ -27,6 +28,63 @@ func newRouterCmd(flags *projectFlags) *cobra.Command {
 	}
 	cmd.AddCommand(newRouterValidateCmd(flags))
 	cmd.AddCommand(newRouterAddMissingCmd(flags))
+	cmd.AddCommand(newRouterRefreshCmd(flags))
+	cmd.AddCommand(newRouterSuggestCmd(flags))
+	return cmd
+}
+
+// newRouterRefreshCmd is `orch init`'s model discovery (#397) for an existing
+// project (#448): after a CLI update, the packaged routes the file lacks for
+// the CLIs on PATH, the file's routes their CLI no longer lists, and the
+// models no route runs. A diff by default; --apply appends the additions.
+// Stale routes are only named: tasks may still route to them.
+func newRouterRefreshCmd(flags *projectFlags) *cobra.Command {
+	var apply bool
+	cmd := &cobra.Command{
+		Use:   "refresh",
+		Short: "Show (or --apply) the routes the installed CLIs' models add to model_router.yaml",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			paths, err := resolveAndValidate(flags)
+			if err != nil {
+				return withExitCode(2, err)
+			}
+			lists, failed := scaffold.DiscoverModels(cmd.Context(), router.OnPath)
+			plan, err := scaffold.PlanRefresh(paths.Root, router.OnPath, lists)
+			if err != nil {
+				return withExitCode(2, err)
+			}
+			out := cmd.OutOrStdout()
+			for _, b := range failed {
+				_, _ = fmt.Fprintf(out, "%s: could not list its models\n", b)
+			}
+			for _, k := range plan.Keys {
+				e := plan.Add[k]
+				_, _ = fmt.Fprintf(out, "+ %s  →  backend=%s, cli_model=%s, tier=%s\n", k, e.Backend, e.CLIModel, e.Tier)
+			}
+			for _, k := range plan.Stale {
+				_, _ = fmt.Fprintf(out, "! %s  →  its CLI no longer lists this model; remove it or update the CLI\n", k)
+			}
+			for _, b := range router.BackendPreference {
+				if un := plan.Unrouted[b]; len(un) > 0 {
+					_, _ = fmt.Fprintf(out, "? %s lists models no route runs: %s\n", b, strings.Join(un, ", "))
+				}
+			}
+			switch {
+			case len(plan.Keys) == 0:
+				_, err = fmt.Fprintln(out, "No routes to add.")
+			case !apply:
+				_, err = fmt.Fprintf(out, "\n%d route(s) to add. Write them with: orch router refresh --apply\n", len(plan.Keys))
+			default:
+				if err := scaffold.AppendRoutes(paths.Root, plan, "orch router refresh"); err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(out, "\nAdded %d route(s) to %s.\n", len(plan.Keys), paths.RouterYAML())
+			}
+			return err
+		},
+	}
+	cmd.Flags().BoolVar(&apply, "apply", false, "Append the routes to add to model_router.yaml")
 	return cmd
 }
 

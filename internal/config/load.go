@@ -88,6 +88,7 @@ func Defaults() Config {
 		Sync:    Sync{IssuesLabel: DefaultSyncIssuesLabel},
 		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
+		Update:  Update{CheckCLIs: true},
 	}
 }
 
@@ -355,6 +356,7 @@ var knownKeys = map[string]bool{
 	"verify.max_attempts": true, "verify.timeout_s": true, "verify.e2e": true, "verify.e2e_report": true,
 	"verify.app.start": true, "verify.app.url": true, "verify.app.stop": true,
 	"verify.app.ready_timeout_s": true,
+	"update.check_clis":          true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

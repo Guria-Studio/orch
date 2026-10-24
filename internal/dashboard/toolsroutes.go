@@ -100,6 +100,10 @@ func (s *Server) probeTools(r *http.Request) []doctor.Tool {
 		cfg = loaded.Config
 	}
 	rtr, _ := router.Load(s.paths.RouterYAML())
+	var latest doctor.LatestFunc
+	if cfg.Update.CheckCLIs {
+		latest = s.cliLatest
+	}
 	tools := describeTools(doctor.ToolsConfig{
 		Root:     s.paths.Root,
 		Backends: doctor.ReferencedBackends(view.Tasks, rtr),
@@ -109,6 +113,7 @@ func (s *Server) probeTools(r *http.Request) []doctor.Tool {
 		},
 		Tunnel: cfg.Tunnel.Enabled,
 		E2E:    len(cfg.Verify.E2E) > 0,
+		Latest: latest,
 	})
 	s.tools.put(tools)
 	return tools

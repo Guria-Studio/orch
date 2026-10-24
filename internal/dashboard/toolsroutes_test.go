@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"testing"
@@ -77,5 +78,28 @@ func TestToolsNamesConfiguredCommandsNotFound(t *testing.T) {
 	decode(t, get(t, s, "/api/tools"), &got)
 	if len(got.Commands) != 1 || got.Commands[0].Detail != `verify.app.start: "tue" not found on PATH` {
 		t.Errorf("commands = %+v, want verify.app.start's tue", got.Commands)
+	}
+}
+
+// The Tools page asks for agent CLIs' latest releases through
+// Options.CLILatest, unless the project turned it off (#448).
+func TestToolsAsksForLatestUnlessTurnedOff(t *testing.T) {
+	saved := describeTools
+	t.Cleanup(func() { describeTools = saved })
+	var asked doctor.ToolsConfig
+	describeTools = func(cfg doctor.ToolsConfig) []doctor.Tool { asked = cfg; return nil }
+	s := newReadServer(t, &fakeState{})
+	s.cliLatest = func(context.Context, string) (string, error) { return "9.9.9", nil }
+
+	get(t, s, "/api/tools")
+	if asked.Latest == nil {
+		t.Fatal("Latest is nil with update.check_clis on by default")
+	}
+	if err := os.WriteFile(s.paths.ConfigYAML, []byte("update:\n  check_clis: false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	get(t, s, "/api/tools")
+	if asked.Latest != nil {
+		t.Error("Latest is set with update.check_clis: false")
 	}
 }

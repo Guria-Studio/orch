@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hectorcanaimero/orch/internal/doctor"
 	"github.com/hectorcanaimero/orch/internal/update"
 	"io/fs"
 	"log/slog"
@@ -53,6 +54,8 @@ type Server struct {
 	// version and releases are Options.Version and Options.Releases.
 	version  string
 	releases func(ctx context.Context) ([]update.Release, error)
+	// cliLatest is Options.CLILatest.
+	cliLatest doctor.LatestFunc
 	// steer is Options.Steer.
 	steer *project.Steer
 	// editor is Options.Editor.
@@ -165,6 +168,9 @@ type Options struct {
 	// checks are off.
 	Version  string
 	Releases func(ctx context.Context) ([]update.Release, error)
+	// CLILatest reads an agent CLI's latest release for the Tools page
+	// (#448); nil leaves it out. update.check_clis: false also does.
+	CLILatest doctor.LatestFunc
 	// Steer is what the stop and note endpoints write through (#356). Nil
 	// turns them off. It is the one write the dashboard makes to the
 	// project's state, and it writes requests the run acts on — the same
@@ -198,11 +204,12 @@ func New(cfg Config, opts Options) (*Server, error) {
 		static: opts.Static,
 		portal: opts.Portal,
 
-		snapshot: opts.Snapshot,
-		version:  opts.Version,
-		releases: opts.Releases,
-		steer:    opts.Steer,
-		editor:   opts.Editor,
+		snapshot:  opts.Snapshot,
+		version:   opts.Version,
+		releases:  opts.Releases,
+		cliLatest: opts.CLILatest,
+		steer:     opts.Steer,
+		editor:    opts.Editor,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,
