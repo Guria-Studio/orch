@@ -78,3 +78,37 @@ func TestDoctorSmokeThroughTheFakeRunner(t *testing.T) {
 		t.Errorf("the smoke left %v behind (err %v)", left, err)
 	}
 }
+
+// The human report: one block per backend with its model, effort and spend,
+// each check on its own line, and the verdict with the total.
+func TestRenderSmoke(t *testing.T) {
+	var b bytes.Buffer
+	err := renderSmoke(&b, smokePayload{
+		Backends: []smokeRow{{Backend: "codex", Model: "gpt-5.4", Effort: "low", SpendUSD: 0.0123, Checks: []doctor.Check{
+			{Name: "smoke.prompt", Status: doctor.StatusOK, Detail: "the agent wrote back the token"},
+			{Name: "smoke.done", Status: doctor.StatusError, Detail: "the task ended blocked"},
+		}}},
+		SpendUSD: 0.0123, ExitCode: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"codex · gpt-5.4 · effort low · $0.0123", "ok     smoke.prompt  the agent wrote back the token",
+		"error  smoke.done    the task ended blocked", "spent $0.0123 · a check failed"} {
+		if !bytes.Contains(b.Bytes(), []byte(want)) {
+			t.Errorf("missing %q in:\n%s", want, b.String())
+		}
+	}
+}
+
+// --backend and --keep mean nothing without --smoke, and say so rather than
+// running the ordinary doctor.
+func TestDoctorSmokeFlagsNeedSmoke(t *testing.T) {
+	for _, args := range [][]string{{"doctor", "--backend", "claude"}, {"doctor", "--keep"}} {
+		out, err := runOrch(t, "", args...)
+		var ee *exitError
+		if !errors.As(err, &ee) || ee.code != 2 || !bytes.Contains([]byte(err.Error()), []byte("need --smoke")) {
+			t.Errorf("%v: err = %v\n%s", args, err, out)
+		}
+	}
+}

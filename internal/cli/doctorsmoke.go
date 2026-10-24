@@ -124,9 +124,15 @@ func runSmoke(cmd *cobra.Command, only string, asJSON, keep bool) error {
 
 	payload := smokePayload{}
 	prices := pricing.Load(root)
-	spend, _ := backend.AllSpend(ctx, time.Time{})
+	spend, err := backend.AllSpend(ctx, time.Time{})
+	if err != nil {
+		return withExitCode(2, fmt.Errorf("read the smoke's spend: %w", err))
+	}
 	for _, b := range backends {
-		row := smokeEvidence(ctx, backend, paths.StateDir(), root, b, routes[b], nonce, spend, prices)
+		row, err := smokeEvidence(ctx, backend, paths.StateDir(), root, b, routes[b], nonce, spend, prices)
+		if err != nil {
+			return withExitCode(2, err)
+		}
 		payload.SpendUSD += row.SpendUSD
 		for _, c := range row.Checks {
 			if c.Status == doctor.StatusError {
@@ -300,17 +306,22 @@ func smokeGit(root string, args ...string) error {
 // smokeEvidence reads one backend's smoke task back out of the database and
 // its log, and checks it.
 func smokeEvidence(ctx context.Context, db state.Backend, stateDir, root string, b model.Backend,
-	r smokeRoute, nonce string, spend []state.Spend, prices pricing.Table) smokeRow {
+	r smokeRoute, nonce string, spend []state.Spend, prices pricing.Table) (smokeRow, error) {
 	id := smokeTaskID(b)
 	e := doctor.SmokeEvidence{
 		Nonce: nonce, Route: r.Entry,
 		TakesEffort: slices.Contains(effortBackends, b),
 		MCPExpected: b == model.BackendClaude,
 	}
-	if rt, err := db.Task(ctx, id); err == nil {
-		e.Status, e.Comments = rt.Status, rt.Comments
+	rt, err := db.Task(ctx, id)
+	if err != nil {
+		return smokeRow{}, fmt.Errorf("read the smoke task %s: %w", id, err)
 	}
-	events, _ := db.Events(ctx, id, 0)
+	e.Status, e.Comments = rt.Status, rt.Comments
+	events, err := db.Events(ctx, id, 0)
+	if err != nil {
+		return smokeRow{}, fmt.Errorf("read the events of %s: %w", id, err)
+	}
 	exitCode := 0
 	for _, ev := range events {
 		switch ev.EventType {
@@ -331,7 +342,7 @@ func smokeEvidence(ctx context.Context, db state.Backend, stateDir, root string,
 		if effort, ok := e.Dispatch["effort"].(string); ok {
 			recorded.Effort = &effort
 		}
-		e.Argv = p.Argv(providers.Request{TaskID: id, Route: recorded, Cwd: root, OutputPath: filepath.Join(stateDir, "logs", id+".out")})
+		e.Argv = p.Argv(providers.Request{TaskID: id, Route: recorded, Cwd: root})
 		e.Text = p.Parse(exitCode, []byte(engine.ReadLog(engine.LogPathFor(stateDir, id)))).Text
 	}
 	for _, s := range spend {
@@ -350,7 +361,7 @@ func smokeEvidence(ctx context.Context, db state.Backend, stateDir, root string,
 	if r.Entry.Effort != nil {
 		row.Effort = *r.Entry.Effort
 	}
-	return row
+	return row, nil
 }
 
 func renderSmoke(out io.Writer, p smokePayload) error {
