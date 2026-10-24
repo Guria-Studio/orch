@@ -2,12 +2,14 @@ package knowledge
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/state"
 )
 
@@ -104,9 +106,6 @@ func TestSelectPutsTheAreaFirstThenBM25(t *testing.T) {
 	if want := []string{"d", "c"}; !reflect.DeepEqual(ids, want) {
 		t.Errorf("selected %v, want %v", ids, want)
 	}
-	if got, _ := Select(context.Background(), r, lessons, nil, "session", 0); got != nil {
-		t.Errorf("n=0 selected %v", got)
-	}
 }
 
 func TestQueryQuotesWordsAndDropsNoise(t *testing.T) {
@@ -118,5 +117,115 @@ func TestQueryQuotesWordsAndDropsNoise(t *testing.T) {
 	}
 	if strings.Count(Query(strings.Repeat("word ", 3)), "word") != 1 {
 		t.Error("a repeated word is searched twice")
+	}
+}
+
+// countingRanker records whether the index was asked anything.
+type countingRanker struct{ calls int }
+
+func (c *countingRanker) RankKnowledge(context.Context, []state.KnowledgeDoc, string, int) ([]string, error) {
+	c.calls++
+	return nil, nil
+}
+
+// n=0 or no lessons selects nothing and never touches the index.
+func TestSelectWithNothingToPickSkipsTheIndex(t *testing.T) {
+	r := &countingRanker{}
+	if got, err := Select(context.Background(), r, []Lesson{{ID: "a", Title: "session"}}, nil, "session", 0); got != nil || err != nil {
+		t.Errorf("n=0 selected %v, %v", got, err)
+	}
+	if got, err := Select(context.Background(), r, nil, nil, "session", 5); got != nil || err != nil {
+		t.Errorf("no lessons selected %v, %v", got, err)
+	}
+	if r.calls != 0 {
+		t.Errorf("the index was asked %d times", r.calls)
+	}
+}
+
+// ForTask reads the lessons under root and matches them against the task's
+// files and its spec file under specRoot, then its title and description.
+func TestForTaskMatchesFilesSpecAndText(t *testing.T) {
+	db, _, err := state.Open(context.Background(), filepath.Join(t.TempDir(), "orch.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	r := state.NewSQLite(db, "p", t.TempDir())
+
+	root := t.TempDir()
+	for _, l := range []Lesson{
+		{Title: "Spec lesson", Body: "about the spec", Area: []string{"specs/f1-auth.md"}},
+		{Title: "File lesson", Body: "about login", Area: []string{"internal/auth/"}},
+		{Title: "Text lesson", Body: "rate limiting needs redis"},
+		{Title: "Unrelated", Body: "docker networks", Area: []string{"deploy/"}},
+	} {
+		if _, err := Add(root, l, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task := model.Task{ID: "F1.T1", Title: "rate limiting", Files: []string{"internal/auth/login.go"}, SpecRef: "f1-auth.md#T1"}
+	got, err := ForTask(context.Background(), r, root, task, "specs", 5)
+	if err != nil {
+		t.Fatalf("ForTask: %v", err)
+	}
+	var titles []string
+	for _, l := range got {
+		titles = append(titles, l.Title)
+	}
+	if want := []string{"File lesson", "Spec lesson", "Text lesson"}; !reflect.DeepEqual(titles, want) {
+		t.Errorf("ForTask = %v, want %v", titles, want)
+	}
+
+	if got, err := ForTask(context.Background(), r, t.TempDir(), task, "specs", 5); got != nil || err != nil {
+		t.Errorf("ForTask with no lessons = %v, %v", got, err)
+	}
+	bad := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(bad, Dir), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bad, Dir, "x.md"), []byte("no front matter"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ForTask(context.Background(), r, bad, task, "specs", 5); err == nil || !strings.Contains(err.Error(), "x.md") {
+		t.Errorf("ForTask over a broken lesson = %v, want an error naming the file", err)
+	}
+}
+
+func TestParseRefusesBrokenFrontMatter(t *testing.T) {
+	for name, raw := range map[string]string{
+		"no front matter":   "just a body\n",
+		"no closing line":   "---\nid: a\ntitle: t\n",
+		"malformed YAML":    "---\nid: [unclosed\n---\nbody\n",
+		"a list, not a map": "---\n- a\n- b\n---\nbody\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if l, err := Parse([]byte(raw)); err == nil {
+				t.Errorf("Parse accepted %q as %+v", raw, l)
+			}
+		})
+	}
+	l, err := Parse([]byte("---\r\nid: a\r\ntitle: t\r\n---"))
+	if err != nil || l.ID != "a" || l.Body != "" {
+		t.Errorf("CRLF front matter with no body = %+v, %v", l, err)
+	}
+}
+
+func TestRemoveSaysWhatFailed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root removes files from a read-only directory")
+	}
+	root := t.TempDir()
+	l, err := Add(root, Lesson{Title: "t", Body: "b"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, Dir)
+	if err := os.Chmod(dir, 0o500); err != nil { // #nosec G302 -- a temp dir this test made, read-only on purpose
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o750) }) // #nosec G302 -- restored so TempDir can clean up
+	err = Remove(root, l.ID)
+	if err == nil || !strings.Contains(err.Error(), "remove lesson "+l.ID) {
+		t.Errorf("Remove = %v, want it wrapped with the lesson id", err)
 	}
 }

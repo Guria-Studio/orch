@@ -179,7 +179,10 @@ func Remove(root, id string) error {
 	}
 	for _, l := range lessons {
 		if l.ID == id {
-			return os.Remove(filepath.Join(root, filepath.FromSlash(l.Path)))
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(l.Path))); err != nil {
+				return fmt.Errorf("remove lesson %s: %w", id, err)
+			}
+			return nil
 		}
 	}
 	return fmt.Errorf("no lesson %q in %s", id, Dir)
