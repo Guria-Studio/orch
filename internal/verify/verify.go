@@ -27,6 +27,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/engine"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 // maxDiffBytes cuts the reviewed diff, file by file: `orch ci review`'s default.
@@ -47,15 +48,9 @@ type Verifier struct {
 	// (dispatch.tdd).
 	RequireTests bool
 	// Once runs the review: with its State set the review's spend is
-	// recorded under ReviewTaskID, with its Gate a reviewer over its budget
+	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
 	Once engine.OneShot
-}
-
-// ReviewTaskID names the review of a task's attempt: its spend row's task id
-// and, under ORCH_FAKE_PROVIDER, the reviewer's canned response name.
-func ReviewTaskID(taskID string, attempt int) string {
-	return fmt.Sprintf("%s-verify-%d", taskID, attempt)
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -313,7 +308,7 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 		return ""
 	}
 	diff, cut := ci.TruncateDiff(diff, maxDiffBytes)
-	answer, err := ci.AskOnce(ctx, v.Once, ReviewTaskID(taskID, req.Attempt),
+	answer, err := ci.AskOnce(ctx, v.Once, state.ReviewSpendID(taskID, req.Attempt),
 		model.RouteEntry{Backend: reviewer, CLIModel: v.Cfg.ReviewModel},
 		ci.BuildPrompt(checklist(dir, v.Cfg.Checklist), diff, cut), timeout)
 	if err != nil {

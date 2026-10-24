@@ -720,7 +720,8 @@ a note and verifies nothing.
    parse) is logged and the work passes. The review's spend is recorded like
    a task attempt's, under `<task>-verify-<attempt>` (#470), so it counts
    against the reviewer's budget window and shows in `orch report usage` and
-   the dashboard's Usage page.
+   the dashboard's Usage page. `orch estimate` does not count it as a task's
+   attempt.
 
 Every command runs with the agent's own environment: `ORCH_TASK_ID`,
 `ORCH_TASK_SLOT` and, with `dispatch.isolate_compose`, the task's

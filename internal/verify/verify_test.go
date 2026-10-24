@@ -294,7 +294,7 @@ func branchWithWork(t *testing.T) string {
 // engine's fake provider.
 func fakeReviewer(t *testing.T, exit string, output []byte) {
 	t.Helper()
-	fakeReviewerFor(t, ReviewTaskID("T-1", 0), exit, output)
+	fakeReviewerFor(t, state.ReviewSpendID("T-1", 0), exit, output)
 }
 
 // fakeReviewerFor is fakeReviewer for the review named id.

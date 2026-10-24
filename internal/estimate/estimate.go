@@ -67,14 +67,19 @@ type Estimate struct {
 // Compute is the estimate for in.
 func Compute(in Input) Estimate {
 	slots := max(in.Slots, 1)
-	out := Estimate{Tasks: runSet(in), ByBackend: map[string]float64{}, Slots: slots,
-		PastAttempts: len(in.Spend), AttemptsPerTask: 1, Confidence: confidence(len(in.Spend))}
-	if len(in.Spend) > 0 {
-		perTask := map[string]bool{}
-		for _, s := range in.Spend {
+	// A synthetic row (a verify review, an AI summary) is not a task's
+	// attempt (#470); its cost still samples below.
+	perTask, attempts := map[string]bool{}, 0
+	for _, s := range in.Spend {
+		if !state.IsSyntheticSpend(s.TaskID) {
 			perTask[s.TaskID] = true
+			attempts++
 		}
-		out.AttemptsPerTask = math.Round(float64(len(in.Spend))/float64(len(perTask))*100) / 100
+	}
+	out := Estimate{Tasks: runSet(in), ByBackend: map[string]float64{}, Slots: slots,
+		PastAttempts: attempts, AttemptsPerTask: 1, Confidence: confidence(attempts)}
+	if attempts > 0 {
+		out.AttemptsPerTask = math.Round(float64(attempts)/float64(len(perTask))*100) / 100
 	}
 
 	byID := make(map[string]model.Task, len(in.Tasks))
