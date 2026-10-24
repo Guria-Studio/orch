@@ -1,13 +1,19 @@
 package engine
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hectorcanaimero/orch/internal/knowledge"
+	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/worktree"
 )
 
@@ -98,5 +104,115 @@ func TestAResolvedConflictBecomesADraftLesson(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("the draft lesson is missing %q:\n%s", want, body)
 		}
+	}
+}
+
+// trail is a comment trail to read back, or the error reading it fails with.
+type trail struct {
+	comments []json.RawMessage
+	err      error
+}
+
+func (c trail) TaskComments(context.Context, string) ([]json.RawMessage, error) {
+	return c.comments, c.err
+}
+
+// captureFixture is a scheduler that drafts lessons into a temp worktree,
+// with the comment trail c and its log in logs.
+func captureFixture(t *testing.T, c CommentReader) (*Scheduler, *InFlight, *bytes.Buffer) {
+	t.Helper()
+	q, err := NewTaskQueue(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewScheduler(q, nil, SchedulerOptions{})
+	s.Opts.Cfg.Knowledge.Enabled = true
+	s.Worktree = NewWorktreeManager(worktree.NewManager(t.TempDir(), false))
+	s.Comments = c
+	var logs bytes.Buffer
+	s.Log = slog.New(slog.NewTextHandler(&logs, nil))
+	tk := task("C-1", 1, "claude/opus")
+	tk.Files = []string{"internal/auth/login.go"}
+	return s, &InFlight{Task: tk, Dispatch: Dispatch{Cwd: t.TempDir()}}, &logs
+}
+
+func lessonsIn(t *testing.T, dir string) map[string]knowledge.Lesson {
+	t.Helper()
+	ls, err := knowledge.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]knowledge.Lesson{}
+	for _, l := range ls {
+		out[l.Source] = l
+	}
+	return out
+}
+
+// Both drafts end with what the agent reported — its own note, not orch's
+// bookkeeping after it.
+func TestDraftLessonsCarryTheAgentsNote(t *testing.T) {
+	c := trail{comments: []json.RawMessage{
+		json.RawMessage(`{"author":"claude/opus","body":"refreshed the token before the retry"}`),
+		json.RawMessage(`{"author":"orch","body":"dispatch succeeded"}`),
+	}}
+	s, entry, _ := captureFixture(t, c)
+	s.verifyRejected["C-1"] = "`go test` failed:\nFAIL TestLogin"
+	entry.Conflict = &prompt.Conflict{Base: "main", Files: []string{"a.go"}, Commits: []string{"abc fix (#1)"}}
+
+	s.captureLessons(context.Background(), entry)
+
+	got := lessonsIn(t, entry.Dispatch.Cwd)
+	if b := got["verify"].Body; !strings.HasSuffix(b, "\n\nThe attempt that passed: refreshed the token before the retry") {
+		t.Errorf("verify draft body:\n%s", b)
+	}
+	if b := got["conflict"].Body; !strings.HasSuffix(b, "\n\nHow the agent resolved it: refreshed the token before the retry") {
+		t.Errorf("conflict draft body:\n%s", b)
+	}
+	if _, left := s.verifyRejected["C-1"]; left {
+		t.Error("the rejection is still kept after its draft was written")
+	}
+}
+
+// With no note to read — no trail, an empty one, or one that cannot be read
+// (which is logged) — the drafts are written without it.
+func TestAgentNote(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		c     CommentReader
+		want  string
+		warns bool
+	}{
+		{"no comment reader", nil, "", false},
+		{"only orch's bookkeeping", trail{comments: []json.RawMessage{json.RawMessage(`{"author":"orch","body":"dispatch succeeded"}`)}}, "", false},
+		{"the agent's note", trail{comments: []json.RawMessage{json.RawMessage(`{"author":"claude/opus","body":"  did it  "}`)}}, "did it", false},
+		{"an unreadable trail", trail{err: errors.New("database is locked")}, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, entry, logs := captureFixture(t, tc.c)
+			if got := s.agentNote(context.Background(), "C-1"); got != tc.want {
+				t.Errorf("agentNote = %q, want %q", got, tc.want)
+			}
+			warned := strings.Contains(logs.String(), "database is locked")
+			if warned != tc.warns {
+				t.Errorf("warned = %v, want %v: %s", warned, tc.warns, logs)
+			}
+			s.verifyRejected["C-1"] = "boom"
+			s.captureLessons(context.Background(), entry)
+			if b := lessonsIn(t, entry.Dispatch.Cwd)["verify"].Body; b == "" || strings.Contains(b, "The attempt that passed") != (tc.want != "") {
+				t.Errorf("verify draft body:\n%s", b)
+			}
+		})
+	}
+}
+
+// A draft's title is cut at 100 characters, not bytes.
+func TestDraftTitleIsCutAtAHundredRunes(t *testing.T) {
+	s, entry, _ := captureFixture(t, nil)
+	s.verifyRejected["C-1"] = strings.Repeat("ñ", 150)
+	s.captureLessons(context.Background(), entry)
+	title := lessonsIn(t, entry.Dispatch.Cwd)["verify"].Title
+	if r := []rune(title); len(r) != 101 || r[100] != '…' || !strings.HasPrefix(title, "Verify rejected C-1: ñ") {
+		t.Errorf("title = %q (%d runes), want 100 runes and an ellipsis", title, len(r))
 	}
 }

@@ -86,6 +86,7 @@ func (s *Scheduler) agentNote(ctx context.Context, taskID string) string {
 	}
 	comments, err := s.Comments.TaskComments(ctx, taskID)
 	if err != nil {
+		s.logger().Warn("reading the agent's note for a draft lesson failed; drafting without it", "task", taskID, "err", err)
 		return ""
 	}
 	return strings.TrimSpace(prompt.AgentComment(comments))
