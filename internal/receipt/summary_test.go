@@ -120,3 +120,27 @@ func TestSummaryMergeAction(t *testing.T) {
 		t.Error("an unknown language should fall back to English")
 	}
 }
+
+// #463: a review's rejection is summed up by its structured findings, read
+// back from the event as the database returns them, not by the reason's first
+// line, which only says a review asked for changes.
+func TestSummaryNamesTheReviewFindings(t *testing.T) {
+	reason := "orch's local verify had your work reviewed and the review asks for changes. Fix the blocking findings:\n\n## orch review (gemini)"
+	var findings []any
+	if err := json.Unmarshal([]byte(`[{"severity":"blocking","file":"app.go","line":3,"title":"B is never tested"},{"severity":"blocking","title":"Missing changelog"}]`), &findings); err != nil {
+		t.Fatal(err)
+	}
+	ev := func(typ, ts string, extra map[string]any) state.Event {
+		return state.Event{RunID: "r", EventType: typ, TaskID: "B", Backend: "claude", TS: "2026-09-10T" + ts + "Z", Extra: extra}
+	}
+	r := Build([]state.Event{
+		ev("dispatch", "10:00:00", nil),
+		ev("success", "10:10:00", nil),
+		ev("verify_failed", "10:11:00", map[string]any{"reason": reason, "sent_back": false, "findings": findings}),
+		ev("fail", "10:11:00", map[string]any{"reason": "local verify still failing after the agent's retries: " + reason}),
+	}, nil, []state.TaskRuntime{{ID: "B", Status: model.StatusBlocked}}, nil, pricing.Table{}, "r")
+	got := r.Summary("en", false).Text()
+	if want := "2 review findings: app.go:3 B is never tested; Missing changelog"; !strings.Contains(got, want) {
+		t.Errorf("summary = %q, want it to contain %q", got, want)
+	}
+}
