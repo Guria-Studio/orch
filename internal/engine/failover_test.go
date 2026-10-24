@@ -2,8 +2,8 @@ package engine
 
 import (
 	"path/filepath"
+	"os"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 
@@ -93,13 +93,14 @@ func TestRateLimitFailsOverToTheNextProvider(t *testing.T) {
 // window is rejected fails over even when its error reads as something else,
 // and claude stays skipped until the event's own reset time.
 func TestClaudeRateLimitEventFailsOver(t *testing.T) {
-	f, now := failoverFixture(t, fakeResponse{})
-	resets := now.Add(time.Hour).Unix()
-	fake, _ := FakeProviderDir()
-	write(t, filepath.Join(fake, "claude", "C-1.out"),
-		`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":`+strconv.FormatInt(resets, 10)+`,"rateLimitType":"five_hour"}}`+"\n"+
-			`{"type":"result","subtype":"error_during_execution","is_error":true,"terminal_reason":"error_during_execution"}`)
-	write(t, filepath.Join(fake, "claude", "C-1.exit"), "1")
+	fixture, err := os.ReadFile(filepath.Join("..", "providers", "testdata", "claude", "synthetic", "quota-exhausted.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, now := failoverFixture(t, fakeResponse{out: string(fixture), exitCode: "1"})
+	// The fixture's window resets at 1792155000; start an hour before it.
+	const resets = 1792155000
+	*now = time.Unix(resets-3600, 0)
 
 	for _, want := range []string{"C-1@claude", "C-1@codex", "C-2@codex"} {
 		if got := f.dispatchedOn(t); !equalStrings(got, []string{want}) {

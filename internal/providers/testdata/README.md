@@ -122,6 +122,13 @@ shape from the real captures with `api_error_status` set to 429 and a
 `terminal_reason` carrying the phrase. It exists to pin `Classify`, not the
 envelope parser — the parser is pinned by the real files above.
 
+`claude/synthetic/quota-exhausted.jsonl` is **hand-written** for the same
+reason (#439): an exhausted subscription window cannot be reached on demand.
+Its `rate_limit_event` is the real 2.1.301 event with `status` set to
+`rejected` and the five-hour window at utilization 1, followed by an error
+envelope whose reason does not say "rate limit" — the case only the event can
+explain.
+
 `claude/synthetic/auth-error.json` is also **hand-written**: it is the
 long-standing fixture from `orchestrator/tests/fixtures/dispatcher/claude_error.txt`,
 kept byte-for-byte so the Go parser is held to the same envelope the Python
@@ -342,6 +349,7 @@ hand-written is the set of states that **cannot be provoked on demand**:
 | File | Why it cannot be captured |
 |---|---|
 | `claude/synthetic/rate-limit.json`, `codex/synthetic/rate-limit.jsonl` | a 429 needs the API hammered until it complains |
+| `claude/synthetic/quota-exhausted.jsonl` | an exhausted subscription window needs the quota spent |
 | `claude/synthetic/auth-error.json` | kept byte-for-byte from the Python suite, which has asserted on it for sprints |
 | `codex/synthetic/nonfatal-warning.jsonl` | needs a run that emits a warning AND then succeeds |
 | `codex/synthetic/killed-empty.jsonl` | zero bytes; there is nothing to capture |
