@@ -20,6 +20,18 @@ export interface ReceiptProvider {
 export interface TaskRef {
   task_id: string
   title: string
+  /** On a blocked task, why it stopped: verify, failure, ci, not_started or agent. */
+  cause?: string
+  failure_class?: string
+  reason?: string
+}
+
+/** `orch report summary`: the run in plain words, in the project's language (#456). */
+export interface RunSummary {
+  lang: string
+  lines: string[]
+  /** The next one to three steps, each with the command that does it. */
+  actions: { text: string; command?: string }[]
 }
 
 export interface Receipt {
@@ -46,6 +58,8 @@ export interface ReceiptPayload {
   /** `orch report receipt`'s Markdown, without the Built-with footer. */
   markdown: string
   built_with: string
+  /** The receipt in plain words; null with the receipt. */
+  summary: RunSummary | null
 }
 
 /** The Markdown a person copies: the receipt, then the footer unless they unticked it. */

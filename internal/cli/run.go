@@ -20,7 +20,9 @@ import (
 	"github.com/hectorcanaimero/orch/internal/engine"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/notify"
+	"github.com/hectorcanaimero/orch/internal/pricing"
 	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/hectorcanaimero/orch/internal/receipt"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
@@ -325,6 +327,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	if err != nil {
 		return withExitCode(1, err)
 	}
+	reportRunSummary(ctx, os.Stderr, backend, paths, cfg, notifier, runID)
 	noteOutgrownCI(os.Stderr, paths.Root)
 	offerReportFindings(ctx, os.Stderr, backend, paths.Root)
 	if code != 0 {
@@ -333,6 +336,21 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		return withSilentExitCode(code)
 	}
 	return nil
+}
+
+// reportRunSummary prints the summary of the run that just ended, and posts
+// it to the webhooks when notifications are on (#456). Only a finished run
+// has one: a run stopped before its loop ended wrote no sprint_done.
+func reportRunSummary(ctx context.Context, w io.Writer, backend state.Backend, paths config.Paths, cfg config.Config,
+	notifier *notify.Notifier, runID string) {
+	tf, _ := model.LoadTasksFile(paths.TasksJSON())
+	rec, err := receipt.Load(ctx, backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
+	if err != nil || rec == nil || !rec.Finished {
+		return
+	}
+	text := rec.Summary(cfg.Dashboard.SummaryLanguage, cfg.GitHub.AutoMerge).Text()
+	_, _ = fmt.Fprint(w, "\n"+text)
+	notifier.RunSummary(ctx, text)
 }
 
 // noteEstimate prints `orch estimate`'s first line before anything is

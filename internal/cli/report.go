@@ -24,10 +24,11 @@ import (
 func newReportCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "report",
-		Short: "Render reports: the stakeholder PDF, a run's receipt, token usage",
+		Short: "Render reports: the stakeholder PDF, a run's receipt and summary, token usage",
 	}
 	cmd.AddCommand(newReportPDFCmd(flags))
 	cmd.AddCommand(newReportReceiptCmd(flags))
+	cmd.AddCommand(newReportSummaryCmd(flags))
 	cmd.AddCommand(newReportUsageCmd(flags))
 	return cmd
 }

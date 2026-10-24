@@ -18,6 +18,7 @@ const payload: ReceiptPayload = {
     dispatches: 1, failed_attempts: 0, retries: 0, done: [], blocked: [], providers: [],
     total_cost_usd: 0, estimated_cost_usd: 0, prs: [],
   },
+  summary: null,
 }
 
 afterEach(() => {
@@ -91,6 +92,24 @@ describe("RunReceipt", () => {
       fireEvent.click(screen.getByRole("button", { name: "Download image" }))
     })
     expect(screen.getByRole("alert")).toHaveTextContent("Could not make the image")
+  })
+
+  it("shows the run's summary under the receipt: why each task stopped, and the next steps with their commands", () => {
+    render(
+      <RunReceipt
+        payload={{
+          ...payload,
+          summary: {
+            lang: "en",
+            lines: ["Run r finished: 1 done, 1 blocked.", "B (Beta) stopped: the local verify rejected its work."],
+            actions: [{ text: "Fix verify.app.start in .orchestrator/config.yaml, then retry B.", command: "orch task set --id B --status todo && orch run" }],
+          },
+        }}
+      />,
+    )
+    expect(screen.getByText("B (Beta) stopped: the local verify rejected its work.")).toBeInTheDocument()
+    expect(screen.getByRole("listitem")).toHaveTextContent("Fix verify.app.start")
+    expect(screen.getByText("orch task set --id B --status todo && orch run")).toBeInTheDocument()
   })
 
   it("hides Copy image where the clipboard cannot take one", () => {

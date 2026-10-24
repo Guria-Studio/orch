@@ -64,6 +64,11 @@ func TestReceiptAgainstTheDemoProject(t *testing.T) {
 		t.Errorf("built_with = %q; markdown must not already carry it", got.BuiltWith)
 	}
 
+	// The summary under it is `orch report summary`'s, in the project's language.
+	if got.Summary == nil || len(got.Summary.Lines) == 0 || !strings.Contains(got.Summary.Lines[0], demo.HistoryRunID) {
+		t.Errorf("summary = %+v, want the finished run's", got.Summary)
+	}
+
 	// The live run by id: unfinished, with its failed attempts.
 	var live receiptPayload
 	decode(t, get(t, s, "/api/receipt?run="+demo.RunID), &live)
@@ -84,7 +89,7 @@ func TestReceiptBeforeAnyRun(t *testing.T) {
 	}
 	var got receiptPayload
 	decode(t, resp, &got)
-	if got.Receipt != nil || got.Markdown != "" || got.BuiltWith == "" {
+	if got.Receipt != nil || got.Markdown != "" || got.BuiltWith == "" || got.Summary != nil {
 		t.Errorf("got %+v, want a null receipt", got)
 	}
 }
