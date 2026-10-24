@@ -462,6 +462,17 @@ changes and the error names the files, for you to send it back. A stakeholder
 does not get the tab unless `api_task_diff` is in
 `dashboard.stakeholder_routes`.
 
+**System › Knowledge** lists the project's lessons (`.orch/knowledge/`) with
+their area, source, task and date, filters them by area and source, and
+searches them the way the MCP tool `orch_knowledge_search` does. Per lesson
+it shows how many dispatch prompts carried it and, of the tasks those were for
+that are done, how many finished on the first try — a lesson no prompt used,
+or whose tasks still needed retries, is one to edit or delete. The local
+operator adds, edits and deletes lessons there through the same function as
+`orch knowledge add` / `rm`; each change is a `knowledge_edited` event, and
+the file is yours to commit. **Curate now** stays disabled until
+`orch knowledge curate` (#452) ships. A stakeholder never gets the page.
+
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the
 bottom of the sidebar (or ⌘K → *Change language*) switches it and this browser

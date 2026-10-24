@@ -178,6 +178,8 @@ var eventTypes = map[string]bool{
 	"budget_alert": true, "spec_ref_warning": true,
 	"operator_stop": true, "verify_failed": true, "verify_passed": true, "e2e_report": true, "salvage_accepted": true, "task_added": true, "task_edited": true,
 	"provider_skip": true, "ci_conflict_retry": true, "merged_locally": true,
+	// The project knowledge (#453): an operator's edit, and the lessons a prompt carried.
+	"knowledge_edited": true, "knowledge_used": true,
 }
 
 // OrphanRows reports rows whose project_id has no row in `projects`, keyed by

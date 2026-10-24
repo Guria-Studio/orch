@@ -25,6 +25,7 @@ import { QuotaPage } from "@/pages/QuotaPage"
 import { LogsPage } from "@/pages/LogsPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { SkillsPage } from "@/pages/SkillsPage"
+import { KnowledgePage } from "@/pages/KnowledgePage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { UsagePage } from "@/pages/UsagePage"
 import { TunnelPage } from "@/pages/TunnelPage"
@@ -58,6 +59,7 @@ const PAGES: Record<string, ReactNode> = {
   "/system/providers": <QuotaPage />,
   "/system/tools": <ToolsPage />,
   "/system/skills": <SkillsPage />,
+  "/system/knowledge": <KnowledgePage />,
   "/system/settings": <SettingsPage />,
   "/system/logs": <LogsPage />,
 }

@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -227,5 +228,76 @@ func TestRemoveSaysWhatFailed(t *testing.T) {
 	err = Remove(root, l.ID)
 	if err == nil || !strings.Contains(err.Error(), "remove lesson "+l.ID) {
 		t.Errorf("Remove = %v, want it wrapped with the lesson id", err)
+	}
+}
+
+type events []state.Event
+
+func (e *events) AppendEvent(_ context.Context, _ string, ev state.Event) error {
+	*e = append(*e, ev)
+	return nil
+}
+
+// The operator's one write path (#453): Update keeps the lesson's id, file
+// and date, and every change through the Editor is an event.
+func TestEditorWritesAndRecordsEachChange(t *testing.T) {
+	root := t.TempDir()
+	var got events
+	ed := Editor{Root: root, Events: &got, Source: "dashboard"}
+	l, err := ed.Add(context.Background(), Lesson{Title: "Old title", Body: "old"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited, err := ed.Update(context.Background(), l.ID, Lesson{Title: " New title ", Body: "new", Area: []string{"web/"}}, now.Add(48*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited.ID != l.ID || edited.Created != l.Created || edited.Path != l.Path || edited.Title != "New title" || edited.Source != "operator" {
+		t.Errorf("Update = %+v; want the same id, file and date, the new title", edited)
+	}
+	loaded, _ := Load(root)
+	if len(loaded) != 1 || loaded[0].Body != "new" || !reflect.DeepEqual(loaded[0].Area, []string{"web/"}) {
+		t.Errorf("after Update the files hold %+v", loaded)
+	}
+	if _, err := ed.Update(context.Background(), l.ID, Lesson{Title: "no body"}, now); err == nil {
+		t.Error("Update accepted a lesson with no body")
+	}
+	if _, err := ed.Update(context.Background(), "nope", Lesson{Title: "x", Body: "y"}, now); !errors.Is(err, ErrNoLesson) {
+		t.Errorf("Update of an unknown id = %v, want ErrNoLesson", err)
+	}
+	if err := ed.Remove(context.Background(), l.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if loaded, _ := Load(root); len(loaded) != 0 {
+		t.Errorf("after Remove the files hold %+v", loaded)
+	}
+	var actions []string
+	for _, e := range got {
+		if e.EventType != EventEdited || e.Extra["lesson"] != l.ID || e.Extra["source"] != "dashboard" {
+			t.Errorf("event %+v", e)
+		}
+		actions = append(actions, e.Extra["action"].(string))
+	}
+	if want := []string{"added", "edited", "removed"}; !reflect.DeepEqual(actions, want) {
+		t.Errorf("events %v, want %v", actions, want)
+	}
+}
+
+// Usage counts the prompts that carried a lesson and, of the done tasks they
+// were for, the first-try successes — each task once.
+func TestUsageCountsPromptsAndFirstTries(t *testing.T) {
+	used := func(task string, ids ...any) state.Event {
+		return state.Event{EventType: EventUsed, TaskID: task, Extra: map[string]any{"lessons": ids}}
+	}
+	got := Usage([]state.Event{
+		used("T-1", "a"), used("T-2", "a", "b"), used("T-2", "a"), used("T-3", "a"),
+		{EventType: "dispatch", TaskID: "T-1", Extra: map[string]any{"lessons": []any{"a"}}},
+	}, []state.TaskRuntime{
+		{ID: "T-1", Attempts: 1},
+		{ID: "T-2", Attempts: 2},
+	})
+	want := map[string]Use{"a": {Prompts: 4, Tasks: 2, FirstTry: 1}, "b": {Prompts: 1, Tasks: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Usage = %+v, want %+v", got, want)
 	}
 }

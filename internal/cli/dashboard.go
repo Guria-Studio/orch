@@ -15,6 +15,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/dashboard"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/publish"
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
@@ -186,7 +187,8 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				CLILatest: cliLatest(cfg),
 				Steer: &project.Steer{Backend: backend, StateDir: paths.StateDir(), VCS: vcs.Config{Provider: cfg.VCS.Provider, Host: cfg.VCS.Host},
 					Root: paths.Root, BaseBranch: cfg.Dispatch.BaseBranch, TasksJSON: paths.TasksJSON()},
-				Editor: &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
+				Editor:    &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
+				Knowledge: &knowledge.Editor{Root: paths.Root, Events: backend, Source: "dashboard"},
 			})
 			if err != nil {
 				return err

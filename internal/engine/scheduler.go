@@ -618,6 +618,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// file to the child's stdin, so a dispatch without it is a CLI with no
 	// instructions — Python renders it at the same point, for the same
 	// reason.
+	lessons := s.lessonsFor(ctx, task, workdir)
 	promptPath, warnings, err := prompt.Write(task, s.completedDeps(ctx, task), task.SpecRef, prompt.Options{
 		RunID:       s.Opts.RunID,
 		StateDir:    s.Opts.StateDir,
@@ -632,7 +633,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
 		Conflict:       s.conflictRetry[task.ID],
-		Knowledge:      s.lessonsFor(ctx, task, workdir),
+		Knowledge:      lessons,
 		Learn:          s.Opts.Cfg.Knowledge.Enabled,
 	})
 	conflict := s.conflictRetry[task.ID]
@@ -646,6 +647,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	for _, w := range warnings {
 		s.logger().Warn(w, "task", task.ID)
 	}
+	s.recordLessonsUsed(ctx, task.ID, route.Backend, lessons)
 
 	d := Dispatch{
 		Provider: provider,

@@ -98,6 +98,9 @@ var goOnlyEventTypes = map[string]bool{
 	"ci_conflict_retry": true,
 	// A finished task squash-merged into the base locally (#455).
 	"merged_locally": true,
+	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
+	"knowledge_edited": true,
+	"knowledge_used":   true,
 	// A PR finished with no CI check ever reported (#233).
 	"ci_no_checks": true,
 	// A PR merged outside orch while its CI was watched (#255).

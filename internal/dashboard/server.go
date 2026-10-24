@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
 	"github.com/hectorcanaimero/orch/internal/state"
@@ -60,6 +61,8 @@ type Server struct {
 	steer *project.Steer
 	// editor is Options.Editor.
 	editor *project.TaskEditor
+	// knowledge is Options.Knowledge.
+	knowledge *knowledge.Editor
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
@@ -180,6 +183,10 @@ type Options struct {
 	// through (v0.22) — the same editor as `orch task add|edit|set`. Nil
 	// turns them off.
 	Editor *project.TaskEditor
+	// Knowledge is what the Knowledge page reads the lessons from and writes
+	// them through (#453) — the same editor as `orch knowledge add|rm`. Nil
+	// turns its endpoints off.
+	Knowledge *knowledge.Editor
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -210,6 +217,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		cliLatest: opts.CLILatest,
 		steer:     opts.Steer,
 		editor:    opts.Editor,
+		knowledge: opts.Knowledge,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,
