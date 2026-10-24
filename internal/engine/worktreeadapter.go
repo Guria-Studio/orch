@@ -26,6 +26,9 @@ type WorktreeManager interface {
 	Push(ctx context.Context, taskID string) error
 	Remove(ctx context.Context, taskID string) error
 	Recreate(ctx context.Context, taskID string) (string, error)
+	// MergeBase merges the base into taskID's worktree, leaving a conflict
+	// in progress for the agent (#438).
+	MergeBase(ctx context.Context, taskID, baseBranch string) (worktree.MergeResult, error)
 	RemoveAll(ctx context.Context) error
 	// BranchName is what a PR is opened from.
 	BranchName(taskID string) string
@@ -67,6 +70,10 @@ func (a managerAdapter) Remove(_ context.Context, taskID string) error {
 
 func (a managerAdapter) Recreate(_ context.Context, taskID string) (string, error) {
 	return a.m.Recreate(taskID)
+}
+
+func (a managerAdapter) MergeBase(_ context.Context, taskID, baseBranch string) (worktree.MergeResult, error) {
+	return a.m.MergeBase(taskID, baseBranch)
 }
 
 // RemoveAll reports the worktrees it could not remove, as one error naming

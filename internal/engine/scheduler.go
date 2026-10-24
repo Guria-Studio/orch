@@ -191,6 +191,9 @@ type Scheduler struct {
 	// feedback file saying what failed: the one the poller rebuilt for a CI
 	// retry, or the one a failed local verify kept.
 	retryWorktree map[string]string
+	// conflictRetry is the merge a conflict retry's agent resolves, by task,
+	// for its prompt (#438).
+	conflictRetry map[string]*prompt.Conflict
 	// verifyAttempts counts each task's local verify send-backs.
 	verifyAttempts map[string]int
 	// exhausted is each provider out of quota, until its reset (#439).
@@ -283,6 +286,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		spentUSD:       make(map[string]float64),
 		ciRetryPR:      make(map[string]string),
 		retryWorktree:  make(map[string]string),
+		conflictRetry:  make(map[string]*prompt.Conflict),
 		verifyAttempts: make(map[string]int),
 		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),
@@ -607,7 +611,9 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		OperatorNotes:  s.operatorNotes(ctx, task.ID),
 		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
+		Conflict:       s.conflictRetry[task.ID],
 	})
+	delete(s.conflictRetry, task.ID)
 	if err != nil {
 		release()
 		s.logger().Error("rendering the prompt failed", "task", task.ID, "err", err)

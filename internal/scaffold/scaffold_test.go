@@ -479,7 +479,8 @@ var defaultsDivergedFromPython = map[string]string{
 		"the wrong first question; the first `orch run` that finishes a task offers it. " +
 		"#399: `enabled: true` again — off by default meant almost nobody turned it on; init and start say so. " +
 		"feat/verify-default: a new project gets a `verify:` block with the local verify on (#398); " +
-		"a config without the block stays off",
+		"a config without the block stays off. " +
+		"#438: a new project gets `retry.conflict.max_attempts: 1`; a config without it stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count",
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
@@ -1092,6 +1093,35 @@ func TestInitTurnsTheLocalVerifyOn(t *testing.T) {
 			}
 			if body := readFile(t, res, ".orchestrator/config.yaml"); strings.Count(body, "\nverify:") != 1 {
 				t.Errorf("want exactly one verify block:\n%s", body)
+			}
+		})
+	}
+}
+
+// A new project resolves a PR that conflicts with its base (#438) — blank or
+// from any template, whose config.yaml.tmpl carries no retry block — while a
+// config without the key stays off.
+func TestInitTurnsConflictRetriesOn(t *testing.T) {
+	for _, template := range []string{"", "python-api", "nextjs-saas", "chatbot-whatsapp", "data-pipeline", "expo-mobile"} {
+		t.Run("template="+template, func(t *testing.T) {
+			res, err := Run(Options{Root: filepath.Join(t.TempDir(), "proj"), Template: template, Now: fixedNow})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			loaded, err := config.Load(filepath.Join(res.Root, ".orchestrator", "config.yaml"), res.Root)
+			if err != nil {
+				t.Fatalf("config.Load: %v", err)
+			}
+			if got := loaded.Config.Retry.Conflict.Attempts(0); got != 1 {
+				t.Errorf("retry.conflict.max_attempts = %d, want 1", got)
+			}
+			for _, w := range loaded.Warnings {
+				if strings.Contains(w, "retry") {
+					t.Errorf("config.Load warns about the retry block: %s", w)
+				}
+			}
+			if body := readFile(t, res, ".orchestrator/config.yaml"); strings.Count(body, "\nretry:") != 1 {
+				t.Errorf("want exactly one retry block:\n%s", body)
 			}
 		})
 	}

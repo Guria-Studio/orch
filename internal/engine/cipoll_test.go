@@ -173,7 +173,21 @@ type fakeCIWorktree struct {
 	dir         string
 	recreateErr error
 	recreated   []string
+	// merge is what MergeBase answers: a branch already up to date unless set.
+	merge  worktree.MergeResult
+	pushes int
 }
+
+func (w *fakeCIWorktree) MergeBase(context.Context, string, string) (worktree.MergeResult, error) {
+	return w.merge, nil
+}
+
+func (w *fakeCIWorktree) Push(context.Context, string) error {
+	w.pushes++
+	return nil
+}
+
+func (w *fakeCIWorktree) Remove(context.Context, string) error { return nil }
 
 func (w *fakeCIWorktree) Recreate(_ context.Context, taskID string) (string, error) {
 	w.recreated = append(w.recreated, taskID)
@@ -780,10 +794,12 @@ func TestCINoChecksGraceRestartsWhenChecksAppear(t *testing.T) {
 }
 
 // TestCIConflictBlocksTheTask: #236. A conflicting PR gets no workflow run, so
-// it must neither wait forever nor pass as a repo without CI.
+// it must neither wait forever nor pass as a repo without CI. With no conflict
+// retry left (#438) the task is blocked, naming the files.
 func TestCIConflictBlocksTheTask(t *testing.T) {
 	f := newCIFixture(t, pendingRow("C-1", "https://github.com/o/r/pull/1", 0))
 	f.vcs.status["https://github.com/o/r/pull/1"] = vcs.CIConflict
+	f.wt.merge = worktree.MergeResult{Moved: true, Conflicts: []string{"a.go"}}
 	n := &recordingNotifier{}
 	f.s.Notify = n
 
@@ -803,7 +819,7 @@ func TestCIConflictBlocksTheTask(t *testing.T) {
 	if got := n.ciBlockedList(); len(got) != 0 {
 		t.Errorf("announced a conflict as a CI retry block: %v", got)
 	}
-	if got := n.blockedList(); len(got) != 1 || !strings.Contains(got[0], "conflicts with its base branch") {
+	if got := n.blockedList(); len(got) != 1 || !strings.Contains(got[0], "conflicts in a.go") {
 		t.Errorf("block announcements = %v, want one naming the conflict", got)
 	}
 }

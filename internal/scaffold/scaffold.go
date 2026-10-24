@@ -201,6 +201,7 @@ func Run(opts Options) (Result, error) {
 	}
 	w.reportFindings(opts)
 	w.verify()
+	w.conflictRetry()
 	w.stampTaskMeta(opts)
 	if opts.Template == "" && !opts.NoSampleTask {
 		res.SampleTask = w.sampleTask(opts.TierDefaults)
@@ -692,6 +693,40 @@ func (w *writer) verify() {
 }
 
 var reVerifyBlock = regexp.MustCompile(`(?m)^verify:`)
+
+// conflictRetry gives a template project, whose config.yaml.tmpl has no
+// retry block, the retry.conflict a blank one gets from the packaged default
+// (#438). A template that writes its own retry block keeps it as written.
+func (w *writer) conflictRetry() {
+	if w.err != nil {
+		return
+	}
+	rel := filepath.Join(".orchestrator", "config.yaml")
+	raw, err := os.ReadFile(w.path(rel)) // #nosec G304 -- the file this scaffold just wrote
+	if err != nil {
+		w.fail("read %s to add retry.conflict: %w", rel, err)
+		return
+	}
+	body := string(raw)
+	if reRetryBlock.MatchString(body) {
+		return
+	}
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	w.write(rel, []byte(body+"\n"+conflictRetryBlock), 0o600)
+}
+
+var reRetryBlock = regexp.MustCompile(`(?m)^retry:`)
+
+// conflictRetryBlock is retry.conflict as the packaged default writes it.
+const conflictRetryBlock = `retry:
+  # A PR that conflicts with its base: orch merges the base into the task's
+  # branch and pushes, or hands the conflict to the agent this many times
+  # before blocking. On in a new project; a config without it stays off.
+  conflict:
+    max_attempts: 1
+`
 
 // packagedVerifyBlock is the packaged default's verify comment and block,
 // from its "# Local verify" comment to the next blank line.

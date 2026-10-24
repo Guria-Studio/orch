@@ -279,6 +279,31 @@ retry:
 Classes: `transient`, `timeout`, `rate_limit`, `version_drift`, `ci_failed`.
 Each takes `max_attempts`, `backoff_seconds` and `escalate_model`.
 
+`conflict` is the one class outside the reaper: a PR the CI poller finds
+conflicting with its base (#438). Only `max_attempts` is read. **A config
+without it is off** (`0`), so upgrading never starts pushing to PRs or paying
+for agents unasked; `orch init` and `orch start` write `1` into a new
+project's config.
+
+```yaml
+retry:
+  conflict:
+    max_attempts: 1   # agent dispatches to resolve a conflicting PR
+```
+
+On a conflict orch rebuilds the task's worktree from its PR branch (its work
+kept) and merges the freshly fetched `dispatch.base_branch` into it — a merge,
+not a rebase, since orch squash-merges PRs. A clean merge is pushed and CI is
+polled again, with no agent and without spending an attempt. A merge that stops
+on conflicts dispatches the agent in that worktree, its prompt listing the
+conflicting files and the base commits that touched them; local verify runs as
+usual before the push to the same PR. Past `max_attempts` the task is blocked
+as before, the reason naming the files. `max_attempts: 0` (or no key) turns
+the whole thing off, clean merges included: nothing is pushed or dispatched
+and a conflicting PR blocks its task exactly as before #438. Each attempt is a
+`ci_conflict_retry` event in the task's activity. The count lives in the
+running `orch run`, so a new run grants the attempts again.
+
 `max_attempts: 0` means **never retry this class** — which is why an absent
 key and an explicit zero are different things.
 

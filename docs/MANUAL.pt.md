@@ -325,7 +325,12 @@ dependentes comecem de uma base que tem o código; um merge que nunca entra
 é informado com o erro do próprio gh no evento `pr_auto_merge_failed` e na
 nota da task);
 um vermelho recebe uma nova tentativa com os logs da falha anexados, e
-depois `blocked`. Uma execução que abre um PR termina antes de fazer
+depois `blocked`. Um PR em conflito com sua base é atualizado sobre o
+trabalho já feito da task: o orch faz merge da base e push quando entra
+limpo, sem agente; senão o agente recebe os arquivos em conflito e os commits
+da base que os causaram para resolver, `retry.conflict` vezes (1 num projeto
+novo; uma config sem a chave continua bloqueando como antes) antes de a task
+ficar `blocked` nomeando os arquivos. Uma execução que abre um PR termina antes de fazer
 polling do CI desse PR — uma execução que termina verde é percebida na
 *próxima* `orch run`, igual ao Python.
 

@@ -15,6 +15,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/providers"
 	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/hectorcanaimero/orch/internal/worktree"
 )
 
 // ---- A recording backend, so the events can be asserted without SQL -------
@@ -574,6 +575,10 @@ func (w *recordingWorktree) Recreate(_ context.Context, taskID string) (string, 
 		return "", err
 	}
 	return path, nil
+}
+func (w *recordingWorktree) MergeBase(context.Context, string, string) (worktree.MergeResult, error) {
+	w.record("merge_base")
+	return worktree.MergeResult{}, nil
 }
 func (w *recordingWorktree) BranchName(taskID string) string { return "orch/" + taskID }
 func (w *recordingWorktree) ChangedFiles(context.Context, string) ([]string, error) {

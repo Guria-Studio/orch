@@ -94,6 +94,8 @@ func TestEventTypesMatchPython(t *testing.T) {
 // reason next to it.
 var goOnlyEventTypes = map[string]bool{
 	"sprint_done": true,
+	// A PR that conflicted with its base brought up to date (#438).
+	"ci_conflict_retry": true,
 	// A PR finished with no CI check ever reported (#233).
 	"ci_no_checks": true,
 	// A PR merged outside orch while its CI was watched (#255).

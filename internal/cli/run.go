@@ -300,7 +300,8 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 			Worktree:     wtManager,
 			PollInterval: time.Duration(cfg.VCS.CIPollIntervalS) * time.Second,
 			MaxRetries:   cfg.VCS.CIMaxRetries,
-			AutoMerge:    cfg.GitHub.AutoMerge,
+			ConflictRetries: conflictRetries(cfg),
+			AutoMerge:       cfg.GitHub.AutoMerge,
 			// Python's `gh pr merge --squash --auto`. Without a
 			// method gh refuses to merge non-interactively (#232).
 			Squash:           true,
@@ -453,4 +454,11 @@ func fileModTime(path string) time.Time {
 		return time.Time{}
 	}
 	return info.ModTime()
+}
+
+// conflictRetries is retry.conflict.max_attempts as written (#438). A config
+// without it is off, so upgrading never starts pushing to PRs and paying for
+// agents unasked; `orch init` and `orch start` write 1 into a new project.
+func conflictRetries(cfg config.Config) int {
+	return cfg.Retry.Conflict.Attempts(0)
 }

@@ -290,6 +290,7 @@ export const en = {
   "task.ev.pr_created": "opened the pull request",
   "task.ev.ci_success": "passed",
   "task.ev.ci_failure_retry": "failed; sent it back to the agent",
+  "task.ev.ci_conflict_retry": "conflicted with the base; brought it up to date",
   "task.ev.ci_blocked": "failed too often; blocked it",
   "task.ev.pr_merged": "merged the pull request",
   "task.ev.pr_auto_merged": "merged the pull request",

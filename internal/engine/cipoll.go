@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/hectorcanaimero/orch/internal/worktree"
 )
 
 // CI status values, as written into `tasks_runtime.ci_status`. Python's
@@ -39,6 +42,9 @@ const (
 	// EventPRMerged is Go only: the PR was merged outside orch while its CI
 	// was still being watched (#255).
 	EventPRMerged = "pr_merged"
+	// EventCIConflictRetry is Go only: a PR that conflicted with its base was
+	// brought up to date, by orch alone or through the agent (#438).
+	EventCIConflictRetry = "ci_conflict_retry"
 )
 
 // ciNoChecksGrace is how long a PR may report no check at all before orch
@@ -75,9 +81,13 @@ type CIBackend interface {
 }
 
 // CIWorktree is the slice of internal/worktree the poller needs: bringing a
-// removed worktree back so the failing logs can be left in it.
+// removed worktree back so the failing logs can be left in it, and bringing a
+// conflicting branch up to date with its base (#438).
 type CIWorktree interface {
 	Recreate(ctx context.Context, taskID string) (string, error)
+	MergeBase(ctx context.Context, taskID, baseBranch string) (worktree.MergeResult, error)
+	Push(ctx context.Context, taskID string) error
+	Remove(ctx context.Context, taskID string) error
 }
 
 // CIPoller watches the pull requests a run opened and acts on what CI says.
@@ -100,6 +110,12 @@ type CIPoller struct {
 	// MaxRetries is how many times a failing CI re-dispatches the task with
 	// its logs before the task is blocked. Python reads `vcs.ci_max_retries`.
 	MaxRetries int
+	// ConflictRetries is how many times a PR that conflicts with its base is
+	// handed to the agent to resolve before the task is blocked (#438). The
+	// value is taken as is: 0 turns conflict retries off, clean merges
+	// included, and blocks as before. `orch run` reads
+	// retry.conflict.max_attempts.
+	ConflictRetries int
 	// AutoMerge merges a PR whose CI went green. Python reads
 	// `github.auto_merge`.
 	AutoMerge bool
@@ -118,6 +134,10 @@ type CIPoller struct {
 	prStateAt map[string]time.Time
 	// merges is each green PR's auto-merge retry state (#347).
 	merges map[string]*mergeRetry
+	// conflictAttempts counts each task's conflict retries sent to the agent.
+	// ponytail: in memory, so a restarted run grants retry.conflict again;
+	// a tasks_runtime column if that ever matters.
+	conflictAttempts map[string]int
 }
 
 // Poll asks CI about every task waiting on it, if enough time has passed.
@@ -179,8 +199,9 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 			p.ciFailed(ctx, s, row)
 			acted++
 		case vcs.CIConflict:
-			p.block(ctx, s, row, "the PR conflicts with its base branch, so CI will not run", false)
-			acted++
+			if p.ciConflict(ctx, s, row) {
+				acted++
+			}
 		case vcs.CINone:
 			if p.noChecksFor(row.ID, now) >= ciNoChecksGrace {
 				delete(p.noChecksSince, row.ID)
@@ -568,7 +589,17 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 	// transition moments from now is illegal, the write is rejected, and the
 	// agent is spawned anyway on a task the database still calls done
 	// (#251).
-	if err := s.Backend.Transition(ctx, row.ID, model.StatusTodo, "CI failed; re-dispatching with logs"); err != nil {
+	if !requeueOnPR(ctx, s, row, task, route, wtPath, "CI failed; re-dispatching with logs") {
+		return false
+	}
+	p.emit(ctx, s, EventCIRedispatch, row, map[string]any{"pr_url": row.PRURL})
+	return true
+}
+
+// requeueOnPR queues the task's agent again in wtPath, to push to its open
+// PR. Reports whether it did.
+func requeueOnPR(ctx context.Context, s *Scheduler, row state.TaskRuntime, task model.Task, route model.RouteEntry, wtPath, note string) bool {
+	if err := s.Backend.Transition(ctx, row.ID, model.StatusTodo, note); err != nil {
 		s.logger().Warn("CI re-dispatch: reopening the task failed; skipping", "task", row.ID, "err", err)
 		return false
 	}
@@ -587,8 +618,98 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 	})
 	s.ciRetryPR[row.ID] = row.PRURL
 	s.retryWorktree[row.ID] = wtPath
-	p.emit(ctx, s, EventCIRedispatch, row, map[string]any{"pr_url": row.PRURL})
 	return true
+}
+
+// conflictBlockReason is why a conflicting PR blocks its task.
+const conflictBlockReason = "the PR conflicts with its base branch, so CI will not run"
+
+// ciConflict brings a PR that conflicts with its base up to date, in the
+// task's kept work (#438): the base is merged into the worktree rebuilt from
+// the PR's branch; a clean merge is pushed and CI polled again, with no
+// agent; one that stops on conflicts goes to the agent to resolve, at most
+// ConflictRetries times, after which the task is blocked naming the files.
+// Reports whether it acted.
+func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskRuntime) bool {
+	// The same guards as ciFailed: a retry outstanding has not pushed yet,
+	// and one queued while draining would never start.
+	if s.inFlightIDs()[row.ID] || s.retryQueueIDs()[row.ID] || s.Draining() {
+		return false
+	}
+	if p.Worktree == nil {
+		p.block(ctx, s, row, conflictBlockReason, false)
+		return true
+	}
+	base := s.baseBranch()
+	wtPath, err := p.Worktree.Recreate(ctx, row.ID)
+	var merge worktree.MergeResult
+	if err == nil {
+		merge, err = p.Worktree.MergeBase(ctx, row.ID, base)
+	}
+	if err != nil {
+		s.logger().Warn("conflict retry: merging the base failed; blocking", "task", row.ID, "err", err)
+		p.dropWorktree(ctx, s, row.ID)
+		p.block(ctx, s, row, conflictBlockReason, false)
+		return true
+	}
+
+	if len(merge.Conflicts) == 0 {
+		defer p.dropWorktree(ctx, s, row.ID)
+		if p.ConflictRetries <= 0 {
+			// retry.conflict off: nothing is pushed, as before #438.
+			p.block(ctx, s, row, conflictBlockReason, false)
+			return true
+		}
+		if !merge.Moved {
+			// The branch already holds the base: the forge has not yet
+			// recomputed the PR since the last push. Ask again next poll.
+			return false
+		}
+		if err := p.Worktree.Push(ctx, row.ID); err != nil {
+			s.logger().Warn("conflict retry: pushing the merged base failed; will retry next poll", "task", row.ID, "err", err)
+			return false
+		}
+		s.logger().Info("the PR conflicted with its base; merged it cleanly and pushed", "task", row.ID, "pr", row.PRURL)
+		p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{
+			"pr_url": row.PRURL, "agent": false, "reason": "merged " + base + " cleanly and pushed",
+		})
+		return true
+	}
+
+	files := strings.Join(merge.Conflicts, ", ")
+	if p.conflictAttempts[row.ID] >= p.ConflictRetries {
+		p.dropWorktree(ctx, s, row.ID)
+		p.block(ctx, s, row, truncateReason(conflictBlockReason+" (conflicts in "+files+")"), false)
+		return true
+	}
+	task, ok := s.Queue.Task(row.ID)
+	route, routed := s.Routes[task.Model]
+	if !ok || !routed {
+		s.logger().Warn("conflict retry: the task or its route is not in this run", "task", row.ID)
+		p.dropWorktree(ctx, s, row.ID)
+		return false
+	}
+	if !requeueOnPR(ctx, s, row, task, route, wtPath, "the PR conflicts with its base; sent to the agent to resolve") {
+		p.dropWorktree(ctx, s, row.ID)
+		return false
+	}
+	s.conflictRetry[row.ID] = &prompt.Conflict{Base: base, Files: merge.Conflicts, Commits: merge.Commits}
+	if p.conflictAttempts == nil {
+		p.conflictAttempts = map[string]int{}
+	}
+	p.conflictAttempts[row.ID]++
+	p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{
+		"pr_url": row.PRURL, "agent": true, "attempt": p.conflictAttempts[row.ID],
+		"files": merge.Conflicts, "reason": "conflicts in " + files + "; sent to the agent",
+	})
+	return true
+}
+
+// dropWorktree removes a worktree the poller rebuilt and no agent will use.
+func (p *CIPoller) dropWorktree(ctx context.Context, s *Scheduler, taskID string) {
+	if err := p.Worktree.Remove(ctx, taskID); err != nil {
+		s.logger().Warn("conflict retry: removing the worktree failed", "task", taskID, "err", err)
+	}
 }
 
 // CIFeedbackFile is where the failing CI logs are left for the agent, inside
