@@ -205,3 +205,22 @@ func TestReportFindingCommentsOnAnOpenDuplicate(t *testing.T) {
 		t.Errorf("created %d, comments %v, url %q: want a comment on #433 and its URL", len(fake.created), fake.comments, out.URL)
 	}
 }
+
+// The second test of likelyDuplicate: titles that share fewer than half
+// their key words are one finding when they quote the same command or error.
+func TestLikelyDuplicateOnTheSameQuotedCommand(t *testing.T) {
+	title := "verify rejected a task over a missing binary"
+	other := "agent saw verify fail on a typo in config.yaml, task sent back"
+	for _, tt := range []struct {
+		text, otherText string
+		want            bool
+	}{
+		{"it ran `tue`", `the command "tue" exited 127`, true},
+		{"it ran `tue`", "the command `pnpm e2e` exited 1", false},
+		{"no quotes here", "none here either", false},
+	} {
+		if got := likelyDuplicate(title, title+"\n"+tt.text, other, other+"\n"+tt.otherText); got != tt.want {
+			t.Errorf("%q vs %q: likelyDuplicate = %v, want %v", tt.text, tt.otherText, got, tt.want)
+		}
+	}
+}

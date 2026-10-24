@@ -32,7 +32,10 @@ func (b *SQLite) FiledFindings(ctx context.Context) ([]FiledFinding, error) {
 		if err := rows.Scan(&f.Number, &f.URL, &f.Title, &f.Summary, &at); err != nil {
 			return nil, fmt.Errorf("scan filed finding: %w", err)
 		}
-		f.FiledAt, _ = ParseTS(at)
+		var ok bool
+		if f.FiledAt, ok = ParseTS(at); !ok {
+			return nil, fmt.Errorf("filed finding #%d: unreadable filed_at %q", f.Number, at)
+		}
 		out = append(out, f)
 	}
 	return out, rows.Err()
