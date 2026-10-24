@@ -22,6 +22,23 @@ func (GeminiProvider) Name() model.Backend { return model.BackendGemini }
 // and the engine closes the child's stdin.
 func (GeminiProvider) PromptDelivery() PromptDelivery { return PromptArg }
 
+// HeadlessEnv is the environment a backend's CLI needs, on top of the
+// operator's, to run unattended in a task's worktree. Only gemini needs any.
+//
+// gemini 0.59 refuses a directory it was not told to trust (exit 55,
+// testdata/gemini/0.59.0/untrusted-directory.log), and every dispatch runs in
+// a fresh worktree beside the repo, never inside a folder the operator
+// trusted. GEMINI_CLI_TRUST_WORKSPACE=true lifts that gate the way claude's
+// acceptEdits and codex's approval flags already open the same door; it is an
+// environment variable rather than `--skip-trust` because a gemini that
+// predates it ignores the variable but would reject the flag.
+func HeadlessEnv(b model.Backend) []string {
+	if b == model.BackendGemini {
+		return []string{"GEMINI_CLI_TRUST_WORKSPACE=true"}
+	}
+	return nil
+}
+
 // Argv returns the argv for `gemini -p <prompt> --model <model>`.
 //
 // There is no working-directory flag. Python sets `PWD` in the child's

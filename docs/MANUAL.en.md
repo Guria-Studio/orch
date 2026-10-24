@@ -151,7 +151,9 @@ and every rule added are printed). The wizard asks and Enter accepts; batch
 `init` and `start --yes` just write them. `--no-permissions` writes nothing and
 names `orch claude-permissions` / `orch agy-permissions`, which add them later.
 codex, opencode and muse need nothing written; `orch doctor` reports each CLI
-(gemini as unknown).
+(gemini as unknown). gemini refuses a folder it was not told to trust, and every
+task runs in a fresh worktree, so orch sets `GEMINI_CLI_TRUST_WORKSPACE=true` on
+each gemini dispatch; set it to `false` in your environment to keep the gate.
 
 A new project has `report_findings.enabled: false`. Agents may file
 **public** issues about orch itself on hectorcanaimero/orch under your `gh`

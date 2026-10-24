@@ -167,6 +167,9 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 	if env == nil {
 		env = os.Environ()
 	}
+	// The backend's headless defaults go first: os/exec keeps the last
+	// duplicate, so a value the operator set wins.
+	env = append(providers.HeadlessEnv(provider.Name()), env...)
 	cmd.Env = append(withoutPWD(env), "PWD="+sr.Cwd)
 
 	if provider.PromptDelivery() == providers.PromptStdin {

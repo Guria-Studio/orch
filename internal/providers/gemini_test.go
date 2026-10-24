@@ -78,10 +78,10 @@ func TestGeminiParseRealSuccess(t *testing.T) {
 // 55 before contacting any model. orch dispatches every task into a fresh git
 // worktree, which is never a trusted directory, so every gemini dispatch ends
 // here — in Python too, since GeminiBackend.build_cmd passes no --skip-trust
-// and sets no GEMINI_CLI_TRUST_WORKSPACE. The fix is one flag or one
-// environment variable, but it also switches off a security gate on a CLI orch
-// runs unattended, so it is a decision rather than a patch: see
-// docs/brainstorm/go-migration-notes/sonnet-2.md.
+// and sets no GEMINI_CLI_TRUST_WORKSPACE (docs/brainstorm/go-migration-notes/
+// sonnet-2.md). orch now sets that variable on every gemini dispatch
+// (HeadlessEnv, engine's TestSpawnTrustsTheWorktreeForGemini); this test still
+// pins what the output means when an operator sets it to false.
 func TestGeminiParseUntrustedDirectory(t *testing.T) {
 	out := readFixture(t, "gemini", "0.59.0", "untrusted-directory.log")
 	res := GeminiProvider{}.Parse(55, out)

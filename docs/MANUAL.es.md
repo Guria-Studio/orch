@@ -156,7 +156,10 @@ Enter acepta; `init` en modo batch y `start --yes` las escriben directamente.
 `--no-permissions` no escribe nada y nombra `orch claude-permissions` /
 `orch agy-permissions`, que las agregan después. codex, opencode y muse no
 necesitan nada escrito; `orch doctor` informa cada CLI (gemini como
-desconocido).
+desconocido). gemini rechaza una carpeta que no le dijeron que es confiable, y
+cada tarea corre en un worktree nuevo, así que orch define
+`GEMINI_CLI_TRUST_WORKSPACE=true` en cada dispatch de gemini; ponla en `false` en
+tu entorno para mantener ese control.
 
 Un proyecto nuevo trae `report_findings.enabled: false`. Los agentes pueden
 abrir issues **públicos** sobre orch en hectorcanaimero/orch con tu login de
