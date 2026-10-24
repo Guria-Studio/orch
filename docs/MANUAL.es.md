@@ -327,8 +327,9 @@ un reintento con los logs del fallo adjuntos, y después `blocked`. Un PR
 que entra en conflicto con su base se pone al día sobre el trabajo ya hecho
 de la task: orch mergea la base y hace push si entra limpia, sin agente; si
 no, el agente recibe los archivos en conflicto y los commits de la base que
-los causaron para resolverlos, `retry.conflict` veces (por defecto 1) antes
-de que la task quede `blocked` nombrando los archivos. Una
+los causaron para resolverlos, `retry.conflict` veces (1 en un proyecto
+nuevo; una config sin la clave sigue bloqueando como antes) antes de que la
+task quede `blocked` nombrando los archivos. Una
 corrida que abre un PR termina antes de hacer polling sobre el CI de ese
 PR — una corrida que termina en verde se nota en el *próximo* `orch run`,
 igual que en Python.

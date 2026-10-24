@@ -319,8 +319,9 @@ event and the task's note); a red one gets one retry with the failing logs
 attached, then `blocked`. A PR that conflicts with its base is brought up to
 date in the task's kept work: orch merges the base in and pushes when it
 merges cleanly, with no agent; otherwise the agent gets the conflicting files
-and the base commits behind them to resolve, `retry.conflict` times (default
-1) before the task is blocked naming the files. A run that opens a PR exits before polling that
+and the base commits behind them to resolve, `retry.conflict` times (1 in a
+new project; a config without the key keeps the old block) before the task is
+blocked naming the files. A run that opens a PR exits before polling that
 PR's CI — a run finishing green is noticed on the *next* `orch run`, same
 as Python.
 

@@ -38,6 +38,11 @@ default_timeout_multiplier: 1.5
 retry:
   backoff_seconds: 5
   rate_limit_backoff_seconds: 60
+  # A PR that conflicts with its base: orch merges the base into the task's
+  # branch and pushes, or hands the conflict to the agent this many times
+  # before blocking. On in a new project; a config without it stays off.
+  conflict:
+    max_attempts: 1
 
 # Fase 3 (multi-proyecto): prefijo aplicado a `Task.spec_ref` para armar la
 # línea `Spec ref (READ FIRST):` del prompt. Cada proyecto puede sobreescribir

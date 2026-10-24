@@ -173,7 +173,8 @@ type Retry struct {
 	VersionDrift RetryRule `yaml:"version_drift"`
 	CIFailed     RetryRule `yaml:"ci_failed"`
 	// Conflict caps the agent dispatches that resolve a PR conflicting with
-	// its base (#438); only max_attempts is read. Default 1.
+	// its base (#438); only max_attempts is read. Absent is off; init and
+	// start write 1.
 	Conflict RetryRule `yaml:"conflict"`
 }
 
