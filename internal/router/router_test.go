@@ -905,3 +905,32 @@ func TestLoadReadsACodexServiceTier(t *testing.T) {
 		t.Errorf("service_tier = %v, want default", got)
 	}
 }
+
+func TestSetRouteEditsTwoLinesInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "model_router.yaml")
+	body := "# routes, by hand\n" +
+		"work:\n  backend: codex   # the old one\n  cli_model: \"gpt-5\"\n  tier: standard\n\n" +
+		"# keep me\nother:\n  backend: claude\n  cli_model: claude-opus-5-5\n  tier: premium\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetRoute(path, "work", model.BackendClaude, "claude-sonnet-4-6"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path) // #nosec G304 -- t.TempDir()
+	want := "# routes, by hand\n" +
+		"work:\n  backend: claude   # the old one\n  cli_model: claude-sonnet-4-6\n  tier: standard\n\n" +
+		"# keep me\nother:\n  backend: claude\n  cli_model: claude-opus-5-5\n  tier: premium\n"
+	if string(got) != want {
+		t.Errorf("file:\n%s\nwant:\n%s", got, want)
+	}
+	if err := SetRoute(path, "nope", model.BackendClaude, "x"); err == nil {
+		t.Error("an unknown key should be an error")
+	}
+	if err := os.WriteFile(path, []byte("work: {backend: codex, cli_model: gpt-5, tier: standard}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetRoute(path, "work", model.BackendClaude, "claude-sonnet-4-6"); err == nil {
+		t.Error("a flow-style entry should be refused, not rewritten")
+	}
+}
