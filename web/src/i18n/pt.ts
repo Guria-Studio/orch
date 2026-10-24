@@ -294,6 +294,7 @@ export const pt = {
   "task.ev.pr_created": "abriu o pull request",
   "task.ev.ci_success": "passou",
   "task.ev.ci_failure_retry": "falhou; devolveu ao agente",
+  "task.ev.ci_conflict_retry": "conflitou com a base; foi atualizado",
   "task.ev.ci_blocked": "falhou vezes demais; bloqueou",
   "task.ev.pr_merged": "fez merge do pull request",
   "task.ev.pr_auto_merged": "fez merge do pull request",

@@ -431,6 +431,71 @@ func (m *Manager) Recreate(taskID string) (string, error) {
 	return wtPath, nil
 }
 
+// MergeResult is what merging the base into a task's worktree left there.
+type MergeResult struct {
+	// Moved reports whether the merge brought anything in: false when the
+	// branch already contained the base.
+	Moved bool
+	// Conflicts are the paths the merge stopped on, with the merge left in
+	// progress; empty when it went through.
+	Conflicts []string
+	// Commits are the base's commits that touched them, "<hash> <subject>".
+	Commits []string
+}
+
+// MergeBase merges the freshly fetched base into taskID's worktree (#438).
+// A merge, not a rebase: orch squash-merges its PRs, so the branch's history
+// is flattened anyway, and a merge stops once with every conflict at once
+// where a rebase stops per commit. It also keeps the push a fast-forward.
+//
+// A clean merge is committed. One that conflicts is left in progress, with
+// the markers in the files, for the agent to resolve; committing what it
+// leaves (CommitPending) concludes it. Any other failure is aborted.
+func (m *Manager) MergeBase(taskID, baseBranch string) (MergeResult, error) {
+	wt := m.WorktreePath(taskID)
+	ref := baseBranch
+	if m.pushEnabled {
+		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
+			return MergeResult{}, err
+		}
+		ref = "origin/" + baseBranch
+	}
+	before, err := m.run(taskID, "git", "-C", wt, "rev-parse", "HEAD")
+	if err != nil {
+		return MergeResult{}, err
+	}
+	_, mergeErr := m.run(taskID, "git", "-C", wt,
+		"-c", "user.email=orch@local", "-c", "user.name=orch",
+		"merge", "--no-edit", ref)
+	if mergeErr == nil {
+		after, err := m.run(taskID, "git", "-C", wt, "rev-parse", "HEAD")
+		return MergeResult{Moved: after != before}, err
+	}
+	out, err := m.run(taskID, "git", "-C", wt, "diff", "--name-only", "-z", "--diff-filter=U")
+	files := strings.FieldsFunc(out, func(r rune) bool { return r == 0 })
+	if err != nil || len(files) == 0 {
+		abort := []string{"git", "-C", wt, "merge", "--abort"}
+		if abortErr := m.runBestEffort(taskID, abort...); abortErr != nil {
+			logGitWarning(taskID, abort, abortErr)
+		}
+		return MergeResult{}, errors.Join(mergeErr, err)
+	}
+	logArgs := append([]string{"git", "-C", wt, "log", "--format=%h %s", "HEAD..MERGE_HEAD", "--"}, files...)
+	log, err := m.run(taskID, logArgs...)
+	if err != nil {
+		// The files are what the agent needs; the commits only say why.
+		slog.Warn("worktree: listing the base commits behind a conflict failed",
+			"task_id", taskID, "error", err)
+	}
+	var commits []string
+	for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
+		if line != "" {
+			commits = append(commits, line)
+		}
+	}
+	return MergeResult{Moved: true, Conflicts: files, Commits: commits}, nil
+}
+
 // RemoveAll removes every tracked worktree. Called from the run loop's
 // shutdown path (SIGTERM/drain), after — not during — the drain wait: see
 // the package doc comment's caller-contract section. Returns the task IDs

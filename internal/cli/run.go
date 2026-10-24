@@ -294,7 +294,9 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 			Worktree:     wtManager,
 			PollInterval: time.Duration(cfg.VCS.CIPollIntervalS) * time.Second,
 			MaxRetries:   cfg.VCS.CIMaxRetries,
-			AutoMerge:    cfg.GitHub.AutoMerge,
+			// retry.conflict: one agent dispatch by default (#438).
+			ConflictRetries: cfg.Retry.Conflict.Attempts(1),
+			AutoMerge:       cfg.GitHub.AutoMerge,
 			// Python's `gh pr merge --squash --auto`. Without a
 			// method gh refuses to merge non-interactively (#232).
 			Squash:           true,

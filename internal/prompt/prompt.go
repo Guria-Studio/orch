@@ -103,6 +103,18 @@ type Options struct {
 	// previous attempt was rejected — the CI logs a CI retry leaves there.
 	// Empty, the block is not rendered.
 	FeedbackFile string
+
+	// Conflict is the merge of the base a conflict retry stopped on (#438).
+	// Nil, the block is not rendered.
+	Conflict *Conflict
+}
+
+// Conflict is the base merged into a conflict retry's working dir, the files
+// it stopped on and the base commits that touched them ("<hash> <subject>").
+type Conflict struct {
+	Base    string
+	Files   []string
+	Commits []string
 }
 
 // SpecState is whether the spec ref was found where the agent will run.
@@ -164,6 +176,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"deps_block":     renderDepsBlock(completedDeps),
 		"notes_block":    renderNotesBlock(opts.OperatorNotes),
 		"feedback_block": feedbackBlock(opts.FeedbackFile),
+		"conflict_block": conflictBlock(opts.Conflict),
 		"model":          task.Model,
 		"working_dir":    workingDir,
 		"tdd_line":       tddLine(opts.TDD),
@@ -347,6 +360,30 @@ func feedbackBlock(file string) string {
 		"starting over.\n", file)
 }
 
+// conflictBlock tells a conflict retry's agent that its kept work is
+// mid-merge with the base, where, and because of what; or is empty.
+func conflictBlock(c *Conflict) string {
+	if c == nil {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Your pull request conflicts with its base, %s. Your earlier work is in your\n"+
+		"working dir, and orch has merged %s into it; the merge stopped on conflicts in:\n", c.Base, c.Base)
+	for _, f := range c.Files {
+		fmt.Fprintf(&b, "  - %s\n", f)
+	}
+	if len(c.Commits) > 0 {
+		b.WriteString("The base commits that touched them:\n")
+		for _, line := range c.Commits {
+			fmt.Fprintf(&b, "  - %s\n", line)
+		}
+	}
+	b.WriteString("Resolve every conflict keeping both sides' intent, remove all conflict markers,\n" +
+		"run the tests, then report back as below. You need not commit: orch commits the\n" +
+		"merge with your resolution.\n")
+	return b.String()
+}
+
 // OperatorNotes picks the operator's notes out of a task's own comment
 // trail, oldest first: the entries whose kind is state.NoteKindOperator.
 func OperatorNotes(comments []json.RawMessage) []string {
@@ -526,6 +563,8 @@ func truncateRunes(s string, n int) string {
 //     the conditional constraints, under the same rule.
 //   - **The feedback block exists only on a retry that left a feedback
 //     file** (the CI logs). It follows the notes, under the same rule.
+//   - **The conflict block exists only on a conflict retry** (#438). It
+//     follows the feedback block, under the same rule.
 const template = `TASK_ID={id}
 You are executing task {id}.
 
@@ -534,7 +573,7 @@ Title: {title}
 Description: {description}
 Files you may write: {files}
 Spec ref (READ FIRST): {spec_ref_line}
-{deps_block}{notes_block}{feedback_block}
+{deps_block}{notes_block}{feedback_block}{conflict_block}
 Coordination protocol:
 1. Read the spec ref for the exact acceptance criteria for {id}.
 2. Do the work. {id} is already in-progress — the orchestrator moved it before launching you.

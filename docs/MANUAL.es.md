@@ -323,7 +323,12 @@ minutos, y un PR atrasado respecto de su base se actualiza primero, así las
 dependientes arrancan de una base que tiene el código; un merge que nunca
 entra se informa con el error del propio gh en el evento
 `pr_auto_merge_failed` y en la nota de la task); uno rojo recibe
-un reintento con los logs del fallo adjuntos, y después `blocked`. Una
+un reintento con los logs del fallo adjuntos, y después `blocked`. Un PR
+que entra en conflicto con su base se pone al día sobre el trabajo ya hecho
+de la task: orch mergea la base y hace push si entra limpia, sin agente; si
+no, el agente recibe los archivos en conflicto y los commits de la base que
+los causaron para resolverlos, `retry.conflict` veces (por defecto 1) antes
+de que la task quede `blocked` nombrando los archivos. Una
 corrida que abre un PR termina antes de hacer polling sobre el CI de ese
 PR — una corrida que termina en verde se nota en el *próximo* `orch run`,
 igual que en Python.
