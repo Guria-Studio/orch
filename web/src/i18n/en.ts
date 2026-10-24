@@ -737,6 +737,8 @@ export const en = {
   "tools.purpose.tailscale": "Share with Tailscale",
   "tools.purpose.playwright": "verify.e2e and the Tests tab",
   "tools.failed": "Couldn't list the tools",
+  "tools.commands.title": "A command in config.yaml will not run",
+  "tools.commands.hint": "Its program is not installed, so verify skips it and its check never runs. Fix the command in .orchestrator/config.yaml or install the program; orch doctor and orch run say the same.",
   "share.title": "Share project",
   "share.provider.tailscale": "Tailscale",
   "share.provider.tailscale_hint": "Your tailnet (serve) or public (funnel)",

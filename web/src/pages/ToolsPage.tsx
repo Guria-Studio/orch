@@ -46,6 +46,21 @@ export function ToolsPage() {
 
       <p className="max-w-2xl leading-5 text-muted-foreground">{t("tools.intro")}</p>
 
+      {data?.commands?.length ? (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("tools.commands.title")}</AlertTitle>
+          <AlertDescription className="space-y-1">
+            <ul className="font-mono text-xs">
+              {data.commands.map((c) => (
+                <li key={c.key}>{c.detail}</li>
+              ))}
+            </ul>
+            <p>{t("tools.commands.hint")}</p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {isLoading ? <Skeleton className="h-64 w-full" /> : null}
       {isError ? (
         <Alert variant="destructive">

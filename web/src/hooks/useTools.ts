@@ -19,10 +19,17 @@ export interface Tool {
   docs_url?: string
 }
 
+/** A config.yaml shell command whose program is not installed (doctor.UnresolvedCommand). */
+export interface UnresolvedCommand {
+  key: string
+  command: string
+  detail: string
+}
+
 export function useTools() {
-  return useQuery<{ tools: Tool[] }, Error>({
+  return useQuery<{ tools: Tool[]; commands?: UnresolvedCommand[] }, Error>({
     queryKey: ["tools"],
-    queryFn: async () => (await apiClient.get<{ tools: Tool[] }>("/api/tools")).data,
+    queryFn: async () => (await apiClient.get<{ tools: Tool[]; commands?: UnresolvedCommand[] }>("/api/tools")).data,
     // Probing every CLI takes a few seconds; installs happen by hand, and
     // "Check again" refetches.
     staleTime: Infinity,

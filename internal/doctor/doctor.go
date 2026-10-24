@@ -70,5 +70,5 @@ func ExitCode(checks []Check) int {
 // run order, which callers here get for free since each Check* function
 // returns its own checks in a fixed order too.
 func SortByName(checks []Check) {
-	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
+	sort.SliceStable(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
 }

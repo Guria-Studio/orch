@@ -1,14 +1,14 @@
 import "@testing-library/jest-dom/vitest"
 import { render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { Tool } from "@/hooks/useTools"
+import type { Tool, UnresolvedCommand } from "@/hooks/useTools"
 import { ToolsPage } from "@/pages/ToolsPage"
 
 const mockUseTools = vi.fn()
 vi.mock("@/hooks/useTools", () => ({ useTools: () => mockUseTools() }))
 
-function loaded(tools: Tool[]) {
-  mockUseTools.mockReturnValue({ data: { tools }, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() })
+function loaded(tools: Tool[], commands: UnresolvedCommand[] = []) {
+  mockUseTools.mockReturnValue({ data: { tools, commands }, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() })
 }
 
 describe("ToolsPage", () => {
@@ -41,4 +41,15 @@ describe("ToolsPage", () => {
     expect(screen.queryByText(/missing for features/)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "How to install" })).not.toBeInTheDocument()
   })
+
+  // The same words as orch doctor (#440): a configured command the run would
+  // find only mid-task.
+  it("names a configured command whose program is not installed", () => {
+    loaded([], [{ key: "verify.app.start", command: "tue", detail: 'verify.app.start: "tue" not found on PATH' }])
+    render(<ToolsPage />)
+    const alert = screen.getByRole("alert")
+    expect(within(alert).getByText("A command in config.yaml will not run")).toBeInTheDocument()
+    expect(within(alert).getByText('verify.app.start: "tue" not found on PATH')).toBeInTheDocument()
+  })
+
 })
