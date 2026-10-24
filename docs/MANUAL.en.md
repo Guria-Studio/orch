@@ -330,8 +330,10 @@ as Python.
 **Project knowledge** (`knowledge.enabled`, on in a new project): what one task
 learns reaches the tasks after it. Lessons are short markdown files under
 `.orch/knowledge/`, committed and reviewed like any other file. An agent
-records one with the MCP tool `orch_learn` (it lands in its PR); you add your
-own with `orch knowledge add`. Each dispatch prompt carries the few most relevant under `Project
+records one with the MCP tool `orch_learn` (it lands in its PR); orch drafts
+one when the local verify rejected an attempt and the next one passed, or when
+the agent resolved a conflicting PR; you add your own with `orch knowledge
+add`. Each dispatch prompt carries the few most relevant under `Project
 knowledge` — those whose `area` covers the task's files first. `orch knowledge
 list` / `show` / `rm` manage them and `orch knowledge stats` compares
 first-try success before and since the first lesson. See
