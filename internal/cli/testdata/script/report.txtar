@@ -1,13 +1,15 @@
 # orch publish --to dir: the portal's roadmap reaches the static site, named
 # from the specs (tasks.json names no phase here), by title, never by id.
-exec orch publish --project-root mini --project-id mini --to dir --out site
-exists site/data.json
-grep '"name": "Autenticación"' site/data.json
-grep '"name": "inicio de sesión"' site/data.json
-grep '"title": "Formulario de acceso"' site/data.json
-! grep 'F1\.1\.T1' site/data.json
-grep '"title": "Visión del portal"' site/data.json
-! grep 'Borrador interno' site/data.json
+# Lines marked [bundle] need the built stakeholder bundle (`make web`); CI
+# builds it first, a local run without it skips them.
+[bundle] exec orch publish --project-root mini --project-id mini --to dir --out site
+[bundle] exists site/data.json
+[bundle] grep '"name": "Autenticación"' site/data.json
+[bundle] grep '"name": "inicio de sesión"' site/data.json
+[bundle] grep '"title": "Formulario de acceso"' site/data.json
+[bundle] ! grep 'F1\.1\.T1' site/data.json
+[bundle] grep '"title": "Visión del portal"' site/data.json
+[bundle] ! grep 'Borrador interno' site/data.json
 
 # orch report pdf — through the real CLI, against the shipped parity fixture.
 
