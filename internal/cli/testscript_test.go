@@ -21,6 +21,9 @@ import (
 // the same code path scripts/parity.sh's Go side exercises via `make
 // build`.
 func TestMain(m *testing.M) {
+	// No test reads a real registry or writes the real ~/.orch cache: the
+	// update checks are off unless a test turns them on with a fake (#448).
+	_ = os.Setenv("ORCH_NO_UPDATE_CHECK", "1")
 	testscript.Main(m, map[string]func(){
 		"orch": func() { os.Exit(cli.Run("test", os.Args[1:])) },
 	})

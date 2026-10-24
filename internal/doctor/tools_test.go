@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,5 +64,34 @@ func TestToolsSaysWhatTheProjectUsesAndWhatIsHere(t *testing.T) {
 	}
 	if tools["agy"].Install != "" {
 		t.Errorf("agy install = %q, orch knows no command for it", tools["agy"].Install)
+	}
+}
+
+// An agent CLI older than its latest release carries the latest and the
+// command that updates it; one that is current carries no command (#448).
+func TestToolsSaysWhichAgentCLIsAreBehind(t *testing.T) {
+	onPath := map[string]string{"claude": "2.1.290 (Claude Code)", "codex": "codex-cli 0.160.0"}
+	orig := lookVersion
+	lookVersion = func(command string) (bool, string, string) {
+		v, ok := onPath[command]
+		if !ok {
+			return false, "", ""
+		}
+		return true, "/usr/lib/node_modules/x/" + command, v
+	}
+	t.Cleanup(func() { lookVersion = orig })
+	latest := map[string]string{"@anthropic-ai/claude-code": "2.1.301", "@openai/codex": "0.160.0"}
+
+	tools := map[string]Tool{}
+	for _, tool := range Tools(ToolsConfig{Root: t.TempDir(), Latest: func(_ context.Context, pkg string) (string, error) {
+		return latest[pkg], nil
+	}}) {
+		tools[tool.ID] = tool
+	}
+	if c := tools["claude"]; c.Latest != "2.1.301" || c.Update != "npm install -g @anthropic-ai/claude-code@latest" {
+		t.Errorf("claude = %+v, want latest 2.1.301 and the npm command", c)
+	}
+	if c := tools["codex"]; c.Latest != "0.160.0" || c.Update != "" {
+		t.Errorf("codex = %+v, want latest 0.160.0 and no command", c)
 	}
 }

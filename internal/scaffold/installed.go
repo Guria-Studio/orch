@@ -51,45 +51,84 @@ func PackagedRouter() (router.Router, error) {
 // for it then has real routes, with their tiers, to choose from (#377). Routes
 // lists says their CLI no longer runs are left out (#397).
 func SeedInstalledRoutes(root string, installed func(model.Backend) bool, lists ModelLists) ([]string, error) {
-	packaged, err := PackagedRouter()
+	plan, err := PlanRefresh(root, installed, lists)
 	if err != nil {
 		return nil, err
 	}
-	packaged, _ = lists.Available(packaged)
-	path := filepath.Join(root, ".orchestrator", "model_router.yaml")
-	have, err := router.Load(path)
+	return plan.Keys, AppendRoutes(root, plan, "orch start")
+}
+
+// RefreshPlan is what the packaged routes and the CLIs' model lists would
+// change in a project's model_router.yaml (`orch router refresh`, #448).
+type RefreshPlan struct {
+	// Add are the packaged routes of installed CLIs the file lacks and,
+	// where the CLI lists its models, that it still runs; Keys sorted.
+	Add  map[string]model.RouteEntry
+	Keys []string
+	// Stale are the file's routes whose CLI listed its models without the
+	// route's cli_model: a dispatch to one fails as version_drift.
+	Stale []string
+	// Unrouted are, per CLI, models it lists that no route runs: new models
+	// orch has no tier for, for the operator to route by hand.
+	Unrouted map[model.Backend][]string
+}
+
+// PlanRefresh reads root's model_router.yaml against the packaged routes and
+// lists (DiscoverModels); it writes nothing.
+func PlanRefresh(root string, installed func(model.Backend) bool, lists ModelLists) (RefreshPlan, error) {
+	packaged, err := PackagedRouter()
 	if err != nil {
-		return nil, fmt.Errorf("reading the project's router: %w", err)
+		return RefreshPlan{}, err
 	}
-	add := map[string]model.RouteEntry{}
-	var keys []string
+	packaged, _ = lists.Available(packaged)
+	have, err := router.Load(filepath.Join(root, ".orchestrator", "model_router.yaml"))
+	if err != nil {
+		return RefreshPlan{}, fmt.Errorf("reading the project's router: %w", err)
+	}
+	plan := RefreshPlan{Add: map[string]model.RouteEntry{}}
 	for _, k := range packaged.Keys() {
 		if e := packaged[k]; installed(e.Backend) {
 			if _, ok := have[k]; !ok {
-				add[k] = e
-				keys = append(keys, k)
+				plan.Add[k] = e
+				plan.Keys = append(plan.Keys, k)
 			}
 		}
 	}
-	if len(add) == 0 {
-		return nil, nil
+	_, plan.Stale = lists.Available(have)
+	all := router.Router{}
+	for k, e := range have {
+		all[k] = e
 	}
-	body, err := yaml.Marshal(add)
+	for k, e := range plan.Add {
+		all[k] = e
+	}
+	plan.Unrouted = lists.Unrouted(all)
+	return plan, nil
+}
+
+// AppendRoutes appends plan's additions to root's model_router.yaml under a
+// comment naming the command that added them.
+func AppendRoutes(root string, plan RefreshPlan, by string) error {
+	if len(plan.Add) == 0 {
+		return nil
+	}
+	path := filepath.Join(root, ".orchestrator", "model_router.yaml")
+	body, err := yaml.Marshal(plan.Add)
 	if err != nil {
-		return nil, fmt.Errorf("encoding the routes: %w", err)
+		return fmt.Errorf("encoding the routes: %w", err)
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600) // #nosec G304 -- the project's own router
 	if err != nil {
-		return nil, fmt.Errorf("opening %s: %w", path, err)
+		return fmt.Errorf("opening %s: %w", path, err)
 	}
-	_, werr := fmt.Fprintf(f, "\n# ---- the packaged routes of the CLIs on PATH, added by `orch start` ----\n%s", body)
+	_, werr := fmt.Fprintf(f, "\n# ---- the packaged routes of the CLIs on PATH, added by `%s` ----\n%s", by, body)
 	if cerr := f.Close(); werr == nil {
 		werr = cerr
 	}
 	if werr != nil {
-		return nil, fmt.Errorf("writing %s: %w", path, werr)
+		return fmt.Errorf("writing %s: %w", path, werr)
 	}
-	return keys, nil
+	return nil
 }
 
 var (

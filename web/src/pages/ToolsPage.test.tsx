@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Tool, UnresolvedCommand } from "@/hooks/useTools"
 import { ToolsPage } from "@/pages/ToolsPage"
@@ -52,4 +52,19 @@ describe("ToolsPage", () => {
     expect(within(alert).getByText('verify.app.start: "tue" not found on PATH')).toBeInTheDocument()
   })
 
+  // #448: an agent CLI behind its latest release says so, with the command
+  // that updates it the way it was installed.
+  it("shows an outdated agent CLI's installed and latest version and how to update it", () => {
+    loaded([
+      { id: "claude", group: "agents", used: true, found: true, version: "2.1.290 (Claude Code)", latest: "2.1.301", update: "npm install -g @anthropic-ai/claude-code@latest" },
+      { id: "codex", group: "agents", used: true, found: true, version: "codex-cli 0.154.0", latest: "0.154.0" },
+    ])
+    render(<ToolsPage />)
+    const agents = screen.getByRole("region", { name: "Agents" })
+    expect(within(agents).getByText("Update available")).toBeInTheDocument()
+    expect(within(agents).getByText("2.1.290 (Claude Code) → 2.1.301")).toBeInTheDocument()
+    expect(within(agents).getByText("Installed")).toBeInTheDocument()
+    fireEvent.click(within(agents).getByRole("button", { name: "How to update" }))
+    expect(within(agents).getByText("npm install -g @anthropic-ai/claude-code@latest")).toBeInTheDocument()
+  })
 })

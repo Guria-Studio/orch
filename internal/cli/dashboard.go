@@ -180,10 +180,11 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Snapshot: func(ctx context.Context) (snapshot.Snapshot, error) {
 					return buildPublishSnapshot(ctx, paths, cfg, backend, portalRefresh, time.Now())
 				},
-				Version:  cmd.Root().Version,
-				Releases: dashboardReleases(),
-				Steer:    &project.Steer{Backend: backend, StateDir: paths.StateDir()},
-				Editor:   &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
+				Version:   cmd.Root().Version,
+				Releases:  dashboardReleases(),
+				CLILatest: cliLatest(cfg),
+				Steer:     &project.Steer{Backend: backend, StateDir: paths.StateDir()},
+				Editor:    &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
 			})
 			if err != nil {
 				return err
