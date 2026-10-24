@@ -33,7 +33,12 @@ const get = vi.fn()
 const editTask = vi.hoisted(() => vi.fn())
 const moveTask = vi.hoisted(() => vi.fn())
 let profile = "stakeholder"
-vi.mock("@/lib/api", () => ({ apiClient: { get: (...args: unknown[]) => get(...args) }, editTask, moveTask }))
+vi.mock("@/lib/api", () => ({
+  apiClient: { get: (...args: unknown[]) => get(...args) },
+  getTaskDiff: (id: string) => get(`/api/task/${id}/diff`).then((r: { data: unknown }) => r.data),
+  editTask,
+  moveTask,
+}))
 vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => ({ data: { profile } }) }))
 
 function Where() {
@@ -202,6 +207,23 @@ describe("TaskPage", () => {
     renderAt([taskPath("F6.1.T1")])
     expect(await screen.findByRole("spinbutton", { name: "Est." })).toBeDisabled()
     expect(screen.queryByRole("button", { name: "Edit prompt" })).not.toBeInTheDocument()
+  })
+
+  // #454: the Changes tab is the operator's; a stakeholder sees it only when
+  // the operator put api_task_diff on their allow-list.
+  it("shows the Changes tab to the operator, not to a stakeholder", async () => {
+    const { unmount } = renderAt([taskPath("F6.1.T1")])
+    await screen.findByRole("heading", { name: "Refill the slot once" })
+    expect(screen.queryByRole("tab", { name: "Changes" })).not.toBeInTheDocument()
+    unmount()
+
+    profile = "operator"
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url.endsWith("/diff") ? { task_id: "F6.1.T1", base: "main", branch: "orch/F6.1.T1", files: [] } : url.includes("/activity") ? { steps: [] } : task }),
+    )
+    renderAt([taskPath("F6.1.T1")])
+    fireEvent.click(await screen.findByRole("tab", { name: "Changes" }))
+    expect(await screen.findByText("The branch changes nothing against its base.")).toBeInTheDocument()
   })
 
   it("goes to the list when it was opened straight from a link", async () => {

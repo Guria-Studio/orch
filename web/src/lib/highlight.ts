@@ -22,3 +22,18 @@ for (const [name, lang] of Object.entries({ bash, diff, go, javascript, json, py
 export function highlight(code: HTMLElement, lang: string) {
   if (hljs.getLanguage(lang)) hljs.highlightElement(code)
 }
+
+const BY_EXTENSION: Record<string, string> = {
+  go: "go", ts: "typescript", tsx: "typescript", mts: "typescript", js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+  py: "python", json: "json", yml: "yaml", yaml: "yaml", sh: "bash", bash: "bash", sql: "sql",
+}
+
+/** The language a file's lines are colored as, from its extension; "" for none. */
+export function languageOf(path: string): string {
+  return BY_EXTENSION[path.slice(path.lastIndexOf(".") + 1).toLowerCase()] ?? ""
+}
+
+/** One line of code as highlighted HTML (escaped by highlight.js); null for a language it does not know. */
+export function highlightLine(text: string, lang: string): string | null {
+  return lang && hljs.getLanguage(lang) ? hljs.highlight(text, { language: lang, ignoreIllegals: true }).value : null
+}

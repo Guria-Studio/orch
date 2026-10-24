@@ -124,6 +124,35 @@ async function steer<T>(id: string, action: "stop" | "note", body: { hold?: bool
 export const stopTask = (id: string, hold: boolean, note: string) => steer<StopResult>(id, "stop", { hold, note })
 export const noteTask = (id: string, note: string) => steer<{ message: string }>(id, "note", { note })
 
+/** One file of a task's change (`GET /api/task/{id}/diff`). */
+export interface DiffFile {
+  path: string
+  old_path?: string
+  additions: number
+  deletions: number
+  binary?: boolean
+  /** The file's hunks, from its first `@@` line. */
+  patch: string
+  truncated?: boolean
+}
+
+export interface TaskDiff {
+  task_id: string
+  base: string
+  branch: string
+  files: DiffFile[]
+}
+
+export async function getTaskDiff(id: string): Promise<TaskDiff> {
+  const { data } = await apiClient.get<TaskDiff>(`/api/task/${encodeURIComponent(id)}/diff`)
+  return data
+}
+
+/** The Changes tab's review (#454): Accept is `orch task accept`, Send back `orch task note --retry`. */
+export const acceptTask = (id: string) => taskWrite<{ message: string }>("post", `/api/task/${encodeURIComponent(id)}/accept`, {})
+export const sendBackTask = (id: string, note: string) =>
+  taskWrite<{ message: string }>("post", `/api/task/${encodeURIComponent(id)}/note`, { note, retry: true })
+
 /** A task's definition fields, as `PATCH /api/task/{id}` takes them; unset ones stay. */
 export interface TaskFields {
   title?: string

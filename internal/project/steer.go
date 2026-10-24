@@ -13,6 +13,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
 // RunLockFile is the file under a project's state directory that one `orch
@@ -38,6 +39,10 @@ type Steer struct {
 	StateDir string
 	// Source names who asked, in the request's extra: cli, mcp, dashboard.
 	Source string
+	// VCS is vcs.provider and vcs.host: which merge Accept makes.
+	VCS vcs.Config
+	// Provider, when set, is used instead of the one VCS names (tests).
+	Provider vcs.Provider
 }
 
 // Providers are the backends orch has an adapter for, the names
@@ -183,6 +188,13 @@ func (s Steer) Move(ctx context.Context, taskID string, to model.Status, note st
 			return StopResult{}, fmt.Errorf("%s is running: %w; stop it first", taskID, ErrRunOwnsTask)
 		}
 		return s.Stop(ctx, taskID, to == model.StatusBlocked, note)
+	}
+	// Blocking finished work (the Changes tab's Block, #454): done only
+	// reopens to todo, so it goes through there.
+	if t.Status == model.StatusDone && to == model.StatusBlocked {
+		if err := s.Backend.Transition(ctx, taskID, model.StatusTodo, state.Note{Author: OperatorAuthor, Body: "reopened to block it"}); err != nil {
+			return StopResult{}, fmt.Errorf("reopening %s: %w", taskID, err)
+		}
 	}
 	if err := s.Backend.Transition(ctx, taskID, to, state.Note{Author: OperatorAuthor, Body: note}); err != nil {
 		return StopResult{}, fmt.Errorf("moving %s to %s: %w", taskID, to, err)
