@@ -786,6 +786,11 @@ and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
   `orch_knowledge_search` ([`MCP.md`](MCP.md)). The file is written in the
   task's worktree, so it is committed with the work and reaches the base
   through the task's PR.
+- **orch** (`auto_capture`, worktree mode) drafts a lesson in the task's
+  branch when an attempt the local verify rejected is followed by one that
+  passes (`source: verify`: what was rejected, and the agent's note), and when
+  the agent resolves a conflicting PR (`source: conflict`: the files, the base
+  commits, the agent's note). The PR's reviewer keeps, edits or drops it.
 - **The operator** uses `orch knowledge add|list|show|rm|stats`
   ([`CLI.md`](CLI.md)); `stats` compares first-try success and retries per
   task before and since the first lesson.

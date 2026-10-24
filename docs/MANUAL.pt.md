@@ -341,7 +341,9 @@ polling do CI desse PR — uma execução que termina verde é percebida na
 que uma task aprende chega às que vêm depois. As lições são arquivos markdown
 curtos em `.orch/knowledge/`, commitados e revisados como qualquer outro
 arquivo. Um agente registra uma com a tool MCP `orch_learn` (ela entra no PR
-dele); você adiciona as suas com `orch knowledge add`. Cada prompt de despacho leva as
+dele); o orch escreve um rascunho quando o verify local rejeitou uma tentativa
+e a seguinte passou, ou quando o agente resolveu um PR em conflito; você
+adiciona as suas com `orch knowledge add`. Cada prompt de despacho leva as
 poucas mais relevantes em `Project knowledge` — primeiro aquelas cuja `area`
 cobre os arquivos da task. `orch knowledge list` / `show` / `rm` as
 administram e `orch knowledge stats` compara o sucesso na primeira tentativa
