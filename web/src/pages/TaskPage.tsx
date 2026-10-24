@@ -9,6 +9,7 @@ import { ActivityFeed } from "@/components/ActivityFeed"
 import { Explain } from "@/components/Explain"
 import { Markdown } from "@/components/Markdown"
 import { StatusRing } from "@/components/StatusRing"
+import { TaskChanges } from "@/components/TaskChanges"
 import { TaskSteer } from "@/components/TaskSteer"
 import { useTicker } from "@/hooks/useNow"
 import { useEventsHistory } from "@/hooks/useEventsHistory"
@@ -575,6 +576,9 @@ export function TaskPage() {
   const prev = index > 0 ? all[index - 1] : undefined
   const next = index >= 0 && index < all.length - 1 ? all[index + 1] : undefined
   const canEdit = whoami?.profile === "operator"
+  // A stakeholder sees the code only when the operator put its route on their allow-list.
+  const showChanges = whoami?.profile !== "stakeholder" || (whoami.routes ?? []).includes("api_task_diff")
+  const [view, setView] = useState<"details" | "changes">("details")
 
   // A refused edit (another session's change, a cycle, a stakeholder) says
   // why, from the server's detail.
@@ -656,56 +660,84 @@ export function TaskPage() {
         <div className="flex flex-col lg:flex-row">
           <div className="min-w-0 flex-1 px-4 pb-10 pt-8 md:px-10">
             <div className="mx-auto flex max-w-[760px] flex-col gap-7">
-              {editing ? (
-                <DefinitionEditor
-                  task={data}
-                  onCancel={() => setEditing(false)}
-                  onSave={(fields) => void write(() => editTask(id, fields)).then((ok) => ok && setEditing(false))}
-                />
-              ) : (
-                <div className="space-y-2.5">
+              {showChanges ? (
+                <div role="tablist" aria-label={t("task.view")} className="-mb-3 flex gap-0.5 border-b pb-2">
+                  {(["details", "changes"] as const).map((x) => (
+                    <button
+                      key={x}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === x}
+                      onClick={() => setView(x)}
+                      className={cn(
+                        "h-[26px] rounded-md border px-2.5 text-xs",
+                        view === x ? "border-input bg-secondary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {t(x === "details" ? "task.tab_details" : "task.tab_changes")}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {showChanges && view === "changes" ? (
+                <>
                   <h1 className="text-2xl font-semibold leading-tight tracking-[-0.02em]">{data.title}</h1>
-                  {data.description ? (
-                    <Markdown source={data.description} breaks className="text-sm leading-[22px] text-foreground/85" />
+                  <TaskChanges task={data} events={events} canAct={canEdit} />
+                </>
+              ) : (
+                <>
+                  {editing ? (
+                    <DefinitionEditor
+                      task={data}
+                      onCancel={() => setEditing(false)}
+                      onSave={(fields) => void write(() => editTask(id, fields)).then((ok) => ok && setEditing(false))}
+                    />
                   ) : (
-                    <p className="text-sm leading-[22px] text-muted-foreground">{t("task.no_description")}</p>
+                    <div className="space-y-2.5">
+                      <h1 className="text-2xl font-semibold leading-tight tracking-[-0.02em]">{data.title}</h1>
+                      {data.description ? (
+                        <Markdown source={data.description} breaks className="text-sm leading-[22px] text-foreground/85" />
+                      ) : (
+                        <p className="text-sm leading-[22px] text-muted-foreground">{t("task.no_description")}</p>
+                      )}
+                    </div>
                   )}
-                </div>
+
+                  {saveError ? (
+                    <p role="alert" className="text-xs text-destructive">
+                      {saveError}
+                    </p>
+                  ) : null}
+
+                  {data.reason ? (
+                    <div role="note" className="flex gap-2.5 rounded-lg border border-status-blocked/30 bg-status-blocked/10 px-3 py-2.5">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-blocked" aria-hidden />
+                      <div className="space-y-0.5">
+                        <p className="font-medium text-status-blocked">{t(statusMeta(data.status).label)}</p>
+                        <p className="whitespace-pre-wrap">{data.reason}</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {data.files.length > 0 ? (
+                    <section aria-labelledby="task-files" className="space-y-2">
+                      <h2 id="task-files" className="text-xs font-medium text-muted-foreground">
+                        {t("task.files_touched", { count: data.files.length })}
+                      </h2>
+                      <ul className="flex flex-wrap gap-1.5">
+                        {data.files.map((f) => (
+                          <li key={f} className="rounded-md border px-2 py-0.5 font-mono text-xs text-foreground/85">
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  <Activity task={data} events={events} />
+                  <TaskSteer task={data} />
+                </>
               )}
-
-              {saveError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {saveError}
-                </p>
-              ) : null}
-
-              {data.reason ? (
-                <div role="note" className="flex gap-2.5 rounded-lg border border-status-blocked/30 bg-status-blocked/10 px-3 py-2.5">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-blocked" aria-hidden />
-                  <div className="space-y-0.5">
-                    <p className="font-medium text-status-blocked">{t(statusMeta(data.status).label)}</p>
-                    <p className="whitespace-pre-wrap">{data.reason}</p>
-                  </div>
-                </div>
-              ) : null}
-
-              {data.files.length > 0 ? (
-                <section aria-labelledby="task-files" className="space-y-2">
-                  <h2 id="task-files" className="text-xs font-medium text-muted-foreground">
-                    {t("task.files_touched", { count: data.files.length })}
-                  </h2>
-                  <ul className="flex flex-wrap gap-1.5">
-                    {data.files.map((f) => (
-                      <li key={f} className="rounded-md border px-2 py-0.5 font-mono text-xs text-foreground/85">
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-
-              <Activity task={data} events={events} />
-              <TaskSteer task={data} />
             </div>
           </div>
           {propsFolded ? (

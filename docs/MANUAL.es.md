@@ -421,6 +421,18 @@ task muestra su descripción como Markdown: código en línea, y bloques con su
 lenguaje, colores de sintaxis y un botón para copiar (Editar sigue mostrando
 el texto crudo).
 
+Su pestaña **Cambios** es la revisión: lo que cambió la rama `orch/<id>`
+de la task respecto a su base (`git diff --merge-base`), como lista de
+archivos con +/− y hunks con colores de sintaxis — un archivo con más de 400
+líneas cambiadas se abre plegado. Al lado, cada vez que la verificación local
+devolvió el trabajo, y los hallazgos de la revisión bajo el `archivo:línea`
+que nombran. El operador local actúa desde ahí: **Aceptar** hace squash-merge
+del PR (`orch task accept`), **Devolver** reabre la task con tu nota para su
+agente (`orch task note --retry`), **Bloquear** la detiene con la nota como
+motivo. En modo local (`vcs.provider: local`, #455) Aceptar avisa que aún no
+está. Un stakeholder no ve la pestaña salvo que `api_task_diff` esté en
+`dashboard.stakeholder_routes`.
+
 El dashboard está en inglés, español y portugués (Brasil). Arranca en el idioma
 de tu navegador y, si no es ninguno de esos, en inglés; el botón de idioma al
 pie de la barra lateral (o ⌘K → *Cambiar idioma*) lo cambia y este navegador

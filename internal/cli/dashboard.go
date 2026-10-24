@@ -20,6 +20,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
 // newDashboardCmd ports `orch dashboard` (the `run` function in
@@ -183,7 +184,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Version:   cmd.Root().Version,
 				Releases:  dashboardReleases(),
 				CLILatest: cliLatest(cfg),
-				Steer:     &project.Steer{Backend: backend, StateDir: paths.StateDir()},
+				Steer:     &project.Steer{Backend: backend, StateDir: paths.StateDir(), VCS: vcs.Config{Provider: cfg.VCS.Provider, Host: cfg.VCS.Host}},
 				Editor:    &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
 			})
 			if err != nil {

@@ -420,6 +420,17 @@ mostra todos os atalhos. A página de uma task mostra a descrição como
 Markdown: código inline, e blocos com a linguagem, cores de sintaxe e um botão
 de copiar (Editar continua mostrando o texto cru).
 
+A aba **Alterações** é a revisão: o que o branch `orch/<id>` da task mudou
+em relação à base (`git diff --merge-base`), como lista de arquivos com +/− e
+hunks com cores de sintaxe — um arquivo com mais de 400 linhas alteradas abre
+recolhido. Ao lado, cada vez que a verificação local devolveu o trabalho, e
+os achados da revisão sob o `arquivo:linha` que citam. O operador local age
+dali: **Aceitar** faz squash-merge do PR (`orch task accept`), **Devolver**
+reabre a task com sua nota para o agente (`orch task note --retry`),
+**Bloquear** a retém com a nota como motivo. No modo local (`vcs.provider:
+local`, #455) Aceitar avisa que ainda não está pronto. Um stakeholder não vê
+a aba a menos que `api_task_diff` esteja em `dashboard.stakeholder_routes`.
+
 O dashboard está em inglês, espanhol e português (Brasil). Ele começa no idioma
 do seu navegador e, se não for nenhum desses, em inglês; o botão de idioma no
 rodapé da barra lateral (ou ⌘K → *Mudar idioma*) troca o idioma e este

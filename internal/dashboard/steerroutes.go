@@ -29,6 +29,8 @@ const steerRequestLimit = 64 << 10
 type steerBody struct {
 	Hold bool   `json:"hold"`
 	Note string `json:"note"`
+	// Retry sends the task back to todo with the note (#454's Send back).
+	Retry bool `json:"retry"`
 }
 
 // steerGate answers whether the handler may go on, and the body it sent.
@@ -99,6 +101,15 @@ func (s *Server) handleTaskNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if body.Retry {
+		res, err := s.steer.SendBack(r.Context(), id, body.Note)
+		if err != nil {
+			s.steerFailed(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"task_id": id, "message": "sent back with the note: " + res.Message})
+		return
+	}
 	if err := s.steer.Note(r.Context(), id, body.Note); err != nil {
 		s.steerFailed(w, err)
 		return

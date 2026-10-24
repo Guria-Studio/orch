@@ -11,6 +11,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/hectorcanaimero/orch/internal/vcs"
 )
 
 // newTaskCmd is the `orch task` parent. `set` is Python's; `note` and `stop`
@@ -21,7 +22,7 @@ func newTaskCmd(flags *projectFlags) *cobra.Command {
 		Short: "Manual task mutations",
 	}
 	cmd.AddCommand(newTaskSetCmd(flags), newTaskAddCmd(flags), newTaskEditCmd(flags),
-		newTaskNoteCmd(flags), newTaskStopCmd(flags), newTaskSalvageCmd(flags))
+		newTaskNoteCmd(flags), newTaskStopCmd(flags), newTaskSalvageCmd(flags), newTaskAcceptCmd(flags))
 	return cmd
 }
 
@@ -39,7 +40,8 @@ func openSteer(cmd *cobra.Command, flags *projectFlags) (project.Steer, func() e
 		_ = closeDB()
 		return project.Steer{}, nil, fmt.Errorf("bootstrap: %w", err)
 	}
-	return project.Steer{Backend: backend, StateDir: paths.StateDir(), Source: "cli"}, closeDB, nil
+	return project.Steer{Backend: backend, StateDir: paths.StateDir(), Source: "cli",
+		VCS: vcs.Config{Provider: cfg.VCS.Provider, Host: cfg.VCS.Host}}, closeDB, nil
 }
 
 // steerErr maps the backend's errors onto `task set`'s exit codes.
@@ -55,8 +57,9 @@ func steerErr(id string, err error) error {
 
 func newTaskNoteCmd(flags *projectFlags) *cobra.Command {
 	var id string
+	var retry bool
 	cmd := &cobra.Command{
-		Use:   "note --id ID TEXT",
+		Use:   "note --id ID [--retry] TEXT",
 		Short: "Leave a note for a task's agent; it reaches the prompt of the task's next attempt",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -65,10 +68,46 @@ func newTaskNoteCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 			defer func() { _ = closeDB() }()
+			if retry {
+				res, err := steer.SendBack(cmd.Context(), id, strings.Join(args, " "))
+				if err != nil {
+					return steerErr(id, err)
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "task %s: sent back with the note (%s)\n", id, res.Message)
+				return err
+			}
 			if err := steer.Note(cmd.Context(), id, strings.Join(args, " ")); err != nil {
 				return steerErr(id, err)
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "task %s: note added; its next attempt's prompt carries it\n", id)
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")
+	cmd.Flags().BoolVar(&retry, "retry", false, "Also send the task back to todo, so orch run dispatches it again with the note")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+// newTaskAcceptCmd is `orch task accept` (#454): merge a task's reviewed
+// work — its PR — the way the dashboard's Changes tab does.
+func newTaskAcceptCmd(flags *projectFlags) *cobra.Command {
+	var id string
+	cmd := &cobra.Command{
+		Use:   "accept --id ID",
+		Short: "Accept a task's work: squash-merge its PR now",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			steer, closeDB, err := openSteer(cmd, flags)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closeDB() }()
+			msg, err := steer.Accept(cmd.Context(), id)
+			if err != nil {
+				return steerErr(id, err)
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), msg)
 			return err
 		},
 	}

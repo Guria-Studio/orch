@@ -45,6 +45,7 @@ func (s *Server) routes() []route {
 	out = append(out, s.settingsRoutes()...)
 	out = append(out, s.steerRoutes()...)
 	out = append(out, s.taskEditRoutes()...)
+	out = append(out, s.reviewRoutes()...)
 	return append(out, s.streamRoutes()...)
 }
 

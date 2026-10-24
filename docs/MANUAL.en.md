@@ -413,6 +413,18 @@ list and `?` lists every shortcut. A task's page renders its description as
 Markdown: inline code, and fenced blocks with their language, syntax colors
 and a copy button (Edit still shows the raw text).
 
+Its **Changes** tab is the review: what the task's branch `orch/<id>`
+changed against its base (`git diff --merge-base`), as a file list with +/−
+counts and syntax-colored hunks — a file over 400 changed lines opens
+collapsed. Next to it, each time the local verify sent the work back, and the
+review's findings under the `file:line` they name. The local operator acts
+from there: **Accept** squash-merges the task's PR (`orch task accept`),
+**Send back** reopens the task with your note for its agent (`orch task note
+--retry`), **Block** holds it with the note as the reason. In local mode
+(`vcs.provider: local`, #455) Accept says it is not there yet. A stakeholder
+does not get the tab unless `api_task_diff` is in
+`dashboard.stakeholder_routes`.
+
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the
 bottom of the sidebar (or ⌘K → *Change language*) switches it and this browser
