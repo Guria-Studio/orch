@@ -11,6 +11,7 @@ package verify
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -52,7 +53,8 @@ type Verifier struct {
 // "" when the work passes.
 //
 // A check that cannot run is not the agent's fault and does not fail it: a
-// detected command whose tool is not installed is skipped, and a review that
+// detected command whose tool is not installed is skipped, so is a configured
+// one sh cannot find (a warning names its config key), and a review that
 // cannot complete (no other provider, a provider that is down, an answer that
 // does not parse) is logged and passes, as `orch ci review` without
 // --blocking does. A gate that blocks on its own breakage teaches people to
@@ -65,7 +67,9 @@ func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.V
 		}
 	}
 	for _, c := range v.commands(req.TaskID, req.Dir) {
-		if out, err := run(ctx, req.Dir, req.Env, c, timeout); err != nil {
+		if out, err := run(ctx, req.Dir, req.Env, c, timeout); notFound(err) {
+			skipNotFound(req.TaskID, "verify.commands", c, out)
+		} else if err != nil {
 			return engine.VerifyResult{Failure: commandFailed(c, err, out, "")}
 		}
 	}
@@ -100,7 +104,11 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 				}
 			}()
 		}
-		if out, err := run(ctx, req.Dir, req.Env, app.Start, timeout); err != nil {
+		if out, err := run(ctx, req.Dir, req.Env, app.Start, timeout); notFound(err) {
+			// The E2E is for the app: without it there is nothing to run.
+			skipNotFound(req.TaskID, "verify.app.start", app.Start, out)
+			return engine.VerifyResult{}
+		} else if err != nil {
 			return engine.VerifyResult{Failure: "The task's app did not start. " + commandFailed(app.Start, err, out, "")}
 		}
 		if app.URL != "" {
@@ -126,7 +134,9 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 	}
 	var res engine.VerifyResult
 	for _, c := range v.Cfg.E2E {
-		if out, err := run(ctx, req.Dir, env, c, timeout); err != nil {
+		if out, err := run(ctx, req.Dir, env, c, timeout); notFound(err) {
+			skipNotFound(req.TaskID, "verify.e2e", c, out)
+		} else if err != nil {
 			res.Failure = commandFailed(c, err, out, " against the running app")
 			break
 		}
@@ -247,6 +257,18 @@ func run(ctx context.Context, dir string, env []string, command string, timeout 
 		err = fmt.Errorf("timed out after %s", timeout)
 	}
 	return out.String(), err
+}
+
+// notFound reports whether sh could not find the command (exit 127): a typo
+// or a tool missing from the machine, which the agent cannot fix (#433).
+func notFound(err error) bool {
+	var exit *exec.ExitError
+	return errors.As(err, &exit) && exit.ExitCode() == 127
+}
+
+func skipNotFound(taskID, key, command, out string) {
+	slog.Warn("verify: a configured command was not found; skipping it, check "+key+" in config.yaml",
+		"task", taskID, "command", command, "output", tail(out))
 }
 
 // review asks another provider to review the diff, and returns its blocking

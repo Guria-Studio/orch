@@ -43,6 +43,36 @@ func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 	}
 }
 
+// A configured command that is not found (sh's exit 127, a typo such as
+// `tue`) is the operator's config, not the agent's work: it is skipped, and
+// so is the E2E an app that cannot be started was for (#433).
+func TestVerifySkipsAConfiguredCommandThatIsNotFound(t *testing.T) {
+	v := Verifier{Cfg: config.Verify{
+		Commands: []string{"orch-no-such-command-tue", "touch commands-ran"},
+		App:      config.VerifyApp{Start: "orch-no-such-command-tue"},
+		E2E:      []string{"orch-no-such-command-tue", "touch e2e-ran"},
+		TimeoutS: 10,
+	}}
+	dir := t.TempDir()
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure; got != "" {
+		t.Errorf("Verify = %q, want a pass", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "commands-ran")); err != nil {
+		t.Errorf("the commands after the missing one did not run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "e2e-ran")); err == nil {
+		t.Error("the E2E ran without its app")
+	}
+
+	v.Cfg.App.Start = ""
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure; got != "" {
+		t.Errorf("Verify with a missing E2E command = %q, want a pass", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "e2e-ran")); err != nil {
+		t.Errorf("the E2E commands after the missing one did not run: %v", err)
+	}
+}
+
 func TestVerifyBoundsEachCommand(t *testing.T) {
 	v := Verifier{Cfg: config.Verify{Commands: []string{"sleep 30"}, TimeoutS: 1}}
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure; !strings.Contains(got, "timed out after 1s") {
