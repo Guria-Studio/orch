@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -189,6 +190,12 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 					Root: paths.Root, BaseBranch: cfg.Dispatch.BaseBranch, TasksJSON: paths.TasksJSON()},
 				Editor:    &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
 				Knowledge: &knowledge.Editor{Root: paths.Root, Events: backend, Source: "dashboard"},
+				// The Knowledge page's Curate now: `orch knowledge curate`
+				// itself, through the dashboard's own database.
+				Curate: func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error {
+					return curateKnowledge(ctx, flags, curateRequest{Out: out, State: backend,
+						Confirm: func(id, _ string) (bool, error) { return confirm(id), nil }})
+				},
 			})
 			if err != nil {
 				return err

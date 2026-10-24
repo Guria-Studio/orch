@@ -3,9 +3,12 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -151,7 +154,13 @@ func TestKnowledgeRefusesTheStakeholderAndRemoteWrites(t *testing.T) {
 				token = "test-token-stakeholder"
 			}
 			s, _, lessons := newKnowledgeServer(t, tc.profile, token)
+			s.curate = func(context.Context, io.Writer, func(string) bool) error {
+				t.Error("a refused request ran a curation")
+				return nil
+			}
 			calls := []struct{ method, path, body string }{
+				{http.MethodPost, "/api/knowledge/curate/estimate", ""},
+				{http.MethodPost, "/api/knowledge/curate", ""},
 				{http.MethodPost, "/api/knowledge", `{"title":"x","body":"y"}`},
 				{http.MethodPatch, "/api/knowledge/" + lessons[0].ID, `{"title":"x","body":"y"}`},
 				{http.MethodDelete, "/api/knowledge/" + lessons[0].ID, ""},
@@ -177,5 +186,109 @@ func TestKnowledgeRefusesTheStakeholderAndRemoteWrites(t *testing.T) {
 				t.Errorf("a refused request changed the lessons: %+v", now)
 			}
 		})
+	}
+}
+
+// fakeCurate stands in for `orch knowledge curate`: it prints an estimate,
+// asks confirm with its task, and, dispatched, runs until release closes.
+type fakeCurate struct {
+	asked, ran atomic.Int32
+	release    chan struct{}
+}
+
+func (f *fakeCurate) curate(_ context.Context, out io.Writer, confirm func(string) bool) error {
+	_, _ = io.WriteString(out, "curating 2 lessons on claude/haiku as knowledge-curate-1\nestimate: 1 task, ~$0.02\n")
+	f.asked.Add(1)
+	if !confirm("knowledge-curate-1") {
+		_, _ = io.WriteString(out, "aborted: nothing dispatched\n")
+		return errors.New("aborted")
+	}
+	f.ran.Add(1)
+	<-f.release
+	return nil
+}
+
+// Curate now: the estimate dispatches nothing; confirmed, the curation runs in
+// the background, the answer names its task at once, and a second one is
+// refused while it runs.
+func TestKnowledgeCurateEstimatesThenRunsOneAtATime(t *testing.T) {
+	s, _, _ := newKnowledgeServer(t, ProfileOperator, "")
+	f := &fakeCurate{release: make(chan struct{})}
+	s.curate = f.curate
+	ended := make(chan struct{}, 2)
+	s.curated = func() { ended <- struct{}{} }
+
+	rec := operatorSend(t, s, http.MethodPost, "/api/knowledge/curate/estimate", "")
+	var got curatePayload
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if rec.Code != http.StatusOK || got.Task != "knowledge-curate-1" || !strings.Contains(got.Estimate, "~$0.02") || strings.Contains(got.Estimate, "aborted") || f.ran.Load() != 0 {
+		t.Fatalf("estimate = %d %+v, ran %d; want the estimate and nothing dispatched", rec.Code, got, f.ran.Load())
+	}
+
+	rec = operatorSend(t, s, http.MethodPost, "/api/knowledge/curate", "")
+	got = curatePayload{}
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if rec.Code != http.StatusAccepted || got.Task != "knowledge-curate-1" {
+		t.Fatalf("curate = %d %s; want 202 with its task", rec.Code, rec.Body)
+	}
+	if rec = operatorSend(t, s, http.MethodPost, "/api/knowledge/curate", ""); rec.Code != http.StatusConflict {
+		t.Errorf("a second curation while one runs = %d, want 409: %s", rec.Code, rec.Body)
+	}
+	if n := f.asked.Load(); n != 2 {
+		t.Errorf("confirm asked %d times, want 2 (the refused one never starts)", n)
+	}
+	close(f.release)
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the curation never finished")
+	}
+	if rec = operatorSend(t, s, http.MethodPost, "/api/knowledge/curate", ""); rec.Code != http.StatusAccepted {
+		t.Errorf("after it finished = %d, want 202: %s", rec.Code, rec.Body)
+	}
+}
+
+// A curation that ends before its estimate: nothing to curate is a 409 with
+// what it said, a failure a 400 — and neither leaves the page locked.
+func TestKnowledgeCurateSaysWhyItDidNotStart(t *testing.T) {
+	s, _, _ := newKnowledgeServer(t, ProfileOperator, "")
+	for _, tc := range []struct {
+		err    error
+		code   int
+		detail string
+	}{
+		{nil, http.StatusConflict, "no lessons to curate"},
+		{errors.New("no route in model_router.yaml runs on an installed CLI"), http.StatusBadRequest, "no route"},
+	} {
+		s.curate = func(_ context.Context, out io.Writer, _ func(string) bool) error {
+			_, _ = io.WriteString(out, "no lessons to curate (.orch/knowledge is empty)\n")
+			return tc.err
+		}
+		for _, path := range []string{"/api/knowledge/curate/estimate", "/api/knowledge/curate"} {
+			rec := operatorSend(t, s, http.MethodPost, path, "")
+			if rec.Code != tc.code || !strings.Contains(rec.Body.String(), tc.detail) {
+				t.Errorf("%s = %d %s; want %d naming %q", path, rec.Code, rec.Body, tc.code, tc.detail)
+			}
+		}
+		if s.curating.Load() {
+			t.Error("a curation that never started left the next one refused")
+		}
+	}
+}
+
+// A curation is in the database only, not tasks.json; Curate now links to its
+// task page, which must find it.
+func TestTaskDetailFindsACurationInTheDatabase(t *testing.T) {
+	s, backend, _ := newKnowledgeServer(t, ProfileOperator, "")
+	id := knowledge.CurateTaskPrefix + "20261024-120000"
+	if err := backend.Bootstrap(context.Background(), []model.Task{{ID: id, Title: "x", Status: model.StatusTodo}}); err != nil {
+		t.Fatal(err)
+	}
+	rec := operatorSend(t, s, http.MethodGet, "/api/task/"+id, "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"todo"`) || !strings.Contains(rec.Body.String(), "Curate the project") {
+		t.Errorf("GET a curation = %d %s; want it with its status", rec.Code, rec.Body)
+	}
+	if rec = operatorSend(t, s, http.MethodGet, "/api/task/"+knowledge.CurateTaskPrefix+"nope", ""); rec.Code != http.StatusNotFound {
+		t.Errorf("an unknown curation = %d, want 404", rec.Code)
 	}
 }

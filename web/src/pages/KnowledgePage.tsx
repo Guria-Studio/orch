@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, Plus } from "lucide-react"
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useKnowledge, type Lesson } from "@/hooks/useSystem"
-import { addLesson, editLesson, removeLesson } from "@/lib/api"
+import { addLesson, curateEstimate, editLesson, removeLesson, startCuration, type Curation } from "@/lib/api"
 import { taskPath } from "@/lib/nav"
 import { t } from "@/i18n"
 
@@ -21,7 +21,8 @@ const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean)
  * often a prompt carried each and how those tasks did, so a useless lesson
  * shows. Search is the server's (orch_knowledge_search's ranking); area and
  * source filter here. Add, edit and delete go through the same editor as
- * `orch knowledge add|rm`.
+ * `orch knowledge add|rm`. Curate now is `orch knowledge curate` (#452):
+ * its estimate first, then, confirmed, one task the run shows as usual.
  */
 export function KnowledgePage() {
   const [q, setQ] = useState("")
@@ -30,6 +31,8 @@ export function KnowledgePage() {
   const [editing, setEditing] = useState<Lesson | "new" | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [curating, setCurating] = useState(false)
+  const [curated, setCurated] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { data, isLoading, isError, error: readError } = useKnowledge(q.trim())
   const lessons = data?.lessons ?? []
@@ -76,15 +79,9 @@ export function KnowledgePage() {
           ))}
         </select>
         <div className="ml-auto flex gap-2">
-          {/* ponytail: disabled until `orch knowledge curate` (#452) lands; then this runs it, estimate first. */}
-          <span title={t("knowledge.curate_soon")}>
-            <Button type="button" size="sm" variant="outline" disabled aria-describedby="curate-soon">
-              {t("knowledge.curate")}
-            </Button>
-            <span id="curate-soon" className="sr-only">
-              {t("knowledge.curate_soon")}
-            </span>
-          </span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setCurating(true)}>
+            {t("knowledge.curate")}
+          </Button>
           <Button type="button" size="sm" onClick={() => setEditing("new")} className="gap-1">
             <Plus className="h-3.5 w-3.5" aria-hidden />
             {t("knowledge.add")}
@@ -93,6 +90,15 @@ export function KnowledgePage() {
       </header>
 
       <p className="max-w-3xl leading-5 text-muted-foreground">{t("knowledge.intro")}</p>
+
+      {curated ? (
+        <p role="status" className="text-xs">
+          {t("knowledge.curate_started", { task: curated })}{" "}
+          <Link to={taskPath(curated)} className="font-medium underline">
+            {t("knowledge.curate_open")}
+          </Link>
+        </p>
+      ) : null}
 
       {isError || error ? (
         <Alert variant="destructive">
@@ -144,6 +150,8 @@ export function KnowledgePage() {
           onSaved={() => void queryClient.invalidateQueries({ queryKey: ["knowledge"] })}
         />
       ) : null}
+
+      {curating ? <CurateDialog onClose={() => setCurating(false)} onStarted={setCurated} /> : null}
     </div>
   )
 }
@@ -281,6 +289,61 @@ function LessonDialog({ lesson, sources, onClose, onSaved }: { lesson: Lesson | 
             </Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Curate now's dialog: the curation's estimate, then Confirm dispatches it. */
+function CurateDialog({ onClose, onStarted }: { onClose: () => void; onStarted: (task: string) => void }) {
+  const [estimate, setEstimate] = useState<Curation | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const fail = (err: unknown) => setError(err instanceof Error ? err.message : String(err))
+
+  useEffect(() => {
+    curateEstimate().then(setEstimate, fail)
+  }, [])
+
+  const confirm = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const started = await startCuration()
+      onStarted(started.task)
+      onClose()
+    } catch (err) {
+      fail(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => (o ? null : onClose())}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("knowledge.curate_title")}</DialogTitle>
+          <DialogDescription>{t("knowledge.curate_intro")}</DialogDescription>
+        </DialogHeader>
+        {estimate ? (
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-2.5 font-mono text-xs">{estimate.estimate}</pre>
+        ) : error ? null : (
+          <p className="text-xs text-muted-foreground">{t("knowledge.curate_estimating")}</p>
+        )}
+        {error ? (
+          <p role="alert" className="text-xs text-status-failed">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="button" size="sm" disabled={!estimate || busy} onClick={() => void confirm()}>
+            {t("knowledge.curate_confirm")}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
