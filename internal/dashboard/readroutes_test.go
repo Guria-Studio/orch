@@ -193,6 +193,10 @@ func (f *fakeState) ProviderStates(context.Context) ([]state.ProviderState, erro
 	return nil, nil
 }
 
+func (f *fakeState) FiledFindings(context.Context) ([]state.FiledFinding, error) { return nil, nil }
+
+func (f *fakeState) RecordFiledFinding(context.Context, state.FiledFinding) error { return nil }
+
 func (f *fakeState) StakeholderToken(context.Context) (string, time.Time, bool, error) {
 	return f.stakeholderTokenHash, time.Time{}, f.stakeholderTokenOK, f.stakeholderTokenErr
 }

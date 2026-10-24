@@ -84,3 +84,17 @@ func markedComment(comments []IssueComment, marker string) (IssueComment, bool) 
 	}
 	return IssueComment{}, false
 }
+
+// CommentIssue adds body as a new comment on issue number in repo and returns
+// the comment's URL.
+func (p *GitHubProvider) CommentIssue(repo string, number int, body string) (string, error) {
+	out, err := ghAPI("-X", "POST", fmt.Sprintf("repos/%s/issues/%d/comments", repo, number), "-f", "body="+body)
+	if err != nil {
+		return "", fmt.Errorf("commenting on %s#%d: %w", repo, number, err)
+	}
+	var posted IssueComment
+	if err := json.Unmarshal([]byte(out), &posted); err != nil {
+		return "", fmt.Errorf("reading gh's answer to the comment on %s#%d: %w", repo, number, err)
+	}
+	return posted.HTMLURL, nil
+}

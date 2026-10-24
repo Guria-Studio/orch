@@ -95,7 +95,8 @@ project's tracker; the tool always files on `hectorcanaimero/orch`.
 | `report_findings.enabled` off | Error; nothing filed |
 | `type` not bug / improvement / feature | Error; nothing filed |
 | `title` or `summary` empty | Error; nothing filed |
-| An `auto-reported` issue (open or closed) with the same title, ignoring case and punctuation | Returns `duplicate`; nothing filed |
+| A closed `auto-reported` issue with the same title, ignoring case and punctuation | Returns `duplicate`; nothing filed |
+| A likely duplicate: an issue this project already filed (remembered in `orch.db`), or an open `auto-reported` one the search finds | Adds a comment to it — "Seen again in task `<ORCH_TASK_ID>` at `<time>`" — and returns `duplicate`, `commented: true` and its `url`; nothing filed |
 | Other `auto-reported` issues match the title search | Returns `similar`; nothing filed unless the call sets `confirm_new: true` |
 | Project root or home directory in the title or body | Replaced with `<project>` and `~` |
 
@@ -104,7 +105,18 @@ to ingest that label, so a report never loops back into a project as a task.
 The body records the type, confidence, capture time, orch version and OS, and
 ends with a line saying it came through `orch_report_finding`.
 
-The result is `{filed, url?, duplicate?, similar?, message}`.
+The result is `{filed, url?, duplicate?, commented?, similar?, message}`.
+
+**Likely duplicate** (#441) is a plain test, no model call: the two titles
+share at least half their key words (lowercased, punctuation and stopwords
+like "a", "the", "orch" dropped), or they share two key words and the same
+quoted command or error string (a `` `backticked` `` or `"double-quoted"`
+span in the title or summary). The search asks GitHub for the title's key
+words with the `auto-reported` label. GitHub indexes a new issue only after a
+while, which is how one config typo (`tue` for `true`) became #433, #434 and
+#435 within a minute; so the project also remembers every issue it files, in
+the `filed_findings` table of `orch.db`, and checks those first. A remembered
+issue counts as open unless the search saw it closed.
 
 Nothing else is filtered: the redaction knows the two paths, not what else in
 your project is private. That is why the prompt and the tool's description

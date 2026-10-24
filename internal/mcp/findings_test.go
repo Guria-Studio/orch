@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ type fakeFindings struct {
 		repo, title, body string
 		labels            []string
 	}
+	comments []string
 }
 
 func (f *fakeFindings) SearchIssues(repo, label, query string, _ int) ([]vcs.Issue, error) {
@@ -29,7 +31,12 @@ func (f *fakeFindings) CreateIssue(repo, title, body string, labels []string) (s
 		repo, title, body string
 		labels            []string
 	}{repo, title, body, labels})
-	return "https://github.com/hectorcanaimero/orch/issues/999", nil
+	return fmt.Sprintf("https://github.com/hectorcanaimero/orch/issues/%d", 998+len(f.created)), nil
+}
+
+func (f *fakeFindings) CommentIssue(repo string, number int, body string) (string, error) {
+	f.comments = append(f.comments, fmt.Sprintf("%s#%d: %s", repo, number, body))
+	return fmt.Sprintf("https://github.com/hectorcanaimero/orch/issues/%d#issuecomment-%d", number, len(f.comments)), nil
 }
 
 // orch_report_finding is how an agent in any orch project reports a problem
@@ -144,5 +151,57 @@ func TestReportFindingFilesARedactedIssue(t *testing.T) {
 	}
 	if strings.Contains(got.body, "## Repro") {
 		t.Errorf("an empty section was rendered:\n%s", got.body)
+	}
+}
+
+// #433, #434 and #435 were one finding — verify ran `tue` — filed three times
+// by agents of one project within a minute, too soon for GitHub's search to
+// see the first (#441). The project remembers what it filed: the first call
+// files, the next two comment on it and answer with its URL.
+func TestReportFindingCommentsOnWhatThisProjectFiled(t *testing.T) {
+	root, backend := newTestProject(t)
+	fake := &fakeFindings{} // search finds nothing, as it did then
+	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Version: "v0.24.0", Findings: fake})
+	reports := []map[string]any{
+		{"type": "bug", "title": `Local verify ran a nonexistent command "tue"`,
+			"summary": "A task was rejected because local verify ran `\"tue\"` (sh: tue: not found, exit 127)."},
+		{"type": "bug", "title": `Local verify ran a nonexistent command ("tue") and rejected the task`,
+			"summary": `The orch local verify step executed the command "tue", failed with exit 127 (not found), and rejected a task whose tests and lint pass.`},
+		{"type": "bug", "title": `Local verify ran a bogus command ("tue") and rejected a task`,
+			"summary": "Local verify executed `\"tue\"` (exit 127, \"not found\") as the app start command and rejected a task whose tests and lint pass."},
+	}
+	for i, task := range []string{"F1.T1", "F1.T2", "F1.T3"} {
+		t.Setenv("ORCH_TASK_ID", task)
+		var out reportFindingOut
+		call(t, cs, "orch_report_finding", reports[i], &out)
+		if out.URL != "https://github.com/hectorcanaimero/orch/issues/999" {
+			t.Errorf("call %d: url = %q, want the first issue's (%s)", i+1, out.URL, out.Message)
+		}
+		if out.Filed != (i == 0) {
+			t.Errorf("call %d: filed = %v", i+1, out.Filed)
+		}
+	}
+	if len(fake.created) != 1 {
+		t.Errorf("created %d issues, want 1", len(fake.created))
+	}
+	if len(fake.comments) != 2 {
+		t.Fatalf("comments = %v, want 2", fake.comments)
+	}
+	if c := fake.comments[1]; !strings.HasPrefix(c, FindingsRepo+"#999: ") || !strings.Contains(c, "Seen again in task F1.T3 at ") {
+		t.Errorf("comment = %q, want one on #999 naming the task", c)
+	}
+}
+
+// An open report GitHub's search finds is commented on too, whoever filed it.
+func TestReportFindingCommentsOnAnOpenDuplicate(t *testing.T) {
+	root, backend := newTestProject(t)
+	fake := &fakeFindings{existing: []vcs.Issue{{Number: 433, Title: `Local verify ran a nonexistent command "tue"`, State: "OPEN",
+		URL: "https://github.com/hectorcanaimero/orch/issues/433"}}}
+	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Findings: fake})
+	var out reportFindingOut
+	call(t, cs, "orch_report_finding", map[string]any{"type": "bug",
+		"title": `Local verify ran a bogus command ("tue") and rejected a task`, "summary": "exit 127"}, &out)
+	if len(fake.created) != 0 || len(fake.comments) != 1 || out.URL != "https://github.com/hectorcanaimero/orch/issues/433" {
+		t.Errorf("created %d, comments %v, url %q: want a comment on #433 and its URL", len(fake.created), fake.comments, out.URL)
 	}
 }
