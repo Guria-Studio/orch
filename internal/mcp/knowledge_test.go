@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/worktree"
@@ -78,5 +81,55 @@ func TestLearnIgnoresATaskIDThatWalksOutOfTheWorktrees(t *testing.T) {
 	}
 	if got, _ := knowledge.Load(root); len(got) != 1 {
 		t.Errorf("want the lesson in the project root, got %v (%s)", got, out.Message)
+	}
+}
+
+// A lesson is a few lines: past 20 orch_learn refuses it and writes nothing.
+func TestLearnRefusesALessonOverTwentyLines(t *testing.T) {
+	root, backend := newTestProject(t)
+	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	for _, tc := range []struct {
+		lines  int
+		refuse bool
+	}{{21, true}, {20, false}} {
+		var out learnOut
+		res := call(t, cs, "orch_learn", map[string]any{"title": "long " + strings.Repeat("x", tc.lines),
+			"lesson": strings.TrimSuffix(strings.Repeat("a line\n", tc.lines), "\n")}, &out)
+		if res.IsError != tc.refuse {
+			t.Errorf("%d lines: refused = %v (%s), want %v", tc.lines, res.IsError, out.Message, tc.refuse)
+		}
+		if tc.refuse && !strings.Contains(out.Message, "at most ~15") {
+			t.Errorf("%d lines: message %q does not say why", tc.lines, out.Message)
+		}
+	}
+	if got, _ := knowledge.Load(root); len(got) != 1 {
+		t.Errorf("want only the 20-line lesson written, got %d", len(got))
+	}
+}
+
+// A lesson orch cannot read fails the search with an error that says so.
+func TestKnowledgeSearchSaysWhatItCouldNotRead(t *testing.T) {
+	root, backend := newTestProject(t)
+	if err := os.MkdirAll(filepath.Join(root, knowledge.Dir), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, knowledge.Dir, "broken.md"), []byte("no front matter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	res, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "orch_knowledge_search",
+		Arguments: map[string]any{"query": "anything"}})
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	} else {
+		for _, c := range res.Content {
+			if tc, ok := c.(*mcpsdk.TextContent); ok {
+				msg += tc.Text
+			}
+		}
+	}
+	if !strings.Contains(msg, "reading the lessons: ") || !strings.Contains(msg, "broken.md") {
+		t.Errorf("search over a broken lesson = %q, want it to say it could not read the lessons", msg)
 	}
 }

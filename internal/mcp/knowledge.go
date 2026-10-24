@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,12 +96,12 @@ func (s *server) knowledgeSearch(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	}
 	lessons, err := knowledge.Load(s.taskDir(task))
 	if err != nil {
-		return nil, knowledgeSearchOut{}, err
+		return nil, knowledgeSearchOut{}, fmt.Errorf("reading the lessons: %w", err)
 	}
 	ranker, _ := s.opts.Backend.(knowledge.Ranker)
 	found, err := knowledge.Search(ctx, ranker, lessons, in.Query, limit)
 	if err != nil {
-		return nil, knowledgeSearchOut{}, err
+		return nil, knowledgeSearchOut{}, fmt.Errorf("searching the lessons: %w", err)
 	}
 	out := knowledgeSearchOut{Lessons: append([]knowledge.Lesson{}, found...)}
 	if len(found) == 0 {
