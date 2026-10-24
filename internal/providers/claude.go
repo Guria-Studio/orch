@@ -75,13 +75,15 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 
 	env, ok := parseClaudeEnvelope(output)
 	if !ok {
-		return Result{
+		res := Result{
 			ExitCode:     exitCode,
 			Success:      false,
 			Stdout:       withoutStreamEvents(text),
 			ErrorMessage: "could not parse claude JSON envelope",
 			Quota:        claudeQuota(text),
 		}
+		res.QuotaExhausted, res.QuotaResetsAt = claudeExhausted(text)
+		return res
 	}
 
 	isError := pyTruthy(env["is_error"])
@@ -95,7 +97,7 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 		errMsg = claudeErrorMessage(env, isError)
 	}
 
-	return Result{
+	res := Result{
 		ExitCode:            exitCode,
 		Success:             success,
 		CostUSD:             cost,
@@ -109,6 +111,32 @@ func (c ClaudeProvider) Parse(exitCode int, output []byte) Result {
 		PermissionDenials:   claudeDenials(env),
 		Quota:               claudeQuota(text),
 	}
+	res.QuotaExhausted, res.QuotaResetsAt = claudeExhausted(text)
+	return res
+}
+
+// claudeExhausted reads whether the last rate_limit_event said the
+// subscription is out of quota — `status: "rejected"`, or a window at full
+// utilization — and when it resets (Unix seconds, 0 when not given). The
+// event is filtered out of Stdout, so the classifier never sees it (#439).
+func claudeExhausted(output string) (exhausted bool, resetsAt int64) {
+	for _, line := range strings.Split(output, "\n") {
+		obj, ok := decodeObject([]byte(strings.TrimSpace(line)))
+		if !ok || asString(obj["type"]) != "rate_limit_event" {
+			continue
+		}
+		info, _ := obj["rate_limit_info"].(map[string]any)
+		exhausted, resetsAt = asString(info["status"]) == "rejected", int64(toFloat(info["resetsAt"]))
+		windows, _ := info["unifiedWindows"].(map[string]any)
+		for _, w := range windows {
+			w, _ := w.(map[string]any)
+			if toFloat(w["utilization"]) >= 1 {
+				exhausted = true
+				resetsAt = max(resetsAt, int64(toFloat(w["resetsAt"])))
+			}
+		}
+	}
+	return exhausted, resetsAt
 }
 
 // claudeQuota reads the last rate_limit_event of a stream-json run: claude
