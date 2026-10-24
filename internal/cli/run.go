@@ -16,6 +16,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/doctor"
 	"github.com/hectorcanaimero/orch/internal/engine"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/notify"
@@ -165,6 +166,11 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		}
 	}
 
+	// A typo in a configured command is found here, not mid-task as an exit
+	// 127 verify skips (#440). A warning: the run goes ahead.
+	for _, m := range doctor.UnresolvedCommands(paths.Root, cfg) {
+		_, _ = fmt.Fprintln(os.Stderr, "warning: "+m.Detail+" — fix it in .orchestrator/config.yaml; until then verify skips it")
+	}
 	noteEstimate(ctx, os.Stderr, backend, paths, cfg, queue, opts)
 
 	rtr := loadRouterTolerant(paths)

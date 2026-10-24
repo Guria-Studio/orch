@@ -664,6 +664,12 @@ a note and verifies nothing.
    is a configured one (`commands`, `app.start`, `e2e`) that `sh` cannot find
    (exit 127, e.g. a typo): it is the config, not the agent's work, and the
    run log warns with the key to fix. Without `app.start`, the E2E is skipped.
+   The same mistake is said before the run (#440): `orch doctor` fails a
+   `config.commands` check per configured command (these keys, plus
+   `app.stop` and `dispatch.worktree_setup`) whose first word is not on PATH,
+   or, for a path, not in the repository — `verify.app.start: "tue" not found
+   on PATH` — `orch run` prints it as a warning before the first dispatch, and
+   the dashboard's Tools page lists it.
 2. **Review.** With `review: true`, after the commands pass, a provider reads
    the task's diff against the base, read-only, and applies the checklist,
    the same review `orch ci review` runs. The default reviewer is the first

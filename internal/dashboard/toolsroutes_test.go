@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/hectorcanaimero/orch/internal/doctor"
@@ -59,5 +60,22 @@ func TestToolsMissingCountsFromTheCachedProbe(t *testing.T) {
 	}
 	if probes != 1 {
 		t.Errorf("probed %d times, want 1: the second answer comes from the cache", probes)
+	}
+}
+
+// A configured command whose program is not installed is said on the Tools
+// page too, with the same words as `orch doctor` (#440).
+func TestToolsNamesConfiguredCommandsNotFound(t *testing.T) {
+	saved := describeTools
+	t.Cleanup(func() { describeTools = saved })
+	describeTools = func(doctor.ToolsConfig) []doctor.Tool { return nil }
+	s := newReadServer(t, &fakeState{})
+	if err := os.WriteFile(s.paths.ConfigYAML, []byte("verify:\n  enabled: true\n  app:\n    start: tue\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got toolsPayload
+	decode(t, get(t, s, "/api/tools"), &got)
+	if len(got.Commands) != 1 || got.Commands[0].Detail != `verify.app.start: "tue" not found on PATH` {
+		t.Errorf("commands = %+v, want verify.app.start's tue", got.Commands)
 	}
 }

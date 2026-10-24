@@ -23,6 +23,9 @@ var describeTools = doctor.Tools
 // toolsPayload is `/api/tools`'s body: the System › Tools page.
 type toolsPayload struct {
 	Tools []doctor.Tool `json:"tools"`
+	// Commands are the config.yaml shell commands whose program is not
+	// installed, as `orch doctor`'s config.commands names them (#440).
+	Commands []doctor.UnresolvedCommand `json:"commands"`
 }
 
 // toolsCacheTTL is how long the sidebar's count reuses a probe: probing every
@@ -78,7 +81,15 @@ func (s *Server) handleToolsMissing(w http.ResponseWriter, r *http.Request) {
 // tools are listed with what could be read, because this page is where
 // someone setting a machine up looks.
 func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, toolsPayload{Tools: s.probeTools(r)})
+	cfg := config.Defaults()
+	if loaded, err := config.Load(s.paths.ConfigYAML, s.paths.Root); err == nil {
+		cfg = loaded.Config
+	}
+	commands := doctor.UnresolvedCommands(s.paths.Root, cfg)
+	if commands == nil {
+		commands = []doctor.UnresolvedCommand{}
+	}
+	writeJSON(w, http.StatusOK, toolsPayload{Tools: s.probeTools(r), Commands: commands})
 }
 
 // probeTools runs doctor.Tools for this project and caches the answer.

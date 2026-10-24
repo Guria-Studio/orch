@@ -1,0 +1,51 @@
+# A configured shell command whose program is not installed is said before
+# the run (#440), not found mid-task as an exit 127 verify skips (#436):
+# `tue` for `true` in verify.app.start sent tasks back three times (#433-#435).
+
+# doctor fails the check, naming the key and the value; a builtin, a repo
+# script that exists and an assignment before the program pass.
+! exec orch doctor --json --project-root vproj --project-id vproj
+stdout '"name":"config\.commands","status":"error","detail":"verify\.app\.start: \\"tue\\" not found on PATH"'
+stdout '"detail":"verify\.e2e\[0\]: \\"\./scripts/missing\.sh\\" not found in the repository"'
+! stdout 'verify\.commands'
+! stdout 'verify\.app\.stop'
+
+# orch run warns before the first dispatch, and runs anyway.
+env ORCH_FAKE_PROVIDER=$WORK/fake
+exec orch run --project-root vproj
+stderr '(?s)warning: verify\.app\.start: "tue" not found on PATH.*estimate: '
+exec orch tasks --project-root vproj --json
+stdout '"status":"done"'
+
+-- vproj/tasks.json --
+{"tasks":[{"id":"T-1","phase":1,"title":"t one","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}]}
+-- vproj/.orchestrator/config.yaml --
+concurrency:
+  global_max: 1
+verify:
+  enabled: true
+  commands:
+    - "cd . && sh ./scripts/ok.sh"
+    - "CI=1 ./scripts/ok.sh"
+  app:
+    start: tue
+    stop: "true"
+  e2e:
+    - ./scripts/missing.sh
+-- vproj/.orchestrator/model_router.yaml --
+claude/haiku:
+  backend: claude
+  cli_model: claude-haiku-4-5
+  tier: cheap
+  is_premium: false
+-- vproj/scripts/ok.sh --
+#!/bin/sh
+exit 0
+-- fake/claude/_default.out --
+{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}
+-- vproj/scripts/task-start.sh --
+#!/bin/sh
+exec orch task-status "$1" in-progress
+-- vproj/scripts/task-finish.sh --
+#!/bin/sh
+exec orch task-status "$1" done

@@ -151,6 +151,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			checks = append(checks, doctor.CheckPermissions(usedBackends(tasks, rtr, paths.TasksJSON()), paths.Root, agySettingsPath(), doctor.CodexExecHelp)...)
 			checks = append(checks, doctor.CheckReadiness(hydrateForDoctor(context.Background(), paths, cfg, tasks))...)
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
+			checks = append(checks, doctor.CheckConfiguredCommands(paths.Root, cfg)...)
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker(), tunnel.LookupBinary(tunnel.TailscaleCommand)))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))
 			if o, err := readOnboarding(context.Background(), paths, cfg); err == nil {
