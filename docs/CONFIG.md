@@ -660,7 +660,10 @@ a note and verifies nothing.
 1. **Commands.** Each runs at the worktree root through `sh -c`, in order,
    bounded by `timeout_s`. `commands: []` runs what `orch ci setup` detects:
    install, lint, typecheck, test and build, per package, where the repository
-   has them. A detected command whose tool is not installed is skipped.
+   has them. A detected command whose tool is not installed is skipped. So
+   is a configured one (`commands`, `app.start`, `e2e`) that `sh` cannot find
+   (exit 127, e.g. a typo): it is the config, not the agent's work, and the
+   run log warns with the key to fix. Without `app.start`, the E2E is skipped.
 2. **Review.** With `review: true`, after the commands pass, a provider reads
    the task's diff against the base, read-only, and applies the checklist,
    the same review `orch ci review` runs. The default reviewer is the first
