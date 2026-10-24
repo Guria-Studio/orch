@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -35,6 +36,10 @@ type Tool struct {
 	// knows no command for it (DocsURL then is the answer, if any).
 	Install string `json:"install,omitempty"`
 	DocsURL string `json:"docs_url,omitempty"`
+	// Latest is an agent CLI's latest release, when orch could read it, and
+	// Update the command that installs it when Version is older (#448).
+	Latest string `json:"latest,omitempty"`
+	Update string `json:"update,omitempty"`
 }
 
 // ToolsConfig is what decides which tools a project uses.
@@ -51,6 +56,9 @@ type ToolsConfig struct {
 	// E2E is whether verify runs end-to-end commands (verify.e2e), which
 	// orch's E2E reports read from Playwright.
 	E2E bool
+	// Latest reads an agent CLI's latest release; nil leaves Tool.Latest
+	// empty (update.check_clis: false).
+	Latest LatestFunc
 }
 
 // agentCLIs are the backends orch dispatches to, in the order the page lists them.
@@ -113,6 +121,13 @@ func Tools(cfg ToolsConfig) []Tool {
 				return
 			}
 			t.Found, t.Path, t.Version = lookVersion(t.ID)
+			if t.Group == ToolGroupAgents && t.Found && cfg.Latest != nil {
+				v := CompareCLI(context.Background(), t.ID, t.Path, t.Version, cfg.Latest)
+				t.Latest = v.Latest
+				if v.Behind {
+					t.Update = v.Update
+				}
+			}
 		}(&tools[i])
 	}
 	wg.Wait()

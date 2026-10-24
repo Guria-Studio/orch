@@ -18,6 +18,7 @@ const GROUPS: { key: MessageKey; ids: string[] }[] = [
 
 /** Installed, missing (this project uses it), or not used here. */
 function stateOf(tool: Tool): { label: MessageKey; tone: string } {
+  if (tool.found && tool.update) return { label: "tools.state.outdated", tone: "text-status-running" }
   if (tool.found) return { label: "tools.state.installed", tone: "text-status-done" }
   return tool.used ? { label: "tools.state.missing", tone: "text-status-blocked" } : { label: "tools.state.unused", tone: "text-muted-foreground" }
 }
@@ -92,6 +93,7 @@ export function ToolsPage() {
 
 function ToolRow({ tool }: { tool: Tool }) {
   const installable = tool.used && !tool.found
+  const outdated = tool.found && !!tool.update
   // A tool this project needs and lacks opens on its install steps.
   const [open, setOpen] = useState(installable)
   const state = stateOf(tool)
@@ -103,8 +105,13 @@ function ToolRow({ tool }: { tool: Tool }) {
         <span className={cn("inline-flex items-center gap-1.5 text-xs", state.tone)} title={tool.version ? `${tool.version} · ${tool.path ?? ""}` : tool.path}>
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           {t(state.label)}
+          {outdated ? <span className="font-mono text-muted-foreground">{`${tool.version} → ${tool.latest}`}</span> : null}
         </span>
-        {installable ? (
+        {outdated ? (
+          <Button type="button" size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)} className="h-7 justify-self-end">
+            {t("tools.how_to_update")}
+          </Button>
+        ) : installable ? (
           <Button type="button" size="sm" aria-expanded={open} onClick={() => setOpen(!open)} className="h-7 justify-self-end">
             {t("tools.how_to_install")}
           </Button>
@@ -112,6 +119,12 @@ function ToolRow({ tool }: { tool: Tool }) {
           <span />
         )}
       </div>
+      {outdated && open ? (
+        <div className="space-y-2 px-3.5 pb-3.5">
+          <CopyCommand command={tool.update ?? ""} className="mt-0" />
+          <p className="text-xs text-muted-foreground">{t("tools.update_hint")}</p>
+        </div>
+      ) : null}
       {installable && open ? (
         <div className="space-y-2 px-3.5 pb-3.5">
           {tool.install ? <CopyCommand command={tool.install} className="mt-0" /> : <p className="text-xs text-muted-foreground">{t("tools.no_command")}</p>}

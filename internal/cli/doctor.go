@@ -133,7 +133,9 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 				return false
 			})
 			checks = append(checks, doctor.CheckModelsAvailable(rtr, lists))
-			checks = append(checks, doctor.CheckBackends(doctor.ReferencedBackends(tasks, rtr))...)
+			backends := doctor.ReferencedBackends(tasks, rtr)
+			checks = append(checks, doctor.CheckBackends(backends)...)
+			checks = append(checks, doctor.CheckCLIVersions(cmd.Context(), backends, cliLatest(cfg))...)
 			checks = append(checks, doctor.CheckBudgetPreset(budget.ResolvePath(paths.Root, paths.ConfigYAML, cfg.BudgetsConfig), cfg.BudgetsPreset, cfg.TypicalDispatchToken)...)
 			checks = append(checks, doctor.CheckOrphanWorktrees(paths.Root))
 			checks = append(checks, doctor.CheckVCSReadiness(paths.Root, doctor.VCSConfig{

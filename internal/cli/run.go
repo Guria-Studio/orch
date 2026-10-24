@@ -175,6 +175,9 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 
 	rtr := loadRouterTolerant(paths)
 	warnMissingPermissions(os.Stderr, paths.Root, usedBackends(tasks, rtr, paths.TasksJSON()))
+	if !opts.isolated {
+		noteOutdatedCLIs(ctx, os.Stderr, usedBackends(tasks, rtr, paths.TasksJSON()), cliLatest(cfg))
+	}
 	runID := opts.runID
 	if runID == "" {
 		runID = providers.NewSessionID()

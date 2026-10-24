@@ -15,6 +15,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/doctor"
 	"github.com/hectorcanaimero/orch/internal/update"
 )
 
@@ -266,4 +268,41 @@ func newUpgradeCmd(version string) *cobra.Command {
 	cmd.Flags().BoolVar(&check, "check", false, "Only say whether a newer release is out, and what it brings")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Install without asking")
 	return cmd
+}
+
+// NPMRegistryEnv points the agent CLIs' version check at another npm
+// registry (a mirror, or a test's fake).
+const NPMRegistryEnv = "ORCH_NPM_REGISTRY"
+
+// cliLatest is where `orch doctor`, `orch run` and the Tools page read an
+// agent CLI's latest release (#448): the npm registry, once a day per
+// package, through ~/.orch/cli-versions.json. nil when update.check_clis is
+// false or ORCH_NO_UPDATE_CHECK is set.
+func cliLatest(cfg config.Config) doctor.LatestFunc {
+	if !cfg.Update.CheckCLIs || os.Getenv(update.DisableEnv) != "" {
+		return nil
+	}
+	registry := update.Registry{URL: os.Getenv(NPMRegistryEnv)}
+	return func(ctx context.Context, pkg string) (string, error) {
+		path, err := update.CLIVersionsPath()
+		if err != nil {
+			return "", err
+		}
+		ctx, cancel := context.WithTimeout(ctx, noticeTimeout)
+		defer cancel()
+		return update.LatestCLI(ctx, registry, path, pkg, time.Now())
+	}
+}
+
+// noteOutdatedCLIs is `orch run`'s one line per backend the project routes to
+// whose CLI is behind its latest release. A notice, never a gate.
+func noteOutdatedCLIs(ctx context.Context, w io.Writer, backends []string, latest doctor.LatestFunc) {
+	if latest == nil {
+		return
+	}
+	for _, c := range doctor.CheckCLIVersions(ctx, backends, latest) {
+		if c.Status == doctor.StatusWarn {
+			_, _ = fmt.Fprintln(w, "note: "+c.Detail+" — then `orch router refresh`")
+		}
+	}
 }
