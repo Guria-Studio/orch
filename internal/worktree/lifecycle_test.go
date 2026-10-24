@@ -1011,3 +1011,57 @@ func TestCreateClearsAnEarlierAttemptsPushedWork(t *testing.T) {
 		t.Errorf("pushed work got a salvage copy: %s", got)
 	}
 }
+
+// TestMergeBase (#438): a base that touches other files merges and is
+// committed; one that edits the task's lines stops with the files and the
+// base commits behind them, the merge left in progress for the agent.
+func TestMergeBase(t *testing.T) {
+	root := newTestRepo(t)
+	newBareRemote(t, root)
+	runGit(t, root, "push", "-q", "origin", "main")
+	m := NewManager(root, true)
+	wt, err := m.Create("T1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "README.md"), []byte("from T1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CommitPending("T1", "T1 work"); err != nil {
+		t.Fatal(err)
+	}
+
+	commitOnMain := func(file, body, subject string) {
+		if err := os.WriteFile(filepath.Join(root, file), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runGit(t, root, "add", "-A")
+		runGit(t, root, "commit", "-q", "-m", subject)
+		runGit(t, root, "push", "-q", "origin", "main")
+	}
+
+	commitOnMain("other.txt", "x\n", "T0: other (#1)")
+	got, err := m.MergeBase("T1", "main")
+	if err != nil || !got.Moved || len(got.Conflicts) != 0 {
+		t.Fatalf("clean merge = %+v, %v; want moved, no conflicts", got, err)
+	}
+	if again, err := m.MergeBase("T1", "main"); err != nil || again.Moved {
+		t.Errorf("merging an up-to-date base = %+v, %v; want not moved", again, err)
+	}
+
+	commitOnMain("README.md", "from T0\n", "T0: readme (#2)")
+	got, err = m.MergeBase("T1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Conflicts) != 1 || got.Conflicts[0] != "README.md" {
+		t.Errorf("conflicts = %v, want [README.md]", got.Conflicts)
+	}
+	if len(got.Commits) != 1 || !strings.HasSuffix(got.Commits[0], " T0: readme (#2)") {
+		t.Errorf("commits = %v, want the one base commit that touched README.md", got.Commits)
+	}
+	if _, err := os.Stat(filepath.Join(wt, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, wt, "rev-parse", "-q", "--verify", "MERGE_HEAD")
+}

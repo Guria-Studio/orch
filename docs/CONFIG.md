@@ -294,8 +294,10 @@ not a rebase, since orch squash-merges PRs. A clean merge is pushed and CI is
 polled again, with no agent and without spending an attempt. A merge that stops
 on conflicts dispatches the agent in that worktree, its prompt listing the
 conflicting files and the base commits that touched them; local verify runs as
-usual before the push to the same PR. Past `max_attempts` (or with `0`) the
-task is blocked as before, the reason naming the files. Each attempt is a
+usual before the push to the same PR. Past `max_attempts` the task is blocked
+as before, the reason naming the files. `max_attempts: 0` turns the whole
+thing off, clean merges included: nothing is pushed or dispatched and a
+conflicting PR blocks its task exactly as before #438. Each attempt is a
 `ci_conflict_retry` event in the task's activity. The count lives in the
 running `orch run`, so a new run grants the attempts again.
 

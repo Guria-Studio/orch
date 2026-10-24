@@ -176,3 +176,21 @@ func TestConflictPastTheCapBlocksNamingTheFiles(t *testing.T) {
 		t.Errorf("block reason = %q, want the conflict and its files", reason)
 	}
 }
+
+// TestConflictRetryOffPushesNothing: retry.conflict.max_attempts 0 is the
+// behaviour before #438, clean merges included: blocked, nothing pushed.
+func TestConflictRetryOffPushesNothing(t *testing.T) {
+	f, wm, remote := conflictFixture(t, false)
+	f.poller.ConflictRetries = 0
+
+	if _, err := f.poller.Poll(context.Background(), f.s); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if got, _ := f.s.Queue.Status("C-2"); got != model.StatusBlocked {
+		t.Errorf("status = %q, want blocked", got)
+	}
+	// #nosec G204 -- fixed git subcommand on a temp repo this test made.
+	if out, err := exec.Command("git", "-C", remote, "show", wm.BranchName("C-2")+":other.txt").CombinedOutput(); err == nil {
+		t.Errorf("pushed the base with conflict retries off: other.txt = %q", out)
+	}
+}

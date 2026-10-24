@@ -112,7 +112,8 @@ type CIPoller struct {
 	MaxRetries int
 	// ConflictRetries is how many times a PR that conflicts with its base is
 	// handed to the agent to resolve before the task is blocked (#438). The
-	// value is taken as is: 0 never dispatches one. `orch run` reads
+	// value is taken as is: 0 turns conflict retries off, clean merges
+	// included, and blocks as before. `orch run` reads
 	// retry.conflict.max_attempts.
 	ConflictRetries int
 	// AutoMerge merges a PR whose CI went green. Python reads
@@ -654,6 +655,11 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 
 	if len(merge.Conflicts) == 0 {
 		defer p.dropWorktree(ctx, s, row.ID)
+		if p.ConflictRetries <= 0 {
+			// retry.conflict off: nothing is pushed, as before #438.
+			p.block(ctx, s, row, conflictBlockReason, false)
+			return true
+		}
 		if !merge.Moved {
 			// The branch already holds the base: the forge has not yet
 			// recomputed the PR since the last push. Ask again next poll.

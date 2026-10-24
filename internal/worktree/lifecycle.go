@@ -456,20 +456,23 @@ func (m *Manager) MergeBase(taskID, baseBranch string) (MergeResult, error) {
 	ref := baseBranch
 	if m.pushEnabled {
 		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
-			return MergeResult{}, err
+			return MergeResult{}, fmt.Errorf("worktree: fetching %s to merge into %s: %w", baseBranch, taskID, err)
 		}
 		ref = "origin/" + baseBranch
 	}
 	before, err := m.run(taskID, "git", "-C", wt, "rev-parse", "HEAD")
 	if err != nil {
-		return MergeResult{}, err
+		return MergeResult{}, fmt.Errorf("worktree: reading the head of %s: %w", taskID, err)
 	}
 	_, mergeErr := m.run(taskID, "git", "-C", wt,
 		"-c", "user.email=orch@local", "-c", "user.name=orch",
 		"merge", "--no-edit", ref)
 	if mergeErr == nil {
 		after, err := m.run(taskID, "git", "-C", wt, "rev-parse", "HEAD")
-		return MergeResult{Moved: after != before}, err
+		if err != nil {
+			return MergeResult{}, fmt.Errorf("worktree: reading the head of %s after the merge: %w", taskID, err)
+		}
+		return MergeResult{Moved: after != before}, nil
 	}
 	out, err := m.run(taskID, "git", "-C", wt, "diff", "--name-only", "-z", "--diff-filter=U")
 	files := strings.FieldsFunc(out, func(r rune) bool { return r == 0 })
@@ -478,7 +481,7 @@ func (m *Manager) MergeBase(taskID, baseBranch string) (MergeResult, error) {
 		if abortErr := m.runBestEffort(taskID, abort...); abortErr != nil {
 			logGitWarning(taskID, abort, abortErr)
 		}
-		return MergeResult{}, errors.Join(mergeErr, err)
+		return MergeResult{}, fmt.Errorf("worktree: merging %s into %s: %w", ref, taskID, errors.Join(mergeErr, err))
 	}
 	logArgs := append([]string{"git", "-C", wt, "log", "--format=%h %s", "HEAD..MERGE_HEAD", "--"}, files...)
 	log, err := m.run(taskID, logArgs...)
