@@ -42,6 +42,11 @@ to trust the glob alone next time.
 
 ## Cutting a Go release
 
+Before tagging, run `orch doctor --smoke` on a machine with the CLIs
+installed and logged in: it dispatches one real task to each (a few cents)
+and fails on an adapter a CLI update broke, which no test with captured
+output can see (#437).
+
 ```bash
 git tag v0.12.0
 git push origin v0.12.0

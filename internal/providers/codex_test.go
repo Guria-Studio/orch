@@ -50,6 +50,17 @@ func TestCodexArgvHasNoSandboxFlag(t *testing.T) {
 	}
 }
 
+// An empty OutputPath means no artefact (Request's contract): `-o ""` makes
+// codex 0.154 exit before it runs ("a value is required for
+// '--output-last-message'"), which `orch doctor --smoke` found on every
+// dispatch `orch run` made (#437).
+func TestCodexArgvWithoutOutputPath(t *testing.T) {
+	argv := CodexProvider{}.Argv(Request{Route: codexRoute("gpt-5.6-codex")})
+	if contains(argv, "-o") {
+		t.Fatalf("argv passes -o with no path: %v", argv)
+	}
+}
+
 func TestCodexArgvIsPure(t *testing.T) {
 	req := Request{Route: codexRoute("gpt-5.6-codex"), OutputPath: "/x/y.json"}
 	assertArgv(t, CodexProvider{}.Argv(req), CodexProvider{}.Argv(req))

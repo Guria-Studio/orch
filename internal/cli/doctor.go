@@ -70,11 +70,18 @@ type doctorPayload struct {
 // `config.parse`/`tasks.parse`-shaped Check, not a CLI error that exits
 // before any check runs.
 func newDoctorCmd(flags *projectFlags) *cobra.Command {
-	var asJSON bool
+	var asJSON, smoke, keep bool
+	var smokeBackend string
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Environment preflight — provider CLIs, VCS, worktrees, budget config, SQLite",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if smoke {
+				return runSmoke(cmd, smokeBackend, asJSON, keep)
+			}
+			if smokeBackend != "" || keep {
+				return withExitCode(2, fmt.Errorf("--backend and --keep need --smoke"))
+			}
 			paths, err := config.ResolvePaths(flags.root, flags.id, flags.configPath)
 			if err != nil {
 				return withExitCode(2, err)
@@ -171,6 +178,10 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Emit the full doctor report as JSON on stdout")
+	cmd.Flags().BoolVar(&smoke, "smoke", false,
+		"Dispatch one throwaway task to every installed AI CLI through orch run's own path, in a temporary project, and check each adapter end to end (costs real money, a few cents)")
+	cmd.Flags().StringVar(&smokeBackend, "backend", "", "With --smoke: only this CLI")
+	cmd.Flags().BoolVar(&keep, "keep", false, "With --smoke: leave the temporary project (its logs and database) in place and print where")
 	return cmd
 }
 

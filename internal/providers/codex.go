@@ -44,11 +44,12 @@ func (CodexProvider) Argv(req Request) []string {
 		"exec",
 		"--skip-git-repo-check",
 		"--json",
-		"-o", req.OutputPath,
-		"-C", ".",
-		"--approve-for-me",
-		"-m", req.Route.CLIModel,
 	}
+	// No path, no artefact: `-o ""` makes codex exit before it runs (#437).
+	if req.OutputPath != "" {
+		argv = append(argv, "-o", req.OutputPath)
+	}
+	argv = append(argv, "-C", ".", "--approve-for-me", "-m", req.Route.CLIModel)
 	// The route's effort, else the user's ~/.codex/config.toml decides (#388).
 	if e := req.Route.Effort; e != nil && *e != "" {
 		argv = append(argv, "-c", fmt.Sprintf("model_reasoning_effort=%q", *e))
