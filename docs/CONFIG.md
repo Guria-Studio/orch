@@ -776,6 +776,46 @@ itself; after updating, `orch router refresh` shows the routes its new models
 bring. `false` turns the comparison off; `ORCH_NO_UPDATE_CHECK=1` turns it off
 along with orch's own update notice.
 
+### `knowledge` — new (#451)
+
+```yaml
+knowledge:
+  enabled: true        # what `orch init` / `orch start` write; absent = false
+  max_in_prompt: 5     # lessons a dispatch prompt carries; 0 or absent = 5
+  auto_capture: true   # orch drafts lessons itself; absent = true
+```
+
+The project's memory. A lesson is one markdown file under `.orch/knowledge/`
+— front matter `id`, `title`, `area` (paths or globs), `tags`, `source`
+(`agent` | `verify` | `review` | `conflict` | `operator`), `task`, `created`,
+then a body of a few lines: what happened and what worked. They are versioned
+and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
+`orch.db` (migration 011) is a cache rebuilt from the files on every search.
+
+- **Prompt.** Each dispatch carries a `Project knowledge` block with up to
+  `max_in_prompt` lessons from the task's own working dir (its worktree: the
+  base branch plus its merged dependencies): first those whose `area` covers
+  one of the task's `files` or its spec file, then those its title and
+  description find by BM25; each lesson is cut at 15 lines / 600 characters
+  and the block at 4,000. A line in the constraints invites the agent to record
+  what it learned with `orch_learn`. With no lessons picked the block is not
+  rendered, and with `enabled` off the prompt is byte-identical to before.
+- **Agents** record a lesson with the MCP tool `orch_learn` and search with
+  `orch_knowledge_search` ([`MCP.md`](MCP.md)). The file is written in the
+  task's worktree, so it is committed with the work and reaches the base
+  through the task's PR.
+- **orch** (`auto_capture`, worktree mode) drafts a lesson in the task's
+  branch when an attempt the local verify rejected is followed by one that
+  passes (`source: verify`: what was rejected, and the agent's note), and when
+  the agent resolves a conflicting PR (`source: conflict`: the files, the base
+  commits, the agent's note). The PR's reviewer keeps, edits or drops it.
+- **The operator** uses `orch knowledge add|list|show|rm|stats`
+  ([`CLI.md`](CLI.md)); `stats` compares first-try success and retries per
+  task before and since the first lesson.
+
+**On in new projects, off when the key is absent**, like `retry.conflict`: a
+config written before #451 never starts writing files into the repository.
+
 ### Misc
 
 ```yaml

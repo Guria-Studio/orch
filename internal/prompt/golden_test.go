@@ -3,11 +3,13 @@ package prompt
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
 )
 
@@ -479,5 +481,54 @@ func TestTDDLineReachesThePrompt(t *testing.T) {
 	}
 	if want := readGolden(t, "go", "tdd.txt"); got != want {
 		t.Errorf("rendered prompt differs from its golden.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestKnowledgeReachesThePrompt pins the "Project knowledge" block and the
+// orch_learn line knowledge.enabled adds (#451). The golden is Go's own.
+// Without lessons and with the feature off, every other golden is the proof
+// nothing moved.
+func TestKnowledgeReachesThePrompt(t *testing.T) {
+	cases := loadCases(t)
+	c := cases.Cases[0]
+	task := model.Task{ID: c.Task.ID, Title: c.Task.Title, Description: c.Task.Description,
+		Model: c.Task.Model, Files: c.Task.Files, SpecRef: c.Task.SpecRef}
+	got, _ := Render(task, nil, c.Task.SpecRef, Options{
+		RunID: cases.RunID, ProjectRoot: cases.ProjectRoot, SpecRoot: c.SpecRoot, Learn: true,
+		Knowledge: []knowledge.Lesson{
+			{ID: "20261020-health-checks", Title: "Health checks return 200 with a JSON body", Area: []string{"app/"},
+				Body: "The load balancer reads `status`; a bare 200 counted as down.\nReturn {\"status\": \"ok\"}."},
+			{ID: "20261021-pytest", Title: "Run pytest with -p no:cacheprovider", Body: "The worktree is read-only for .pytest_cache."},
+		},
+	})
+	path := filepath.Join("testdata", "go", "knowledge.txt")
+	if *updateGoGoldens {
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+		return
+	}
+	if want := readGolden(t, "go", "knowledge.txt"); got != want {
+		t.Errorf("rendered prompt differs from its golden.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// The block is capped: a long lesson is cut, and lessons past the block's
+// size are left out rather than crowding out the task.
+func TestKnowledgeBlockIsBounded(t *testing.T) {
+	long := strings.Repeat("a longer line of text\n", 40)
+	var lessons []knowledge.Lesson
+	for i := 0; i < 20; i++ {
+		lessons = append(lessons, knowledge.Lesson{Title: fmt.Sprintf("lesson %d", i), Body: long + strings.Repeat("x", 700)})
+	}
+	block := knowledgeBlock(lessons)
+	if n := strings.Count(block, "  - lesson "); n == 0 || n == 20 {
+		t.Errorf("%d lessons rendered, want some but not all 20", n)
+	}
+	if len(block) > knowledgeMax {
+		t.Errorf("block is %d bytes, cap %d", len(block), knowledgeMax)
+	}
+	if strings.Count(strings.SplitN(block, "  - lesson 1\n", 2)[0], "    a longer line of text\n") > lessonMaxLines {
+		t.Errorf("a lesson rendered more than %d lines", lessonMaxLines)
 	}
 }

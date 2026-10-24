@@ -145,6 +145,9 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	failover, failingOver := s.failoverFor(ctx, entry, out)
 	var prOpened bool
 	var noPR string
+	if !stopped && !agentBlocked && !verifyFailed && !failingOver && out.Result.Success {
+		s.captureLessons(ctx, entry)
+	}
 	if !sendBack && !failingOver {
 		prOpened, noPR = s.tidyWorktree(ctx, entry, tidyOut)
 	}

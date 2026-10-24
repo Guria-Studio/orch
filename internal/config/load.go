@@ -357,6 +357,7 @@ var knownKeys = map[string]bool{
 	"verify.app.start": true, "verify.app.url": true, "verify.app.stop": true,
 	"verify.app.ready_timeout_s": true,
 	"update.check_clis":          true,
+	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

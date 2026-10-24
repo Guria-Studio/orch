@@ -337,6 +337,19 @@ ficar `blocked` nomeando os arquivos. Uma execução que abre um PR termina ante
 polling do CI desse PR — uma execução que termina verde é percebida na
 *próxima* `orch run`, igual ao Python.
 
+**Conhecimento do projeto** (`knowledge.enabled`, ligado num projeto novo): o
+que uma task aprende chega às que vêm depois. As lições são arquivos markdown
+curtos em `.orch/knowledge/`, commitados e revisados como qualquer outro
+arquivo. Um agente registra uma com a tool MCP `orch_learn` (ela entra no PR
+dele); o orch escreve um rascunho quando o verify local rejeitou uma tentativa
+e a seguinte passou, ou quando o agente resolveu um PR em conflito; você
+adiciona as suas com `orch knowledge add`. Cada prompt de despacho leva as
+poucas mais relevantes em `Project knowledge` — primeiro aquelas cuja `area`
+cobre os arquivos da task. `orch knowledge list` / `show` / `rm` as
+administram e `orch knowledge stats` compara o sucesso na primeira tentativa
+antes e desde a primeira lição. Veja
+[`CONFIG.md`](CONFIG.md#knowledge--new-451).
+
 **Concorrência, budgets, retries** são todos controlados por config, não
 por flags — veja [`CONFIG.md`](CONFIG.md).
 

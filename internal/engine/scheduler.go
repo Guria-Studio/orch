@@ -12,6 +12,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/prompt"
 	"github.com/hectorcanaimero/orch/internal/providers"
@@ -56,6 +57,9 @@ type InFlight struct {
 	// Dispatch is what was asked of the provider, kept so the reaper can
 	// record the outcome against the same paths and route.
 	Dispatch Dispatch
+	// Conflict is the merge this attempt was asked to resolve (#438), nil
+	// for any other attempt; a resolved one becomes a draft lesson (#451).
+	Conflict *prompt.Conflict
 }
 
 // SchedulerOptions configures one run.
@@ -152,6 +156,9 @@ type Scheduler struct {
 	// Verifier checks a clean exit's work in its worktree before the push
 	// (verify.enabled). Nil, or worktree mode off, verifies nothing.
 	Verifier Verifier
+	// Knowledge ranks the project lessons a prompt carries (knowledge.enabled,
+	// #451). Nil renders no lessons.
+	Knowledge knowledge.Ranker
 	// Log receives the operator-facing lines. Nil uses slog's default.
 	Log *slog.Logger
 
@@ -196,6 +203,9 @@ type Scheduler struct {
 	conflictRetry map[string]*prompt.Conflict
 	// verifyAttempts counts each task's local verify send-backs.
 	verifyAttempts map[string]int
+	// verifyRejected is what the local verify last rejected, by task, until
+	// an attempt passes and it becomes a draft lesson (#451).
+	verifyRejected map[string]string
 	// exhausted is each provider out of quota, until its reset (#439).
 	exhausted map[model.Backend]time.Time
 	// stopping holds the children the operator asked to stop, by pid, and
@@ -288,6 +298,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		retryWorktree:  make(map[string]string),
 		conflictRetry:  make(map[string]*prompt.Conflict),
 		verifyAttempts: make(map[string]int),
+		verifyRejected: make(map[string]string),
 		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),
 		slots:          NewTaskSlots(),
@@ -612,7 +623,10 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
 		Conflict:       s.conflictRetry[task.ID],
+		Knowledge:      s.lessonsFor(ctx, task, workdir),
+		Learn:          s.Opts.Cfg.Knowledge.Enabled,
 	})
+	conflict := s.conflictRetry[task.ID]
 	delete(s.conflictRetry, task.ID)
 	if err != nil {
 		release()
@@ -687,6 +701,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		Lock:      lock,
 		StartedAt: sp.StartedAt,
 		Dispatch:  d,
+		Conflict:  conflict,
 	}
 	delete(s.deferReasons, task.ID)
 

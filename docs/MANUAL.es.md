@@ -337,6 +337,19 @@ corrida que abre un PR termina antes de hacer polling sobre el CI de ese
 PR — una corrida que termina en verde se nota en el *próximo* `orch run`,
 igual que en Python.
 
+**Conocimiento del proyecto** (`knowledge.enabled`, activo en un proyecto
+nuevo): lo que aprende una task llega a las que vienen después. Las lecciones
+son archivos markdown cortos bajo `.orch/knowledge/`, que se commitean y
+revisan como cualquier otro archivo. Un agente registra una con la tool MCP
+`orch_learn` (queda en su PR); orch redacta un borrador cuando el verify local
+rechazó un intento y el siguiente pasó, o cuando el agente resolvió un PR en
+conflicto; vos agregás las tuyas con `orch knowledge add`. Cada prompt de
+despacho lleva las pocas más relevantes bajo `Project knowledge` — primero las
+cuyo `area` cubre los archivos de la task. `orch knowledge list` / `show` /
+`rm` las administran y `orch knowledge stats` compara el éxito al primer
+intento antes y desde la primera lección. Ver
+[`CONFIG.md`](CONFIG.md#knowledge--new-451).
+
 **Concurrencia, budgets, reintentos** son todos manejados por config, no
 por flags — ver [`CONFIG.md`](CONFIG.md).
 
