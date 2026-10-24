@@ -182,7 +182,7 @@ func (s *Scheduler) verifyMax() int {
 func (s *Scheduler) sendBack(ctx context.Context, entry *InFlight, out Outcome) error {
 	id := entry.Task.ID
 	s.verifyAttempts[id]++
-	s.verifyRejected[id] = out.VerifyFailure
+	s.keepRejection(id, out)
 	if err := writeFeedback(entry.Dispatch.Cwd, "Local verify failed — please fix", out.VerifyFailure); err != nil {
 		s.logger().Error("writing the verify feedback failed; the retry runs without it", "task", id, "err", err)
 	}
