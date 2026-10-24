@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -71,18 +72,7 @@ func (s *Server) handleTaskDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), diffTimeout)
 	defer cancel()
-	git := func(args ...string) (string, error) {
-		// #nosec G204 -- fixed git subcommands; the refs are one argument each.
-		cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.quotePath=false"}, args...)...)
-		cmd.Dir = s.paths.Root
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		out, err := cmd.Output()
-		if err != nil {
-			return "", errors.New(strings.TrimSpace(stderr.String()))
-		}
-		return string(out), nil
-	}
+	git := func(args ...string) (string, error) { return runGit(ctx, s.paths.Root, args...) }
 	// The first of each that names a commit: the remote's base is where the
 	// worktree started; the branch is local unless only the push is left.
 	pick := func(refs ...string) string {
@@ -105,10 +95,27 @@ func (s *Server) handleTaskDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := git("diff", "--no-color", "--no-ext-diff", "--merge-base", baseRef, branch, "--")
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorPayload{Detail: "git diff: " + err.Error()})
+		writeJSON(w, http.StatusInternalServerError, errorPayload{Detail: err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, taskDiff{TaskID: id, Base: baseRef, Branch: branch, Files: parseDiff(out)})
+}
+
+// runGit runs git in dir and returns its stdout.
+func runGit(ctx context.Context, dir string, args ...string) (string, error) {
+	// #nosec G204 -- fixed git subcommands; the refs are one argument each.
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.quotePath=false"}, args...)...)
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return string(out), nil
 }
 
 // parseDiff splits `git diff` output into files, counting each one's added

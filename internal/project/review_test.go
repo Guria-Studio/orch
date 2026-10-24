@@ -137,3 +137,28 @@ func TestBlockingADoneTaskReopensItFirst(t *testing.T) {
 		t.Errorf("status %s, want blocked", got.Status)
 	}
 }
+
+// TestAcceptThatDoesNotMergeRecordsNothing: a merge gh refuses is the
+// operator's error, with gh's reason, and no pr_merged is written.
+func TestAcceptThatDoesNotMergeRecordsNothing(t *testing.T) {
+	ctx := context.Background()
+	backend := reviewBackend(t, model.StatusDone)
+	if err := backend.SetTaskPR(ctx, "T-1", "https://github.com/o/r/pull/7"); err != nil {
+		t.Fatal(err)
+	}
+	refused := &vcs.MergeError{Detail: "Pull request is not mergeable: the merge commit cannot be cleanly created"}
+	steer := project.Steer{Backend: backend, StateDir: t.TempDir(), Provider: &fakeMerger{err: refused}}
+	_, err := steer.Accept(ctx, "T-1")
+	if !errors.Is(err, vcs.ErrMergeFailed) || !strings.Contains(err.Error(), "pull/7") {
+		t.Errorf("Accept = %v, want the merge failure naming the PR", err)
+	}
+	events, err := backend.Events(ctx, "T-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if e.EventType == project.EventPRMerged {
+			t.Errorf("a refused merge recorded %+v", e)
+		}
+	}
+}

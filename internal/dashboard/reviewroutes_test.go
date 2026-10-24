@@ -172,3 +172,28 @@ func TestParseDiffKeepsBinaryAndDeletedFiles(t *testing.T) {
 		t.Error("an empty diff has no files")
 	}
 }
+
+// TestRunGitSaysWhatFailed: a git that could not start writes no stderr; the
+// error still names the command and why.
+func TestRunGitSaysWhatFailed(t *testing.T) {
+	_, err := runGit(context.Background(), filepath.Join(t.TempDir(), "gone"), "status")
+	if err == nil || !strings.Contains(err.Error(), "git status") || !strings.Contains(err.Error(), "no such file") {
+		t.Errorf("runGit in a missing dir = %v, want the command and the cause", err)
+	}
+	root := t.TempDir()
+	_, err = runGit(context.Background(), root, "rev-parse", "--verify", "nope^{commit}")
+	if err == nil || !strings.Contains(err.Error(), "exit status") || !strings.Contains(err.Error(), "fatal") {
+		t.Errorf("runGit outside a repo = %v, want the exit and git's stderr", err)
+	}
+}
+
+// TestParseDiffCutsAHugeFile: one file's hunks stop at diffPatchLimit and say so.
+func TestParseDiffCutsAHugeFile(t *testing.T) {
+	line := "+" + strings.Repeat("x", 99) + "\n"
+	out := "diff --git a/big.js b/big.js\n--- a/big.js\n+++ b/big.js\n@@ -0,0 +1,3000 @@\n" + strings.Repeat(line, 3000)
+	got := parseDiff(out)
+	if len(got) != 1 || !got[0].Truncated || len(got[0].Patch) != diffPatchLimit || got[0].Additions != 3000 {
+		t.Errorf("parseDiff = truncated %v, patch %d bytes, +%d; want cut at %d, counts whole",
+			got[0].Truncated, len(got[0].Patch), got[0].Additions, diffPatchLimit)
+	}
+}
