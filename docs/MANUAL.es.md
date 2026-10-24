@@ -472,6 +472,17 @@ la base no cambia nada y el error nombra los archivos, para que la devuelvas.
 Un stakeholder no ve la pestaña salvo que `api_task_diff` esté en
 `dashboard.stakeholder_routes`.
 
+**Sistema › Conocimiento** lista las lecciones del proyecto (`.orch/knowledge/`)
+con su área, origen, tarea y fecha, las filtra por área y origen y las busca
+igual que la herramienta MCP `orch_knowledge_search`. Por lección muestra
+cuántos prompts de despacho la llevaron y, de las tareas terminadas a las que
+fueron, cuántas salieron al primer intento: una lección que ningún prompt usó,
+o cuyas tareas igual necesitaron reintentos, es candidata a editar o borrar.
+El operador local agrega, edita y borra lecciones ahí con la misma función que
+`orch knowledge add` / `rm`; cada cambio queda como evento `knowledge_edited`,
+y el archivo lo commiteás vos. **Curar ahora** queda deshabilitado hasta que
+llegue `orch knowledge curate` (#452). Un stakeholder nunca ve la página.
+
 El dashboard está en inglés, español y portugués (Brasil). Arranca en el idioma
 de tu navegador y, si no es ninguno de esos, en inglés; el botón de idioma al
 pie de la barra lateral (o ⌘K → *Cambiar idioma*) lo cambia y este navegador

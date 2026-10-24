@@ -26,6 +26,28 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 		paths, err := resolveAndValidate(flags)
 		return paths.Root, err
 	}
+	// editor is the one write path (#453): the dashboard's Knowledge page
+	// adds and removes through the same knowledge.Editor, and both record the
+	// change as an event. The files are the truth: with orch.db out of reach
+	// the lesson is still written or removed, and only the event is lost.
+	editor := func(cmd *cobra.Command) (knowledge.Editor, func() error, error) {
+		paths, err := resolveAndValidate(flags)
+		if err != nil {
+			return knowledge.Editor{}, nil, err
+		}
+		ed := knowledge.Editor{Root: paths.Root, Source: "cli"}
+		_, cfg, err := loadProjectConfig(flags)
+		if err == nil {
+			var backend state.Backend
+			var closeDB func() error
+			if backend, closeDB, err = openBackend(cmd.Context(), paths, cfg); err == nil {
+				ed.Events = backend
+				return ed, closeDB, nil
+			}
+		}
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] orch.db cannot be opened (%v); the change is not recorded as an event\n", err)
+		return ed, func() error { return nil }, nil
+	}
 
 	var l knowledge.Lesson
 	add := &cobra.Command{
@@ -33,10 +55,11 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 		Short: "Write a lesson as a file under .orch/knowledge/; commit it like any other file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			dir, err := root()
+			ed, closeDB, err := editor(cmd)
 			if err != nil {
 				return err
 			}
+			defer func() { _ = closeDB() }()
 			if l.Body == "-" {
 				raw, err := io.ReadAll(cmd.InOrStdin())
 				if err != nil {
@@ -44,7 +67,7 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 				}
 				l.Body = string(raw)
 			}
-			written, err := knowledge.Add(dir, l, time.Now())
+			written, err := ed.Add(cmd.Context(), l, time.Now())
 			if err != nil {
 				return withExitCode(2, err)
 			}
@@ -124,11 +147,12 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 		Short: "Delete a lesson's file; commit the deletion like any other change",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := root()
+			ed, closeDB, err := editor(cmd)
 			if err != nil {
 				return err
 			}
-			if err := knowledge.Remove(dir, args[0]); err != nil {
+			defer func() { _ = closeDB() }()
+			if err := ed.Remove(cmd.Context(), args[0], time.Now()); err != nil {
 				return withExitCode(2, err)
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", args[0])
@@ -210,7 +234,7 @@ func knowledgeStats(lessons []knowledge.Lesson, done []state.TaskRuntime) knowle
 			bucket, i = &out.Since, 1
 		}
 		bucket.Tasks++
-		r := max(t.Attempts-1, 0) + t.CIAttempts
+		r := knowledge.Retries(t)
 		if r == 0 {
 			bucket.FirstTry++
 		}

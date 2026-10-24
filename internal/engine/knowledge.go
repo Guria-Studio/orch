@@ -31,6 +31,23 @@ func (s *Scheduler) lessonsFor(ctx context.Context, task model.Task, workdir str
 	return lessons
 }
 
+// recordLessonsUsed records which lessons a dispatch's prompt carried
+// (#453), so the Knowledge page can tell how often each one was used and how
+// the tasks it went to did.
+func (s *Scheduler) recordLessonsUsed(ctx context.Context, taskID string, backend model.Backend, lessons []knowledge.Lesson) {
+	if len(lessons) == 0 || s.Backend == nil {
+		return
+	}
+	ids := make([]string, 0, len(lessons))
+	for _, l := range lessons {
+		ids = append(ids, l.ID)
+	}
+	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, knowledge.EventUsed, taskID, string(backend),
+		map[string]any{"lessons": ids}); err != nil {
+		s.logger().Warn("recording the lessons a prompt carried failed", "task", taskID, "err", err)
+	}
+}
+
 // captureLessons writes the draft lessons a clean, accepted attempt leaves
 // (knowledge.auto_capture): what the local verify rejected before this
 // attempt fixed it, and the conflict this attempt resolved. They go into the

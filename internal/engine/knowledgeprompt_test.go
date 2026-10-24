@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -39,8 +40,9 @@ func TestPromptKnowledgeAndAnUnreadableLesson(t *testing.T) {
 			f.s.Knowledge = noRanks{}
 			var logs bytes.Buffer
 			f.s.Log = slog.New(slog.NewTextHandler(&logs, nil))
-			if _, err := knowledge.Add(f.s.Opts.Cwd, knowledge.Lesson{Title: "Refresh tokens first",
-				Body: "A 401 means expired.", Area: []string{"internal/auth/"}}, time.Now()); err != nil {
+			lesson, err := knowledge.Add(f.s.Opts.Cwd, knowledge.Lesson{Title: "Refresh tokens first",
+				Body: "A 401 means expired.", Area: []string{"internal/auth/"}}, time.Now())
+			if err != nil {
 				t.Fatal(err)
 			}
 			if tc.broken {
@@ -62,6 +64,17 @@ func TestPromptKnowledgeAndAnUnreadableLesson(t *testing.T) {
 			if hasBlock == tc.broken || warned != tc.broken {
 				t.Errorf("block in the prompt = %v, warned = %v; want block %v, warning %v\n%s\n%s",
 					hasBlock, warned, !tc.broken, tc.broken, body, logs.String())
+			}
+			// The lessons the prompt carried are recorded for the Knowledge
+			// page (#453); a prompt without them records nothing.
+			var used []any
+			for _, e := range f.backend.events {
+				if e.eventType == knowledge.EventUsed && e.taskID == "C-1" {
+					used = append(used, e.extra["lessons"])
+				}
+			}
+			if want := []any{[]string{lesson.ID}}; tc.broken && len(used) != 0 || !tc.broken && !reflect.DeepEqual(used, want) {
+				t.Errorf("knowledge_used events = %v; want %v when the block is there, none otherwise", used, want)
 			}
 		})
 	}

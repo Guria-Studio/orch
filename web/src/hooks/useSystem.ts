@@ -54,3 +54,30 @@ export function useSaveConfig() {
     onSuccess: (data) => queryClient.setQueryData(["config-effective"], data),
   })
 }
+
+/** One lesson on System › Knowledge (GET /api/knowledge, #453), with how it did. */
+export interface Lesson {
+  id: string
+  title: string
+  area?: string[]
+  tags?: string[]
+  source: string
+  task?: string
+  created: string
+  body: string
+  path: string
+  /** Prompts that carried it. */
+  prompts: number
+  /** Done tasks those prompts were for, and how many of them were a first-try success. */
+  tasks: number
+  first_try: number
+}
+
+/** The lessons, or with a query the ones it finds, best first (orch_knowledge_search's ranking). */
+export function useKnowledge(q: string) {
+  return useQuery<{ lessons: Lesson[]; sources: string[] }, Error>({
+    queryKey: ["knowledge", q],
+    queryFn: async () => (await apiClient.get<{ lessons: Lesson[]; sources: string[] }>("/api/knowledge", { params: q ? { q } : {} })).data,
+    placeholderData: (prev) => prev,
+  })
+}

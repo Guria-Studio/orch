@@ -20,7 +20,7 @@ describe("visibleDestinations", () => {
   it("gives an operator the four destinations and System, Portfolio only when available", () => {
     const off = visibleDestinations({ isStakeholder: false, portfolioAvailable: false })
     expect(off.map((d) => d.id)).toEqual(["now", "work", "cost", "delivery", "system"])
-    expect(shape(off).system).toEqual(["/system/providers", "/system/tools", "/system/skills", "/system/logs", "/system/settings"])
+    expect(shape(off).system).toEqual(["/system/providers", "/system/tools", "/system/skills", "/system/knowledge", "/system/logs", "/system/settings"])
     expect(shape(off).now).toEqual(["/", "/now/releases"])
     expect(shape(visibleDestinations({ isStakeholder: false, portfolioAvailable: true })).now).toEqual([
       "/",

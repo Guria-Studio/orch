@@ -18,6 +18,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -131,22 +132,9 @@ var reNonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 // Add validates l, fills its id and created date, and writes it under root's
 // Dir without overwriting another lesson. It returns l as written.
 func Add(root string, l Lesson, now time.Time) (Lesson, error) {
-	l.Title = strings.TrimSpace(l.Title)
-	l.Body = strings.TrimSpace(l.Body)
-	if l.Title == "" || l.Body == "" {
-		return Lesson{}, errors.New("a lesson needs a title and a body")
+	if err := check(&l); err != nil {
+		return Lesson{}, err
 	}
-	if l.Source == "" {
-		l.Source = "operator"
-	}
-	known := false
-	for _, s := range Sources {
-		known = known || s == l.Source
-	}
-	if !known {
-		return Lesson{}, fmt.Errorf("source %q is not one of %s", l.Source, strings.Join(Sources, ", "))
-	}
-	l.Area, l.Tags = clean(l.Area), clean(l.Tags)
 	l.Created = now.UTC().Format("2006-01-02")
 	dir := filepath.Join(root, Dir)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -182,21 +170,72 @@ func Add(root string, l Lesson, now time.Time) (Lesson, error) {
 	}
 }
 
-// Remove deletes the lesson with id under root.
-func Remove(root, id string) error {
+// check trims and validates what a writer gives a lesson.
+func check(l *Lesson) error {
+	l.Title = strings.TrimSpace(l.Title)
+	l.Body = strings.TrimSpace(l.Body)
+	if l.Title == "" || l.Body == "" {
+		return errors.New("a lesson needs a title and a body")
+	}
+	if l.Source == "" {
+		l.Source = "operator"
+	}
+	if !slices.Contains(Sources, l.Source) {
+		return fmt.Errorf("source %q is not one of %s", l.Source, strings.Join(Sources, ", "))
+	}
+	l.Task = strings.TrimSpace(l.Task)
+	l.Area, l.Tags = clean(l.Area), clean(l.Tags)
+	return nil
+}
+
+// Update rewrites the lesson with id under root with l's title, body, area,
+// tags, task and source; its id, file and created date stay.
+func Update(root, id string, l Lesson) (Lesson, error) {
+	if err := check(&l); err != nil {
+		return Lesson{}, err
+	}
+	old, err := find(root, id)
+	if err != nil {
+		return Lesson{}, err
+	}
+	l.ID, l.Created, l.Path = old.ID, old.Created, old.Path
+	file := filepath.Join(root, filepath.FromSlash(l.Path))
+	tmp := file + ".tmp"
+	if err := os.WriteFile(tmp, Marshal(l), 0o644); err != nil { // #nosec G306 -- a versioned file in the project, read by people
+		return Lesson{}, fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, file); err != nil {
+		return Lesson{}, fmt.Errorf("replace %s: %w", file, err)
+	}
+	return l, nil
+}
+
+// ErrNoLesson is an id no lesson under Dir has.
+var ErrNoLesson = errors.New("no lesson")
+
+func find(root, id string) (Lesson, error) {
 	lessons, err := Load(root)
 	if err != nil {
-		return err
+		return Lesson{}, err
 	}
 	for _, l := range lessons {
 		if l.ID == id {
-			if err := os.Remove(filepath.Join(root, filepath.FromSlash(l.Path))); err != nil {
-				return fmt.Errorf("remove lesson %s: %w", id, err)
-			}
-			return nil
+			return l, nil
 		}
 	}
-	return fmt.Errorf("no lesson %q in %s", id, Dir)
+	return Lesson{}, fmt.Errorf("%w %q in %s", ErrNoLesson, id, Dir)
+}
+
+// Remove deletes the lesson with id under root.
+func Remove(root, id string) error {
+	l, err := find(root, id)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(l.Path))); err != nil {
+		return fmt.Errorf("remove lesson %s: %w", id, err)
+	}
+	return nil
 }
 
 func clean(in []string) []string {

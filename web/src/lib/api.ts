@@ -172,7 +172,7 @@ export interface TaskFields {
  * refused edit (an unknown dependency, a cycle, a model with no route) rejects
  * with the server's `detail`.
  */
-async function taskWrite<T>(method: "post" | "patch", path: string, body: object): Promise<T> {
+async function taskWrite<T>(method: "post" | "patch" | "delete", path: string, body: object): Promise<T> {
   try {
     const { data } = await apiClient.request<T>({ method, url: path, data: body })
     return data
@@ -189,6 +189,20 @@ export const setProvider = (backend: string, disabled: boolean, reason = "") =>
   taskWrite<{ backend: string; disabled: boolean }>("post", `/api/provider/${encodeURIComponent(backend)}/${disabled ? "disable" : "enable"}`, { reason })
 export const editTask = (id: string, fields: TaskFields) =>
   taskWrite<{ message: string }>("patch", `/api/task/${encodeURIComponent(id)}`, fields)
+/** A lesson as the Knowledge page writes it (#453); the server fills id and date. */
+export interface LessonFields {
+  title: string
+  body: string
+  area?: string[]
+  tags?: string[]
+  task?: string
+  source?: string
+}
+
+/** The Knowledge page's writes: the same knowledge.Editor as `orch knowledge add|rm`, local operator only. */
+export const addLesson = (l: LessonFields) => taskWrite<{ id: string }>("post", "/api/knowledge", l)
+export const editLesson = (id: string, l: LessonFields) => taskWrite<{ id: string }>("patch", `/api/knowledge/${encodeURIComponent(id)}`, l)
+export const removeLesson = (id: string) => taskWrite<{ lesson: string }>("delete", `/api/knowledge/${encodeURIComponent(id)}`, {})
 /** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */
 export const moveTask = (id: string, status: string, note = "") =>
   taskWrite<StopResult>("post", `/api/task/${encodeURIComponent(id)}/status`, { status, note })
