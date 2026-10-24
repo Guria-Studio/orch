@@ -378,6 +378,11 @@ orch dashboard --demo
 # PRs (--json para scripts)
 orch report receipt
 
+# La misma corrida en palabras simples: qué se construyó, por qué se detuvo
+# cada task bloqueada y los próximos pasos con su comando (orch run lo imprime
+# al terminar)
+orch report summary
+
 # Un link para pasarle a un cliente, por un túnel rápido de Cloudflare
 # (necesita `tunnel: enabled: true` en config.yaml y cloudflared en el PATH
 # — la página Tunnel muestra cómo instalarlo). Imprime el link del portal
@@ -388,7 +393,9 @@ orch dashboard --tunnel
 El dashboard del operador tiene cuatro destinos. **Now** es la primera
 pantalla: la corrida, cada agente trabajando con su reloj, las tasks bloqueadas
 y las que esperan una ventana de budget (con el comando `orch task set` que
-destraba cada una — el dashboard solo lee), las fases y la ventana de budget.
+destraba cada una — el dashboard solo lee), las fases y la ventana de budget;
+tras una corrida, su recibo con la corrida en palabras simples debajo — por qué
+se detuvo cada task bloqueada y los próximos pasos con sus comandos.
 **Work** reúne List, Kanban, Graph, Phases y Pace como pestañas que comparten
 los filtros en la URL; **Cost** reúne Budget y Metrics; **Delivery**, el resumen
 para el cliente, CI, Tests (cada corrida E2E del verify local, con lo que dejó

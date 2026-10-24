@@ -31,6 +31,8 @@ stderr 'no run has finished yet'
 stderr 'no events for run "nope"'
 ! exec orch report receipt --project-root proj --project-id proj --json --markdown
 stderr 'mutually exclusive'
+! exec orch report summary --project-root proj --project-id proj
+stderr 'no run has finished yet'
 
 # ---- default destination ---------------------------------------------------
 exec orch report pdf --project-root proj --project-id proj

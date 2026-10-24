@@ -420,6 +420,7 @@ announced:
 | a live `orch run` made no progress for 30 minutes (Go only, #255), once per stall | `:hourglass: orch: no progress for 30m0s — waiting on CI on F1.T3 (<pr url>)` |
 | a provider's weighted budget window reaches `budget_alert_pct` of its cap (Go only) | `:warning: orch: claude is at 80% of its budget cap (384,000 of 480,000 tokens in its 5h window).` |
 | it reaches the cap and new dispatches to it wait (Go only) | `:octagonal_sign: orch: claude reached its budget cap (481,200 of 480,000 tokens in its 5h window). New claude dispatches wait until about 2026-09-16 14:05 UTC. 2 task(s) waiting.` |
+| an `orch run` loop ends (Go only, #456) | `orch: Run <id> finished: 3 done, 1 blocked.` then the rest of `orch report summary`: what was built, why each blocked task stopped, and the next steps with their commands |
 
 The budget alerts use the same weighted count the gate does (see
 [`budget`](#budget-and-budget-presets)), add ", part of it estimated" when a

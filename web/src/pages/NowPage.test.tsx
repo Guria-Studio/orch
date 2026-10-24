@@ -172,6 +172,7 @@ describe("NowPage", () => {
   it("shows the last finished run's receipt, with costs labelled by where they come from", () => {
     state.receipt = {
       markdown: "## orch run `run-6` — finished\n",
+      summary: null,
       built_with: "Built with [orch](https://github.com/hectorcanaimero/orch)",
       receipt: {
         run_id: "run-6", started_at: "2026-09-15T08:00:00Z", finished_at: "2026-09-15T10:05:00Z", finished: true,

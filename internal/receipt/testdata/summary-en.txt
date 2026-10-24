@@ -1,0 +1,13 @@
+Run r finished: 1 done, 3 blocked.
+Built: A (Login form).
+C (Search index) stopped: the provider's rate limit was hit — 429 Too Many Requests.
+B (Checkout page) stopped: the local verify rejected its work — The task's app did not start. orch's local verify ran `npm start` in your working dir and it failed (exit status 1).
+D (Payments webhook) stopped: its agent blocked it — needs a Stripe test key in .env.
+
+Next:
+1. Wait for the provider's limit to reset, then retry C.
+   $ orch task set --id C --status todo && orch run
+2. Fix verify.app.start in .orchestrator/config.yaml, then retry B.
+   $ orch task set --id B --status todo && orch run
+3. Give the agent what it asked for (`orch logs D`), then retry D.
+   $ orch task set --id D --status todo && orch run

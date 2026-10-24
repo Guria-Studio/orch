@@ -11,6 +11,7 @@ package receipt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -45,7 +46,9 @@ type Receipt struct {
 	FailedAttempts int `json:"failed_attempts"`
 	Retries        int `json:"retries"`
 	// Done and Blocked are tasks by their last outcome in this run, in the
-	// order they reached it.
+	// order they first reached one. Blocked counts a terminal failure (one
+	// no retry followed) and a task its agent blocked, not only `block` and
+	// `ci_blocked` events; a task tried again and never decided is in neither.
 	Done    []TaskRef `json:"done"`
 	Blocked []TaskRef `json:"blocked"`
 
@@ -55,10 +58,17 @@ type Receipt struct {
 	PRs              []PR       `json:"prs"`
 }
 
-// TaskRef names a task.
+// TaskRef names a task. On a blocked task, Cause says why it stopped:
+// "verify" (the local verify kept rejecting its work), "failure" (its agent
+// failed; FailureClass is the classifier's verdict), "ci" (its PR kept
+// failing CI), "not_started" (orch could not start it) or "agent" (its agent
+// blocked it). Reason is the event's own text, or the agent's note.
 type TaskRef struct {
-	TaskID string `json:"task_id"`
-	Title  string `json:"title"`
+	TaskID       string `json:"task_id"`
+	Title        string `json:"title"`
+	Cause        string `json:"cause,omitempty"`
+	FailureClass string `json:"failure_class,omitempty"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // Provider is one backend's share of the run.
@@ -144,7 +154,13 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 	r := &Receipt{RunID: runID, StartedAt: mine[0].TS, Done: []TaskRef{}, Blocked: []TaskRef{}, Providers: []Provider{}, PRs: []PR{}}
 	start, end := at(mine[0]), at(mine[len(mine)-1])
 
+	// outcome is each task's latest verdict in the run; why is what its
+	// latest stop said. A dispatch or retry after a verdict makes it pending
+	// again, so a task failed and retried is neither done nor blocked until
+	// a later verdict says which.
 	outcome := map[string]string{}
+	why := map[string]TaskRef{}
+	verifyFailed := map[string]bool{}
 	var order []string
 	byProvider := map[string]*Provider{}
 	provider := func(name string) *Provider {
@@ -164,15 +180,22 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 		case "dispatch":
 			r.Dispatches++
 			provider(e.Backend).Dispatches++
-		case "fail", "timeout":
-			r.FailedAttempts++
+			pending(outcome, e.TaskID)
 		case "retry":
 			r.Retries++
-		case "success", "block", "ci_blocked":
+			pending(outcome, e.TaskID)
+		case "verify_failed":
+			verifyFailed[e.TaskID] = true
+			pending(outcome, e.TaskID)
+		case "success", "block", "ci_blocked", "fail", "timeout":
+			if e.EventType == "fail" || e.EventType == "timeout" {
+				r.FailedAttempts++
+			}
 			if _, ok := outcome[e.TaskID]; !ok {
 				order = append(order, e.TaskID)
 			}
 			outcome[e.TaskID] = e.EventType
+			why[e.TaskID] = stopCause(e, verifyFailed[e.TaskID])
 		case "pr_created":
 			url, _ := e.Extra["pr_url"].(string)
 			if url == "" || seenPR[url] {
@@ -186,10 +209,23 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 		}
 	}
 	for _, id := range order {
-		if outcome[id] == "success" {
+		switch outcome[id] {
+		case "pending":
+		case "success":
+			// An agent that blocks its task exits cleanly, so its outcome
+			// event says success; the task's status, moved inside the run,
+			// and its last note say otherwise.
+			if t := ci[id]; t.Status == model.StatusBlocked && within(t.UpdatedAt, start, end) {
+				b := ref(id)
+				b.Cause, b.Reason = "agent", lastNote(t.Comments)
+				r.Blocked = append(r.Blocked, b)
+				continue
+			}
 			r.Done = append(r.Done, ref(id))
-		} else {
-			r.Blocked = append(r.Blocked, ref(id))
+		default:
+			b := why[id]
+			b.TaskID, b.Title = id, titles[id]
+			r.Blocked = append(r.Blocked, b)
 		}
 	}
 	if !start.IsZero() && !end.IsZero() {
@@ -240,6 +276,56 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 	}
 	r.TotalCostUSD, r.EstimatedCostUSD = round4(r.TotalCostUSD), round4(r.EstimatedCostUSD)
 	return r
+}
+
+// pending reopens a task's verdict: it is being tried again.
+func pending(outcome map[string]string, id string) {
+	if _, ok := outcome[id]; ok {
+		outcome[id] = "pending"
+	}
+}
+
+// stopCause is why a stop event stopped its task. A terminal failure with no
+// failure class after a verify_failed is the local verify's block: the agent
+// exited cleanly every time, its work did not pass.
+func stopCause(e state.Event, verifyFailed bool) TaskRef {
+	reason, _ := e.Extra["reason"].(string)
+	class, _ := e.Extra["failure_class"].(string)
+	c := TaskRef{Reason: reason}
+	switch e.EventType {
+	case "ci_blocked":
+		c.Cause = "ci"
+	case "block":
+		c.Cause = "not_started"
+	case "fail", "timeout":
+		c.Cause, c.FailureClass = "failure", class
+		if class == "" && e.EventType == "timeout" {
+			c.FailureClass = "timeout"
+		}
+		if class == "" && verifyFailed {
+			c.Cause = "verify"
+			_, c.Reason, _ = strings.Cut(reason, ": ")
+		}
+	}
+	return c
+}
+
+func within(ts string, start, end time.Time) bool {
+	t, ok := state.ParseTS(ts)
+	return ok && !t.Before(start) && !t.After(end)
+}
+
+// lastNote is the body of a task's newest comment.
+func lastNote(comments []json.RawMessage) string {
+	for i := len(comments) - 1; i >= 0; i-- {
+		var c struct {
+			Body string `json:"body"`
+		}
+		if json.Unmarshal(comments[i], &c) == nil && strings.TrimSpace(c.Body) != "" {
+			return strings.TrimSpace(c.Body)
+		}
+	}
+	return ""
 }
 
 // latestFinished is the run whose sprint_done is newest.

@@ -15,8 +15,8 @@ func cardReceipt() *Receipt {
 	return &Receipt{
 		RunID: "run-20260915-0800", StartedAt: "2026-09-15T08:00:00Z", FinishedAt: "2026-09-15T10:05:00+00:00", Finished: true,
 		WallSeconds: 7500, AgentSeconds: 3000, Dispatches: 4, FailedAttempts: 1, Retries: 1,
-		Done:    []TaskRef{{"A", "Alpha"}, {"B", "Beta"}},
-		Blocked: []TaskRef{{"C", "Gamma"}},
+		Done:    []TaskRef{{TaskID: "A", Title: "Alpha"}, {TaskID: "B", Title: "Beta"}},
+		Blocked: []TaskRef{{TaskID: "C", Title: "Gamma"}},
 		Providers: []Provider{
 			{Provider: "claude", Dispatches: 3, CostUSD: 1.25, CostSource: "reported"},
 			{Provider: "codex", Dispatches: 1, CostUSD: 0.4, EstimatedCostUSD: 0.4, CostSource: "estimated"},

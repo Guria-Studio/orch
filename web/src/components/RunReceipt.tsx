@@ -125,6 +125,24 @@ export function RunReceipt({ payload }: { payload: ReceiptPayload }) {
         ))}
       </dl>
 
+      {payload.summary ? (
+        <div className="space-y-1.5 border-t px-3.5 py-3 text-sm">
+          {payload.summary.lines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          {payload.summary.actions.length > 0 ? (
+            <ol className="list-decimal space-y-1.5 pl-5">
+              {payload.summary.actions.map((a) => (
+                <li key={a.text}>
+                  {a.text}
+                  {a.command ? <code className="mt-0.5 block break-all rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{a.command}</code> : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 border-t px-3.5 py-3">
         <Button type="button" size="sm" variant="outline" onClick={copy}>
           {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />}

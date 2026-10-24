@@ -1,0 +1,13 @@
+La ejecución r terminó: 1 hechas, 3 bloqueadas.
+Construido: A (Login form).
+C (Search index) se detuvo: se alcanzó el límite de uso del proveedor — 429 Too Many Requests.
+B (Checkout page) se detuvo: la verificación local rechazó su trabajo — The task's app did not start. orch's local verify ran `npm start` in your working dir and it failed (exit status 1).
+D (Payments webhook) se detuvo: su agente la bloqueó — needs a Stripe test key in .env.
+
+Siguiente:
+1. Espera a que el límite del proveedor se reinicie y reintenta C.
+   $ orch task set --id C --status todo && orch run
+2. Corrige verify.app.start en .orchestrator/config.yaml y reintenta B.
+   $ orch task set --id B --status todo && orch run
+3. Dale al agente lo que pidió (`orch logs D`) y reintenta D.
+   $ orch task set --id D --status todo && orch run

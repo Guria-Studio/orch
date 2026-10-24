@@ -119,9 +119,8 @@ func newNotifyDigestCmd(flags *projectFlags) *cobra.Command {
 			"  0 9 * * MON  orch notify digest --send",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if language != "" && language != "es" && language != "en" && language != "pt" {
-				return withExitCode(2, fmt.Errorf(
-					"invalid --language %q (want en, es or pt)", language))
+			if err := checkLanguage(language); err != nil {
+				return err
 			}
 			ctx := cmd.Context()
 			paths, cfg, err := loadProjectConfig(flags)
@@ -328,4 +327,13 @@ func spendSince(ctx context.Context, backend state.Backend, since time.Time) ([]
 		out = append(out, rows...)
 	}
 	return out, nil
+}
+
+// checkLanguage refuses a --language that is not en, es or pt ("" is the
+// config's).
+func checkLanguage(language string) error {
+	if language != "" && language != "es" && language != "en" && language != "pt" {
+		return withExitCode(2, fmt.Errorf("invalid --language %q (want en, es or pt)", language))
+	}
+	return nil
 }

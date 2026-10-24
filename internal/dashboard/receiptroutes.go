@@ -30,10 +30,13 @@ func (s *Server) receiptRoutes() []route {
 // 404 the page has to tell apart from a broken route. Markdown is the same
 // text `orch report receipt` prints, without the BuiltWith footer, which the
 // page appends unless its author unticked it.
+//
+// Summary is `orch report summary`'s, shown under the receipt (#456).
 type receiptPayload struct {
 	Receipt   *receipt.Receipt `json:"receipt"`
 	Markdown  string           `json:"markdown"`
 	BuiltWith string           `json:"built_with"`
+	Summary   *receipt.Summary `json:"summary"`
 }
 
 func (s *Server) handleReceipt(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +47,15 @@ func (s *Server) handleReceipt(w http.ResponseWriter, r *http.Request) {
 	out := receiptPayload{Receipt: rec, BuiltWith: receipt.BuiltWith}
 	if rec != nil {
 		out.Markdown = rec.Markdown()
+		// Read per request, like /api/ci: an edit to config.yaml shows on
+		// the next load. A config that does not load words it the way the
+		// dashboard started with.
+		lang, autoMerge := s.cfg.SummaryLanguage, false
+		if loaded, err := config.Load(s.paths.ConfigYAML, s.paths.Root); err == nil {
+			lang, autoMerge = loaded.Config.Dashboard.SummaryLanguage, loaded.Config.GitHub.AutoMerge
+		}
+		sum := rec.Summary(lang, autoMerge)
+		out.Summary = &sum
 	}
 	writeJSON(w, http.StatusOK, out)
 }

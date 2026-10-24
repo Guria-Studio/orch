@@ -436,3 +436,20 @@ func TestNew(t *testing.T) {
 		}
 	})
 }
+
+// A finished run's summary is posted whole, multi-line, to every channel
+// (#456): unlike a block reason it is not cut to its first line.
+func TestRunSummaryIsPostedWhole(t *testing.T) {
+	rec := newRecorder(t, 0)
+	n := New(rec.slackURL(), rec.discordURL(), 1)
+	n.RunSummary(context.Background(), "Run r finished: 1 done, 1 blocked.\n\nNext:\n1. Retry B.\n")
+	got := rec.got()
+	if len(got) != 2 {
+		t.Fatalf("posts = %d, want slack and discord", len(got))
+	}
+	for _, body := range got {
+		if !strings.Contains(body, `orch: Run r finished: 1 done, 1 blocked.\n\nNext:\n1. Retry B.`) {
+			t.Errorf("body = %s", body)
+		}
+	}
+}

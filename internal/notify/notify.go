@@ -84,6 +84,12 @@ func (n *Notifier) Blocked(ctx context.Context, taskID, reason string) {
 		taskID, firstLine(reason)))
 }
 
+// RunSummary posts a finished run's summary (receipt.Summary's text), all of
+// it: what was built, why each blocked task stopped and what to do next.
+func (n *Notifier) RunSummary(ctx context.Context, text string) {
+	n.send(ctx, "orch: "+strings.TrimSpace(text))
+}
+
 // CIBlocked announces a task blocked because CI kept failing.
 func (n *Notifier) CIBlocked(ctx context.Context, taskID, prURL string, attempts int) {
 	tail := ""

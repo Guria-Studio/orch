@@ -372,6 +372,10 @@ orch dashboard --demo
 # and blocked, wall and agent time, spend per provider, PRs (--json for scripts)
 orch report receipt
 
+# The same run in plain words: what was built, why each blocked task stopped,
+# and the next steps with the command for each (orch run prints it when it ends)
+orch report summary
+
 # A link to hand a client, over a Cloudflare quick tunnel (needs
 # `tunnel: enabled: true` in config.yaml and cloudflared on PATH — the
 # Tunnel page shows how to install it). Prints the client-portal link, with
@@ -382,7 +386,9 @@ orch dashboard --tunnel
 The operator dashboard has four destinations. **Now** is the first screen:
 the run, each agent at work with a running clock, the blocked tasks and the
 ones waiting on a budget window (with the `orch task set` command that
-unblocks each — the dashboard only reads), phases and the budget window.
+unblocks each — the dashboard only reads), phases and the budget window;
+once a run has finished, its receipt with the run in plain words under it —
+why each blocked task stopped and the next steps with their commands.
 **Work** holds List, Kanban, Graph, Phases and Pace as tabs sharing one set of
 filters in the URL; **Cost** holds Budget and Metrics; **Delivery** holds the
 client summary, CI, Tests (each E2E run the local verify made, with what a
