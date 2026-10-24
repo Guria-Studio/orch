@@ -178,7 +178,12 @@ func (s *Server) handleCurate(w http.ResponseWriter, r *http.Request) {
 	}
 	first := make(chan step, 1)
 	go func() {
-		defer s.curating.Store(false)
+		defer func() {
+			s.curating.Store(false)
+			if s.curated != nil {
+				s.curated()
+			}
+		}()
 		var out bytes.Buffer
 		dispatched := false
 		// ponytail: outlives the request but not the process — Ctrl+C on the

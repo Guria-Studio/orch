@@ -215,6 +215,8 @@ func TestKnowledgeCurateEstimatesThenRunsOneAtATime(t *testing.T) {
 	s, _, _ := newKnowledgeServer(t, ProfileOperator, "")
 	f := &fakeCurate{release: make(chan struct{})}
 	s.curate = f.curate
+	ended := make(chan struct{}, 2)
+	s.curated = func() { ended <- struct{}{} }
 
 	rec := operatorSend(t, s, http.MethodPost, "/api/knowledge/curate/estimate", "")
 	var got curatePayload
@@ -236,10 +238,10 @@ func TestKnowledgeCurateEstimatesThenRunsOneAtATime(t *testing.T) {
 		t.Errorf("confirm asked %d times, want 2 (the refused one never starts)", n)
 	}
 	close(f.release)
-	for deadline := time.Now().Add(5 * time.Second); s.curating.Load(); time.Sleep(10 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("the curation never finished")
-		}
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the curation never finished")
 	}
 	if rec = operatorSend(t, s, http.MethodPost, "/api/knowledge/curate", ""); rec.Code != http.StatusAccepted {
 		t.Errorf("after it finished = %d, want 202: %s", rec.Code, rec.Body)

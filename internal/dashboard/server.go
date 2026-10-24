@@ -68,6 +68,9 @@ type Server struct {
 	// curate is Options.Curate; curating is set while one it started runs.
 	curate   func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error
 	curating atomic.Bool
+	// curated, when set (tests only), is called once a curation it started
+	// ended and the next one may start.
+	curated func()
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
