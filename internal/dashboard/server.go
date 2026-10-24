@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"github.com/hectorcanaimero/orch/internal/doctor"
 	"github.com/hectorcanaimero/orch/internal/update"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hectorcanaimero/orch/internal/config"
@@ -63,6 +65,9 @@ type Server struct {
 	editor *project.TaskEditor
 	// knowledge is Options.Knowledge.
 	knowledge *knowledge.Editor
+	// curate is Options.Curate; curating is set while one it started runs.
+	curate   func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error
+	curating atomic.Bool
 	// tunnel is what the two tunnel routes need: whether it is configured,
 	// and the manager when it is. Zero value = not configured, which is what
 	// every project that has never set one up has.
@@ -187,6 +192,11 @@ type Options struct {
 	// them through (#453) — the same editor as `orch knowledge add|rm`. Nil
 	// turns its endpoints off.
 	Knowledge *knowledge.Editor
+	// Curate is `orch knowledge curate` (#452), for the Knowledge page's
+	// Curate now: it writes what the curation would do and cost to out, then
+	// asks confirm with its task id; true dispatches it and Curate returns
+	// when that run ends. Nil turns its endpoints off.
+	Curate func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -218,6 +228,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		steer:     opts.Steer,
 		editor:    opts.Editor,
 		knowledge: opts.Knowledge,
+		curate:    opts.Curate,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,

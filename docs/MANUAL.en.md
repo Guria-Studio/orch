@@ -470,8 +470,10 @@ that are done, how many finished on the first try — a lesson no prompt used,
 or whose tasks still needed retries, is one to edit or delete. The local
 operator adds, edits and deletes lessons there through the same function as
 `orch knowledge add` / `rm`; each change is a `knowledge_edited` event, and
-the file is yours to commit. **Curate now** stays disabled until
-`orch knowledge curate` (#452) ships. A stakeholder never gets the page.
+the file is yours to commit. **Curate now** runs
+`orch knowledge curate` (#452): a dialog shows what the curation would do and
+cost, and **Confirm** dispatches its one task in the background; the page then
+links to that task, which the run shows like any other. One curation at a time. A stakeholder never gets the page.
 
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the

@@ -11,7 +11,11 @@ vi.mock("@/hooks/useSystem", () => ({ useKnowledge: (q: string) => mockUseKnowle
 const addLesson = vi.fn()
 const editLesson = vi.fn()
 const removeLesson = vi.fn()
+const curateEstimate = vi.fn()
+const startCuration = vi.fn()
 vi.mock("@/lib/api", () => ({
+  curateEstimate: () => curateEstimate(),
+  startCuration: () => startCuration(),
   addLesson: (...a: unknown[]) => addLesson(...a),
   editLesson: (...a: unknown[]) => editLesson(...a),
   removeLesson: (...a: unknown[]) => removeLesson(...a),
@@ -125,11 +129,28 @@ describe("KnowledgePage", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("a lesson needs a title and a body")
   })
 
-  // #452 builds `orch knowledge curate`; until it lands the button says so.
-  it("offers Curate now disabled, naming #452", () => {
+  it("curates: shows the estimate, dispatches only on Confirm, then links the task", async () => {
+    curateEstimate.mockResolvedValue({ task: "knowledge-curate-20261024-120000", estimate: "curating 2 lessons on claude/haiku\n~$0.02" })
+    startCuration.mockResolvedValue({ task: "knowledge-curate-20261024-120001", estimate: "" })
     renderPage()
-    const curate = screen.getByRole("button", { name: "Curate now" })
-    expect(curate).toBeDisabled()
-    expect(curate).toHaveAccessibleDescription("Arrives with orch knowledge curate (#452)")
+    fireEvent.click(screen.getByRole("button", { name: "Curate now" }))
+    const dialog = screen.getByRole("dialog")
+    expect(await within(dialog).findByText(/~\$0\.02/)).toBeInTheDocument()
+    expect(startCuration).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }))
+    await waitFor(() => expect(startCuration).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole("status")).toHaveTextContent("Curation dispatched as knowledge-curate-20261024-120001.")
+    expect(screen.getByRole("link", { name: "Open the task" })).toHaveAttribute("href", "/work/tasks/knowledge-curate-20261024-120001")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("says why a curation cannot start, and Confirm stays off", async () => {
+    curateEstimate.mockRejectedValue(new Error("no lessons to curate (.orch/knowledge is empty)"))
+    renderPage()
+    fireEvent.click(screen.getByRole("button", { name: "Curate now" }))
+    const dialog = screen.getByRole("dialog")
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("no lessons to curate")
+    expect(within(dialog).getByRole("button", { name: "Confirm" })).toBeDisabled()
   })
 })

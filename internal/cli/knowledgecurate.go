@@ -38,7 +38,7 @@ func newKnowledgeCurateCmd(flags *projectFlags) *cobra.Command {
 			req := curateRequest{Backend: backend, Out: cmd.OutOrStdout()}
 			if !yes {
 				in := bufio.NewReader(cmd.InOrStdin())
-				req.Confirm = func(string) (bool, error) { return askYesNo(in, cmd.OutOrStdout(), "Dispatch it?", false) }
+				req.Confirm = func(string, string) (bool, error) { return askYesNo(in, cmd.OutOrStdout(), "Dispatch it?", false) }
 			}
 			return curateKnowledge(cmd.Context(), flags, req)
 		},
@@ -53,9 +53,9 @@ type curateRequest struct {
 	// Backend limits the route to this CLI; "" is the cheapest route of any
 	// installed one.
 	Backend string
-	// Confirm is asked with the estimate before anything is dispatched; nil
-	// dispatches without asking.
-	Confirm func(estimate string) (bool, error)
+	// Confirm is asked with the curation's task id and estimate before
+	// anything is dispatched; nil dispatches without asking.
+	Confirm func(taskID, estimate string) (bool, error)
 	// Out gets the estimate and what was dispatched.
 	Out io.Writer
 	// State, when set, is the database the curation writes through; the
@@ -136,7 +136,7 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 	_, _ = fmt.Fprintf(out, "curating %d lessons on %s as %s; the work goes to branch orch/%s\n", len(lessons), route, task.ID, task.ID)
 	printEstimate(out, e)
 	if req.Confirm != nil {
-		ok, err := req.Confirm(e.Lines()[0])
+		ok, err := req.Confirm(task.ID, e.Lines()[0])
 		if err != nil {
 			return withExitCode(1, err)
 		}

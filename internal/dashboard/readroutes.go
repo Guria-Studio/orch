@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/hectorcanaimero/orch/internal/knowledge"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 // The read endpoints of G5.2(b): everything the trimmed operator SPA fetches
@@ -95,6 +97,19 @@ func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 		payload.MaxAttempts = s.maxAttempts()
 		writeJSON(w, http.StatusOK, payload)
 		return
+	}
+	// A curation (#452) lives in the database only; Curate now links to it.
+	if strings.HasPrefix(taskID, knowledge.CurateTaskPrefix) {
+		rows, err := s.state.Tasks(r.Context(), state.TaskFilter{IDs: []string{taskID}})
+		if err != nil {
+			s.failRead(w, "task", err)
+			return
+		}
+		if len(rows) == 1 {
+			writeJSON(w, http.StatusOK, view.task(model.Task{ID: taskID, Status: rows[0].Status, Model: rows[0].LastModel,
+				Title: "Curate the project's lessons (" + knowledge.Dir + "/)", Files: []string{knowledge.Dir + "/"}}))
+			return
+		}
 	}
 	writeJSON(w, http.StatusNotFound, errorPayload{Detail: "task not found: " + taskID})
 }

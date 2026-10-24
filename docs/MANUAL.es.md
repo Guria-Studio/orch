@@ -480,8 +480,11 @@ fueron, cuántas salieron al primer intento: una lección que ningún prompt us�
 o cuyas tareas igual necesitaron reintentos, es candidata a editar o borrar.
 El operador local agrega, edita y borra lecciones ahí con la misma función que
 `orch knowledge add` / `rm`; cada cambio queda como evento `knowledge_edited`,
-y el archivo lo commiteás vos. **Curar ahora** queda deshabilitado hasta que
-llegue `orch knowledge curate` (#452). Un stakeholder nunca ve la página.
+y el archivo lo commiteás vos. **Curar ahora** corre
+`orch knowledge curate` (#452): un diálogo muestra qué haría la curación y cuánto
+costaría, y **Confirmar** despacha su única tarea en segundo plano; la página
+enlaza entonces esa tarea, que la corrida muestra como cualquier otra. Una
+curación a la vez. Un stakeholder nunca ve la página.
 
 El dashboard está en inglés, español y portugués (Brasil). Arranca en el idioma
 de tu navegador y, si no es ninguno de esos, en inglés; el botón de idioma al

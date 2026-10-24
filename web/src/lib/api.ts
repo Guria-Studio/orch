@@ -203,6 +203,14 @@ export interface LessonFields {
 export const addLesson = (l: LessonFields) => taskWrite<{ id: string }>("post", "/api/knowledge", l)
 export const editLesson = (id: string, l: LessonFields) => taskWrite<{ id: string }>("patch", `/api/knowledge/${encodeURIComponent(id)}`, l)
 export const removeLesson = (id: string) => taskWrite<{ lesson: string }>("delete", `/api/knowledge/${encodeURIComponent(id)}`, {})
+/** A curation (#452) as `orch knowledge curate` shows it before asking: its task and what it would do and cost. */
+export interface Curation {
+  task: string
+  estimate: string
+}
+/** Curate now: the estimate, dispatching nothing; then, confirmed, the curation runs in the background. */
+export const curateEstimate = () => taskWrite<Curation>("post", "/api/knowledge/curate/estimate", {})
+export const startCuration = () => taskWrite<Curation>("post", "/api/knowledge/curate", {})
 /** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */
 export const moveTask = (id: string, status: string, note = "") =>
   taskWrite<StopResult>("post", `/api/task/${encodeURIComponent(id)}/status`, { status, note })

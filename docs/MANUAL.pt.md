@@ -478,8 +478,11 @@ quantas terminaram de primeira: uma lição que nenhum prompt usou, ou cujas
 tarefas ainda precisaram de novas tentativas, é candidata a editar ou apagar.
 O operador local adiciona, edita e apaga lições ali com a mesma função de
 `orch knowledge add` / `rm`; cada mudança vira um evento `knowledge_edited`, e
-o commit do arquivo é seu. **Curar agora** fica desativado até chegar
-`orch knowledge curate` (#452). Um stakeholder nunca vê a página.
+o commit do arquivo é seu. **Curar agora** roda
+`orch knowledge curate` (#452): um diálogo mostra o que a curadoria faria e
+quanto custaria, e **Confirmar** despacha sua única tarefa em segundo plano; a
+página então aponta para essa tarefa, que a execução mostra como qualquer
+outra. Uma curadoria por vez. Um stakeholder nunca vê a página.
 
 O dashboard está em inglês, espanhol e português (Brasil). Ele começa no idioma
 do seu navegador e, se não for nenhum desses, em inglês; o botão de idioma no
