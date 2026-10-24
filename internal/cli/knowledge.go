@@ -28,17 +28,25 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 	}
 	// editor is the one write path (#453): the dashboard's Knowledge page
 	// adds and removes through the same knowledge.Editor, and both record the
-	// change as an event.
+	// change as an event. The files are the truth: with orch.db out of reach
+	// the lesson is still written or removed, and only the event is lost.
 	editor := func(cmd *cobra.Command) (knowledge.Editor, func() error, error) {
-		paths, cfg, err := loadProjectConfig(flags)
+		paths, err := resolveAndValidate(flags)
 		if err != nil {
 			return knowledge.Editor{}, nil, err
 		}
-		backend, closeDB, err := openBackend(cmd.Context(), paths, cfg)
-		if err != nil {
-			return knowledge.Editor{}, nil, err
+		ed := knowledge.Editor{Root: paths.Root, Source: "cli"}
+		_, cfg, err := loadProjectConfig(flags)
+		if err == nil {
+			var backend state.Backend
+			var closeDB func() error
+			if backend, closeDB, err = openBackend(cmd.Context(), paths, cfg); err == nil {
+				ed.Events = backend
+				return ed, closeDB, nil
+			}
 		}
-		return knowledge.Editor{Root: paths.Root, Events: backend, Source: "cli"}, closeDB, nil
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] orch.db cannot be opened (%v); the change is not recorded as an event\n", err)
+		return ed, func() error { return nil }, nil
 	}
 
 	var l knowledge.Lesson

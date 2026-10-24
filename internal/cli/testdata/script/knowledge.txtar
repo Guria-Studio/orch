@@ -47,6 +47,19 @@ stdout 'removed compose-network'
 stderr 'no lesson "compose-network"'
 ! exec orch knowledge rm compose-network
 
+# The files are the truth (#453): with orch.db out of reach, add and rm still
+# write and remove the lesson, warn that the edit was not recorded, exit 0.
+exec orch knowledge add --config $WORK/nodb.yaml --title 'Offline lesson' --body 'still written'
+stdout 'wrote \.orch/knowledge/[0-9]{8}-offline-lesson\.md'
+stderr 'not recorded as an event'
+exec orch knowledge list
+stdout 'Offline lesson'
+cp $WORK/hand.md .orch/knowledge/hand.md
+exec orch knowledge rm --config $WORK/nodb.yaml compose-network
+stdout 'removed compose-network'
+stderr 'not recorded as an event'
+! exists .orch/knowledge/hand.md
+
 -- body.txt --
 ruff check, not flake8.
 The config is in pyproject.toml.
@@ -58,3 +71,6 @@ source: operator
 created: "2026-10-01"
 ---
 docker compose needs the shared network created first: `docker network create shared`.
+-- nodb.yaml --
+state:
+  sqlite_path: /dev/null/orch.db
