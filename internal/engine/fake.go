@@ -25,6 +25,9 @@ const FakeProviderEnv = "ORCH_FAKE_PROVIDER"
 //	<dir>/<backend>/<task id>.out    what the CLI would have printed
 //	<dir>/<backend>/<task id>.exit   its exit code, as decimal text (default 0)
 //	<dir>/<backend>/<task id>.sleep  seconds to sleep first (default 0)
+//	<dir>/<backend>/<task id>.sh     a script run in the agent's working
+//	                                 dir before the output, standing in for
+//	                                 the agent's edits (optional)
 //
 // Falling back to `_default.*` when there is no file for the task id, so one
 // file can answer a whole run. The `.sleep` file is what makes the timeout
@@ -34,6 +37,7 @@ const (
 	fakeOutExt   = ".out"
 	fakeExitExt  = ".exit"
 	fakeSleepExt = ".sleep"
+	fakeShExt    = ".sh"
 	fakeDefault  = "_default"
 )
 
@@ -61,13 +65,15 @@ func fakeArgv(dir string, backend model.Backend, taskID string) ([]string, error
 	}
 	sleepFor := fakeScalar(dir, backend, taskID, fakeSleepExt, "0")
 	exitCode := fakeScalar(dir, backend, taskID, fakeExitExt, "0")
+	edits, _ := fakeFile(dir, backend, taskID, fakeShExt) // optional: "" runs nothing
 
-	// "$1" and "$2" are the sleep and the exit code; "$3" is the output file.
+	// "$1" and "$2" are the sleep and the exit code; "$3" is the output file;
+	// "$4" the optional edits script.
 	// Reading stdin to the end keeps the fake honest about the prompt: a
 	// provider on PromptStdin has its prompt piped in, and a child that never
 	// reads it would leave the writer blocked on a full pipe for a large one.
-	const script = `sleep "$1"; cat >/dev/null; cat "$3"; exit "$2"`
-	return []string{"sh", "-c", script, "sh", sleepFor, exitCode, outPath}, nil
+	const script = `sleep "$1"; cat >/dev/null; if [ -n "$4" ]; then sh "$4" || exit; fi; cat "$3"; exit "$2"`
+	return []string{"sh", "-c", script, "sh", sleepFor, exitCode, outPath, edits}, nil
 }
 
 // fakeFile resolves <dir>/<backend>/<taskID><ext>, falling back to the

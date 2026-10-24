@@ -124,12 +124,8 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 			say("· models: %s", line)
 		}
 		say("%s", reportFindingsNotice)
-		if remotes, err := exec.Command("git", "-C", root, "remote").Output(); err == nil && strings.TrimSpace(string(remotes)) == "" { // #nosec G204 -- fixed git subcommand
-			if err := scaffold.RunLocally(root); err != nil {
-				return withExitCode(1, fmt.Errorf("configuring a project with no git remote: %w", err))
-			}
-			say("✓ no git remote: agents work in this directory, without branches or pull requests " +
-				"(turn dispatch.worktree_mode and vcs.auto_pr on once it has one)")
+		if err := runLocallyWhenNoForge(root, true, say); err != nil {
+			return withExitCode(1, err)
 		}
 	}
 	scoped := *flags

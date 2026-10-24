@@ -132,22 +132,31 @@ func AppendRoutes(root string, plan RefreshPlan, by string) error {
 }
 
 var (
+	// reVCSProvider is vcs.provider's line: the only `provider: github` in
+	// the config, the tunnel's provider never being github.
+	reVCSProvider  = regexp.MustCompile(`(?m)^(\s+provider:[ \t]*)github\b`)
 	reWorktreeMode = regexp.MustCompile(`(?m)^(\s+worktree_mode:[ \t]*)\S+`)
 	reAutoPR       = regexp.MustCompile(`(?m)^(\s+auto_pr:[ \t]*)\S+`)
 )
 
-// RunLocally turns off dispatch.worktree_mode and vcs.auto_pr in root's
-// config.yaml, for a repository with no remote: a branch per task needs a
-// remote to reach the base through a pull request, and without one every
-// finished task would end blocked as "not pushed" (#377).
-func RunLocally(root string) error {
+// RunLocally sets vcs.provider: local in root's config.yaml, for a repository
+// with no remote or no gh (#455): each task still works on its own branch,
+// and when it passes it is squash-merged into the base branch here — no push,
+// no pull request. inPlace also turns dispatch.worktree_mode and vcs.auto_pr
+// off, for a repository with no commit yet to branch from: the agents work
+// straight in the checkout, as every project with no remote did before #455
+// (#377).
+func RunLocally(root string, inPlace bool) error {
 	path := filepath.Join(root, ".orchestrator", "config.yaml")
 	raw, err := os.ReadFile(path) // #nosec G304 -- the project's own config
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
-	body := reWorktreeMode.ReplaceAllString(string(raw), "${1}false")
-	body = reAutoPR.ReplaceAllString(body, "${1}false")
+	body := reVCSProvider.ReplaceAllString(string(raw), "${1}local")
+	if inPlace {
+		body = reWorktreeMode.ReplaceAllString(body, "${1}false")
+		body = reAutoPR.ReplaceAllString(body, "${1}false")
+	}
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- the project's own config, a fixed path under root
 		return fmt.Errorf("writing %s: %w", path, err)
 	}

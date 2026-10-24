@@ -1,0 +1,82 @@
+# vcs.provider: local (#455) — a repository with no remote and no gh: each
+# task that finishes is squash-merged into the base branch here, in
+# dependency order, so a dependent starts from its dependency's work and the
+# run ends with all of it on main. Nothing is pushed and gh is never run.
+
+[!exec:git] skip
+[!exec:sh] skip
+
+env ORCH_FAKE_PROVIDER=$WORK/fake
+chmod 0755 $WORK/bin/gh
+env PATH=$WORK/bin:$PATH
+cd $WORK/lproj
+exec git init -q --initial-branch=main .
+exec git config user.email orch@example.com
+exec git config user.name orch
+exec git config commit.gpgsign false
+exec git add -A
+exec git commit -q -m 'initial'
+
+exec orch run --project-root $WORK/lproj --skip-update-check
+! stderr 'push failed'
+! stderr 'no git remote'
+exec orch tasks --project-root $WORK/lproj --json
+stdout '"id":"T-1"[^}]*"status":"done"'
+stdout '"id":"T-2"[^}]*"status":"done"'
+! stdout '"status":"(todo|blocked)"'
+exec orch status --project-root $WORK/lproj
+stdout 'T-1 +done .*merged_locally'
+
+# Both tasks' work is on main, one squash commit each, T-1's first; the
+# working copy has it too, and the task branches are gone.
+exec git log --format=%s main
+cmp stdout $WORK/want-log
+exists a.txt b.txt
+exec git status --porcelain --untracked-files=no
+! stdout .
+exec git branch --list 'orch/*'
+! stdout .
+! exists $WORK/gh-called
+
+-- want-log --
+second
+first
+initial
+-- bin/gh --
+#!/bin/sh
+touch "$WORK/gh-called"
+exit 1
+-- lproj/tasks.json --
+{"tasks":[
+{"id":"T-1","phase":1,"title":"first","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":"","reason":"because"},
+{"id":"T-2","phase":1,"title":"second","model":"claude/haiku","status":"todo","dependencies":["T-1"],"estimateHours":1.0,"files":[],"specRef":"","reason":"because"}
+]}
+-- lproj/.gitignore --
+.orchestrator/state/
+-- lproj/.orchestrator/config.yaml --
+dispatch:
+  worktree_mode: true
+  base_branch: main
+vcs:
+  provider: local
+  auto_pr: true
+-- lproj/.orchestrator/model_router.yaml --
+claude/haiku:
+  backend: claude
+  cli_model: claude-haiku-4-5
+  tier: cheap
+  is_premium: false
+-- lproj/scripts/task-start.sh --
+#!/bin/sh
+exec orch task-status "$1" in-progress
+-- lproj/scripts/task-finish.sh --
+#!/bin/sh
+exec orch task-status "$1" done
+-- fake/claude/T-1.sh --
+echo one > a.txt
+-- fake/claude/T-2.sh --
+# T-1's work has to be here already: T-2 builds on it.
+test -f a.txt || exit 3
+echo two > b.txt
+-- fake/claude/_default.out --
+{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}

@@ -29,6 +29,9 @@ type WorktreeManager interface {
 	// MergeBase merges the base into taskID's worktree, leaving a conflict
 	// in progress for the agent (#438).
 	MergeBase(ctx context.Context, taskID, baseBranch string) (worktree.MergeResult, error)
+	// LandLocally squash-merges the task's branch into the base, here, with
+	// nothing pushed (vcs.provider: local, #455).
+	LandLocally(ctx context.Context, taskID, baseBranch, message string) (worktree.Landing, error)
 	RemoveAll(ctx context.Context) error
 	// BranchName is what a PR is opened from.
 	BranchName(taskID string) string
@@ -74,6 +77,10 @@ func (a managerAdapter) Recreate(_ context.Context, taskID string) (string, erro
 
 func (a managerAdapter) MergeBase(_ context.Context, taskID, baseBranch string) (worktree.MergeResult, error) {
 	return a.m.MergeBase(taskID, baseBranch)
+}
+
+func (a managerAdapter) LandLocally(_ context.Context, taskID, baseBranch, message string) (worktree.Landing, error) {
+	return a.m.LandLocally(taskID, baseBranch, message)
 }
 
 // RemoveAll reports the worktrees it could not remove, as one error naming

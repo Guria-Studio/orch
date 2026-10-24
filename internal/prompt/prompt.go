@@ -378,7 +378,7 @@ func conflictBlock(c *Conflict) string {
 		return ""
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Your pull request conflicts with its base, %s. Your earlier work is in your\n"+
+	fmt.Fprintf(&b, "Your work conflicts with its base branch, %s. Your earlier work is in your\n"+
 		"working dir, and orch has merged %s into it; the merge stopped on conflicts in:\n", c.Base, c.Base)
 	for _, f := range c.Files {
 		fmt.Fprintf(&b, "  - %s\n", f)

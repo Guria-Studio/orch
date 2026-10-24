@@ -82,6 +82,7 @@ export function TaskCard({ task, taskStatusMap, onClick, showStatus = false, sho
         {blockingDeps.length > 0 ? (
           <span className="whitespace-nowrap text-status-blocked">{t("task.waiting_on", { count: blockingDeps.length })}</span>
         ) : null}
+        {task.merged_locally ? <span className="whitespace-nowrap text-status-done">{t("task.merged_locally")}</span> : null}
         {task.pr_url ? (
           <a
             href={task.pr_url}

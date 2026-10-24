@@ -71,6 +71,7 @@ export const en = {
   "receipt.row.attempts": "Attempts",
   "receipt.row.time": "Time",
   "receipt.row.prs": "PRs",
+  "receipt.row.merged": "Merged locally",
   "receipt.row.tokens": "Tokens",
   "receipt.row.cost": "Cost",
   "receipt.times_short": "{wall} wall clock · {agent} of agents",
@@ -138,6 +139,7 @@ export const en = {
   "receipt.failed_attempts": { one: "{count} failed attempt", other: "{count} failed attempts" },
   "receipt.times": "{wall} wall time · {agent} agent time",
   "receipt.prs": { one: "{count} PR, {passed} passed CI", other: "{count} PRs, {passed} passed CI" },
+  "receipt.merged": { one: "{count} task into {base}", other: "{count} tasks into {base}" },
   "receipt.tokens": "{raw} tokens",
   "receipt.tokens_weighted": "{weighted} weighted · {raw} raw",
   "receipt.dispatches": { one: "{count} dispatch", other: "{count} dispatches" },
@@ -240,6 +242,7 @@ export const en = {
 
   "task.hours": "{hours}h",
   "task.pr": "PR",
+  "task.merged_locally": "Merged locally",
   "task.ready": "Ready to start",
   "task.on_critical_path": "On the critical path",
   "task.deps_pending": "Some dependencies are not done",

@@ -76,6 +76,7 @@ export function RunReceipt({ payload }: { payload: ReceiptPayload }) {
     }
   }
   const prsPassed = r.prs.filter((p) => p.ci_status === "success").length
+  const merged = r.merged_locally ?? []
   const weighted = r.providers.reduce((n, p) => n + p.weighted_tokens, 0)
   const raw = r.providers.reduce((n, p) => n + p.tokens_in + p.tokens_out, 0)
   const priced = r.providers.some((p) => p.cost_source !== "no_data")
@@ -91,6 +92,9 @@ export function RunReceipt({ payload }: { payload: ReceiptPayload }) {
     [t("receipt.row.attempts"), t("receipt.failed_attempts", { count: r.failed_attempts })],
     [t("receipt.row.time"), t("receipt.times_short", { wall: formatDuration(r.wall_seconds), agent: formatDuration(r.agent_seconds) })],
     [t("receipt.row.prs"), t("receipt.prs", { count: r.prs.length, passed: prsPassed })],
+    ...(merged.length > 0
+      ? [[t("receipt.row.merged"), t("receipt.merged", { count: merged.length, base: merged[0].base })] as [string, React.ReactNode]]
+      : []),
     [
       t("receipt.row.tokens"),
       raw > 0

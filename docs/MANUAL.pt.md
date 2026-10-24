@@ -353,6 +353,42 @@ antes e desde a primeira lição. Veja
 **Concorrência, budgets, retries** são todos controlados por config, não
 por flags — veja [`CONFIG.md`](CONFIG.md).
 
+### Começar sem GitHub
+
+Um repositório ainda sem remote — ou uma máquina sem `gh` — não precisa de pull
+requests para levar o trabalho ao branch base. Defina `vcs.provider: local`
+(`orch init` escreve isso por você nesse caso; `orch start` também, quando o
+repositório já tem um commit):
+
+```yaml
+dispatch:
+  worktree_mode: true
+vcs:
+  provider: local
+```
+
+Cada tarefa continua trabalhando no seu próprio branch, no seu próprio
+worktree. Quando termina e passa no verify local, o orch **faz o squash merge
+dela em `dispatch.base_branch` aqui mesmo** — um commit por tarefa, com o
+título que o PR teria — e apaga o branch. As tarefas são mescladas uma de cada
+vez, e uma dependente só é despachada quando as dependências já estão na base,
+então ela parte do trabalho delas. Nada é enviado com push e o `gh` nunca roda.
+Uma tarefa cujo trabalho conflita com a base recebe a base mesclada no seu
+worktree e volta ao agente para resolver o conflito, `retry.conflict` vezes;
+depois é bloqueada citando os arquivos (o trabalho fica em `orch/<task-id>`).
+Se o branch base estiver em checkout com mudanças não commitadas nos mesmos
+arquivos, o merge é recusado e a tarefa é bloqueada: faça commit ou stash e
+depois `orch task-status <id> todo`.
+
+`orch status` mostra `merged_locally` como último evento da tarefa, o dashboard
+diz "Mesclada localmente" onde estaria o link do PR e o recibo da execução
+lista os merges. `orch doctor` não pede remote nem `gh`.
+
+**Migrar para o GitHub depois**: crie o repositório, `git remote add origin
+<url>`, `git push -u origin main` e defina `vcs.provider: github` (e
+`gh auth login`). A partir do próximo `orch run`, cada tarefa abre um PR como
+sempre.
+
 ---
 
 ## 6. Abrir o dashboard

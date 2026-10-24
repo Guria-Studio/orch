@@ -96,6 +96,8 @@ var goOnlyEventTypes = map[string]bool{
 	"sprint_done": true,
 	// A PR that conflicted with its base brought up to date (#438).
 	"ci_conflict_retry": true,
+	// A finished task squash-merged into the base locally (#455).
+	"merged_locally": true,
 	// A PR finished with no CI check ever reported (#233).
 	"ci_no_checks": true,
 	// A PR merged outside orch while its CI was watched (#255).

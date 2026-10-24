@@ -185,3 +185,22 @@ func TestMarkdown(t *testing.T) {
 		t.Error("Markdown must not carry the footer; callers append BuiltWith")
 	}
 }
+
+// A task merged into the base here (vcs.provider: local, #455) is listed as
+// such, in the JSON and the markdown, where a PR would be.
+func TestMergedLocally(t *testing.T) {
+	events := []state.Event{
+		{RunID: "r", EventType: "dispatch", TaskID: "A", Backend: "claude", TS: "2026-09-10T10:00:00Z"},
+		{RunID: "r", EventType: "success", TaskID: "A", Backend: "claude", TS: "2026-09-10T10:20:00Z"},
+		{RunID: "r", EventType: "merged_locally", TaskID: "A", Backend: "claude", TS: "2026-09-10T10:20:01Z",
+			Extra: map[string]any{"base": "main", "commit": "0123456789abcdef"}},
+		{RunID: "r", EventType: "sprint_done", TS: "2026-09-10T10:21:00Z"},
+	}
+	r := Build(events, nil, nil, map[string]string{"A": "Alpha"}, pricing.Table{}, "")
+	if r == nil || len(r.MergedLocally) != 1 || r.MergedLocally[0] != (Merge{TaskID: "A", Title: "Alpha", Base: "main", Commit: "0123456789abcdef"}) {
+		t.Fatalf("merged locally = %+v", r)
+	}
+	if md := r.Markdown(); !strings.Contains(md, "**Merged locally**") || !strings.Contains(md, "- A Alpha — `0123456` on main") {
+		t.Errorf("markdown lacks the local merge:\n%s", md)
+	}
+}

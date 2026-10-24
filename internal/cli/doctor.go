@@ -146,7 +146,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			})...)
 			checks = append(checks, doctor.CheckMCPConfig(paths.Root))
 			checks = append(checks, doctor.CheckCIStack(paths.Root))
-			if cfg.VCS.AutoPR {
+			if cfg.VCS.AutoPR && cfg.VCS.Provider != config.VCSProviderLocal {
 				checks = append(checks, doctor.CheckCIMinutes(paths.Root, repoVisibility))
 			}
 			checks = append(checks, doctor.CheckClaudeDoneChannel(paths.Root))

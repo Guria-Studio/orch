@@ -153,9 +153,15 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 
 	worktreeMode := (opts.worktreeMode || cfg.Dispatch.WorktreeMode) && !opts.isolated
 	autoPR := cfg.VCS.AutoPR && !opts.isolated
+	// vcs.provider: local (#455): each finished task is squash-merged into
+	// the base here; nothing is pushed and no PR is opened.
+	localMerge := worktreeMode && cfg.VCS.Provider == config.VCSProviderLocal
 	if worktreeMode {
 		if problem := baseProblem(paths.Root, cfg.Dispatch.BaseBranch); problem != "" {
 			return withExitCode(1, errors.New("cannot start: "+problem))
+		}
+		if localMerge {
+			opts.noPush, autoPR = true, false
 		}
 		// A repository with no remote has nowhere to push or open a PR
 		// (#376): the work stays on local branches, as doctor's vcs.remote
@@ -199,6 +205,8 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		WorktreeMode:      worktreeMode,
 		BaseBranch:        cfg.Dispatch.BaseBranch,
 		AutoPR:            autoPR,
+		LocalMerge:        localMerge,
+		ConflictRetries:   conflictRetries(cfg),
 		Only:              opts.only,
 		MaxTasks:          opts.maxTasks,
 		StateDir:          paths.StateDir(),

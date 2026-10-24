@@ -50,6 +50,8 @@ export interface Receipt {
   total_cost_usd: number
   estimated_cost_usd: number
   prs: { task_id: string; title: string; url: string; ci_status: string }[]
+  /** Tasks squash-merged into the base locally (vcs.provider: local). */
+  merged_locally?: { task_id: string; title: string; base: string; commit: string }[]
 }
 
 export interface ReceiptPayload {

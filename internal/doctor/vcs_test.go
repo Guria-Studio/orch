@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -113,4 +114,29 @@ func checksByName(checks []Check) map[string]Check {
 		out[c.Name] = c
 	}
 	return out
+}
+
+// TestCheckVCSReadinessLocal: vcs.provider local (#455) needs no remote and
+// no gh, so a repository with neither and gh unauthenticated warns about
+// nothing, and says how to move to GitHub later.
+func TestCheckVCSReadinessLocal(t *testing.T) {
+	withFakeBin(t)
+	t.Setenv("FAKE_GH_AUTH_EXIT", "1")
+	root := newTestGitRepo(t)
+	byName := checksByName(CheckVCSReadiness(root, VCSConfig{WorktreeMode: true, AutoPR: true, Provider: "local"}))
+	for _, name := range []string{"vcs.remote", "vcs.cli"} {
+		if byName[name].Status != StatusSkip {
+			t.Errorf("%s = %+v, want skip", name, byName[name])
+		}
+	}
+	if d := byName["vcs.remote"].Detail; !strings.Contains(d, "vcs.provider: github") {
+		t.Errorf("vcs.remote detail = %q, want how to move to GitHub", d)
+	}
+	tools := map[string]Tool{}
+	for _, tool := range Tools(ToolsConfig{Root: root, VCS: VCSConfig{WorktreeMode: true, AutoPR: true, Provider: "local"}}) {
+		tools[tool.ID] = tool
+	}
+	if tools["gh"].Used {
+		t.Error("gh is listed as used by a local project")
+	}
 }

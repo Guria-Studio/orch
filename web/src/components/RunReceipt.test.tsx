@@ -27,6 +27,23 @@ afterEach(() => {
 })
 
 describe("RunReceipt", () => {
+  // vcs.provider: local (#455): the tasks merged into the base here get their own row.
+  it("lists the local merges, and no row when there are none", () => {
+    const merged = {
+      ...payload,
+      receipt: { ...payload.receipt!, merged_locally: [
+        { task_id: "T-1", title: "First", base: "main", commit: "8b9e0a6" },
+        { task_id: "T-2", title: "Second", base: "main", commit: "4f824a4" },
+      ] },
+    }
+    const { unmount } = render(<RunReceipt payload={merged} />)
+    expect(screen.getByText("Merged locally")).toBeInTheDocument()
+    expect(screen.getByText("2 tasks into main")).toBeInTheDocument()
+    unmount()
+    render(<RunReceipt payload={payload} />)
+    expect(screen.queryByText("Merged locally")).not.toBeInTheDocument()
+  })
+
   it("adds the Built with line unless unticked", () => {
     expect(receiptMarkdown(payload, true)).toBe(`${payload.markdown}\n${payload.built_with}\n`)
     expect(receiptMarkdown(payload, false)).toBe(payload.markdown)

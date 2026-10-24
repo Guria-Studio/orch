@@ -88,6 +88,8 @@ export interface Task {
   pr_url?: string | null
   ci_status?: CiStatus | null
   ci_attempts?: number
+  /** Squash-merged into the base locally, in place of a PR (vcs.provider: local). */
+  merged_locally?: boolean
   /** The retry policy's cap, only on GET /api/task/{id}: the M of "attempt N of M". */
   max_attempts?: number
 }

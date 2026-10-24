@@ -86,7 +86,7 @@ func Tools(cfg ToolsConfig) []Tool {
 		}
 		return false
 	}
-	pr := cfg.VCS.WorktreeMode || cfg.VCS.AutoPR
+	pr := (cfg.VCS.WorktreeMode || cfg.VCS.AutoPR) && cfg.VCS.Provider != "local"
 	host := tunnel.DetectHost()
 
 	tools := make([]Tool, 0, 11)

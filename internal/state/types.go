@@ -177,7 +177,7 @@ var eventTypes = map[string]bool{
 	"sprint_done": true, "ci_no_checks": true, "pr_merged": true,
 	"budget_alert": true, "spec_ref_warning": true,
 	"operator_stop": true, "verify_failed": true, "e2e_report": true, "salvage_accepted": true, "task_added": true, "task_edited": true,
-	"provider_skip": true, "ci_conflict_retry": true,
+	"provider_skip": true, "ci_conflict_retry": true, "merged_locally": true,
 }
 
 // OrphanRows reports rows whose project_id has no row in `projects`, keyed by

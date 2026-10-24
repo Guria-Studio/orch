@@ -1,0 +1,39 @@
+# orch init in a repository with no remote, or on a machine with no gh,
+# writes vcs.provider: local (#455): finished tasks are merged into the base
+# here, since no pull request can be opened. With both, the default stays.
+
+[!exec:git] skip
+
+# No remote.
+exec git init -q noremote
+exec orch init noremote --no-permissions
+stdout '^✓ no git remote: each task is merged into the base branch here once it passes'
+stdout 'On GitHub later: push the base branch, then set vcs.provider: github'
+grep '^  provider: local' noremote/.orchestrator/config.yaml
+grep '^  worktree_mode: true' noremote/.orchestrator/config.yaml
+
+# A remote, and gh on PATH: unchanged.
+chmod 0755 bin/gh
+env PATH=$WORK/bin:$PATH
+exec git init -q hub
+exec git -C hub remote add origin https://github.com/acme/hub.git
+exec orch init hub --no-permissions
+! stdout 'vcs.provider: local'
+grep '^  provider: github' hub/.orchestrator/config.yaml
+
+# A remote but no gh: PATH holds orch and a git that finds the real one.
+exec git init -q nogh
+exec git -C nogh remote add origin https://github.com/acme/nogh.git
+chmod 0755 nogh-bin/git
+env FULLPATH=$PATH
+env PATH=$ORCH_BIN_DIR:$WORK/nogh-bin
+exec orch init nogh --no-permissions
+stdout '^✓ gh is not installed: each task is merged into the base branch here'
+grep '^  provider: local' nogh/.orchestrator/config.yaml
+
+-- bin/gh --
+#!/bin/sh
+exit 0
+-- nogh-bin/git --
+#!/bin/sh
+PATH=$FULLPATH exec git "$@"

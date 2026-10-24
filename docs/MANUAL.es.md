@@ -353,6 +353,42 @@ intento antes y desde la primera lección. Ver
 **Concurrencia, budgets, reintentos** son todos manejados por config, no
 por flags — ver [`CONFIG.md`](CONFIG.md).
 
+### Empezar sin GitHub
+
+Un repositorio sin remote todavía — o una máquina sin `gh` — no necesita pull
+requests para llevar el trabajo a la rama base. Pon `vcs.provider: local`
+(`orch init` lo escribe por ti en ese caso; `orch start` también, una vez que
+el repositorio tiene un commit):
+
+```yaml
+dispatch:
+  worktree_mode: true
+vcs:
+  provider: local
+```
+
+Cada tarea sigue trabajando en su propia rama, en su propio worktree. Cuando
+termina y pasa el verify local, orch **la fusiona con squash en
+`dispatch.base_branch` aquí mismo** — un commit por tarea, con el título que
+tendría el PR — y borra la rama. Las tareas se fusionan de una en una, y una
+dependiente solo se despacha cuando sus dependencias ya están en la base, así
+que parte de su trabajo. No se hace push y `gh` nunca se ejecuta. Una tarea
+cuyo trabajo choca con la base recibe la base fusionada en su worktree y vuelve
+a su agente para resolver el conflicto, `retry.conflict` veces; después se
+bloquea nombrando los archivos (su trabajo queda en `orch/<task-id>`). Si la
+rama base está en checkout con cambios sin commitear en los mismos archivos, la
+fusión se rechaza y la tarea se bloquea: haz commit o stash y luego
+`orch task-status <id> todo`.
+
+`orch status` muestra `merged_locally` como último evento de la tarea, el
+dashboard dice "Fusionada localmente" donde iría el enlace al PR y el recibo
+de la corrida lista las fusiones. `orch doctor` no pide remote ni `gh`.
+
+**Pasar a GitHub más adelante**: crea el repositorio, `git remote add origin
+<url>`, `git push -u origin main` y pon `vcs.provider: github` (y
+`gh auth login`). Desde el siguiente `orch run`, cada tarea abre un PR como
+siempre.
+
 ---
 
 ## 6. Abrir el dashboard

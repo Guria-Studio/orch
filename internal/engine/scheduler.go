@@ -104,6 +104,12 @@ type SchedulerOptions struct {
 	BaseBranch string
 	// AutoPR opens a pull request after a successful push (F-4).
 	AutoPR bool
+	// LocalMerge squash-merges each finished task into BaseBranch here,
+	// with no push and no PR (vcs.provider: local, #455). Needs WorktreeMode.
+	LocalMerge bool
+	// ConflictRetries caps the agent dispatches that resolve a task whose
+	// local merge conflicts with the base (retry.conflict, #438).
+	ConflictRetries int
 }
 
 // Scheduler decides what to dispatch and starts it. Port of orch.py's
@@ -206,6 +212,8 @@ type Scheduler struct {
 	// verifyRejected is what the local verify last rejected, by task, until
 	// an attempt passes and it becomes a draft lesson (#451).
 	verifyRejected map[string]string
+	// landConflicts counts each task's local-merge conflict retries.
+	landConflicts map[string]int
 	// exhausted is each provider out of quota, until its reset (#439).
 	exhausted map[model.Backend]time.Time
 	// stopping holds the children the operator asked to stop, by pid, and
@@ -299,6 +307,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		conflictRetry:  make(map[string]*prompt.Conflict),
 		verifyAttempts: make(map[string]int),
 		verifyRejected: make(map[string]string),
+		landConflicts:  make(map[string]int),
 		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),
 		slots:          NewTaskSlots(),

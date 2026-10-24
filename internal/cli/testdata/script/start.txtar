@@ -50,6 +50,7 @@ stdout '^report_findings is on: agents may file public issues about orch with yo
 stdout '^✓ no git remote: agents work in this directory'
 grep '^  worktree_mode: false' .orchestrator/config.yaml
 grep '^  auto_pr: false' .orchestrator/config.yaml
+grep '^  provider: local' .orchestrator/config.yaml
 
 # Again, with tasks already there: no planning, and the skills are left as
 # they are.

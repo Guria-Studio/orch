@@ -53,6 +53,9 @@ type projectView struct {
 	// PRs is each task's pull request and CI state, by id, for the tasks
 	// that have one.
 	PRs map[string]state.TaskRuntime
+	// MergedLocally is the tasks squash-merged into the base here, with no
+	// PR (vcs.provider: local, #455).
+	MergedLocally map[string]bool
 }
 
 func (s *Server) loadView(ctx context.Context) (projectView, error) {
@@ -92,6 +95,12 @@ func (s *Server) loadView(ctx context.Context) (projectView, error) {
 	v.CriticalPath = graph.CriticalPath(tasks)
 	v.HumanHours = project.HumanHoursByTask(events)
 	v.LastUpdated = project.LastUpdatedByTask(events)
+	v.MergedLocally = map[string]bool{}
+	for _, e := range events {
+		if e.EventType == "merged_locally" {
+			v.MergedLocally[e.TaskID] = true
+		}
+	}
 
 	v.Parallelizable = map[string]bool{}
 	for _, t := range graph.Parallelizable(tasks) {
@@ -125,6 +134,9 @@ type taskPayload struct {
 	PRURL      string `json:"pr_url,omitempty"`
 	CIStatus   string `json:"ci_status,omitempty"`
 	CIAttempts int    `json:"ci_attempts,omitempty"`
+	// MergedLocally: the task's work was squash-merged into the base here,
+	// in place of a PR (vcs.provider: local, #455).
+	MergedLocally bool `json:"merged_locally,omitempty"`
 	// Parallelizable is only present on the single-task endpoint, which is
 	// where Python adds it.
 	Parallelizable *bool `json:"parallelizable,omitempty"`
@@ -155,6 +167,7 @@ func (v projectView) task(t model.Task) taskPayload {
 		PRURL:         v.PRs[t.ID].PRURL,
 		CIStatus:      v.PRs[t.ID].CIStatus,
 		CIAttempts:    v.PRs[t.ID].CIAttempts,
+		MergedLocally: v.MergedLocally[t.ID],
 	}
 }
 

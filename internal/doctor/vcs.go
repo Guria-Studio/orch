@@ -15,8 +15,9 @@ import (
 type VCSConfig struct {
 	WorktreeMode bool
 	AutoPR       bool
-	// Provider is "github" (default) or "gitlab"; Host is the GitLab
-	// instance host, ignored for GitHub. Matches vcs.Config.
+	// Provider is "github" (default), "gitlab" or "local" (#455: finished
+	// tasks merge into the base here, no remote or CLI needed); Host is the
+	// GitLab instance host, ignored otherwise. Matches vcs.Config.
 	Provider string
 	Host     string
 }
@@ -63,7 +64,12 @@ func CheckVCSReadiness(root string, cfg VCSConfig) []Check {
 		})
 	}
 
+	local := Check{Status: StatusSkip, Detail: "vcs.provider is local — finished tasks merge into the base branch here; " +
+		"on GitHub later, push the base branch and set vcs.provider: github"}
 	switch {
+	case cfg.Provider == "local":
+		local.Name = "vcs.remote"
+		out = append(out, local)
 	case !cfg.AutoPR:
 		out = append(out, Check{Name: "vcs.remote", Status: StatusSkip, Detail: "vcs.auto_pr is off — no remote needed"})
 	case !isGitRepo:
@@ -80,6 +86,8 @@ func CheckVCSReadiness(root string, cfg VCSConfig) []Check {
 
 	cli := cfg.cli()
 	switch {
+	case cfg.Provider == "local":
+		out = append(out, Check{Name: "vcs.cli", Status: StatusSkip, Detail: "vcs.provider is local — no gh needed"})
 	case !cfg.AutoPR:
 		out = append(out, Check{Name: "vcs.cli", Status: StatusSkip, Detail: "vcs.auto_pr is off — no VCS CLI needed"})
 	default:
