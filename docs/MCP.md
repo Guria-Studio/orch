@@ -215,10 +215,16 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
   off, answers with an error telling the agent to tell the operator. It runs
   the operator's own `gh`, from the MCP server process, so it works even when
   the agent's own Bash is denied.
-- **Deduplicated.** It first searches `auto-reported` issues (open and
-  closed) by title. A same title (ignoring case and punctuation) returns
-  `duplicate` and files nothing. Other matches return `similar` and file
-  nothing unless the call sets `confirm_new: true`.
+- **Deduplicated.** It first reads the issues this project already filed
+  (`filed_findings` in `orch.db`) and searches `auto-reported` issues (open
+  and closed) by the title's key words. A closed one with the same title
+  (ignoring case and punctuation) returns `duplicate` and files nothing. A
+  likely duplicate among the remembered and the open ones — half the key
+  words shared, or two plus the same quoted command or error string — gets a
+  "seen again in task X at <time>" comment and returns `duplicate`,
+  `commented: true` and its `url` (#441). Other matches return `similar` and
+  file nothing unless the call sets `confirm_new: true`. See
+  [`DOGFOODING.md`](DOGFOODING.md).
 - **Redacted.** The project root becomes `<project>` and the home directory
   `~` in the title and body. The description asks for no secrets, project
   code or names; nothing else is filtered.
@@ -226,7 +232,7 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
   optional "Feedback about orch itself" block, after the report-back step,
   inviting the agent to report what orch should do better or does not do.
   Without it the prompt is unchanged.
-- Returns `{filed, url?, duplicate?, similar?, message}`.
+- Returns `{filed, url?, duplicate?, commented?, similar?, message}`.
 
 ### `orch_task_note`
 

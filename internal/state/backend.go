@@ -122,6 +122,11 @@ type Backend interface {
 	ProviderStates(ctx context.Context) ([]ProviderState, error)
 	// SetProviderState turns a backend off (with a reason) or back on.
 	SetProviderState(ctx context.Context, backend string, disabled bool, reason string, at time.Time) error
+
+	// FiledFindings lists the issues orch_report_finding filed for this
+	// project; RecordFiledFinding adds one (#441).
+	FiledFindings(ctx context.Context) ([]FiledFinding, error)
+	RecordFiledFinding(ctx context.Context, f FiledFinding) error
 }
 
 // Sentinel errors callers act on. Everything else is wrapped context.

@@ -168,3 +168,17 @@ func TestGHAPIReportsAMissingGh(t *testing.T) {
 func equalCalls(got, want [][]string) bool {
 	return slices.EqualFunc(got, want, func(a, b []string) bool { return slices.Equal(a, b) })
 }
+
+// CommentIssue always adds a comment: orch_report_finding's "seen again" (#441).
+func TestCommentIssuePostsANewComment(t *testing.T) {
+	list := realComments(t)
+	calls := stubGHAPI(t, firstComment(t, list), nil, "", nil)
+	url, err := (&GitHubProvider{}).CommentIssue("hectorcanaimero/orch", 433, "Seen again")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"-X", "POST", "repos/hectorcanaimero/orch/issues/433/comments", "-f", "body=Seen again"}}
+	if !equalCalls(*calls, want) || !strings.Contains(url, "#issuecomment-") {
+		t.Errorf("calls = %q url = %q", *calls, url)
+	}
+}
