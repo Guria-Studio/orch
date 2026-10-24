@@ -216,3 +216,37 @@ func TestDraftTitleIsCutAtAHundredRunes(t *testing.T) {
 		t.Errorf("title = %q (%d runes), want 100 runes and an ellipsis", title, len(r))
 	}
 }
+
+// A draft that cannot be written is a warning naming its source, never a
+// failed task: the other draft is still attempted.
+func TestADraftThatCannotBeWrittenIsLogged(t *testing.T) {
+	s, entry, logs := captureFixture(t, nil)
+	notADir := filepath.Join(t.TempDir(), "file")
+	write(t, notADir, "a file where the worktree should be\n")
+	entry.Dispatch.Cwd = notADir
+	s.verifyRejected["C-1"] = "boom"
+	entry.Conflict = &prompt.Conflict{Base: "main", Files: []string{"a.go"}}
+
+	s.captureLessons(context.Background(), entry)
+
+	for _, source := range []string{"source=verify", "source=conflict"} {
+		if !strings.Contains(logs.String(), "writing a draft lesson failed") || !strings.Contains(logs.String(), source) {
+			t.Errorf("no warning for the %s draft:\n%s", source, logs)
+		}
+	}
+}
+
+// firstLines keeps the first n lines with text, skipping blank ones and the
+// markdown headings a verify failure starts with.
+func TestFirstLinesSkipsBlanksAndHeadings(t *testing.T) {
+	text := "# Local verify failed\n\n  \n## make test\n  FAIL TestLogin  \n\nok other\nthird\n"
+	if got, want := firstLines(text, 2), "FAIL TestLogin\nok other"; got != want {
+		t.Errorf("firstLines(2) = %q, want %q", got, want)
+	}
+	if got, want := firstLines(text, 1), "FAIL TestLogin"; got != want {
+		t.Errorf("firstLines(1) = %q, want %q", got, want)
+	}
+	if got := firstLines("# only a heading\n\n", 3); got != "" {
+		t.Errorf("firstLines of headings and blanks = %q, want empty", got)
+	}
+}
