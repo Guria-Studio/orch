@@ -129,6 +129,19 @@ what could be dispatched now), `orch_get_task`, `orch_context` (your task plus
 what its dependencies reported), `orch_events`, `orch_budget`. See
 `docs/MCP.md` in the orch repo.
 
+## Leaving a lesson for the next tasks
+
+When you learn something a later task in this project should know — a
+convention, a trap you fell into, what fixed a failure — record it once with
+`orch_learn` (`title`, `lesson` of a few lines, optional `area` paths or globs
+and `tags`). It is written as a markdown file under `.orch/knowledge/` in your
+working dir and committed with your work, so it reaches the base through your
+PR; later tasks touching its area get it in their prompt under `Project
+knowledge`. `orch_knowledge_search` (`query`) searches the lessons already
+there. Both work only when the project sets `knowledge.enabled: true` (what
+`orch init` writes). The operator reads and edits them with `orch knowledge
+list`, `show`, `add`, `rm` and `stats`.
+
 ## Reporting a problem with orch itself
 
 When **orch** (not the project) gets in your way — a wrong status, a refused
