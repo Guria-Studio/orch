@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -67,6 +68,10 @@ type Estimate struct {
 // Compute is the estimate for in.
 func Compute(in Input) Estimate {
 	slots := max(in.Slots, 1)
+	// A synthetic row (a verify review, an AI summary) is not a task's
+	// attempt (#470): its short, cheap run would pull every per-attempt
+	// figure down. in is a copy, so this filters only the estimate's view.
+	in.Spend = slices.DeleteFunc(slices.Clone(in.Spend), func(s state.Spend) bool { return state.IsSyntheticSpend(s.TaskID) })
 	out := Estimate{Tasks: runSet(in), ByBackend: map[string]float64{}, Slots: slots,
 		PastAttempts: len(in.Spend), AttemptsPerTask: 1, Confidence: confidence(len(in.Spend))}
 	if len(in.Spend) > 0 {

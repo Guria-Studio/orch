@@ -147,6 +147,26 @@ func TestCompute(t *testing.T) {
 	}
 }
 
+// A synthetic spend row (a verify review, an AI summary) is neither a task
+// nor an attempt: it moves neither attempts_per_task nor the per-attempt cost
+// and duration a task is estimated from (#470).
+func TestAttemptsPerTaskIgnoresSyntheticSpend(t *testing.T) {
+	e := Compute(Input{Tasks: []model.Task{task("A", model.StatusTodo, "sonnet")}, Routes: routes, Slots: 1,
+		Spend: []state.Spend{
+			spend("X", "claude-sonnet", 1, 100), spend("X", "claude-sonnet", 1, 100),
+			spend(state.ReviewSpendID("X", 1), "claude-sonnet", 0.1, 10),
+			spend(state.ReviewSpendID("X", 2), "claude-sonnet", 0.1, 10),
+			spend(state.SummarySpendID("run-1"), "claude-sonnet", 0.1, 10),
+		}})
+	if e.AttemptsPerTask != 2 || e.PastAttempts != 2 {
+		t.Errorf("attempts = %d past, %v per task, want 2 and 2", e.PastAttempts, e.AttemptsPerTask)
+	}
+	// Two attempts per task of the real rows' $1 and 100s each.
+	if e.CostUSD != 2 || e.WallS != 200 {
+		t.Errorf("estimate = $%v, %vs; want $2, 200s from the real attempts only", e.CostUSD, e.WallS)
+	}
+}
+
 func TestLines(t *testing.T) {
 	e := Estimate{Tasks: []string{"A", "B"}, CostUSD: 3.2, ByBackend: map[string]float64{"codex": 0.8, "claude": 2.4},
 		WallS: 7800, CriticalPathS: 5400, Slots: 4, PastAttempts: 37, AttemptsPerTask: 1.3, Confidence: "medium"}

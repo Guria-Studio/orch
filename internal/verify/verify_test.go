@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hectorcanaimero/orch/internal/budget"
 	"github.com/hectorcanaimero/orch/internal/ci"
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/engine"
 	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 func TestVerifyPassesWhenTheCommandsPass(t *testing.T) {
@@ -159,6 +161,69 @@ func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 	}
 }
 
+// approveWithUsage is claude approving, having spent 1200+300 tokens.
+const approveWithUsage = `{"type":"result","subtype":"success","is_error":false,` +
+	`"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}",` +
+	`"usage":{"input_tokens":1200,"output_tokens":300}}`
+
+func openState(t *testing.T) *state.SQLite {
+	t.Helper()
+	root := t.TempDir()
+	db, _, err := state.Open(context.Background(), filepath.Join(root, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return state.NewSQLite(db, "p", root)
+}
+
+// #470: the review's dispatch writes one spend row, named after the task and
+// its attempt, so the cost views and the reviewer's budget window see it.
+func TestVerifyRecordsTheReviewsSpend(t *testing.T) {
+	ctx := context.Background()
+	dir := branchWithWork(t)
+	b := openState(t)
+	fakeReviewerFor(t, "T-1-verify-2", "0", []byte(approveWithUsage))
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
+		Once: engine.OneShot{State: b}}
+
+	if got := v.Verify(ctx, engine.VerifyRequest{TaskID: "T-1", Attempt: 2, Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
+		t.Fatalf("Verify = %q, want a pass", got)
+	}
+	rows, err := b.AllSpend(ctx, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].TaskID != "T-1-verify-2" || rows[0].Backend != "claude" || rows[0].TokensIn != 1200 {
+		t.Errorf("spend = %+v, want one claude row for T-1-verify-2 with 1200 tokens in", rows)
+	}
+}
+
+// #470: a reviewer over its budget window is not spawned; the review is
+// skipped like one that could not run, and the work passes.
+func TestVerifySkipsAReviewerOverItsBudget(t *testing.T) {
+	ctx := context.Background()
+	dir := branchWithWork(t)
+	b := openState(t)
+	if err := b.RecordSpend(ctx, state.Spend{TS: time.Now().UTC().Format("2006-01-02T15:04:05Z"), TaskID: "B-1", Backend: "claude", TokensIn: 100, Attempt: 1}); err != nil {
+		t.Fatal(err)
+	}
+	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
+	gate := budget.NewGate(b, &budget.Config{Providers: map[string]budget.ProviderBudget{
+		"claude": {WindowHours: 5, TokenBudget: 10, ThresholdPct: 100},
+	}})
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
+		Once: engine.OneShot{State: b, Gate: gate}}
+
+	res := v.Verify(ctx, engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
+	if res.Failure != "" || res.Reviewer != "" {
+		t.Errorf("Verify = %+v, want a pass with no review", res)
+	}
+	if rows, err := b.AllSpend(ctx, time.Time{}); err != nil || len(rows) != 1 {
+		t.Errorf("spend = %+v (%v), want only the row already there", rows, err)
+	}
+}
+
 func TestReviewerIsNeverTheWriterByDefault(t *testing.T) {
 	bin := t.TempDir()
 	for _, b := range []string{"claude", "gemini"} {
@@ -229,9 +294,15 @@ func branchWithWork(t *testing.T) string {
 // engine's fake provider.
 func fakeReviewer(t *testing.T, exit string, output []byte) {
 	t.Helper()
+	fakeReviewerFor(t, state.ReviewSpendID("T-1", 0), exit, output)
+}
+
+// fakeReviewerFor is fakeReviewer for the review named id.
+func fakeReviewerFor(t *testing.T, id, exit string, output []byte) {
+	t.Helper()
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, "claude", ci.ReviewTaskID+".out"), string(output))
-	write(t, filepath.Join(dir, "claude", ci.ReviewTaskID+".exit"), exit)
+	write(t, filepath.Join(dir, "claude", id+".out"), string(output))
+	write(t, filepath.Join(dir, "claude", id+".exit"), exit)
 	t.Setenv(engine.FakeProviderEnv, dir)
 }
 

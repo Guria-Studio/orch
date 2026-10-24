@@ -261,6 +261,11 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	// it. All three are off unless the project asked: a project with
 	// worktree_mode off runs exactly as it did before, in its own
 	// root.
+	// One gate, shared: the scheduler asks it per dispatch, the loop
+	// whether every provider is capped, and the verify's review whether
+	// its reviewer may run (#470). Building two would read the same
+	// window twice and let them disagree inside a single tick.
+	budgetGate := newBudgetGate(paths, cfg, backend)
 	var wtManager engine.WorktreeManager
 	if worktreeMode {
 		wm := worktree.NewManager(paths.Root, !opts.noPush)
@@ -270,7 +275,8 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		if opts.verifier != nil {
 			scheduler.Verifier = opts.verifier
 		} else if cfg.Verify.Enabled {
-			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD}
+			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD,
+				Once: engine.OneShot{State: backend, Gate: budgetGate}}
 		}
 	} else if cfg.Verify.Enabled {
 		_, _ = fmt.Fprintln(os.Stderr, "note: verify.enabled needs dispatch.worktree_mode; the work is not verified before it is published")
@@ -344,14 +350,10 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 			MergeWhenPassing: true,
 		}
 	}
-	// One gate, shared: the scheduler asks it per dispatch and the
-	// loop asks it whether every provider is capped. Building two
-	// would read the same window twice and let them disagree inside
-	// a single tick.
-	if gate := newBudgetGate(paths, cfg, backend); gate != nil {
-		scheduler.Budget = gate
-		runner.Budget = gate
-		runner.Alerts = newBudgetAlerts(notifyCfg, notifier, gate, backend, runID)
+	if budgetGate != nil {
+		scheduler.Budget = budgetGate
+		runner.Budget = budgetGate
+		runner.Alerts = newBudgetAlerts(notifyCfg, notifier, budgetGate, backend, runID)
 	}
 
 	code, err := runner.Run(ctx)

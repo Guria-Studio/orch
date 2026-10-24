@@ -77,6 +77,9 @@ type E2ESummary struct {
 // VerifyRequest is one clean exit's work to verify.
 type VerifyRequest struct {
 	TaskID string
+	// Attempt is the task's dispatch attempt; the review's spend row is named
+	// after it (#470).
+	Attempt int
 	// Writer is the backend that did the work; the review picks another.
 	Writer model.Backend
 	// Dir is the task's worktree, with the work committed.
@@ -105,7 +108,7 @@ func (s *Scheduler) verifyOutcome(d Dispatch, attempt int, out *Outcome) {
 	ctx := context.Background()
 	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
 	res := s.Verifier.Verify(ctx, VerifyRequest{
-		TaskID: d.Req.TaskID, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
+		TaskID: d.Req.TaskID, Attempt: attempt, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
 		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, d.Req.TaskID, attempt),
 	})
 	out.VerifyFailure, out.E2E, out.Verify = res.Failure, res.E2E, &res

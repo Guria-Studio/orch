@@ -715,8 +715,13 @@ a note and verifies nothing.
    the same review `orch ci review` runs. The default reviewer is the first
    installed of claude, gemini, codex and opencode that did not write the
    task. Only a blocking finding fails the work. A review that cannot complete
-   (no other provider, a provider that is down, an answer that does not
-   parse) is logged and the work passes.
+   (no other provider, a provider that is down or over its
+   [budget](#budget-and-budget-presets) window, an answer that does not
+   parse) is logged and the work passes. The review's spend is recorded like
+   a task attempt's, under `<task>-verify-<attempt>` (#470), so it counts
+   against the reviewer's budget window and shows in `orch report usage` and
+   the dashboard's Usage page. `orch estimate` does not count it as a task's
+   attempt.
 
 Every command runs with the agent's own environment: `ORCH_TASK_ID`,
 `ORCH_TASK_SLOT` and, with `dispatch.isolate_compose`, the task's

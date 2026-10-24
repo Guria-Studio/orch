@@ -30,6 +30,8 @@ type scriptedVerifier struct {
 	artifacts []string
 	// findings come back with every failing answer.
 	findings []VerifyFinding
+	// attempts records each call's Attempt.
+	attempts []int
 }
 
 func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) VerifyResult {
@@ -38,6 +40,7 @@ func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) VerifyRe
 	v.dirs = append(v.dirs, req.Dir)
 	v.envs = append(v.envs, req.Env)
 	v.artifacts = append(v.artifacts, req.ArtifactsDir)
+	v.attempts = append(v.attempts, req.Attempt)
 	i := min(len(v.dirs), len(v.answers)) - 1
 	res := VerifyResult{Failure: v.answers[i], E2E: v.e2e, Commands: []VerifyCommand{{Command: "go test ./...", DurationS: 1.5}}, Reviewer: "gemini"}
 	if res.Failure != "" {
@@ -145,6 +148,26 @@ func TestVerifyFailureSendsTheTaskBackToItsWorktree(t *testing.T) {
 	}
 	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
 		t.Errorf("status = %q, want done", got)
+	}
+}
+
+// TestVerifyIsToldTheAttempt: the verifier is told which attempt it checks,
+// 1 then 2 after a send-back, so the review's spend row is named after it
+// (#470).
+func TestVerifyIsToldTheAttempt(t *testing.T) {
+	v := &scriptedVerifier{answers: []string{"`go test ./...` failed", ""}}
+	f, _ := verifyFixture(t, v, 2)
+	ctx := context.Background()
+
+	f.runOnce(t)
+	if _, err := f.s.Refill(ctx); err != nil {
+		t.Fatalf("Refill: %v", err)
+	}
+	if _, err := f.s.DrainWait(ctx, 30*time.Second); err != nil {
+		t.Fatalf("DrainWait: %v", err)
+	}
+	if !slices.Equal(v.attempts, []int{1, 2}) {
+		t.Errorf("attempts = %v, want [1 2]", v.attempts)
 	}
 }
 

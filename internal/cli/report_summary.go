@@ -15,6 +15,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/receipt"
 	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/hectorcanaimero/orch/internal/state"
 )
 
 // summaryAITimeout bounds the --ai dispatch: one short answer, no tools.
@@ -108,7 +109,7 @@ func explainSummary(cmd *cobra.Command, paths config.Paths, once engine.OneShot,
 		"what stopped and why. Then list the next steps, keeping each command exactly as given. " +
 		"Use only the facts below; do not invent tasks, figures or commands, and do not use tools.\n\n" +
 		"## Summary\n\n" + s.Text() + "\n## Receipt (JSON)\n\n" + string(facts) + "\n"
-	return ci.AskOnce(cmd.Context(), once, "summary-"+rec.RunID, route, prompt, summaryAITimeout)
+	return ci.AskOnce(cmd.Context(), once, state.SummarySpendID(rec.RunID), route, prompt, summaryAITimeout)
 }
 
 // summaryRoute is the project router's cheapest route on a backend --ai can
