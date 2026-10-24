@@ -170,6 +170,20 @@ func Parse(path string, raw []byte) (Router, error) {
 				pyfmt.Quote(key), pyfmt.Quote(*entry.EscalationModel))}
 		}
 	}
+	// #439: each failover entry is another route key, checked the same way.
+	for _, key := range out.Keys() {
+		for _, to := range out[key].Failover {
+			if to == key {
+				return nil, &FormatError{Path: path, Msg: fmt.Sprintf(
+					"entry %s fails over to itself", pyfmt.Quote(key))}
+			}
+			if _, ok := out[to]; !ok {
+				return nil, &FormatError{Path: path, Msg: fmt.Sprintf(
+					"entry %s has failover %s that is not a route in this file "+
+						"(add it, or remove it from failover)", pyfmt.Quote(key), pyfmt.Quote(to))}
+			}
+		}
+	}
 	return out, nil
 }
 

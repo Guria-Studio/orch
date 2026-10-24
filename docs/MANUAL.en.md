@@ -518,6 +518,25 @@ gemini/gemini-2.5-flash:
 `orch router validate` checks that every task resolves to an entry, and
 `orch doctor` that each CLI those entries name is installed.
 
+**Failover when a provider runs out of quota.** By default a rate-limited
+task waits out `retry.rate_limit` and tries the same CLI again. Give its
+route a `failover:` list of other route keys and the retry goes at once to
+the first one whose provider still has quota, in the same worktree, so the
+work done so far carries over. claude's own report that its window is
+exhausted counts too. orch remembers the exhausted provider until its reset
+(the time claude reports, else the rate-limit backoff), and the run's later
+tasks on that route go straight to the failover. Spend, events and the
+dashboard show the backend that actually ran. A key that is not a route
+fails `orch validate`.
+
+```yaml
+claude/claude-sonnet-4-6:
+  backend: claude
+  cli_model: claude-sonnet-4-6
+  tier: standard
+  failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]
+```
+
 ```bash
 # Every task.model resolves to a router entry?
 orch router validate

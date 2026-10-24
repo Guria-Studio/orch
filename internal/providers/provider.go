@@ -154,6 +154,13 @@ type Result struct {
 	// report wins: claude's rate_limit_event carries its 5-hour and weekly
 	// windows. nil when the CLI says nothing — every other backend today.
 	Quota []QuotaWindow
+
+	// QuotaExhausted is true when the CLI reported its subscription out of
+	// quota during the run (claude's rate_limit_event), and QuotaResetsAt is
+	// when that ends, Unix seconds, 0 when not given. The engine fails a
+	// route with `failover` over to its next provider on it (#439).
+	QuotaExhausted bool
+	QuotaResetsAt  int64
 }
 
 // QuotaWindow is one usage window of a provider's subscription, as the

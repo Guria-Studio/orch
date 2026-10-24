@@ -58,4 +58,12 @@ type RouteEntry struct {
 	// so a Fast mode set globally in ~/.codex/config.toml is not forced on
 	// every one: "default" is the standard tier. Nil leaves codex's config.
 	ServiceTier *string `yaml:"service_tier,omitempty"`
+
+	// Failover names other ROUTE KEYS, in order, that a dispatch moves to
+	// when this route's provider runs out of quota (#439): a rate-limit
+	// failure retries on the next one instead of backing off, and later
+	// tasks skip the exhausted provider until its window resets. Like
+	// EscalationModel, a key that is not a route is a load error in
+	// internal/router. Empty keeps the plain rate-limit backoff.
+	Failover []string `yaml:"failover,omitempty"`
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -152,6 +153,8 @@ func TestLoadRejectsMalformedFiles(t *testing.T) {
 			yaml:     "k:\n  backend: claude\n  cli_model: m\n  tier: standard\n  escalation_model: nope\n",
 			wantText: "is not a route in this file",
 		},
+		{"a failover that is not a route", "k:\n  backend: claude\n  cli_model: m\n  tier: standard\n  failover: [nope]\n", "failover 'nope' that is not a route"},
+		{"a failover to itself", "k:\n  backend: claude\n  cli_model: m\n  tier: standard\n  failover: [k]\n", "fails over to itself"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -194,6 +197,28 @@ second:
 `)
 	if len(r) != 2 {
 		t.Fatalf("loaded %d routes, want 2", len(r))
+	}
+}
+
+// A failover lists route keys in order, and may point forwards (#439).
+func TestFailoverLoadsInOrder(t *testing.T) {
+	r := loadString(t, `
+claude/opus:
+  backend: claude
+  cli_model: opus
+  tier: premium
+  failover: [codex/gpt, gemini/pro]
+codex/gpt:
+  backend: codex
+  cli_model: gpt-5.5
+  tier: premium
+gemini/pro:
+  backend: gemini
+  cli_model: gemini-3-pro
+  tier: premium
+`)
+	if got := r["claude/opus"].Failover; !slices.Equal(got, []string{"codex/gpt", "gemini/pro"}) {
+		t.Errorf("failover = %v", got)
 	}
 }
 
@@ -880,4 +905,3 @@ func TestLoadReadsACodexServiceTier(t *testing.T) {
 		t.Errorf("service_tier = %v, want default", got)
 	}
 }
-

@@ -740,9 +740,23 @@ default_timeout_multiplier: 1.5  # timeout = estimateHours × this
 
 `.orchestrator/model_router.yaml` maps each `tasks.json` model key to a
 backend CLI, its `cli_model`, a `tier` (premium | standard | cheap), and
-optionally `fallback_cli_model`, `escalation_model`, `effort` and
-`service_tier`. The field list is in the packaged file's header
+optionally `fallback_cli_model`, `escalation_model`, `failover`, `effort`
+and `service_tier`. The field list is in the packaged file's header
 (`internal/scaffold/defaults/model_router.yaml`); `orch router` maintains it.
+
+**`failover` (#439).** An ordered list of other route keys in the same file
+(`failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]`). When the route's
+provider runs out of quota — a `rate_limit` failure, or claude's
+`rate_limit_event` saying the window is rejected — the retry goes to the
+first entry whose provider is not exhausted, with no backoff and in the same
+worktree, instead of waiting out `retry.rate_limit`. The provider stays
+exhausted until its reset (claude's `resetsAt`, else
+`retry.rate_limit_backoff_seconds`, or `retry.rate_limit.backoff_seconds`
+when set), and later tasks of the run on that route dispatch straight to the
+failover. A target without a `failover` of its own continues down the rest of
+the list. The spend row, the `dispatch`/`retry` events and the dashboard name
+the backend that ran. An entry that is not a route, or the route itself, is a
+load error. Without `failover` nothing changes.
 
 **Where a new project's routes come from (#397).** `orch init` and `orch
 start` begin from orch's packaged routes for the CLIs on PATH, and ask each

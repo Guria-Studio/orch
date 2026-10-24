@@ -524,6 +524,25 @@ gemini/gemini-2.5-flash:
 `orch router validate` chequea que cada task resuelva a una entrada, y
 `orch doctor` que cada CLI que nombran esas entradas esté instalada.
 
+**Failover cuando un proveedor se queda sin cuota.** Por defecto una task
+con rate limit espera `retry.rate_limit` y reintenta la misma CLI. Dale a
+su ruta una lista `failover:` de otras claves de ruta y el reintento va de
+una a la primera cuyo proveedor todavía tenga cuota, en el mismo worktree,
+así el trabajo hecho se conserva. También cuenta el aviso de claude de que
+su ventana se agotó. orch recuerda el proveedor agotado hasta su reset (la
+hora que da claude, si no el backoff de rate limit), y las tasks siguientes
+de esa ruta en la misma corrida van directo al failover. El gasto, los
+eventos y el dashboard muestran el backend que corrió de verdad. Una clave
+que no es una ruta hace fallar `orch validate`.
+
+```yaml
+claude/claude-sonnet-4-6:
+  backend: claude
+  cli_model: claude-sonnet-4-6
+  tier: standard
+  failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]
+```
+
 ```bash
 # ¿Toda task.model resuelve a una entrada del router?
 orch router validate

@@ -193,6 +193,8 @@ type Scheduler struct {
 	retryWorktree map[string]string
 	// verifyAttempts counts each task's local verify send-backs.
 	verifyAttempts map[string]int
+	// exhausted is each provider out of quota, until its reset (#439).
+	exhausted map[model.Backend]time.Time
 	// stopping holds the children the operator asked to stop, by pid, and
 	// whether to hold their task after (#356).
 	stopping map[int]bool
@@ -282,6 +284,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		ciRetryPR:      make(map[string]string),
 		retryWorktree:  make(map[string]string),
 		verifyAttempts: make(map[string]int),
+		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),
 		slots:          NewTaskSlots(),
 		now:            time.Now,
@@ -354,6 +357,7 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 				"task", task.ID, "model", task.Model)
 			continue
 		}
+		route = s.routeFor(route)
 
 		if s.Opts.Mode == ModeSemi && s.Gate != nil && IsCritical(task, s.Routes) {
 			stop, dispatch := s.askOperator(task)
@@ -415,7 +419,7 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 			continue
 		}
 
-		ok, err := s.spawnOne(ctx, item.Task, item.Route, item.Attempt)
+		ok, err := s.spawnOne(ctx, item.Task, s.routeFor(item.Route), item.Attempt)
 		if err != nil {
 			remaining = append(remaining, item)
 			s.retryQueue = remaining

@@ -141,9 +141,11 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		s.logger().Warn("the CLI denied tool calls; `orch doctor` says how to allow them if the task needs them",
 			"task", entry.Task.ID, "denied", strings.Join(denied, ", "))
 	}
+	s.noteExhausted(entry.Route.Backend, out)
+	failover, failingOver := s.failoverFor(ctx, entry, out)
 	var prOpened bool
 	var noPR string
-	if !sendBack {
+	if !sendBack && !failingOver {
 		prOpened, noPR = s.tidyWorktree(ctx, entry, tidyOut)
 	}
 
@@ -162,6 +164,8 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		return s.sendBack(ctx, entry, out)
 	case verifyFailed:
 		return s.blockTask(ctx, entry, verifyBlockReason(out.VerifyFailure), out)
+	case failingOver:
+		return s.failOver(ctx, entry, out, failover)
 	case !out.Result.Success:
 		return s.handleFailure(ctx, entry, out)
 	case prOpened:

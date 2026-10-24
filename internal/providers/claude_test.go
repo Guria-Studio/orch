@@ -744,3 +744,21 @@ func TestClaude2_1_301ParseReadsTheQuota(t *testing.T) {
 		t.Errorf("a json run with no rate_limit_event has Quota %+v, want nil", q)
 	}
 }
+
+// A rate_limit_event saying the window is rejected marks the run exhausted,
+// with its reset time; the shipped captures (status allowed) do not (#439).
+func TestClaudeParseReadsAnExhaustedWindow(t *testing.T) {
+	if got := (ClaudeProvider{}).Parse(0, readFixture(t, "claude", "2.1.301", "stream-success.jsonl")); got.QuotaExhausted {
+		t.Errorf("an allowed window reads as exhausted")
+	}
+	out := `{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1792155000,"rateLimitType":"five_hour"}}
+{"type":"result","subtype":"error_during_execution","is_error":true}`
+	got := ClaudeProvider{}.Parse(1, []byte(out))
+	if !got.QuotaExhausted || got.QuotaResetsAt != 1792155000 {
+		t.Errorf("exhausted = %v, resets = %d; want true, 1792155000", got.QuotaExhausted, got.QuotaResetsAt)
+	}
+	full := `{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","unifiedWindows":{"seven_day":{"utilization":1,"resetsAt":1792551600}}}}`
+	if got := (ClaudeProvider{}).Parse(1, []byte(full+"\n")); !got.QuotaExhausted || got.QuotaResetsAt != 1792551600 {
+		t.Errorf("a full window: exhausted = %v, resets = %d", got.QuotaExhausted, got.QuotaResetsAt)
+	}
+}

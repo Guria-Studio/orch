@@ -320,7 +320,7 @@ func TestDecideRetryIsPure(t *testing.T) {
 	in := retryInput(providers.FailureTransient, 1)
 	first := DecideRetry(in)
 	second := DecideRetry(in)
-	if first != second {
+	if !sameDecision(first, second) {
 		t.Errorf("not deterministic:\n  %+v\n  %+v", first, second)
 	}
 	if in.Attempt != 1 {
