@@ -1,0 +1,60 @@
+# #451: the operator's side of the project knowledge — add, list, show, rm,
+# stats. Lessons are files under .orch/knowledge/; nothing here needs any
+# config.
+
+cd $WORK/proj
+
+exec orch knowledge list
+stdout 'no lessons yet'
+
+exec orch knowledge add --title 'Run the migrations before the tests' --body 'pytest needs the schema: run make migrate first.' --area db/ --area 'tests/**' --tags db
+stdout '^wrote \.orch/knowledge/[0-9]{8}-run-the-migrations-before-the-tests\.md$'
+stdin $WORK/body.txt
+exec orch knowledge add --title 'Lint with ruff' --body - --task F1.T2
+stdout 'wrote .orch/knowledge/'
+
+exec orch knowledge list
+stdout 'operator +db/,tests/\*\* +Run the migrations before the tests'
+stdout 'operator +- +Lint with ruff'
+
+exec orch knowledge list --json
+stdout '"title":"Lint with ruff","source":"operator","task":"F1.T2"'
+stdout '"body":"ruff check, not flake8.\\nThe config is in pyproject.toml."'
+
+exec orch knowledge stats
+stdout '^lessons: 2 \(operator 2\); first lesson [0-9-]+$'
+stdout 'before lessons +0 +0% +0.00'
+exec orch knowledge stats --json
+stdout '"lessons":2,"by_source":\{"operator":2\}'
+
+! exec orch knowledge add --title 'x' --body 'y' --source robot
+stderr 'source "robot" is not one of agent, verify, review, conflict, operator'
+! exec orch knowledge add --title 'no body'
+stderr 'a lesson needs a title and a body'
+
+
+# A lesson written by hand is read like any other: show prints its file,
+# rm deletes it.
+cp $WORK/hand.md .orch/knowledge/hand.md
+exec orch knowledge show compose-network
+stdout '^id: compose-network$'
+stdout '^source: operator$'
+stdout 'docker compose needs the shared network'
+exec orch knowledge rm compose-network
+stdout 'removed compose-network'
+! exists .orch/knowledge/hand.md
+! exec orch knowledge show compose-network
+stderr 'no lesson "compose-network"'
+! exec orch knowledge rm compose-network
+
+-- body.txt --
+ruff check, not flake8.
+The config is in pyproject.toml.
+-- hand.md --
+---
+id: compose-network
+title: Compose needs the shared network
+source: operator
+created: "2026-10-01"
+---
+docker compose needs the shared network created first: `docker network create shared`.
