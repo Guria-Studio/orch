@@ -146,3 +146,42 @@ func TestTaskLocksRunsSkipTheRunLock(t *testing.T) {
 		t.Error("without --task-locks a second run got past a held run lock")
 	}
 }
+
+// #481: with dispatch.sandbox on where Landlock cannot enforce it, orch run
+// stops before it dispatches anything rather than run agents unconfined.
+func TestRunProjectRefusesAnUnavailableSandbox(t *testing.T) {
+	root := t.TempDir()
+	for rel, body := range map[string]string{
+		"tasks.json":                      `{"tasks":[{"id":"T-1","phase":1,"title":"t","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1,"files":[],"specRef":""}]}`,
+		".orchestrator/config.yaml":       "concurrency:\n  global_max: 1\ndispatch:\n  sandbox: true\n",
+		".orchestrator/model_router.yaml": "claude/haiku:\n  backend: claude\n  cli_model: claude-haiku-4-5\n  tier: cheap\n",
+		"scripts/task-start.sh":           "#!/bin/sh\nexit 0\n",
+	} {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Should the refusal not hold, the run must not reach a real CLI.
+	t.Setenv(engine.FakeProviderEnv, t.TempDir())
+	orig := sandboxAvailable
+	sandboxAvailable = func() error { return errors.New("this kernel has no Landlock") }
+	t.Cleanup(func() { sandboxAvailable = orig })
+
+	flags := &projectFlags{root: root}
+	err := runProject(context.Background(), strings.NewReader(""), io.Discard, flags,
+		runOptions{mode: string(engine.ModeAuto), isolated: true})
+	if err == nil || !strings.Contains(err.Error(), "dispatch.sandbox is on but this kernel has no Landlock") {
+		t.Fatalf("runProject = %v, want a refusal naming dispatch.sandbox", err)
+	}
+	paths, cfg, err := loadProjectConfig(flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.SQLitePath(cfg)); !os.IsNotExist(err) {
+		t.Errorf("the refused run opened its database at %s (stat err %v)", paths.SQLitePath(cfg), err)
+	}
+}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/hectorcanaimero/orch/internal/sandbox"
 )
 
 // TermToKillGrace is how long a child gets between SIGTERM and SIGKILL on
@@ -93,6 +94,9 @@ type SpawnRequest struct {
 	// Env, when non-nil, replaces the inherited environment. Spawn always
 	// sets PWD to Cwd on top of it — see the note in Spawn.
 	Env []string
+	// Sandbox, when non-nil, runs the CLI under orch's Landlock launcher
+	// confined to it (dispatch.sandbox, #481); nil runs it unconfined.
+	Sandbox *sandbox.Policy
 }
 
 // Spawn forks the provider's CLI and returns the supervised child.
@@ -131,6 +135,16 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 			return nil, fmt.Errorf("spawn: %w", err)
 		}
 		return nil, fmt.Errorf("spawn: %s produced an empty argv", provider.Name())
+	}
+	// The launcher is orch itself: it confines itself and then execs the
+	// CLI, so the pid, the process group and the log descriptors below are
+	// the CLI's.
+	if sr.Sandbox != nil {
+		self, err := os.Executable()
+		if err != nil {
+			return nil, fmt.Errorf("spawn: locate orch for the sandbox: %w", err)
+		}
+		argv = sandbox.Wrap(self, *sr.Sandbox, argv)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(sr.LogPath), 0o750); err != nil {

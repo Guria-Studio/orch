@@ -116,6 +116,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newUpgradeCmd(version))
 	root.AddCommand(newCICmd(flags, version))
 	root.AddCommand(newBenchCmd(version))
+	root.AddCommand(newSandboxExecCmd())
 
 	for _, c := range root.Commands() {
 		if gatedCommands[root.Name()+" "+c.Name()] {

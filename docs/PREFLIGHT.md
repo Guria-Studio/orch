@@ -25,6 +25,7 @@ Read-only preflight. Never mutates anything on disk. Verifies:
 - **State backend** — state dir writable; when `backend: sqlite`, DB opens + `PRAGMA user_version` matches. For `backend: file`, the DB check is skipped with an explanatory row.
 - **VCS readiness** (`vcs.git_repo`, `vcs.remote`, `vcs.cli`) — only when `dispatch.worktree_mode` or `vcs.auto_pr` is on (both ship enabled). A missing git repo, remote or `gh`/`glab` is a **warn**, never an error: `orch run` degrades to the working subset (no worktrees and/or no PRs) and logs one line saying so, instead of blocking every task.
 - **Compose isolation** (`compose.isolation`, Go only) — a **warn** when a compose file at the project root or one directory down (`docker-compose*.yml`, `compose*.yml`, either extension) sets a fixed top-level `name:` or publishes a fixed host port (`"3001:3001"`, `published: 8080`), which collide when tasks run in parallel worktrees. Ports through a variable (`"${API_PORT:-3001}:3001"`) and container-only ports pass. See `dispatch.isolate_compose` in CONFIG.md (#343).
+- **Agent sandbox** (`sandbox.landlock`, Go only) — whether this kernel can confine dispatched agents with Landlock: **error** when `dispatch.sandbox` is on and it cannot (`orch run` refuses to start), **ok** when it can (on or off), **skip** when it is off and unavailable (macOS, a kernel before 5.19, Landlock not in the `lsm=` boot list). See `dispatch.sandbox` in CONFIG.md (#481).
 
 ### Usage
 

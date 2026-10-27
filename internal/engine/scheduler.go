@@ -678,14 +678,18 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		Timeout:    TimeoutFor(task.EstimateHours, s.Opts.TimeoutMultiplier),
 	}
 
-	sp, err := Spawn(ctx, SpawnRequest{
+	sr := SpawnRequest{
 		Provider:   d.Provider,
 		Req:        d.Req,
 		PromptPath: d.PromptPath,
 		LogPath:    d.LogPath,
 		Cwd:        d.Cwd,
 		Env:        d.Env,
-	})
+	}
+	if s.Opts.Cfg.Dispatch.Sandbox {
+		sr.Sandbox = s.sandboxPolicy(ctx, route.Backend, workdir, promptPath)
+	}
+	sp, err := Spawn(ctx, sr)
 	if err != nil {
 		release()
 		// A spawn failure is this task's problem, not the run's: block it

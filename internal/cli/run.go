@@ -24,6 +24,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/pricing"
 	"github.com/hectorcanaimero/orch/internal/providers"
 	"github.com/hectorcanaimero/orch/internal/receipt"
+	"github.com/hectorcanaimero/orch/internal/sandbox"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/state"
 	"github.com/hectorcanaimero/orch/internal/vcs"
@@ -102,6 +103,10 @@ type runOptions struct {
 	verifier engine.Verifier
 }
 
+// sandboxAvailable is sandbox.Available, swapped by the test that needs a
+// kernel without Landlock.
+var sandboxAvailable = sandbox.Available
+
 // runProject is `orch run` minus cobra: the one code path that walks a
 // project's DAG. `orch bench` calls it too, so a benchmark measures exactly
 // what `orch run` does.
@@ -116,6 +121,14 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	paths, cfg, err := loadProjectConfig(flags)
 	if err != nil {
 		return withExitCode(1, err)
+	}
+	// Refused rather than run unconfined: the operator turned the sandbox on
+	// to keep agents out of their home directory, and a warning scrolling by
+	// at the start of a long run would not (#481).
+	if cfg.Dispatch.Sandbox {
+		if err := sandboxAvailable(); err != nil {
+			return withExitCode(1, fmt.Errorf("cannot start: dispatch.sandbox is on but %w — turn it off or run on a kernel with Landlock (see `orch doctor`)", err))
+		}
 	}
 
 	runLock, err := takeRunLock(opts, paths.StateDir())

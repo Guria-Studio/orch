@@ -91,7 +91,64 @@ dispatch:
   worktree_setup: ""     # e.g. "pnpm install --frozen-lockfile"
   isolate_compose: true  # each task gets its own docker compose project
   tdd: false             # agents work test-first
+  sandbox: false         # confine each agent to its worktree (Linux, Landlock)
+  sandbox_allow: []      # extra read-write paths for a sandboxed agent
 ```
+
+**`sandbox`** (default `false`, Go only, #481) confines every dispatched task
+agent's filesystem access with [Landlock](https://docs.kernel.org/userspace-api/landlock.html),
+so a prompt injected through a spec, an issue or a fetched page cannot read
+`~/.ssh`, another project or another task's worktree, nor write outside its
+own. orch spawns the CLI through a hidden launcher, `orch sandbox-exec --rw …
+--ro … -- <cli> <args>`, which restricts itself and then execs the CLI in its
+place; the restriction is inherited by everything the agent runs and cannot be
+lifted. What the agent may touch:
+
+- **read-write**: its worktree (the project root without `worktree_mode`), the
+  project's database directory (`orch done` writes `orch.db`), the git common
+  directory its commits write objects and refs into, `/tmp`, `/var/tmp`,
+  `$TMPDIR`, `/proc`, `/dev/null`, `/dev/zero`, `/dev/full`, `/dev/tty`,
+  `/dev/pts`, `/dev/shm`, `~/.cache`, `~/.npm`, every `sandbox_allow` entry,
+  and the dispatched CLI's own config and session state — only that CLI's:
+
+  | CLI | read-write in `$HOME` |
+  |---|---|
+  | claude | `~/.claude`, `~/.claude.json` |
+  | codex | `~/.codex` |
+  | opencode | `~/.config/opencode`, `~/.local/share/opencode`, `~/.local/state/opencode` |
+  | gemini, agy | `~/.gemini` |
+  | muse | `~/.local/share/muse`, `~/.config/muse` |
+
+- **read-only** (and executable): `/usr`, `/bin`, `/sbin`, `/lib*`, `/etc`,
+  `/opt`, `/sys`, `/run`, `/dev`, `/nix`, `/snap`, `/home/linuxbrew`, the
+  project root (config, `.claude/settings.json`), the prompt's directory, the
+  directory of the `orch` binary, `~/.gitconfig`, `~/.config/git`, `~/.agents`,
+  `~/.local`, `~/go`, every directory on `PATH`, and the parent of each one
+  named `bin` (where nvm's or Homebrew's `lib/` lives).
+- **everything else is denied**, notably the rest of `$HOME`. A path that is
+  `$HOME` itself or above it is never added, so `~/bin` on `PATH` opens
+  `~/bin` and not the home directory.
+
+**`sandbox_allow`** lists extra paths a sandboxed agent may read and write
+(`~/` is `$HOME`): a hook in your `~/.claude/settings.json` that runs a script
+from elsewhere, a tool that keeps state outside the dirs above. A denied access
+shows in the task's log as the tool's own `Permission denied`.
+
+It needs Linux 5.19 or newer (Landlock ABI 2) with `landlock` in the kernel's
+`lsm=` list, as Ubuntu 24.04's kernel has (22.04's 5.15 is ABI 1). orch uses the newest rules the
+kernel knows and degrades to the subset an older ABI enforces (best effort);
+ABI 1 is refused because it cannot let git rename an object into place. With
+`sandbox: true` on a machine that cannot enforce it — macOS, Windows, an older
+or Landlock-less kernel — **`orch run` refuses to start** rather than run the
+agents unconfined, and `orch doctor` says why (`sandbox.landlock`).
+
+Limits: only the filesystem is confined. The network is not restricted, nor
+connecting to UNIX sockets (an agent can still reach `docker.sock`, or an
+`ssh-agent` through `SSH_AUTH_SOCK`, though it cannot read the keys). The git
+common directory is writable, so an agent can rewrite other branches' refs.
+`sudo` and setuid programs stop working (Landlock sets `no_new_privs`). Only
+task agents are confined; the `verify` reviewer, `orch report summary --ai`
+and `orch ci` run as before.
 
 **`tdd`** (default `false`, Go only) makes every task test-first. The
 dispatch prompt gains one constraint: write each acceptance criterion's test

@@ -317,6 +317,14 @@ type Dispatch struct {
 	// skill), and has the local verify send back a change that touches no
 	// test file. Off by default. Go only.
 	TDD bool `yaml:"tdd"`
+	// Sandbox confines every dispatched agent with Landlock to its worktree,
+	// the project's database, its CLI's own config and read-only toolchains
+	// (#481). Linux only; `orch run` refuses to start when it is on and the
+	// kernel cannot enforce it. Off by default. Go only.
+	Sandbox bool `yaml:"sandbox"`
+	// SandboxAllow are extra paths a sandboxed agent may read and write, `~/`
+	// meaning $HOME: what a hook or tool of the operator's own needs.
+	SandboxAllow []string `yaml:"sandbox_allow"`
 }
 
 // VCSProviderLocal is vcs.provider's value for a repository with no forge:
