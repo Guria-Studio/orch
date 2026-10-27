@@ -34,7 +34,9 @@ const (
 	activityChunk = 1 << 20
 )
 
-type activityPayload struct {
+// Activity is one read of a dispatch log: the endpoint's payload, and what
+// `orch tui` tails for the selected task, so both show the same steps.
+type Activity struct {
 	// Offset is where the next read starts; pass it back as ?offset=.
 	Offset int64            `json:"offset"`
 	Steps  []providers.Step `json:"steps"`
@@ -65,7 +67,7 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 		offset = n
 	}
 
-	payload, err := readActivity(filepath.Join(s.paths.StateDir(), "logs", taskID+".log"), offset)
+	payload, err := ReadActivity(filepath.Join(s.paths.StateDir(), "logs", taskID+".log"), offset)
 	if err != nil {
 		s.failRead(w, "activity", err)
 		return
@@ -73,11 +75,11 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// readActivity reads the steps in path from offset (-1: the tail) to the last
+// ReadActivity reads the steps in path from offset (-1: the tail) to the last
 // complete line. An offset past the end means the log was replaced, so the
 // read starts over.
-func readActivity(path string, offset int64) (activityPayload, error) {
-	out := activityPayload{Steps: []providers.Step{}}
+func ReadActivity(path string, offset int64) (Activity, error) {
+	out := Activity{Steps: []providers.Step{}}
 	f, err := os.Open(path) // #nosec G304 -- the state dir plus a task id that cannot leave it
 	if errors.Is(err, fs.ErrNotExist) {
 		return out, nil

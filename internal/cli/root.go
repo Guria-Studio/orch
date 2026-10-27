@@ -107,6 +107,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newNotifyCmd(flags))
 	root.AddCommand(newDoctorCmd(flags))
 	root.AddCommand(newDashboardCmd(flags))
+	root.AddCommand(newTUICmd(flags))
 	root.AddCommand(newExplainCmd(flags))
 	root.AddCommand(newReportCmd(flags))
 	root.AddCommand(newPublishCmd(flags))
