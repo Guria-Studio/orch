@@ -290,6 +290,8 @@ export const en = {
   "task.ev.retry": "queued a retry",
   "task.ev.verify_failed": "failed",
   "task.ev.verify_passed": "passed",
+  "task.ev.files_overlap": "flags files this task shares with a running one",
+  "task.ev.branch_conflict": "flags that this PR conflicts with another open one",
   "task.ev.agent_stalled": "says the agent looks stuck: its log went silent",
   "task.ev.agent_looping": "says the agent looks stuck: it repeats the same call",
   "task.ev.operator_stop": "stopped the attempt",

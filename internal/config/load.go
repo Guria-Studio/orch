@@ -91,6 +91,7 @@ func Defaults() Config {
 		Update:  Update{CheckCLIs: true},
 		Guard:   Guard{Secrets: "block", Debug: "warn"},
 		Watch:   Watch{Enabled: true, StallAfterS: 600},
+		Radar:   "warn",
 	}
 }
 
@@ -242,6 +243,11 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("%s: %q is not one of block, warn, off", key, *v)
 		}
 	}
+	switch cfg.Radar = strings.ToLower(strings.TrimSpace(cfg.Radar)); cfg.Radar {
+	case "warn", "serialize", "off":
+	default:
+		return fmt.Errorf("radar: %q is not one of warn, serialize, off", cfg.Radar)
+	}
 
 	if cfg.SpecRoot == "" {
 		cfg.SpecRoot = "specs"
@@ -371,6 +377,7 @@ var knownKeys = map[string]bool{
 	"knowledge.curate_every": true,
 	"guard.secrets":          true, "guard.debug": true,
 	"watch.enabled": true, "watch.stall_after_s": true,
+	"radar": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

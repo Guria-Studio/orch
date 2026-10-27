@@ -164,6 +164,9 @@ type Scheduler struct {
 	// Verifier checks a clean exit's work in its worktree before the push
 	// (verify.enabled). Nil, or worktree mode off, verifies nothing.
 	Verifier Verifier
+	// OpenPRs lists the open task PRs a new one is checked against for
+	// conflicts (radar, #482). Nil skips that check.
+	OpenPRs OpenPRLister
 	// Knowledge ranks the project lessons a prompt carries (knowledge.enabled,
 	// #451). Nil renders no lessons.
 	Knowledge knowledge.Ranker
@@ -202,6 +205,9 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
+	// radarSeen is the running task each waiting task was last reported
+	// overlapping, until it dispatches (#482), see overlapHolds.
+	radarSeen map[string]string
 	// watches and lastWatch are the agent watch's (#487), see WatchAgents.
 	watches   map[int]*agentWatch
 	lastWatch time.Time
@@ -537,6 +543,14 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		return false, nil
 	}
 
+	// (1c) The conflict radar (#482): a task whose files overlap a running
+	// task's is reported, and with radar: serialize waits for it, like a
+	// capped budget, before it costs a slot.
+	if s.overlapHolds(ctx, task, backend) {
+		lock.Release()
+		return false, nil
+	}
+
 	// (2) Budget gate, BEFORE the semaphores, so a capped provider does not
 	// churn a slot it cannot use. Skipping here is equivalent to a full
 	// semaphore: the next tick re-checks.
@@ -724,6 +738,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		Conflict:  conflict,
 	}
 	delete(s.deferReasons, task.ID)
+	delete(s.radarSeen, task.ID)
 
 	// One supervisor per child, posting to the reaper when it finishes.
 	go s.supervise(sp.PID, d, sp, attempt)

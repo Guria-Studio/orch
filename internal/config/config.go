@@ -57,6 +57,12 @@ type Config struct {
 	Knowledge            Knowledge      `yaml:"knowledge"`
 	Guard                Guard          `yaml:"guard"`
 	Watch                Watch          `yaml:"watch"`
+	// Radar is the conflict radar (#482): what orch does when a task about to
+	// dispatch declares files a running task also declares — warn records a
+	// files_overlap event and dispatches, serialize holds the task until the
+	// other finishes, off does neither — and whether a new PR is checked for
+	// conflicts with the other open ones (any value but off).
+	Radar string `yaml:"radar"`
 }
 
 // Guard checks a task's diff after its agent exits cleanly and before orch

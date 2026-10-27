@@ -323,6 +323,7 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 		string(entry.Route.Backend), map[string]any{"pr_url": prURL}); err != nil {
 		s.logger().Error("recording the pr_created event failed", "task", task.ID, "err", err)
 	}
+	s.radarPRs(ctx, entry)
 	return ""
 }
 

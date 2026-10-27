@@ -179,6 +179,7 @@ var eventTypes = map[string]bool{
 	"operator_stop": true, "verify_failed": true, "verify_passed": true, "e2e_report": true, "salvage_accepted": true, "task_added": true, "task_edited": true,
 	"provider_skip": true, "ci_conflict_retry": true, "merged_locally": true,
 	"agent_stalled": true, "agent_looping": true,
+	"files_overlap": true, "branch_conflict": true,
 	// The project knowledge (#453): an operator's edit, and the lessons a prompt carried.
 	"knowledge_edited": true, "knowledge_used": true,
 }

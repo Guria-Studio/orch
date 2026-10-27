@@ -101,6 +101,10 @@ var goOnlyEventTypes = map[string]bool{
 	// The agent watch's warnings about a running attempt (#487).
 	"agent_stalled": true,
 	"agent_looping": true,
+	// The conflict radar's: overlapping files before dispatch, conflicting
+	// task PRs after (#482).
+	"files_overlap":   true,
+	"branch_conflict": true,
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,
