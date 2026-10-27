@@ -1,0 +1,22 @@
+# #481: orch sandbox-exec, the launcher dispatch.sandbox wraps an agent in.
+
+# Nothing after -- is refused before anything is confined.
+! exec orch sandbox-exec --rw $WORK/allowed --
+stderr 'requires at least 1 arg'
+
+# The rest needs a kernel that can confine.
+[!landlock] skip 'Landlock is not available on this kernel'
+
+# The command writes its --rw directory, reads through --ro, and is refused
+# a file outside both, which it would read without the sandbox.
+exec /bin/sh -c 'cat '$WORK'/denied/secret'
+stdout 'PRIVATE KEY'
+exec orch sandbox-exec --rw $WORK/allowed --ro /usr --ro /bin --ro /lib --ro /lib64 --ro /etc -- /bin/sh -c 'echo ok > '$WORK'/allowed/made && echo written; cat '$WORK'/denied/secret || echo refused'
+stdout 'written'
+stdout 'refused'
+! stdout 'PRIVATE KEY'
+exists $WORK/allowed/made
+
+-- allowed/.keep --
+-- denied/secret --
+PRIVATE KEY

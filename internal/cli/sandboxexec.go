@@ -6,6 +6,10 @@ import (
 	"github.com/hectorcanaimero/orch/internal/sandbox"
 )
 
+// sandboxExec is sandbox.Exec, swapped by the test that checks what the
+// command hands it.
+var sandboxExec = sandbox.Exec
+
 // newSandboxExecCmd is the launcher dispatch.sandbox wraps an agent in
 // (#481): `orch sandbox-exec --rw <dir> … --ro <dir> … -- <cli> <args>`
 // confines itself with Landlock and execs the CLI in its place. Hidden: the
@@ -19,7 +23,7 @@ func newSandboxExecCmd() *cobra.Command {
 		Args:   cobra.MinimumNArgs(1),
 		// Only returns when nothing was exec'd.
 		RunE: func(_ *cobra.Command, args []string) error {
-			return withExitCode(126, sandbox.Exec(p, args))
+			return withExitCode(126, sandboxExec(p, args))
 		},
 	}
 	cmd.Flags().StringArrayVar(&p.RW, "rw", nil, "path the command may read and write")
