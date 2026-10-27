@@ -526,6 +526,13 @@ Los cuatro aceptan `--json` (salvo `logs`, que tampoco lo tuvo nunca en
 Python) para scripting, y comparten los flags de proyecto
 (`--project-root`/`--project-id`/`--config`).
 
+Para seguir una corrida en vez de sacar fotos, `orch tui` mantiene esa misma
+vista en vivo en la terminal: la tabla de tasks con el tiempo transcurrido de
+cada una, el avance por fase, el gasto por proveedor y el log de la task
+seleccionada como pasos. `↑`/`↓` (o `j`/`k`) eligen una task, `f` rota el
+filtro de status, `q` sale. Solo lee, así que corre junto a `orch run` en
+otra terminal.
+
 ```bash
 $ orch status --help
 Project status: tasks, costs, last events, run summary

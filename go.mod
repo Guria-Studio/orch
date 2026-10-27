@@ -8,6 +8,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/rogpeppe/go-internal v1.16.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.58.0
 )

@@ -25,9 +25,9 @@ func writeLog(t *testing.T, root, taskID string, content []byte) string {
 	return p
 }
 
-func activity(t *testing.T, s *Server, path string) activityPayload {
+func activity(t *testing.T, s *Server, path string) Activity {
 	t.Helper()
-	var got activityPayload
+	var got Activity
 	decode(t, get(t, s, path), &got)
 	return got
 }
