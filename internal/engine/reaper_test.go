@@ -507,6 +507,7 @@ type recordingWorktree struct {
 	dir       string
 	// changed is what ChangedFiles reports: the files the agent's work touched.
 	changed []string
+	diff    string
 	// setupEnv is what the last Create was handed for worktree_setup.
 	setupEnv []string
 	// deps is what each Create was asked to merge in, by task.
@@ -590,6 +591,7 @@ func (w *recordingWorktree) BranchName(taskID string) string { return "orch/" + 
 func (w *recordingWorktree) ChangedFiles(context.Context, string) ([]string, error) {
 	return w.changed, nil
 }
+func (w *recordingWorktree) Diff(context.Context, string) (string, error) { return w.diff, nil }
 
 func TestWorktreeCallerContract(t *testing.T) {
 	tests := []struct {

@@ -82,6 +82,11 @@ type Outcome struct {
 	E2E *E2ESummary
 	// Verify is the local verify's whole result, nil when it did not run.
 	Verify *VerifyResult
+	// GuardBlock is why the pre-PR guard (#484) refused the work, and
+	// GuardWarnings what it let through for the PR body to name. Neither
+	// ever holds a matched secret.
+	GuardBlock    string
+	GuardWarnings []string
 }
 
 // Run spawns a dispatch, supervises it, and parses what it produced.

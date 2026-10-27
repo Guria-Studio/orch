@@ -89,6 +89,7 @@ func Defaults() Config {
 		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 		Update:  Update{CheckCLIs: true},
+		Guard:   Guard{Secrets: "block", Debug: "warn"},
 	}
 }
 
@@ -233,6 +234,14 @@ func validate(cfg *Config) error {
 		return err
 	}
 
+	for key, v := range map[string]*string{"guard.secrets": &cfg.Guard.Secrets, "guard.debug": &cfg.Guard.Debug} {
+		switch *v = strings.ToLower(strings.TrimSpace(*v)); *v {
+		case "block", "warn", "off":
+		default:
+			return fmt.Errorf("%s: %q is not one of block, warn, off", key, *v)
+		}
+	}
+
 	if cfg.SpecRoot == "" {
 		cfg.SpecRoot = "specs"
 	}
@@ -359,6 +368,7 @@ var knownKeys = map[string]bool{
 	"update.check_clis":          true,
 	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,
+	"guard.secrets":          true, "guard.debug": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

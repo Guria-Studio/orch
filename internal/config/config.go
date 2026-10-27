@@ -55,6 +55,25 @@ type Config struct {
 	Verify               Verify         `yaml:"verify"`
 	Update               Update         `yaml:"update"`
 	Knowledge            Knowledge      `yaml:"knowledge"`
+	Guard                Guard          `yaml:"guard"`
+}
+
+// Guard checks a task's diff after its agent exits cleanly and before orch
+// pushes it (#484). Each rule is block (the task is blocked, nothing is
+// pushed), warn (the PR body lists it) or off. Worktree mode only.
+type Guard struct {
+	// Secrets: known token formats, private keys, .env files.
+	Secrets string `yaml:"secrets"`
+	// Debug: console.log, debugger, breakpoint() and the like.
+	Debug string `yaml:"debug"`
+}
+
+// Mode is what the guard does with a finding of rule.
+func (g Guard) Mode(rule string) string {
+	if rule == "secrets" {
+		return g.Secrets
+	}
+	return g.Debug
 }
 
 // Update is about the agent CLIs orch dispatches to (#448): whether `orch

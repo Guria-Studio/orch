@@ -38,6 +38,8 @@ type WorktreeManager interface {
 	// ChangedFiles lists the files the task's own work changed since Create,
 	// leaving out what the dependency merges brought in.
 	ChangedFiles(ctx context.Context, taskID string) ([]string, error)
+	// Diff is the same work as a patch, for the pre-PR guard (#484).
+	Diff(ctx context.Context, taskID string) (string, error)
 }
 
 // managerAdapter wraps internal/worktree's Manager in the engine's interface.
@@ -97,4 +99,8 @@ func (a managerAdapter) BranchName(taskID string) string { return a.m.BranchName
 
 func (a managerAdapter) ChangedFiles(_ context.Context, taskID string) ([]string, error) {
 	return a.m.ChangedFiles(taskID)
+}
+
+func (a managerAdapter) Diff(_ context.Context, taskID string) (string, error) {
+	return a.m.Diff(taskID)
 }

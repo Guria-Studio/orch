@@ -63,6 +63,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 		}
 	}
 	s.verifyOutcome(d, attempt, &out)
+	s.guardOutcome(d, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
 }
@@ -135,11 +136,15 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	// has send-backs left its worktree is kept as it is, for the retry.
 	verifyFailed := !stopped && !agentBlocked && out.Result.Success && out.VerifyFailure != ""
 	sendBack := verifyFailed && s.verifyAttempts[entry.Task.ID] < s.verifyMax()
+	// Work the pre-PR guard refused is blocked, not sent back: a secret the
+	// agent already committed stays in the branch's history.
+	guardBlocked := !stopped && !agentBlocked && !verifyFailed && out.Result.Success && out.GuardBlock != ""
+	entry.GuardWarnings = out.GuardWarnings
 	if !stopped && !agentBlocked && out.Result.Success {
 		s.recordVerify(ctx, entry, out.Verify, sendBack)
 	}
 	tidyOut := out
-	if agentBlocked || verifyFailed {
+	if agentBlocked || verifyFailed || guardBlocked {
 		tidyOut.Result.Success = false
 	}
 	if denied := out.Result.PermissionDenials; len(denied) > 0 {
@@ -150,7 +155,7 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	failover, failingOver := s.failoverFor(ctx, entry, out)
 	var prOpened bool
 	var noPR string
-	if !stopped && !agentBlocked && !verifyFailed && !failingOver && out.Result.Success {
+	if !stopped && !agentBlocked && !verifyFailed && !guardBlocked && !failingOver && out.Result.Success {
 		s.captureLessons(ctx, entry)
 	}
 	var land localLand
@@ -177,6 +182,8 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		return s.sendBack(ctx, entry, out)
 	case verifyFailed:
 		return s.blockTask(ctx, entry, verifyBlockReason(out.VerifyFailure), out)
+	case guardBlocked:
+		return s.blockTask(ctx, entry, truncateReason(out.GuardBlock), out)
 	case failingOver:
 		return s.failOver(ctx, entry, out, failover)
 	case !out.Result.Success:
@@ -278,6 +285,7 @@ func (s *Scheduler) prExpected() bool {
 func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string) string {
 	task := entry.Task
 	title, body := s.prText(ctx, task)
+	body += guardSection(entry.GuardWarnings)
 
 	prURL, created := existing, existing == ""
 	var err error
