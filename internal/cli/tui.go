@@ -305,9 +305,11 @@ func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend,
 	}
 	sort.Slice(v.Usage, func(i, j int) bool { return v.Usage[i].Backend < v.Usage[j].Backend })
 
+	// buildStatusRows hydrates through project.Hydrate: statuses come from the
+	// database, not tasks.json.
 	rows, err := buildStatusRows(ctx, backend, paths.ID, loadDAG(paths), loadRouterTolerant(paths), costByTask)
 	if err != nil {
-		return v, err
+		return v, fmt.Errorf("read task rows: %w", err)
 	}
 	runtime, err := backend.Tasks(ctx, state.TaskFilter{})
 	if err != nil {
@@ -386,7 +388,9 @@ func newTUICmd(flags *projectFlags) *cobra.Command {
 			_, _ = io.WriteString(out, "\x1b[?1049h\x1b[?25l")
 			defer func() {
 				_, _ = io.WriteString(out, "\x1b[?25h\x1b[?1049l")
-				_ = term.Restore(inFd, old)
+				if err := term.Restore(inFd, old); err != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "orch tui: could not restore the terminal (%v); run `reset`\n", err)
+				}
 			}()
 			return tuiLoop(ctx, out, os.Stdin, outFd, paths, backend)
 		},
@@ -422,10 +426,8 @@ func tuiLoop(ctx context.Context, out io.Writer, in io.Reader, outFd int, paths 
 	ticker := time.NewTicker(tuiPoll)
 	defer ticker.Stop()
 	var (
-		v      tuiView
-		filter model.Status
-		selID  string
-		esc    int // bytes of an arrow-key escape sequence seen so far
+		v tuiView
+		k tuiKeys
 	)
 	refresh := func() {
 		next, err := loadTUIView(ctx, paths, backend, time.Now())
@@ -437,15 +439,13 @@ func tuiLoop(ctx context.Context, out io.Writer, in io.Reader, outFd int, paths 
 	}
 	refresh()
 	for {
-		vis, sel := visibleRows(v.Rows, filter, selID)
+		vis, sel := visibleRows(v.Rows, k.filter, k.selID)
 		v.Steps = nil
 		if len(vis) > 0 {
-			selID = vis[sel].ID
-			if act, err := dashboard.ReadActivity(filepath.Join(paths.StateDir(), "logs", selID+".log"), -1); err == nil {
-				v.Steps = act.Steps
-			}
+			k.selID = vis[sel].ID
+			v.Steps = logSteps(paths.StateDir(), k.selID)
 		}
-		v.Filter, v.SelectedID = filter, selID
+		v.Filter, v.SelectedID = k.filter, k.selID
 		v.Width, v.Height, _ = term.GetSize(outFd)
 		if v.Width <= 0 || v.Height <= 0 {
 			v.Width, v.Height = 80, 24
@@ -464,24 +464,52 @@ func tuiLoop(ctx context.Context, out io.Writer, in io.Reader, outFd int, paths 
 			if !ok {
 				return nil
 			}
-			switch {
-			case esc == 0 && b == 0x1b, esc == 1 && b == '[':
-				esc++
-			case esc == 2 && b == 'A':
-				esc, selID = 0, moveSelection(v.Rows, filter, selID, -1)
-			case esc == 2 && b == 'B':
-				esc, selID = 0, moveSelection(v.Rows, filter, selID, +1)
-			case b == 'q', b == 0x03: // Ctrl+C arrives as a byte in raw mode
+			var quit bool
+			if k, quit = k.press(v.Rows, b); quit {
 				return nil
-			case b == 'k':
-				esc, selID = 0, moveSelection(v.Rows, filter, selID, -1)
-			case b == 'j':
-				esc, selID = 0, moveSelection(v.Rows, filter, selID, +1)
-			case b == 'f':
-				esc, filter = 0, nextFilter(filter)
-			default:
-				esc = 0
 			}
 		}
 	}
+}
+
+// tuiKeys is what the keyboard controls: the filter, the selected task, and
+// how much of an arrow key's escape sequence (ESC [ A/B) has arrived, since
+// raw mode hands it over byte by byte.
+type tuiKeys struct {
+	filter model.Status
+	selID  string
+	esc    int
+}
+
+// press applies one key byte, and says whether it quits the view.
+func (k tuiKeys) press(rows []tuiRow, b byte) (tuiKeys, bool) {
+	move := 0
+	switch {
+	case k.esc == 0 && b == 0x1b, k.esc == 1 && b == '[':
+		k.esc++
+		return k, false
+	case k.esc == 2 && b == 'A', b == 'k':
+		move = -1
+	case k.esc == 2 && b == 'B', b == 'j':
+		move = +1
+	case b == 'q', b == 0x03: // Ctrl+C arrives as a byte in raw mode
+		return k, true
+	case b == 'f':
+		k.filter = nextFilter(k.filter)
+	}
+	k.esc = 0
+	if move != 0 {
+		k.selID = moveSelection(rows, k.filter, k.selID, move)
+	}
+	return k, false
+}
+
+// logSteps is the task's log as steps, or one error step saying why it could
+// not be read: an empty pane would look like an agent that did nothing.
+func logSteps(stateDir, taskID string) []providers.Step {
+	act, err := dashboard.ReadActivity(filepath.Join(stateDir, "logs", taskID+".log"), -1)
+	if err != nil {
+		return []providers.Step{{Kind: providers.StepError, Detail: "reading the log: " + err.Error()}}
+	}
+	return act.Steps
 }

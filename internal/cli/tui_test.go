@@ -227,3 +227,48 @@ func TestLoadTUIViewWritesNothing(t *testing.T) {
 		t.Errorf("database tasks after a refresh = %v (err %v), want none", rt, err)
 	}
 }
+
+func TestTUIKeys(t *testing.T) {
+	rows := tuiSample().Rows
+	for _, c := range []struct {
+		name  string
+		start tuiKeys
+		keys  string
+		want  tuiKeys
+		quit  bool
+	}{
+		{"down arrow", tuiKeys{selID: "T1"}, "\x1b[B", tuiKeys{selID: "T2"}, false},
+		{"up arrow", tuiKeys{selID: "T2"}, "\x1b[A", tuiKeys{selID: "T1"}, false},
+		{"j", tuiKeys{selID: "T1"}, "jj", tuiKeys{selID: "T3"}, false},
+		{"k", tuiKeys{selID: "T3"}, "k", tuiKeys{selID: "T2"}, false},
+		{"half an arrow waits", tuiKeys{selID: "T1"}, "\x1b[", tuiKeys{selID: "T1", esc: 2}, false},
+		{"f", tuiKeys{selID: "T1"}, "f", tuiKeys{selID: "T1", filter: model.StatusInProgress}, false},
+		{"other key", tuiKeys{selID: "T1"}, "x", tuiKeys{selID: "T1"}, false},
+		{"q", tuiKeys{selID: "T1"}, "q", tuiKeys{selID: "T1"}, true},
+		{"ctrl+c", tuiKeys{selID: "T1"}, "\x03", tuiKeys{selID: "T1"}, true},
+	} {
+		k, quit := c.start, false
+		for i := 0; i < len(c.keys) && !quit; i++ {
+			k, quit = k.press(rows, c.keys[i])
+		}
+		if k != c.want || quit != c.quit {
+			t.Errorf("%s: got %+v quit=%v, want %+v quit=%v", c.name, k, quit, c.want, c.quit)
+		}
+	}
+}
+
+// A log that cannot be read says so in the pane instead of looking empty.
+func TestLogStepsShowsAReadError(t *testing.T) {
+	dir := t.TempDir()
+	// A directory where the log should be: it opens, but cannot be read.
+	if err := os.MkdirAll(filepath.Join(dir, "logs", "T1.log"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	steps := logSteps(dir, "T1")
+	if len(steps) != 1 || steps[0].Kind != providers.StepError || !strings.Contains(steps[0].Detail, "reading the log") {
+		t.Errorf("steps = %+v, want one error step", steps)
+	}
+	if steps := logSteps(dir, "missing"); len(steps) != 0 {
+		t.Errorf("no log yet = %+v, want no steps", steps)
+	}
+}
