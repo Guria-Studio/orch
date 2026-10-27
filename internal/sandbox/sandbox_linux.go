@@ -18,7 +18,7 @@ import (
 func ABI() (int, error) {
 	v, err := llsys.LandlockGetABIVersion()
 	if err != nil {
-		return 0, fmt.Errorf("this kernel has no Landlock (%v): it needs Linux 5.19+ with landlock in the lsm= boot list", err)
+		return 0, fmt.Errorf("this kernel has no Landlock: it needs Linux 5.19+ with landlock in the lsm= boot list: %w", err)
 	}
 	return v, nil
 }
