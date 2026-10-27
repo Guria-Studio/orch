@@ -370,7 +370,7 @@ var knownKeys = map[string]bool{
 	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,
 	"guard.secrets":          true, "guard.debug": true,
-	"watch.enabled":          true, "watch.stall_after_s": true,
+	"watch.enabled": true, "watch.stall_after_s": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

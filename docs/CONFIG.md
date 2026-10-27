@@ -879,6 +879,7 @@ take a leaked secret out of its history before unblocking it. `warn` lets the
 work through and lists the findings in the PR body. A finding names the file,
 the line and the kind of thing found, never the matched text. Files outside
 the task's `files` list are already named in the PR body for every task.
+
 ### `watch` — new (#487)
 
 ```yaml
