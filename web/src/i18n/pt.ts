@@ -294,6 +294,8 @@ export const pt = {
   "task.ev.retry": "agendou uma nova tentativa",
   "task.ev.verify_failed": "falhou",
   "task.ev.verify_passed": "passou",
+  "task.ev.agent_stalled": "avisa que o agente parece travado: o log parou",
+  "task.ev.agent_looping": "avisa que o agente parece travado: repete a mesma chamada",
   "task.ev.operator_stop": "parou a tentativa",
   "task.ev.pr_created": "abriu o pull request",
   "task.ev.ci_success": "passou",

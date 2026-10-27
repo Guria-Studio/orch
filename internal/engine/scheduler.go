@@ -202,6 +202,9 @@ type Scheduler struct {
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
 	ciRetryPR map[string]string
+	// watches and lastWatch are the agent watch's (#487), see WatchAgents.
+	watches   map[int]*agentWatch
+	lastWatch time.Time
 	// retryWorktree is the worktree a retry runs in, by task, with the
 	// feedback file saying what failed: the one the poller rebuilt for a CI
 	// retry, or the one a failed local verify kept.

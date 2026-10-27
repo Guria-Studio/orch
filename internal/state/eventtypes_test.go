@@ -98,6 +98,9 @@ var goOnlyEventTypes = map[string]bool{
 	"ci_conflict_retry": true,
 	// A finished task squash-merged into the base locally (#455).
 	"merged_locally": true,
+	// The agent watch's warnings about a running attempt (#487).
+	"agent_stalled": true,
+	"agent_looping": true,
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,
