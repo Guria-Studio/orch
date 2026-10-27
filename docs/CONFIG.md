@@ -853,6 +853,30 @@ and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
 **On in new projects, off when the key is absent**, like `retry.conflict`: a
 config written before #451 never starts writing files into the repository.
 
+### `watch` — new (#487)
+
+```yaml
+watch:
+  enabled: true        # default
+  stall_after_s: 600   # default; 0 leaves stalls unreported
+```
+
+While `orch run` has attempts running it reads the tail of each one's log
+(`<state>/logs/<task>.log`) every 30 seconds and records two events, which
+`orch events` and the task page show:
+
+- **`agent_stalled`**: the log has not grown for `stall_after_s`. An agent
+  waiting on a prompt it cannot get in a headless run looks like this too.
+  It is recorded again only after the log grows and then goes silent again.
+- **`agent_looping`**: one tool call (the same tool on the same command,
+  file or pattern) fills 5 of the attempt's last 20. Recorded once per attempt.
+  It reads the CLIs that stream their steps (claude, codex, opencode); gemini
+  and agy write one object at the end and are covered by the stall check only.
+
+Neither event stops the attempt: `orch task stop --id ID` does, and
+`timeout` still ends it. Keep `stall_after_s` under the task's timeout or the
+timeout fires first.
+
 ### Misc
 
 ```yaml

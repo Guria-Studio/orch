@@ -89,6 +89,7 @@ func Defaults() Config {
 		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 		Update:  Update{CheckCLIs: true},
+		Watch:   Watch{Enabled: true, StallAfterS: 600},
 	}
 }
 
@@ -359,6 +360,7 @@ var knownKeys = map[string]bool{
 	"update.check_clis":          true,
 	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,
+	"watch.enabled":          true, "watch.stall_after_s": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

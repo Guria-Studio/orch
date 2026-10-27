@@ -290,6 +290,8 @@ export const en = {
   "task.ev.retry": "queued a retry",
   "task.ev.verify_failed": "failed",
   "task.ev.verify_passed": "passed",
+  "task.ev.agent_stalled": "says the agent looks stuck: its log went silent",
+  "task.ev.agent_looping": "says the agent looks stuck: it repeats the same call",
   "task.ev.operator_stop": "stopped the attempt",
   "task.ev.pr_created": "opened the pull request",
   "task.ev.ci_success": "passed",

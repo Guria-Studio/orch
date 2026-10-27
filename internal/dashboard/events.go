@@ -2,8 +2,8 @@ package dashboard
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/hectorcanaimero/orch/internal/state"
 )
@@ -36,6 +36,8 @@ var severityByEvent = map[string]string{
 	"verify_failed":     "warn",
 	"verify_passed":     "info",
 	"e2e_report":        "info",
+	"agent_stalled":     "warn",
+	"agent_looping":     "warn",
 }
 
 // iconByEvent is the short marker at the head of the human line. ASCII on
@@ -56,6 +58,8 @@ var iconByEvent = map[string]string{
 	"verify_failed":     "VERIFY",
 	"verify_passed":     "VERIFY",
 	"e2e_report":        "E2E",
+	"agent_stalled":     "WATCH",
+	"agent_looping":     "WATCH",
 }
 
 // eventPayload is one formatted event.
@@ -133,6 +137,16 @@ func eventTail(etype string, extra map[string]any) string {
 			tail += fmt.Sprintf(" (attempt %s)", extraRaw(extra, "attempt"))
 		}
 		return tail
+	case "agent_stalled":
+		if d := formatDuration(extra["silent_s"]); d != "" {
+			return " (silent " + d + ")"
+		}
+		return ""
+	case "agent_looping":
+		if c := extraString(extra, "call"); c != "" {
+			return " (" + c + ")"
+		}
+		return ""
 	case "success":
 		dur := formatDuration(extra["duration_s"])
 		cost := ""
