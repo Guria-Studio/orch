@@ -40,6 +40,9 @@ type WorktreeManager interface {
 	ChangedFiles(ctx context.Context, taskID string) ([]string, error)
 	// Diff is the same work as a patch, for the pre-PR guard (#484).
 	Diff(ctx context.Context, taskID string) (string, error)
+	// BranchConflicts names the files on which the two tasks' branches
+	// conflict with each other (#482).
+	BranchConflicts(ctx context.Context, taskID, otherID string) ([]string, error)
 }
 
 // managerAdapter wraps internal/worktree's Manager in the engine's interface.
@@ -103,4 +106,8 @@ func (a managerAdapter) ChangedFiles(_ context.Context, taskID string) ([]string
 
 func (a managerAdapter) Diff(_ context.Context, taskID string) (string, error) {
 	return a.m.Diff(taskID)
+}
+
+func (a managerAdapter) BranchConflicts(_ context.Context, taskID, otherID string) ([]string, error) {
+	return a.m.BranchConflicts(taskID, otherID)
 }

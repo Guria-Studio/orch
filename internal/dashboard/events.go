@@ -38,6 +38,8 @@ var severityByEvent = map[string]string{
 	"e2e_report":        "info",
 	"agent_stalled":     "warn",
 	"agent_looping":     "warn",
+	"files_overlap":     "warn",
+	"branch_conflict":   "warn",
 }
 
 // iconByEvent is the short marker at the head of the human line. ASCII on
@@ -60,6 +62,8 @@ var iconByEvent = map[string]string{
 	"e2e_report":        "E2E",
 	"agent_stalled":     "WATCH",
 	"agent_looping":     "WATCH",
+	"files_overlap":     "RADAR",
+	"branch_conflict":   "RADAR",
 }
 
 // eventPayload is one formatted event.
@@ -145,6 +149,11 @@ func eventTail(etype string, extra map[string]any) string {
 	case "agent_looping":
 		if c := extraString(extra, "call"); c != "" {
 			return " (" + c + ")"
+		}
+		return ""
+	case "files_overlap", "branch_conflict":
+		if w := extraString(extra, "with"); w != "" {
+			return " (with " + w + ")"
 		}
 		return ""
 	case "success":

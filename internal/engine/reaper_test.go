@@ -514,6 +514,8 @@ type recordingWorktree struct {
 	deps map[string][]string
 	// land is what LandLocally answers.
 	land worktree.Landing
+	// branchConflicts is what BranchConflicts answers, by the other task.
+	branchConflicts map[string][]string
 }
 
 func (w *recordingWorktree) record(name string) {
@@ -592,6 +594,9 @@ func (w *recordingWorktree) ChangedFiles(context.Context, string) ([]string, err
 	return w.changed, nil
 }
 func (w *recordingWorktree) Diff(context.Context, string) (string, error) { return w.diff, nil }
+func (w *recordingWorktree) BranchConflicts(_ context.Context, _, otherID string) ([]string, error) {
+	return w.branchConflicts[otherID], nil
+}
 
 func TestWorktreeCallerContract(t *testing.T) {
 	tests := []struct {

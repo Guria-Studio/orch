@@ -101,12 +101,20 @@ func (m *Manager) LandLocally(taskID, baseBranch, message string) (Landing, erro
 	return Landing{Commit: commit}, nil
 }
 
+// BranchConflicts names the files on which taskID's branch and otherID's
+// would conflict if both were merged, without touching any checkout: the
+// conflict radar's PR-vs-PR check (#482). Nil when they merge cleanly.
+func (m *Manager) BranchConflicts(taskID, otherID string) ([]string, error) {
+	_, conflicts, err := m.mergeTree(taskID, m.BranchName(otherID), m.BranchName(taskID))
+	return conflicts, err
+}
+
 // mergeTree merges branch into base without a checkout, returning the merged
 // tree, or the conflicting paths.
 func (m *Manager) mergeTree(taskID, base, branch string) (tree string, conflicts []string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
 	defer cancel()
-	// #nosec G204 -- fixed git subcommand; base is a hash, branch orch/<task id>.
+	// #nosec G204 -- fixed git subcommand; base is a hash or orch/<task id>, branch orch/<task id>.
 	cmd := exec.CommandContext(ctx, "git", "merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", base, branch)
 	cmd.Dir = m.root
 	var stderr bytes.Buffer
@@ -120,7 +128,7 @@ func (m *Manager) mergeTree(taskID, base, branch string) (tree string, conflicts
 	case errors.As(runErr, &exit) && exit.ExitCode() == 1 && len(fields) > 1:
 		return "", fields[1:], nil
 	}
-	return "", nil, fmt.Errorf("worktree: merging %s into the base: %w: %s", branch, runErr, strings.TrimSpace(stderr.String()))
+	return "", nil, fmt.Errorf("worktree: merging %s into %s: %w: %s", branch, base, runErr, strings.TrimSpace(stderr.String()))
 }
 
 // dropLanded removes a landed task's worktree and branch.

@@ -294,6 +294,8 @@ export const pt = {
   "task.ev.retry": "agendou uma nova tentativa",
   "task.ev.verify_failed": "falhou",
   "task.ev.verify_passed": "passou",
+  "task.ev.files_overlap": "avisa que esta tarefa compartilha arquivos com outra em andamento",
+  "task.ev.branch_conflict": "avisa que este PR conflita com outro aberto",
   "task.ev.agent_stalled": "avisa que o agente parece travado: o log parou",
   "task.ev.agent_looping": "avisa que o agente parece travado: repete a mesma chamada",
   "task.ev.operator_stop": "parou a tentativa",
