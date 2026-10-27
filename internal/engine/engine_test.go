@@ -806,6 +806,7 @@ func waitForExit(t *testing.T, pid int, within time.Duration) {
 // TestMain fails loudly if a test leaks a process, rather than letting the
 // next run inherit it.
 func TestMain(m *testing.M) {
+	runAsSandboxLauncher()
 	code := m.Run()
 	if leaked := leakedChildren(); len(leaked) > 0 {
 		fmt.Fprintf(os.Stderr, "engine tests leaked child processes: %v\n", leaked)

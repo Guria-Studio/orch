@@ -125,6 +125,7 @@ internal/
   doctor/            — `orch doctor` checks
   explain/           — `orch explain` / orch_context
   notify/            — Slack/Discord webhooks, digest
+  sandbox/           — dispatch.sandbox: Landlock policy for a task agent (pure For) and the `orch sandbox-exec` launcher that applies it and execs the CLI; Linux only
   tunnel/            — dashboard tunnel supervisor: Cloudflare quick tunnel (cloudflared) + its install guide
   telemetry/         — opt-in anonymous telemetry (off by default)
   update/            — new-release notice, critical-release gate for run/dashboard, and `orch upgrade` (docs/RELEASING.md)

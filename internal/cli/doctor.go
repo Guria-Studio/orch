@@ -17,6 +17,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/project"
 	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/hectorcanaimero/orch/internal/sandbox"
 	"github.com/hectorcanaimero/orch/internal/scaffold"
 	"github.com/hectorcanaimero/orch/internal/tunnel"
 )
@@ -153,6 +154,8 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			checks = append(checks, doctor.CheckPermissions(usedBackends(tasks, rtr, paths.TasksJSON()), paths.Root, agySettingsPath(), doctor.CodexExecHelp)...)
 			checks = append(checks, doctor.CheckReadiness(hydrateForDoctor(context.Background(), paths, cfg, tasks))...)
 			checks = append(checks, doctor.CheckComposeIsolation(paths.Root, cfg.Dispatch.IsolateCompose))
+			abi, abiErr := sandbox.ABI()
+			checks = append(checks, doctor.CheckSandbox(cfg.Dispatch.Sandbox, abi, abiErr, sandbox.MinABI))
 			checks = append(checks, doctor.CheckConfiguredCommands(paths.Root, cfg)...)
 			checks = append(checks, doctor.CheckTunnel(cfg.Tunnel.Enabled, tunnel.LookupBinary(""), tunnel.ConfigBlocker(), tunnel.LookupBinary(tunnel.TailscaleCommand)))
 			checks = append(checks, doctor.CheckSQLite(context.Background(), paths.SQLitePath(cfg)))

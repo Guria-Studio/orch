@@ -14,6 +14,7 @@ import (
 	"github.com/hectorcanaimero/orch/internal/cli"
 	"github.com/hectorcanaimero/orch/internal/publish"
 	"github.com/hectorcanaimero/orch/internal/publish/cloudfake"
+	"github.com/hectorcanaimero/orch/internal/sandbox"
 )
 
 // TestMain lets testscript scripts `exec orch ...` in-process — cheaper and
@@ -106,6 +107,11 @@ func TestCLICommands(t *testing.T) {
 				}
 				_, err = fs.Stat(b, "stakeholder.html")
 				return err == nil, nil
+			}
+			// [landlock]: this kernel can confine a command (#481), so
+			// orch sandbox-exec can be run for real.
+			if cond == "landlock" {
+				return sandbox.Available() == nil, nil
 			}
 			return false, fmt.Errorf("unknown condition %q", cond)
 		},
