@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>orch — run AI agents as a team</title>
-  <meta name="description" content="orch runs your AI coding agents in parallel over a task graph, pauses a provider when its budget window fills, and gives your client a live page instead of a status thread. One Go binary, local-first, MIT.">
+  <meta name="description" content="orch runs your AI coding agents in parallel over a task graph, checks each one's work before it is pushed, pauses a provider when its budget window fills, and gives your client a live page instead of a status thread. One Go binary, local-first, MIT.">
   <meta property="og:title" content="orch — run AI agents as a team">
   <meta property="og:description" content="Parallel AI agents over a task graph, a budget window per provider, and a live page for your client. One Go binary.">
   <meta property="og:image" content="https://tryorch.us/assets/stakeholder.png">
@@ -42,12 +42,12 @@
   <main id="main">
     <section class="hero wrap" aria-labelledby="hero-title">
       <h1 id="hero-title">Run AI agents as a team. Show your client a live page, not a status thread.</h1>
-      <p class="lede">orch walks a graph of tasks, hands each one to the coding agent you route it to — Claude Code, Codex, OpenCode — in parallel, pauses a provider when its budget window fills, and publishes a page your client can open to see where the work stands.</p>
+      <p class="lede">orch walks a graph of tasks and hands each one to the coding agent you route it to — Claude Code, Codex, Gemini, OpenCode, Antigravity or Muse — in parallel, each in its own git worktree. It checks every change before it is pushed, pauses a provider when its budget window fills, and publishes a page your client can open to see where the work stands.</p>
       <div class="hero-actions">
         <a class="button" href="#install">Install orch</a>
         <a class="button quiet" href="playground/">Try a spec in your browser</a>
       </div>
-      <p class="hero-note">Already installed? <code>orch dashboard --demo</code> shows a full project without touching yours.</p>
+      <p class="hero-note">Already installed? <code>orch start "a habit tracker with streaks"</code> goes from one sentence to agents working. <code>orch dashboard --demo</code> shows a finished project without touching yours.</p>
 
       <figure class="run" aria-labelledby="run-caption">
         <div class="run-head">
@@ -70,9 +70,9 @@
         <li class="step">
           <div class="step-text">
             <h3>Write the work down</h3>
-            <p>Describe the work as markdown specs — phases, packages, tasks, the model for each and what it depends on. <code>orch atomize</code> turns them into <code>tasks.json</code> and shows you the diff before anything is written. Or start from one of five <a href="templates/">project templates</a>, or <a href="playground/">try a spec in your browser</a>.</p>
+            <p>Start from an idea: <code>orch start</code> sets the project up with the agent CLIs you have, and its planning skills take the idea through a PRD, an architecture and specs to a task graph — each phase a vertical slice that opens with a walking skeleton. Or write the specs yourself — phases, packages, tasks, the model for each and what it depends on — and <code>orch atomize</code> turns them into <code>tasks.json</code>, showing the diff before anything is written. There are also five <a href="templates/">project templates</a>, and you can <a href="playground/">try a spec in your browser</a>.</p>
           </div>
-<pre class="term" tabindex="0"><code><span class="c">$</span> orch init --template nextjs-saas
+<pre class="term" tabindex="0"><code><span class="c">$</span> orch start "a SaaS starter with auth and billing"
 <span class="c">$</span> orch tasks
 Tasks (6 shown)
 ID     STATUS  BACKEND/MODEL             DEPS
@@ -86,9 +86,11 @@ F3.T1  todo    claude/claude-sonnet-4-6  [F0.T1 F2.T1]</code></pre>
         <li class="step">
           <div class="step-text">
             <h3>Route each task to an agent</h3>
-            <p><code>model_router.yaml</code> maps every model name to the CLI that runs it: <code>claude</code>, <code>codex</code>, <code>opencode</code>, <code>gemini</code> or <code>agy</code>, with your own logins and your own keys. Concurrency caps and a rolling token budget per provider decide how much runs at once and when to stop.</p>
+            <p><code>model_router.yaml</code> maps every model name to the CLI that runs it — <code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>opencode</code>, <code>agy</code> or <code>muse</code> — with your own logins and your own keys. <code>orch init</code> asks each installed CLI which models it really has. Concurrency caps and a rolling token budget per provider decide how much runs at once; when a provider runs out of quota, its tasks fail over to another. <code>orch estimate</code> says what the next run will cost and take before it starts, and <code>orch router suggest</code> tells you which route has worked for which kind of task.</p>
           </div>
-<pre class="term" tabindex="0"><code><span class="c">$</span> orch explain
+<pre class="term" tabindex="0"><code><span class="c">$</span> orch doctor
+Ready to `orch run`.
+<span class="c">$</span> orch explain
 Tasks: 6 total, 0 done (0%)
   todo         6
   blocked      0
@@ -99,21 +101,45 @@ Ready to dispatch: 1
         <li class="step">
           <div class="step-text">
             <h3>Run it</h3>
-            <p><code>orch run</code> dispatches every ready task at once, each in its own git worktree and branch. It opens a pull request per task, watches CI, retries what failed for a reason worth retrying, and blocks — with the reason written down — what should not be retried. Ctrl+C drains: nothing new starts, work in flight finishes.</p>
+            <p><code>orch run</code> dispatches every ready task at once, each in its own git worktree and branch. Before anything leaves your machine, the task's work runs the repository's checks and a read-only review by a different provider; what fails goes back to the same agent. Then it opens a pull request per task — or, with <code>vcs.provider: local</code>, merges into your branch with no remote at all — watches CI, retries what failed for a reason worth retrying, and blocks, with the reason written down, what should not be retried. Ctrl+C drains: nothing new starts, work in flight finishes.</p>
           </div>
-<pre class="term" tabindex="0"><code><span class="c">$</span> orch run --worktree-mode
-<span class="c">$</span> orch status
+<pre class="term" tabindex="0"><code><span class="c">$</span> orch run
+<span class="c">$</span> orch tui
 <span class="c">$</span> orch events F2.T2</code></pre>
         </li>
         <li class="step">
           <div class="step-text">
+            <h3>Steer it while it runs</h3>
+            <p>Follow any agent's steps live — tool calls, text, errors. Stop a task, hold it, or redirect it with a note that reaches its next attempt. Review a finished task's diff in the dashboard and accept it or send it back. Add tasks or edit them, from the CLI or the dashboard, and the running <code>orch run</code> picks them up. What one task learns the hard way is written to <code>.orch/knowledge/</code> and reaches the prompts of the tasks after it.</p>
+          </div>
+<pre class="term" tabindex="0"><code><span class="c">$</span> orch task stop --id F2.T2 --note "use the existing auth client"
+<span class="c">$</span> orch task accept --id F1.T2
+<span class="c">$</span> orch task add --id F3.T2 --title "Billing webhooks" --model claude/claude-sonnet-4-6 --deps F3.T1
+<span class="c">$</span> orch knowledge list</code></pre>
+        </li>
+        <li class="step">
+          <div class="step-text">
             <h3>Hand your client a link</h3>
-            <p><code>orch publish</code> writes the client page as a static site — phases, blockers in plain language, how fresh the numbers are — to a folder or a <code>gh-pages</code> branch, and keeps it current with <code>--watch</code>. The page it writes has no login and no API: it is files. If your client should watch it live instead, <code>orch dashboard --tunnel</code> opens a Cloudflare quick tunnel whose URL only works with the token it prints.</p>
+            <p><code>orch publish</code> writes the client page as a static site — phases, blockers in plain language, how fresh the numbers are — to a folder or a <code>gh-pages</code> branch, and keeps it current with <code>--watch</code>. The page it writes has no login and no API: it is files. If your client should watch it live instead, the dashboard's Share button opens a Cloudflare quick tunnel or Tailscale, and gives you a client link that only works with its token.</p>
           </div>
 <pre class="term" tabindex="0"><code><span class="c">$</span> orch publish --to git --watch
 <span class="c">$</span> orch dashboard --tunnel</code></pre>
         </li>
       </ol>
+    </section>
+
+    <section class="limits checks wrap" id="checks" aria-labelledby="checks-title">
+      <h2 id="checks-title">What orch checks so you do not have to</h2>
+      <dl>
+        <div><dt>A second opinion before the push.</dt><dd>The local verify runs your tests and linters in the task's worktree and asks another provider to review the diff. Only work that passes is pushed.</dd></div>
+        <div><dt>Tests first, if you want them.</dt><dd>With <code>dispatch.tdd</code> the agent writes one failing test per acceptance criterion before the code. <code>verify.e2e</code> brings the task's app up on its own port and runs Playwright against it, keeping the screenshot and video of what failed.</dd></div>
+        <div><dt>No secrets in a pull request.</dt><dd>The pre-PR guard scans each diff: an API key, a private key or a <code>.env</code> file blocks the task; a stray <code>console.log</code> or <code>debugger</code> gets a warning.</dd></div>
+        <div><dt>Parallel tasks that do not collide.</dt><dd>The conflict radar compares a task's files with the ones already running before it dispatches, and each new PR with the open ones. Warn, or wait your turn.</dd></div>
+        <div><dt>An agent that stalls is noticed.</dt><dd>A log that goes silent or an agent repeating the same call is flagged while the run goes on, with the command to stop it.</dd></div>
+        <div><dt>Committed work is never thrown away.</dt><dd>A retry keeps the earlier attempt's commits on their own branch, and a PR that conflicts with its base gets a conflict retry instead of a block.</dd></div>
+        <div><dt>Agents stay in their folder.</dt><dd>On Linux, <code>dispatch.sandbox</code> confines each agent to its worktree with Landlock. It is opt-in and does not limit the network.</dd></div>
+        <div><dt>Ready before you run.</dt><dd><code>orch doctor</code> ends with a verdict — ready, or the first blocker and how to fix it — and <code>--smoke</code> sends a real throwaway task through every installed CLI.</dd></div>
+      </dl>
     </section>
 
     <section class="client-view wrap" id="client" aria-labelledby="client-title">
@@ -136,8 +162,8 @@ Ready to dispatch: 1
     <section class="client-view operator-view wrap" id="operator" aria-labelledby="operator-title">
       <div class="client-text">
         <h2 id="operator-title">What you see</h2>
-        <p>Your own screen answers three questions: which agents are working right now, what is waiting for you, and how much of each provider's budget window is left. Phases fill task by task as the run moves.</p>
-        <p class="operator-more"><kbd>Ctrl</kbd> <kbd>K</kbd> opens a palette that jumps to a task, filters the board or copies the CLI command for what you are looking at. When a run ends it leaves a receipt — tasks, wall time, agent time and spend per provider, marked reported or estimated — that you can copy as Markdown.</p>
+        <p>Your own screen answers three questions: which agents are working right now, what is waiting for you, and how much of each provider's budget window is left. Work shows the graph as a list, a board, phases and pace; Usage splits tokens by model, task and attempt; System lists the tools you are missing and how to install each.</p>
+        <p class="operator-more"><kbd>Ctrl</kbd> <kbd>K</kbd> opens a palette that jumps to a task, filters the board or copies the CLI command for what you are looking at. When a run ends it leaves a receipt — tasks, wall time, agent time and spend per provider, and a summary in plain words — that you can copy as Markdown or an image. In a terminal, <code>orch tui</code> shows the same run; to your own agent, <code>orch mcp</code> exposes it as tools.</p>
       </div>
       <figure class="shot">
         <img src="assets/operator.png" width="1440" height="980" loading="lazy" alt="The Now screen of a running project: three agents working with their elapsed times, two tasks needing attention, progress per phase, the last run's receipt and the budget window per provider.">
@@ -150,7 +176,7 @@ Ready to dispatch: 1
         <div><dt>It runs on your machine.</dt><dd>No daemon and no hosted service. You start <code>orch run</code>; it stops when the queue is empty or you stop it.</dd></div>
         <div><dt>The agents are yours to install.</dt><dd>orch drives the CLIs you already use and are signed in to. It never holds a model key.</dd></div>
         <div><dt>It is one operator's tool.</dt><dd>Several projects at once, yes. Several people editing the same plan, no — that is a project tracker's job.</dd></div>
-        <div><dt>Gemini needs one decision from you.</dt><dd>Gemini CLI refuses to run in a directory it was not told to trust, and every task gets a fresh worktree. orch does not switch that check off for you.</dd></div>
+        <div><dt>It needs git, not GitHub.</dt><dd>Pull requests go through <code>gh</code> or <code>glab</code>. Without a remote, <code>vcs.provider: local</code> merges finished tasks into your branch here.</dd></div>
       </dl>
     </section>
 
@@ -167,7 +193,7 @@ make build
 ./bin/orch --version</code></pre>
         <p>Needs Go 1.25+ and pnpm.</p>
       </details>
-      <p class="install-next">Then, in a project: <code>orch init</code>, <code>orch install-skills --all</code> to give your agent the planning skills, and <code>orch doctor</code> to check that every CLI your tasks route to is installed and signed in. <code>orch dashboard --demo</code> opens a finished project of its own, so you can look at the dashboard before you run anything. The <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">manual</a> walks through the rest.</p>
+      <p class="install-next">Then, in a git repository: <code>orch start "what you want to build"</code> sets the project up, plans it and runs it, asking before it spends. To go step by step instead: <code>orch init</code>, <code>orch install-skills --all</code> to give your agent the planning skills, and <code>orch doctor</code> to check that every CLI your tasks route to is installed and signed in. <code>orch dashboard --demo</code> opens a finished project of its own, so you can look at the dashboard before you run anything. The <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">manual</a> walks through the rest.</p>
     </section>
     <section class="follow wrap" id="follow" aria-labelledby="follow-title">
       <h2 id="follow-title">Follow the build</h2>
