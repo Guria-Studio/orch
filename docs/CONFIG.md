@@ -961,6 +961,35 @@ Neither event stops the attempt: `orch task stop --id ID` does, and
 `timeout` still ends it. Keep `stall_after_s` under the task's timeout or the
 timeout fires first.
 
+### `radar` — new (#482)
+
+```yaml
+radar: warn   # default; warn | serialize | off
+```
+
+The conflict radar looks for parallel tasks that will step on each other,
+before the merge does.
+
+- **Before dispatch**: a task about to start whose `files` overlap those of a
+  task already running is reported with a `files_overlap` event naming the
+  running task and the shared entries. `warn` dispatches it anyway;
+  `serialize` holds it until the other task is no longer running (a
+  stalled-run notice names the wait `files-overlap:<task>`); the event is
+  recorded once per wait, not per tick. A task with no `files`
+  is never held. Two paths overlap when they are equal or one is a directory
+  (`src/`) holding the other; a glob against a path is matched exactly, and
+  two globs overlap when one's directory before the first wildcard contains
+  the other's, so `src/*.go` and `src/*.ts` count as overlapping.
+- **After the PR opens** (`vcs.auto_pr`): the task's branch is merged, without
+  a checkout (`git merge-tree`, git 2.38 or later), against the branch of every
+  other task whose PR is open and waiting on CI, and each pair that conflicts
+  is recorded as a `branch_conflict` event naming the other task, its PR and
+  the files. Whichever of the two merges second will need its branch brought
+  up to date (`retry.conflict` does that once it conflicts with the base).
+  Nothing is held or blocked by this.
+
+`off` turns both off. The events show in `orch events` and on the task page.
+
 ### Misc
 
 ```yaml

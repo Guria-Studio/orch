@@ -310,6 +310,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		})
 		scheduler.VCS = provider
 		scheduler.CIRecorder = backend
+		scheduler.OpenPRs = backend
 	}
 
 	runner := engine.NewRunner(scheduler)

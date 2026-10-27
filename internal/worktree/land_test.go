@@ -93,3 +93,36 @@ func TestLandLocally(t *testing.T) {
 		t.Errorf("checkout on %s, want side", b)
 	}
 }
+
+// BranchConflicts (#482) names the files two task branches both changed
+// differently, and nothing for branches that merge cleanly.
+func TestBranchConflicts(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	work := func(id, file, body string) {
+		t.Helper()
+		wt, err := m.Create(id, "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(wt, file), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.CommitPending(id, id+" work"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	work("A", "README.md", "from A\n")
+	work("B", "README.md", "from B\n")
+	work("C", "c.txt", "from C\n")
+
+	if got, err := m.BranchConflicts("A", "B"); err != nil || len(got) != 1 || got[0] != "README.md" {
+		t.Errorf("BranchConflicts(A, B) = %v, %v; want README.md", got, err)
+	}
+	if got, err := m.BranchConflicts("A", "C"); err != nil || len(got) != 0 {
+		t.Errorf("BranchConflicts(A, C) = %v, %v; want none", got, err)
+	}
+	if _, err := m.BranchConflicts("A", "missing"); err == nil {
+		t.Error("BranchConflicts against a branch that does not exist: want an error")
+	}
+}
