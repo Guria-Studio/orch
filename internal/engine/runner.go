@@ -182,6 +182,7 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 		// After the reap, so a child that finished on its own is finished
 		// as what it was, not as stopped.
 		r.takeStopRequests(ctx)
+		s.WatchAgents(ctx, r.now())
 
 		// CI runs on its own interval, after the reap that may have just
 		// opened a PR. A sweep that cannot happen is logged and the loop

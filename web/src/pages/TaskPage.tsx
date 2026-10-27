@@ -69,6 +69,8 @@ const DOT: Record<string, string> = {
   ci_failure_retry: "bg-status-blocked",
   ci_conflict_retry: "bg-status-blocked",
   budget_pause: "bg-status-blocked",
+  agent_stalled: "bg-status-blocked",
+  agent_looping: "bg-status-blocked",
 }
 
 interface TimelineItem {

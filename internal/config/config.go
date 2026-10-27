@@ -56,6 +56,7 @@ type Config struct {
 	Update               Update         `yaml:"update"`
 	Knowledge            Knowledge      `yaml:"knowledge"`
 	Guard                Guard          `yaml:"guard"`
+	Watch                Watch          `yaml:"watch"`
 }
 
 // Guard checks a task's diff after its agent exits cleanly and before orch
@@ -74,6 +75,15 @@ func (g Guard) Mode(rule string) string {
 		return g.Secrets
 	}
 	return g.Debug
+}
+
+// Watch is the agent watch (#487): while an attempt runs, orch reads its log
+// and records agent_stalled and agent_looping events. It never stops one.
+type Watch struct {
+	Enabled bool `yaml:"enabled"`
+	// StallAfterS is how long a silent log takes to count as stalled; 0
+	// leaves stalls unreported.
+	StallAfterS int `yaml:"stall_after_s"`
 }
 
 // Update is about the agent CLIs orch dispatches to (#448): whether `orch

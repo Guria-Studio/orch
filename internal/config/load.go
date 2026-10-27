@@ -90,6 +90,7 @@ func Defaults() Config {
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 		Update:  Update{CheckCLIs: true},
 		Guard:   Guard{Secrets: "block", Debug: "warn"},
+		Watch:   Watch{Enabled: true, StallAfterS: 600},
 	}
 }
 
@@ -369,6 +370,7 @@ var knownKeys = map[string]bool{
 	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,
 	"guard.secrets":          true, "guard.debug": true,
+	"watch.enabled":          true, "watch.stall_after_s": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so
