@@ -52,7 +52,7 @@ func TestConfigEditSavesThroughConfigSet(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PATCH = %d: %s", rec.Code, rec.Body)
 	}
-	if strings.Contains(rec.Body.String(), "secret") {
+	if strings.Contains(rec.Body.String(), "hooks.slack.test/T0/secret") {
 		t.Error("the answer echoed the webhook")
 	}
 	res, err := config.Load(filepath.Join(root, "config.yaml"), root)

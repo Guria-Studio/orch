@@ -60,6 +60,8 @@ type InFlight struct {
 	// Conflict is the merge this attempt was asked to resolve (#438), nil
 	// for any other attempt; a resolved one becomes a draft lesson (#451).
 	Conflict *prompt.Conflict
+	// GuardWarnings is what the pre-PR guard warned about, for the PR body.
+	GuardWarnings []string
 }
 
 // SchedulerOptions configures one run.

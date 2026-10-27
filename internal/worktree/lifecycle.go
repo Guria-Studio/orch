@@ -388,6 +388,18 @@ func (m *Manager) ChangedFiles(taskID string) ([]string, error) {
 	return strings.FieldsFunc(out, func(r rune) bool { return r == 0 }), nil
 }
 
+// Diff is the patch of the task's own work since Create, leaving out what
+// the dependency merges brought in, like ChangedFiles.
+func (m *Manager) Diff(taskID string) (string, error) {
+	m.mu.Lock()
+	wtPath, start := m.active[taskID], m.start[taskID]
+	m.mu.Unlock()
+	if wtPath == "" || start == "" {
+		return "", nil
+	}
+	return m.run(taskID, "git", "-C", wtPath, "diff", start, "HEAD")
+}
+
 // Recreate checks out the already-pushed branch orch/<taskID> into a fresh
 // worktree at the usual path, for CI re-dispatch. Unlike Create, it does
 // not branch off a base — it fetches and reuses the remote branch a prior

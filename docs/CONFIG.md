@@ -853,6 +853,33 @@ and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
 **On in new projects, off when the key is absent**, like `retry.conflict`: a
 config written before #451 never starts writing files into the repository.
 
+### `guard` — new (#484)
+
+```yaml
+guard:
+  secrets: block   # default; block | warn | off
+  debug: warn      # default; block | warn | off
+```
+
+The pre-PR guard reads the diff of a task's own work (not what its dependency
+merges brought in) after its agent exits cleanly, after the local
+[`verify`](#verify--new) passes, and before orch pushes it. Worktree mode only.
+
+- **`secrets`**: private keys, known token formats (GitHub, AWS, Slack,
+  Anthropic, OpenAI, Google, Stripe live) on added lines, and any `.env` /
+  `.env.*` file the work changes (`.env.example`, `.sample`, `.template` and
+  `.dist` are left alone). No entropy check, so a secret in an unknown format
+  gets past it.
+- **`debug`**: `console.log(`, a lone `debugger`, `breakpoint()` /
+  `pdb.set_trace()`, `binding.pry`, `dbg!(`.
+
+`block` keeps the work off the remote and blocks the task with the findings
+as its reason; the work stays committed in the local `orch/<task>` branch, so
+take a leaked secret out of its history before unblocking it. `warn` lets the
+work through and lists the findings in the PR body. A finding names the file,
+the line and the kind of thing found, never the matched text. Files outside
+the task's `files` list are already named in the PR body for every task.
+
 ### Misc
 
 ```yaml
