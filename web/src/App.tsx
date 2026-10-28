@@ -28,6 +28,7 @@ import { SkillsPage } from "@/pages/SkillsPage"
 import { KnowledgePage } from "@/pages/KnowledgePage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { UsagePage } from "@/pages/UsagePage"
+import { WelcomePage } from "@/pages/WelcomePage"
 import { TunnelPage } from "@/pages/TunnelPage"
 
 const queryClient = new QueryClient({
@@ -88,6 +89,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route element={<Shell />}>
         {Object.entries(PAGES).map(([path, element]) => (
           <Route key={path} path={path} element={element} />

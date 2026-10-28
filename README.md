@@ -37,6 +37,14 @@ route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in 
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+orch dashboard            # outside a project: the welcome page walks you through it
+```
+
+Run outside a project, `orch dashboard` opens a welcome page: it checks your AI
+CLIs, sets up a folder, lets claude plan your idea, shows the tasks and their
+estimate, and runs the first ones. In a terminal the same path is:
+
+```bash
 orch dashboard --demo     # a full synthetic project; touches nothing of yours
 cd my-project             # a git repository
 orch start "what you want to build"

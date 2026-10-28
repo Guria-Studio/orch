@@ -87,3 +87,5 @@ case ":$PATH:" in
   *) echo "warning: ${INSTALL_DIR} is not on your PATH — add it, e.g.:" >&2
      echo "    export PATH=\"${INSTALL_DIR}:\$PATH\"" >&2 ;;
 esac
+
+info "Next: run \`orch dashboard\` and open the page it prints — it walks you through your first project."

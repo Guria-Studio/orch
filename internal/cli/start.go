@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hectorcanaimero/orch/internal/atomize"
+	"github.com/hectorcanaimero/orch/internal/config"
 	"github.com/hectorcanaimero/orch/internal/graph"
 	"github.com/hectorcanaimero/orch/internal/model"
 	"github.com/hectorcanaimero/orch/internal/project"
@@ -84,15 +85,9 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		return fmt.Errorf("resolving %s: %w", root, err)
 	}
 
-	var installed []string
-	for _, b := range []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy, model.BackendMuse} {
-		if router.OnPath(b) {
-			installed = append(installed, string(b))
-		}
-	}
+	installed := installedCLIs()
 	if len(installed) == 0 {
-		return withExitCode(1, errors.New("no AI CLI on PATH (claude, codex, gemini, opencode, agy or muse); "+
-			"install one — claude plans the work: https://docs.anthropic.com/en/docs/claude-code"))
+		return withExitCode(1, errNoCLI)
 	}
 	if err := exec.Command("git", "-C", root, "rev-parse", "--git-dir").Run(); err != nil { // #nosec G204 -- fixed git subcommand on the project root
 		return withExitCode(1, fmt.Errorf("%s is not a git repository (%w); orch gives each task its own branch — run `git init` there first", root, err))
@@ -104,27 +99,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	_, tasksErr := os.Stat(filepath.Join(root, "tasks.json"))
 	_, orchErr := os.Stat(filepath.Join(root, ".orchestrator"))
 	if tasksErr != nil && orchErr != nil {
-		lists, failed := scaffold.DiscoverModels(cmd.Context(), router.OnPath)
-		tiers, err := scaffold.InstalledTierDefaults(router.OnPath, lists)
-		if err != nil {
-			return withExitCode(1, err)
-		}
-		res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoSampleTask: true})
-		if err != nil {
-			return withExitCode(1, fmt.Errorf("scaffolding %s: %w", root, err))
-		}
-		say("✓ orch project created in %s (premium %s · standard %s · cheap %s)",
-			res.Root, orBlankTier(tiers["premium"]), orBlankTier(tiers["standard"]), orBlankTier(tiers["cheap"]))
-		routes, err := scaffold.SeedInstalledRoutes(root, router.OnPath, lists)
-		if err != nil {
-			return withExitCode(1, fmt.Errorf("adding the routes of the installed CLIs: %w", err))
-		}
-		say("✓ model_router.yaml: %d routes for the CLIs on PATH", len(routes))
-		for _, line := range scaffold.DiscoverySummary(router.OnPath, lists, failed) {
-			say("· models: %s", line)
-		}
-		say("%s", reportFindingsNotice)
-		if err := runLocallyWhenNoForge(root, true, say); err != nil {
+		if err := scaffoldForStart(cmd.Context(), root, say); err != nil {
 			return withExitCode(1, err)
 		}
 	}
@@ -172,53 +147,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 		say("tasks.json already has %d tasks: planning skipped (--replan plans again).", len(tf.Tasks))
 	}
 
-	rtr, err := router.Load(paths.RouterYAML())
-	if err != nil {
-		return withExitCode(1, err)
-	}
-	packaged, err := scaffold.PackagedRouter()
-	if err != nil {
-		return withExitCode(1, err)
-	}
-	if moved := rerouteToInstalled(&tf, rtr, packaged, router.OnPath, say); moved > 0 {
-		if _, err := atomize.Apply(paths.TasksJSON(), tf, true); err != nil {
-			return withExitCode(1, err)
-		}
-	}
-	// A model on an installed CLI that the router lacks gets its route, as
-	// `orch router add-missing` would add it.
-	if missing := rtr.MissingModels(tf.Tasks); len(missing) > 0 {
-		added, _, err := router.AddMissing(paths.RouterYAML(), missing, model.TierStandard)
-		if err != nil {
-			return withExitCode(1, err)
-		}
-		if len(added) > 0 {
-			say("✓ model_router.yaml: added %s (tier standard; review it)", strings.Join(added, ", "))
-		}
-		if rtr, err = router.Load(paths.RouterYAML()); err != nil {
-			return withExitCode(1, err)
-		}
-	}
-	var problems []string
-	for _, p := range graph.Validate(tf.Tasks, rtr.Keys()) {
-		if p.Severity == graph.SeverityError {
-			problems = append(problems, p.Message)
-		}
-	}
-	if len(problems) > 0 {
-		for _, p := range problems {
-			say("✗ %s", p)
-		}
-		return withExitCode(1, fmt.Errorf("tasks.json has %d problem(s); fix them (`orch validate` lists them) and run `orch start` again", len(problems)))
-	}
-	say("✓ tasks.json: %s, DAG valid, every model routed", plural(len(tf.Tasks), "task"))
-	// orch's rules for the CLIs the plan routes to, now that it is routed
-	// (#400). --yes writes them, agy's in the user's home included.
-	if err := grantPermissions(ask, out, root, usedBackends(tf.Tasks, rtr, paths.TasksJSON()), noPerms); err != nil {
-		return withExitCode(1, err)
-	}
-
-	ready, err := printStartEstimate(cmd.Context(), &scoped, out)
+	ready, err := readyPlan(cmd.Context(), &scoped, paths, tf, ask, out, noPerms)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -427,4 +356,105 @@ func dashboardURL(r io.Reader, wait time.Duration) string {
 	case <-time.After(wait):
 		return ""
 	}
+}
+
+// errNoCLI is what `orch start` and the welcome page say when no AI CLI is
+// installed: claude first, since it is the one that plans.
+var errNoCLI = errors.New("no AI CLI on PATH (claude, codex, gemini, opencode, agy or muse); " +
+	"install one — claude plans the work: https://docs.anthropic.com/en/docs/claude-code")
+
+// startBackends are the CLIs orch dispatches to, in the order it names them.
+var startBackends = []model.Backend{model.BackendClaude, model.BackendCodex, model.BackendGemini, model.BackendOpencode, model.BackendAgy, model.BackendMuse}
+
+// installedCLIs names the backends on PATH.
+func installedCLIs() []string {
+	var installed []string
+	for _, b := range startBackends {
+		if router.OnPath(b) {
+			installed = append(installed, string(b))
+		}
+	}
+	return installed
+}
+
+// scaffoldForStart creates a project at root with every default and no
+// question: models from the CLIs on PATH, no sample task, and agents in the
+// checkout when there is nowhere to open a pull request.
+func scaffoldForStart(ctx context.Context, root string, say func(string, ...any)) error {
+	lists, failed := scaffold.DiscoverModels(ctx, router.OnPath)
+	tiers, err := scaffold.InstalledTierDefaults(router.OnPath, lists)
+	if err != nil {
+		return err
+	}
+	res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoSampleTask: true})
+	if err != nil {
+		return fmt.Errorf("scaffolding %s: %w", root, err)
+	}
+	say("✓ orch project created in %s (premium %s · standard %s · cheap %s)",
+		res.Root, orBlankTier(tiers["premium"]), orBlankTier(tiers["standard"]), orBlankTier(tiers["cheap"]))
+	routes, err := scaffold.SeedInstalledRoutes(root, router.OnPath, lists)
+	if err != nil {
+		return fmt.Errorf("adding the routes of the installed CLIs: %w", err)
+	}
+	say("✓ model_router.yaml: %d routes for the CLIs on PATH", len(routes))
+	for _, line := range scaffold.DiscoverySummary(router.OnPath, lists, failed) {
+		say("· models: %s", line)
+	}
+	say("%s", reportFindingsNotice)
+	return runLocallyWhenNoForge(root, true, say)
+}
+
+// readyPlan takes a planned tasks.json to dispatchable: tasks moved to an
+// installed CLI, missing routes added, the DAG validated, orch's agent rules
+// granted (ask nil grants without asking), and the estimate printed. It
+// returns how many tasks a run would dispatch.
+func readyPlan(ctx context.Context, scoped *projectFlags, paths config.Paths, tf model.TasksFile,
+	ask func(string) (bool, error), out io.Writer, noPerms bool) (int, error) {
+	say := func(format string, a ...any) { _, _ = fmt.Fprintf(out, format+"\n", a...) }
+	rtr, err := router.Load(paths.RouterYAML())
+	if err != nil {
+		return 0, err
+	}
+	packaged, err := scaffold.PackagedRouter()
+	if err != nil {
+		return 0, err
+	}
+	if moved := rerouteToInstalled(&tf, rtr, packaged, router.OnPath, say); moved > 0 {
+		if _, err := atomize.Apply(paths.TasksJSON(), tf, true); err != nil {
+			return 0, err
+		}
+	}
+	// A model on an installed CLI that the router lacks gets its route, as
+	// `orch router add-missing` would add it.
+	if missing := rtr.MissingModels(tf.Tasks); len(missing) > 0 {
+		added, _, err := router.AddMissing(paths.RouterYAML(), missing, model.TierStandard)
+		if err != nil {
+			return 0, err
+		}
+		if len(added) > 0 {
+			say("✓ model_router.yaml: added %s (tier standard; review it)", strings.Join(added, ", "))
+		}
+		if rtr, err = router.Load(paths.RouterYAML()); err != nil {
+			return 0, err
+		}
+	}
+	var problems []string
+	for _, p := range graph.Validate(tf.Tasks, rtr.Keys()) {
+		if p.Severity == graph.SeverityError {
+			problems = append(problems, p.Message)
+		}
+	}
+	if len(problems) > 0 {
+		for _, p := range problems {
+			say("✗ %s", p)
+		}
+		return 0, fmt.Errorf("tasks.json has %d problem(s); fix them (`orch validate` lists them) and run `orch start` again", len(problems))
+	}
+	say("✓ tasks.json: %s, DAG valid, every model routed", plural(len(tf.Tasks), "task"))
+	// orch's rules for the CLIs the plan routes to, now that it is routed
+	// (#400). --yes writes them, agy's in the user's home included.
+	if err := grantPermissions(ask, out, paths.Root, usedBackends(tf.Tasks, rtr, paths.TasksJSON()), noPerms); err != nil {
+		return 0, err
+	}
+	return printStartEstimate(ctx, scoped, out)
 }
