@@ -142,7 +142,8 @@ func TestWelcomeRunStartsTheDashboardAndTheFirstTasks(t *testing.T) {
 	}
 	deadline := time.After(5 * time.Second)
 	for {
-		if b, err := os.ReadFile(runArgs); err == nil && strings.TrimSpace(string(b)) == "run --max-tasks 2 --project-root /work/app" {
+		b, err := os.ReadFile(runArgs) // #nosec G304 -- the test's own temp file
+		if err == nil && strings.TrimSpace(string(b)) == "run --max-tasks 2 --project-root /work/app" {
 			return
 		}
 		select {
