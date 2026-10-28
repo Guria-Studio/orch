@@ -89,6 +89,21 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 					"a single project's exposure is decided by its profile and token")
 			}
 
+			// No project named and none here: the welcome page sets one up
+			// instead of an error a first-time user cannot act on.
+			if !withDemo && wantsWelcome(flags) {
+				welcomeCfg := dashboard.Config{Host: dashboard.DefaultHost, Port: dashboard.DefaultPort}
+				if cmd.Flags().Changed("host") {
+					welcomeCfg.Host = host
+				}
+				if cmd.Flags().Changed("port") {
+					welcomeCfg.Port = port
+				}
+				ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+				defer stop()
+				return runWelcome(ctx, cmd, welcomeCfg)
+			}
+
 			paths, cfg, err := loadProjectConfig(flags)
 			if err != nil {
 				return err

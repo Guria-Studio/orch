@@ -9,7 +9,7 @@ const NOT_STREAMED = new Set(["gemini", "agy"])
 
 // A one-line row truncates in a card; on the task's page (`wrap`) it wraps, so a
 // long tool call reads in full without the page scrolling sideways.
-function StepRow({ step, wrap }: { step: ActivityStep; wrap: boolean }) {
+export function StepRow({ step, wrap }: { step: ActivityStep; wrap: boolean }) {
   const long = wrap ? "whitespace-pre-wrap break-all" : "truncate"
   switch (step.kind) {
     case "tool":
