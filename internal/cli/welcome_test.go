@@ -111,3 +111,44 @@ func TestWelcomeRefusesOtherHostsAndOrigins(t *testing.T) {
 		t.Error("a welcome page on 0.0.0.0 should be refused")
 	}
 }
+
+// fakeOrch stands in for this orch: `dashboard` prints its banner and waits,
+// `run` records that it ran.
+const fakeOrch = `#!/bin/sh
+case "$1" in
+dashboard) echo "Orch dashboard running on http://127.0.0.1:7421"; exec sleep 30 ;;
+run) echo "$@" > "$RUN_ARGS" ;;
+esac
+`
+
+func TestWelcomeRunStartsTheDashboardAndTheFirstTasks(t *testing.T) {
+	dir := t.TempDir()
+	self := filepath.Join(dir, "orch")
+	if err := os.WriteFile(self, []byte(fakeOrch), 0o755); err != nil { // #nosec G306 -- a test executable
+		t.Fatal(err)
+	}
+	runArgs := filepath.Join(dir, "run-args")
+	t.Setenv("RUN_ARGS", runArgs)
+	f := &welcomeFlow{ctx: context.Background(), self: self, root: "/work/app", applied: true}
+	defer f.stop()
+	if err := f.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if s := f.State().(welcomeState); s.URL != "http://127.0.0.1:7421" {
+		t.Fatalf("dashboard url = %q", s.URL)
+	}
+	if err := f.Run(); err == nil {
+		t.Error("a second Run should be refused while the first is going")
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		if b, err := os.ReadFile(runArgs); err == nil && strings.TrimSpace(string(b)) == "run --max-tasks 2 --project-root /work/app" {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("orch run was not started with --max-tasks 2 on the project")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
