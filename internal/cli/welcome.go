@@ -180,7 +180,7 @@ func (f *welcomeFlow) Project(ctx context.Context, path string, gitInit bool) er
 			return fmt.Errorf("%s is not a git repository; orch gives each task its own branch. Tick \"git init\" to make it one", root)
 		}
 		if out, err := exec.CommandContext(ctx, "git", "-C", root, "init").CombinedOutput(); err != nil { // #nosec G204 -- fixed git subcommand on the chosen folder
-			return fmt.Errorf("git init: %v: %s", err, out)
+			return fmt.Errorf("git init: %w: %s", err, out)
 		}
 		f.say("✓ git init %s", root)
 	}
@@ -394,7 +394,11 @@ func (f *welcomeFlow) Run() error {
 		_ = dash.Wait()
 		return fmt.Errorf("starting orch run: %w", err)
 	}
-	go func() { _ = run.Wait() }()
+	go func() {
+		if err := run.Wait(); err != nil {
+			f.say("! orch run: %v", err)
+		}
+	}()
 	f.mu.Lock()
 	f.dash, f.url = dash, url
 	f.mu.Unlock()
