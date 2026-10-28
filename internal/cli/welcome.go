@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -39,6 +40,9 @@ const headlessPlan = "\n\nYou run headless from orch's welcome page: nobody can 
 // files: the read-only orch commands orch-plan's stages use.
 var planTools = []string{"Bash(orch atomize:*)", "Bash(orch doctor:*)", "Bash(orch validate:*)", "Bash(orch explain:*)", "Bash(git status:*)", "Bash(git log:*)"}
 
+// planTimeout bounds a headless plan: a stuck claude must not hold the page.
+const planTimeout = 30 * time.Minute
+
 // maxWelcomeSteps bounds the planner's progress the page shows.
 const maxWelcomeSteps = 200
 
@@ -52,6 +56,7 @@ type welcomeFlow struct {
 	root     string
 	log      []string
 	planning bool
+	planDone chan struct{} // closed when the current plan ends
 	steps    []providers.Step
 	planErr  string
 	estimate string
@@ -233,20 +238,29 @@ func (f *welcomeFlow) Plan(idea string) error {
 	}
 	args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
 		"--allowedTools", strings.Join(planTools, ",")}
-	cmd := exec.CommandContext(f.ctx, "claude", args...) // #nosec G204 -- fixed flags; the idea goes on stdin
+	ctx, cancel := context.WithTimeout(f.ctx, planTimeout)
+	cmd := exec.CommandContext(ctx, "claude", args...) // #nosec G204 -- fixed flags; the idea goes on stdin
 	cmd.Dir = root
+	// Its own process group, killed whole on timeout or Ctrl-C: claude forks
+	// the tools it runs.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Stdin = strings.NewReader("/orch-plan " + idea + headlessPlan)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		cancel()
 		return err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
+		cancel()
 		return fmt.Errorf("starting claude: %w", err)
 	}
+	done := make(chan struct{})
 	f.mu.Lock()
-	f.planning, f.planErr, f.steps, f.applied, f.estimate = true, "", nil, false, ""
+	f.planning, f.planErr, f.steps, f.applied, f.estimate, f.planDone = true, "", nil, false, "", done
 	f.mu.Unlock()
 	f.say("→ claude plans it with /orch-plan")
 	go func() {
@@ -265,6 +279,8 @@ func (f *welcomeFlow) Plan(idea string) error {
 			f.mu.Unlock()
 		}
 		err := cmd.Wait()
+		cancel()
+		defer close(done)
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.planning = false

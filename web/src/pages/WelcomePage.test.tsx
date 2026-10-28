@@ -13,7 +13,7 @@ const base: WelcomeState = {
     { name: "claude", installed: true },
     { name: "codex", installed: false },
   ],
-  cwd: "/home/me/app",
+  cwd: "/work/app",
   root: "",
   log: [],
   tasks: [],
@@ -37,14 +37,14 @@ describe("WelcomePage", () => {
 
   it("starts at the folder, suggesting the working directory, and posts it", async () => {
     get.mockResolvedValue({ data: base })
-    post.mockResolvedValue({ data: { ...base, root: "/home/me/app", log: ["✓ orch project created"] } })
+    post.mockResolvedValue({ data: { ...base, root: "/work/app", log: ["✓ orch project created"] } })
     renderPage()
     const folder = await screen.findByRole("textbox", { name: "The project's folder" })
-    expect(folder).toHaveValue("/home/me/app")
+    expect(folder).toHaveValue("/work/app")
     expect(screen.getByRole("button", { name: "Plan with claude" })).toBeDisabled()
 
     fireEvent.click(screen.getByRole("button", { name: "Use this folder" }))
-    await waitFor(() => expect(post).toHaveBeenCalledWith("/api/welcome/project", { path: "/home/me/app", git_init: true }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/api/welcome/project", { path: "/work/app", git_init: true }))
     expect(await screen.findByText("✓ orch project created")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Plan with claude" })).toBeEnabled()
   })

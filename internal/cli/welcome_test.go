@@ -58,12 +58,10 @@ func TestWelcomeFlowFromEmptyFolderToEstimate(t *testing.T) {
 	if err := f.Plan("a hello app"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for f.busy() {
-		if time.Now().After(deadline) {
-			t.Fatal("planning never finished")
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-f.planDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("planning never finished")
 	}
 	s := f.State().(welcomeState)
 	if s.PlanError != "" || len(s.Steps) == 0 || s.Steps[0].Detail != "specs written" {
