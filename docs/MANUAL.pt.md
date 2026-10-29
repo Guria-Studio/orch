@@ -45,11 +45,7 @@ Baixa o tarball certo para `linux`/`darwin` × `amd64`/`arm64` a partir do
 `~/.local/bin` (use `INSTALL_DIR=...` para mudar). Sem toolchain de Go,
 sem Python, sem dependências para resolver — `orch` é um binário estático.
 
-Ou via Homebrew:
-
-```bash
-brew install hectorcanaimero/orch/orch
-```
+Ou a partir do código, só a CLI (`go install github.com/hectorcanaimero/orch/cmd/orch@latest`, Go ≥ 1.25): compila sem os bundles web, então `orch dashboard` e `orch publish` precisam do script ou de um tarball do release.
 
 Ou baixe um tarball diretamente da
 [página de Releases](https://github.com/hectorcanaimero/orch/releases) e
@@ -823,8 +819,7 @@ status atual da task.
 # Rode o instalador de novo — ele sempre busca o último release v* (sem -py)
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
 
-# Ou, via Homebrew
-brew upgrade orch
+# ou: orch upgrade
 
 # Verifique
 orch --version

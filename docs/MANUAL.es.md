@@ -45,11 +45,7 @@ el último GitHub Release, verifica su checksum, e instala en
 `~/.local/bin` (`INSTALL_DIR=...` para cambiarlo). Sin toolchain de Go,
 sin Python, sin dependencias que resolver — `orch` es un binario estático.
 
-O vía Homebrew:
-
-```bash
-brew install hectorcanaimero/orch/orch
-```
+O desde el código, solo la CLI (`go install github.com/hectorcanaimero/orch/cmd/orch@latest`, Go ≥ 1.25): se compila sin los bundles web, así que `orch dashboard` y `orch publish` necesitan el script o un tarball del release.
 
 O bajá un tarball directamente de
 [la página de Releases](https://github.com/hectorcanaimero/orch/releases)
@@ -824,8 +820,7 @@ el status actual de la task.
 # Re-correr el instalador — siempre trae el último release v* (sin -py)
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
 
-# O, vía Homebrew
-brew upgrade orch
+# o: orch upgrade
 
 # Verificar
 orch --version

@@ -69,34 +69,10 @@ changelog:
   # <!-- orch:critical --> there (docs/RELEASING.md).
   use: github-native
 
-# Requires github.com/hectorcanaimero/homebrew-orch to exist — goreleaser
-# pushes a commit to it, it doesn't create it. NOT created by this PR:
-# creating a new public repo under the maintainer's account is a real,
-# visible action outside a PR's scope — see the note in
-# docs/RELEASING.md. `goreleaser release --snapshot` (local testing, and
-# release-go.yml's CI dry-run) skips this block entirely, so the
-# pipeline is fully testable before that repo exists.
-#
-# The tap push is skipped while HOMEBREW_TAP_GITHUB_TOKEN is empty, so a
-# release still publishes its archives before the tap and its PAT exist.
-# The token has to be named here: goreleaser pushes to another repository
-# with GITHUB_TOKEN otherwise, which has no rights outside this one.
-brews:
-  - name: orch
-    skip_upload: '{{ if not (index .Env "HOMEBREW_TAP_GITHUB_TOKEN") }}true{{ end }}'
-    repository:
-      owner: hectorcanaimero
-      name: homebrew-orch
-      branch: main
-      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
-    directory: Formula
-    homepage: "https://github.com/hectorcanaimero/orch"
-    description: "Task orchestrator that walks a tasks.json DAG and dispatches to CLI coding agents"
-    license: "MIT"
-    install: |
-      bin.install "orch"
-    test: |
-      system "#{bin}/orch", "--version"
+# No Homebrew tap: dropped for the launch by the author's decision (#442).
+# Install paths are scripts/install.sh, a release tarball, or `go install`
+# (CLI only). Bringing a tap back means a `brews:` block, the
+# hectorcanaimero/homebrew-orch repo and a HOMEBREW_TAP_GITHUB_TOKEN secret.
 
 release:
   github:
