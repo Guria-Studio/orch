@@ -5,6 +5,11 @@ gate of the Go migration**: the Go binary has to reproduce this recording,
 beat for beat, with the same commands and the same on-screen result. If a cut
 below cannot be reproduced, the rewrite is not done.
 
+**Recorded** on 2026-10-29 with `v0.29.0` and `claude`: [`orch-demo.gif`](orch-demo.gif).
+What is real, what was set up off camera, and what this script asks for that
+the recording could not show (three CLIs, the parallel beat) are in
+[`GIF-NOTES.md`](GIF-NOTES.md).
+
 Read it as a shot list, not as prose. Every cut names the exact command, what
 must be visible on screen, and how long it stays there.
 
@@ -35,7 +40,7 @@ Anything that does not serve one of those four claims is cut.
 | Font | any mono at 16 px; no ligatures |
 | Theme | dark background, light text |
 | Shell prompt | `$ ` only — no git branch, no hostname, no timestamp |
-| Capture | `asciinema rec` for the terminal, `agg` to convert to GIF |
+| Capture | `asciinema rec` for the terminal (`--headless --window-size 100x30` works with no display), `agg` to convert to GIF |
 | Browser | Chromium at 1440×900, no extensions, no bookmarks bar |
 | Output | ≤ 30 s, ≤ 8 MB, 12 fps, infinite loop |
 
@@ -85,13 +90,17 @@ orch init ~/demo/billing-api --template python-api
 cd ~/demo/billing-api
 ```
 
-**On screen:** the scaffolder's file list scrolling past, ending on the
-"Next steps" block. Hold the last frame ~1 s.
+**On screen:** `orch init`'s summary (project initialized, the route it added,
+the next commands, the claude permission rules it wrote), ending on the
+prompt. Hold the last frame ~1 s.
 
-**What the viewer has to notice:** `tasks.json`, `.orchestrator/config.yaml`,
-`scripts/task-*.sh` and `.github/workflows/orch-ci.yml` all appear without a
-single prompt.
+**What the viewer has to notice:** a working project without a single prompt.
 
+> Before cut 2, off camera: write the two specs the template's tasks point at
+> (`orch validate` warns `spec.missing` until they exist), and let claude run
+> the tests in a venv (`.claude/settings.json`) — without both, the first task
+> pushes a `pyproject.toml` it could not try, and CI catches it (#500).
+>
 > The repo must already have a git remote before cut 3 — `orch` degrades to
 > "no worktrees, no PRs" without one and cut 4 has nothing to show. Create the
 > repo off-camera:
@@ -103,34 +112,42 @@ single prompt.
 ### Cut 2 — the plan (0:05 → 0:10, 5 s)
 
 ```bash
-orch --dry-run
+orch tasks
+orch estimate
 ```
 
-**On screen:** the plan table — task id, model, backend, dependencies. Two
-tasks are dispatchable now, the rest are waiting on them.
+(`orch --dry-run` was the Python-era spelling; it no longer exists.)
+
+**On screen:** the task table — id, status, backend/model, dependencies — and
+the estimate line (tasks, cost, time). With `python-api` that is two tasks,
+F1.T1 waiting on F0.T1.
 
 **What the viewer has to notice:** orch knows the order. Nobody typed it.
 
 ### Cut 3 — dispatch (0:10 → 0:20, 10 s of screen time)
 
 ```bash
-orch --max-tasks 2
+orch run
 ```
 
 This is the only cut that is **time-compressed**: the real run takes 2–4
 minutes, the GIF shows 10 s. Speed up uniformly (`agg --speed`), never by
 cutting frames out of the middle.
 
-**On screen, in order:**
+**On screen, in order** (v0.29's default log level):
 
-1. `worktree mode enabled; base_branch=main` in the startup log.
-2. Two `dispatch` lines, different task ids, within a second of each other —
-   this is the parallelism claim.
-3. Two `success` lines.
-4. Two `pr_created` lines, each with a PR URL.
+1. The estimate line `orch run` starts with.
+2. `waiting on CI task=F0.T1`, later `waiting on CI task=F1.T1`.
+3. The closing summary: `finished: 2 done, 0 blocked`, and "Merge PR #N: its
+   CI passed — <URL>" for each.
 
-**What the viewer has to notice:** two agents worked at the same time, in
-different worktrees, and neither touched the other's files.
+**What the viewer has to notice:** each task became its own PR with CI
+passed, and nobody touched the terminal.
+
+> The parallelism beat (two dispatches in the same second) needs two
+> independent ready tasks. `python-api`'s DAG is serial, and v0.29 prints no
+> per-dispatch line at the default level, so the 2026-10-29 recording does not
+> show it — see `GIF-NOTES.md`.
 
 ### Cut 4 — the PR (0:20 → 0:25, 5 s)
 

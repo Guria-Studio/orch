@@ -21,6 +21,10 @@ route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in 
 - **It runs on your machine, with your CLIs and your keys.** One Go binary, no
   daemon, no hosted service. orch never holds a model key.
 
+![orch in 29 seconds: orch init, the plan, orch run dispatching two claude tasks that each open a PR with green CI, then the client page moving from 0% to 50% to 100% on its own](docs/media/orch-demo.gif)
+
+<sub>A real run, sped up: `orch init --template python-api`, `orch run` with `claude`, two PRs with green CI, and the client page updating itself. What is real and what was set up off camera: [`docs/media/GIF-NOTES.md`](docs/media/GIF-NOTES.md).</sub>
+
 ---
 
 ## How it works
@@ -73,11 +77,20 @@ Downloads the matching tarball from the latest GitHub Release, verifies
 its checksum, and installs to `~/.local/bin` (`INSTALL_DIR=...` to
 override).
 
-A Homebrew tap is not published yet — `docs/RELEASING.md` has what it needs.
-
 **Manual**: grab a tarball from the
 [Releases page](https://github.com/hectorcanaimero/orch/releases) and put
 `orch` on your `PATH` yourself.
+
+**From source** (`go install`, Go ≥ 1.25): the CLI only.
+
+```bash
+go install github.com/hectorcanaimero/orch/cmd/orch@latest
+```
+
+It builds without the web bundles, so `orch dashboard` answers "no index.html
+in the embedded SPA — run `make web`", `orch publish` has no client page, and
+`orch --version` reads `dev`. For those, use the script or a release tarball
+(or `make build` in a checkout).
 
 Verify either way with `orch --version`. See
 [`docs/RELEASING.md`](docs/RELEASING.md) for the tag scheme and how
@@ -176,7 +189,7 @@ Spend is **off by default**: flip `dashboard.show_spend_to_stakeholder` if you
 want your client to see what the run has cost. Either way they never see a log
 line, a prompt, a diff, or a per-model cost breakdown.
 
-> _GIF: not recorded yet. The shot list is written and reproducible — see [`docs/media/GIF-SCRIPT.md`](docs/media/GIF-SCRIPT.md). Walk-through in [`docs/DELIVERING-TO-STAKEHOLDERS.md`](docs/DELIVERING-TO-STAKEHOLDERS.md)._
+> _The demo GIF at the top was shot from [`docs/media/GIF-SCRIPT.md`](docs/media/GIF-SCRIPT.md). Walk-through in [`docs/DELIVERING-TO-STAKEHOLDERS.md`](docs/DELIVERING-TO-STAKEHOLDERS.md)._
 
 ---
 
