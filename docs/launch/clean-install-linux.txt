@@ -1,0 +1,101 @@
+# date: 2026-10-29T21:14:08Z  image: ubuntu:24.04 (fresh container, --rm)
+# os: Ubuntu 24.04.5 LTS x86_64; /bin/sh -> /usr/bin/dash
+# setup: apt-get install curl ca-certificates git (only prerequisites)
+
+## A. The one-liner as published on main (scripts/install.sh at origin/main)
+$ curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+sh: 15: set: Illegal option -o pipefail
+[exit 2]
+
+## B. Same pipe into sh with this PR's scripts/install.sh (mounted at /fixed/install.sh)
+$ cat /fixed/install.sh | sh
+==> Installing orch v0.29.0 (linux/amd64) to /root/.local/bin
+==> Downloading orch_v0.29.0_linux_amd64.tar.gz...
+==> Verifying checksum...
+orch_v0.29.0_linux_amd64.tar.gz: OK
+==> Installed: orch version v0.29.0
+==> Next: run `orch dashboard` and open the page it prints — it walks you through your first project.
+warning: /root/.local/bin is not on your PATH — add it, e.g.:
+    export PATH="/root/.local/bin:$PATH"
+[exit 0]
+
+$ orch --version
+orch version v0.29.0
+[exit 0]
+
+$ ls -l ~/.local/bin/orch
+-rwxr-xr-x 1 root root 20521144 Oct 29 21:14 /root/.local/bin/orch
+[exit 0]
+
+## orch doctor in an empty git repo (no provider CLI installed in the container — expected FAILs)
+$ orch doctor
+orch doctor · project=p · backend=sqlite
+7 ok · 3 warn · 5 error · 15 skip
+
+Config
+  ok     config.commands            every configured shell command's program is installed
+  skip   models.defaults_installed  tasks.json names no default models
+  skip   models.resolve             no tasks loaded — cannot check resolution
+  error  router.parse               router load failed: read /tmp/p/.orchestrator/model_router.yaml: open /tmp/p/.orchestrator/model_router.yaml: no such file or directory
+  error  tasks.parse                tasks.json load failed: model: read /tmp/p/tasks.json: open /tmp/p/tasks.json: no such file or directory
+
+Backends
+  error  backend.claude            claude not on PATH
+  skip   backend.claude.auth       claude CLI not installed — auth probe skipped
+  skip   backend.claude.version    claude not on PATH
+  error  backend.codex             codex not on PATH
+  skip   backend.codex.auth        codex CLI not installed — auth probe skipped
+  skip   backend.codex.version     codex not on PATH
+  error  backend.opencode          opencode not on PATH
+  skip   backend.opencode.auth     opencode CLI not installed — auth probe skipped
+  skip   backend.opencode.version  opencode not on PATH
+  skip   models.available          no installed CLI that this router uses lists its models
+
+Tasks
+  skip  tasks.backlog  no backlog task has its dependencies done
+  warn  tasks.ready    tasks.json has no tasks
+
+Permissions
+  ok  claude.done_channel  no claude settings deny task-finish.sh or orch_set_status
+
+Environment
+  warn  budget.preset_sanity  /tmp/p/.orchestrator/budgets.yaml does not exist: the budget guardrail is disabled and runs are not rationed
+  skip  ci.stack              .github/workflows/orch-ci.yml not found
+  ok    compose.isolation     no compose file in the project root or one level down
+  warn  mcp.config            /tmp/p/.mcp.json not found — MCP-capable agents won't see orch's tools
+  ok    onboarding.progress   init ✓ → first dispatch · → first finished task · — next: `orch run` to send the first task to an agent
+  ok    sandbox.landlock      dispatch.sandbox is off; Landlock ABI 8 is available to turn it on
+  ok    state.db.accessible   /tmp/p/.orchestrator/state/orch.db: opened, applied 11 pending migration(s)
+  skip  tunnel.cloudflared    tunnel.enabled is false
+  skip  vcs.cli               dispatch.worktree_mode and vcs.auto_pr are both off
+  skip  vcs.git_repo          dispatch.worktree_mode and vcs.auto_pr are both off
+  skip  vcs.remote            dispatch.worktree_mode and vcs.auto_pr are both off
+  ok    worktree.orphans      no orphaned worktree directories or branches
+
+Not ready to `orch run`: router.parse — router load failed: read /tmp/p/.orchestrator/model_router.yaml: open /tmp/p/.orchestrator/model_router.yaml: no such file or directory
+[exit 2]
+
+$ orch init /tmp/demo --template python-api >/dev/null && orch validate --project-root /tmp/demo | tail -3
+SEVERITY  KIND          TASK   FIELD    MESSAGE
+warn      spec.missing  F0.T1  specRef  spec file specs/f0-foundation.md not found
+warn      spec.missing  F1.T1  specRef  spec file specs/f1-health.md not found
+[exit 0]
+
+## orch doctor in that fresh python-api project (still no provider CLI in the container)
+$ cd /tmp/demo && git init -q && orch doctor | tail -14
+  ok    ci.stack              .github/workflows/orch-ci.yml is not init's placeholder, or there is still nothing to check
+  ok    compose.isolation     no compose file in the project root or one level down
+  ok    mcp.config            /tmp/demo/.mcp.json present
+  ok    onboarding.progress   init ✓ (python-api) → first dispatch · → first finished task · — next: `orch run` to send the first task to an agent
+  ok    sandbox.landlock      dispatch.sandbox is off; Landlock ABI 8 is available to turn it on
+  ok    state.db.accessible   /tmp/demo/.orchestrator/state/orch.db: opened, applied 11 pending migration(s)
+  skip  tunnel.cloudflared    tunnel.enabled is false
+  warn  vcs.cli               gh is not ready (vcs: gh not found in PATH: exec: "gh": executable file not found in $PATH) — orch will run with worktrees but WITHOUT PRs
+  ok    vcs.git_repo          /tmp/demo is a git work tree
+  warn  vcs.remote            git repo has no remote — worktrees stay local, no push and no PRs
+  ok    worktree.orphans      no orphaned worktree directories or branches
+
+Not ready to `orch run`: backend.claude — claude not on PATH
+  Install claude and ensure it's on your $PATH.
+[exit 0]
+

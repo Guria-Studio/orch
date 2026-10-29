@@ -1,0 +1,37 @@
+commit: ba0fff4 (2026-10-28); go version go1.27.1 linux/amd64
+release measured: v0.29.0
+## released binaries (what install.sh downloads), bytes
+checksums OK
+orch_v0.29.0_darwin_amd64  binary=20848048  archive=8721879
+orch_v0.29.0_darwin_arm64  binary=19767730  archive=8324955
+orch_v0.29.0_linux_amd64  binary=20521144  archive=8627626
+orch_v0.29.0_linux_arm64  binary=19333304  archive=8076899
+## HEAD built with .goreleaser.yaml's flags, bytes
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+linux/amd64  21438624
+linux/arm64  19988640
+darwin/amd64  21797264
+darwin/arm64  20476450
+operator JS (bytes): 989885
+stakeholder JS (bytes): 241631
+## code
+Go non-test lines: 66268
+Go test lines:     58953
+Go test functions: 1805
+testscript files:  44
+web test cases:    247
+internal packages: 45
+MCP tools:         13
+review rules:      30
+go.mod direct requires: 10
+## commands (top-level, from the built binary)
+visible: 36 (excluding help, completion)
+hidden:  1
+## startup (released linux/amd64 binary, ORCH_NO_UPDATE_CHECK=1)
+orch --version: median 4.8 ms, p95 5.1 ms (n=50)
+orch validate: median 6.3 ms, p95 7.6 ms (n=50)
+orch tasks: median 10.9 ms, p95 12.1 ms (n=50)
