@@ -68,3 +68,33 @@ func TestGuardOffLetsASecretThrough(t *testing.T) {
 		t.Fatalf("no PR was opened (head %q)", v.prHead)
 	}
 }
+
+// TestGuardBlocksAProtectedFile pins #504: an edit to a file
+// guard.protected_paths names keeps the work off the remote, the reason names
+// the glob and never the file's content; with protected: warn it publishes
+// and the PR body says so.
+func TestGuardBlocksAProtectedFile(t *testing.T) {
+	launch := "diff --git a/.vscode/launch.json b/.vscode/launch.json\n--- a/.vscode/launch.json\n+++ b/.vscode/launch.json\n@@ -1,0 +1,1 @@\n+\"DB_PASSWORD\": \"hunter2\"\n"
+	guardCfg := config.Guard{Secrets: "block", Debug: "warn", Protected: "block", ProtectedPaths: []string{".vscode/launch.json"}}
+
+	f, wt, v, _ := prFixture(t)
+	f.s.Opts.Cfg.Guard = guardCfg
+	wt.diff = launch
+	f.runOnce(t)
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked || v.prHead != "" {
+		t.Fatalf("status = %q, PR head = %q: want blocked and unpublished", got, v.prHead)
+	}
+	notes := strings.Join(f.backend.notes, "\n")
+	if !strings.Contains(notes, ".vscode/launch.json: a protected file (guard.protected_paths: .vscode/launch.json)") || strings.Contains(notes, "hunter2") {
+		t.Errorf("block reason:\n%s", notes)
+	}
+
+	f, wt, v, _ = prFixture(t)
+	guardCfg.Protected = "warn"
+	f.s.Opts.Cfg.Guard = guardCfg
+	wt.diff = launch
+	f.runOnce(t)
+	if v.prHead != "orch/C-1" || !strings.Contains(v.prBody, ".vscode/launch.json: a protected file") {
+		t.Errorf("PR head %q, body:\n%s", v.prHead, v.prBody)
+	}
+}

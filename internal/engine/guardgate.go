@@ -14,7 +14,7 @@ func (s *Scheduler) guardOutcome(d Dispatch, out *Outcome) {
 	g := s.Opts.Cfg.Guard
 	on := func(rule string) bool { m := g.Mode(rule); return m == "block" || m == "warn" }
 	if !out.Result.Success || out.VerifyFailure != "" || s.Worktree == nil || !s.Opts.WorktreeMode ||
-		!on(guard.RuleSecrets) && !on(guard.RuleDebug) {
+		!on(guard.RuleSecrets) && !on(guard.RuleDebug) && (!on(guard.RuleProtected) || len(g.ProtectedPaths) == 0) {
 		return
 	}
 	ctx := context.Background()
@@ -26,7 +26,7 @@ func (s *Scheduler) guardOutcome(d Dispatch, out *Outcome) {
 		return
 	}
 	var blocked []string
-	for _, f := range guard.Scan(diff) {
+	for _, f := range guard.Scan(diff, g.ProtectedPaths...) {
 		switch g.Mode(f.Rule) {
 		case "block":
 			blocked = append(blocked, f.String())

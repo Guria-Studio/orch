@@ -56,6 +56,7 @@ type Config struct {
 	Update               Update         `yaml:"update"`
 	Knowledge            Knowledge      `yaml:"knowledge"`
 	Guard                Guard          `yaml:"guard"`
+	Gate                 Gate           `yaml:"gate"`
 	Watch                Watch          `yaml:"watch"`
 	// Radar is the conflict radar (#482): what orch does when a task about to
 	// dispatch declares files a running task also declares — warn records a
@@ -73,14 +74,28 @@ type Guard struct {
 	Secrets string `yaml:"secrets"`
 	// Debug: console.log, debugger, breakpoint() and the like.
 	Debug string `yaml:"debug"`
+	// Protected: any change to a file ProtectedPaths names (#504), for
+	// credentials no token format can match.
+	Protected      string   `yaml:"protected"`
+	ProtectedPaths []string `yaml:"protected_paths"`
 }
 
 // Mode is what the guard does with a finding of rule.
 func (g Guard) Mode(rule string) string {
-	if rule == "secrets" {
+	switch rule {
+	case "secrets":
 		return g.Secrets
+	case "protected":
+		return g.Protected
 	}
 	return g.Debug
+}
+
+// Gate is the semi-mode gate's own configuration (#503).
+type Gate struct {
+	// CriticalPaths make a task that declares a file they name critical,
+	// in place of the built-in Supabase layout. Empty keeps the built-in one.
+	CriticalPaths []string `yaml:"critical_paths"`
 }
 
 // Watch is the agent watch (#487): while an attempt runs, orch reads its log

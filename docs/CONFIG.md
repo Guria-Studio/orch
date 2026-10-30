@@ -938,12 +938,43 @@ and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
 **On in new projects, off when the key is absent**, like `retry.conflict`: a
 config written before #451 never starts writing files into the repository.
 
+### `gate` — new (#503)
+
+```yaml
+gate:
+  critical_paths: []   # [] = the built-in Supabase layout
+```
+
+In `orch run --mode semi`, a task is offered to you before it is dispatched
+when it is critical: a premium-tier model, an estimate of 10 hours or more, or
+a declared file (`files` in `tasks.json`) on a critical path. With
+`critical_paths` empty, those paths are the built-in ones:
+`supabase/migrations/`, `supabase/functions/*/index.ts` and
+`packages/*/lib/{auth,billing,security}/`.
+
+`critical_paths` **replaces** that list with your project's own. A project
+that still wants the built-in paths lists them too. Each entry is a path, a
+directory ending in `/`, or a glob whose `**` matches any number of
+directories:
+
+```yaml
+gate:
+  critical_paths:
+    - "src/core/src/migrations/**"
+    - "src/shared/src/middlewares/auth*.ts"
+    - "infra/"
+```
+
+The prompt names the entry that matched: `touches src/core/src/migrations/**`.
+
 ### `guard` — new (#484)
 
 ```yaml
 guard:
   secrets: block   # default; block | warn | off
   debug: warn      # default; block | warn | off
+  protected: block # default; block | warn | off — only acts on protected_paths
+  protected_paths: []
 ```
 
 The pre-PR guard reads the diff of a task's own work (not what its dependency
@@ -957,6 +988,14 @@ merges brought in) after its agent exits cleanly, after the local
   gets past it.
 - **`debug`**: `console.log(`, a lone `debugger`, `breakpoint()` /
   `pdb.set_trace()`, `binding.pry`, `dbg!(`.
+- **`protected`** (#504): any change to a file `protected_paths` names
+  (added, edited, deleted or renamed) is one finding for the whole file,
+  naming the entry that matched:
+  `.vscode/launch.json: a protected file (guard.protected_paths: .vscode/launch.json)`.
+  It is for credentials no token format matches, like a database password in
+  a tracked `launch.json` or per-customer config overlays. Entries are matched
+  like [`gate.critical_paths`](#gate--new-503): a path, a directory ending in
+  `/`, or a glob with `**`. With `protected_paths` empty it does nothing.
 
 `block` keeps the work off the remote and blocks the task with the findings
 as its reason; the work stays committed in the local `orch/<task>` branch, so

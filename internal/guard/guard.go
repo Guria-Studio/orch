@@ -14,8 +14,9 @@ import (
 
 // The rules, as config's guard keys name them.
 const (
-	RuleSecrets = "secrets"
-	RuleDebug   = "debug"
+	RuleSecrets   = "secrets"
+	RuleDebug     = "debug"
+	RuleProtected = "protected"
 )
 
 // Finding is one thing the guard saw. It never holds the matched text, so a
@@ -70,16 +71,25 @@ func (p pattern) matches(line string) bool {
 }
 
 // Scan reads a unified diff (`git diff`) and returns what its added lines and
-// changed files hold, in diff order: at most one finding per line.
-func Scan(diff string) []Finding {
+// changed files hold, in diff order: at most one finding per line. A file the
+// diff adds, changes, deletes or renames that matches one of protected
+// (guard.protected_paths, #504) is one finding for the whole file.
+func Scan(diff string, protected ...string) []Finding {
 	var out []Finding
 	file, line, prev := "", 0, ""
 	for _, l := range strings.Split(diff, "\n") {
 		header := strings.HasPrefix(prev, "--- ")
+		old := strings.TrimPrefix(strings.TrimPrefix(prev, "--- "), "a/")
 		prev = l
 		switch {
 		case header && strings.HasPrefix(l, "+++ "):
 			file = strings.TrimPrefix(strings.TrimPrefix(l, "+++ "), "b/")
+			if file == "/dev/null" {
+				file = old // deleted
+			}
+			if glob := protectedBy(protected, file, old); glob != "" {
+				out = append(out, Finding{Rule: RuleProtected, File: file, What: "a protected file (guard.protected_paths: " + glob + ")"})
+			}
 			if isEnvFile(file) {
 				out = append(out, Finding{Rule: RuleSecrets, File: file, What: "an environment file"})
 			}
@@ -98,6 +108,50 @@ func Scan(diff string) []Finding {
 		}
 	}
 	return out
+}
+
+// protectedBy is the first of globs that names one of files, or "".
+func protectedBy(globs []string, files ...string) string {
+	for _, g := range globs {
+		for _, f := range files {
+			if f != "/dev/null" && MatchPath(g, f) {
+				return g
+			}
+		}
+	}
+	return ""
+}
+
+// MatchPath reports whether pattern names file, as a repository path: the
+// same path, a directory ending in "/" that holds it, or a glob whose `**`
+// segment matches any number of directories (path.Match for the rest).
+func MatchPath(pattern, file string) bool {
+	pattern, file = strings.TrimPrefix(pattern, "./"), strings.TrimPrefix(file, "./")
+	if pattern == file || strings.HasSuffix(pattern, "/") && strings.HasPrefix(file, pattern) {
+		return true
+	}
+	return matchSegments(strings.Split(pattern, "/"), strings.Split(file, "/"))
+}
+
+func matchSegments(pattern, file []string) bool {
+	for len(pattern) > 0 {
+		if pattern[0] == "**" {
+			for i := range len(file) + 1 {
+				if matchSegments(pattern[1:], file[i:]) {
+					return true
+				}
+			}
+			return false
+		}
+		if len(file) == 0 {
+			return false
+		}
+		if ok, _ := path.Match(pattern[0], file[0]); !ok {
+			return false
+		}
+		pattern, file = pattern[1:], file[1:]
+	}
+	return len(file) == 0
 }
 
 // hunkStart is the new-file line a hunk header (`@@ -a,b +c,d @@`) starts at.

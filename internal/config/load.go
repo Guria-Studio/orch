@@ -89,7 +89,7 @@ func Defaults() Config {
 		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 		Update:  Update{CheckCLIs: true},
-		Guard:   Guard{Secrets: "block", Debug: "warn"},
+		Guard:   Guard{Secrets: "block", Debug: "warn", Protected: "block"},
 		Watch:   Watch{Enabled: true, StallAfterS: 600},
 		Radar:   "warn",
 	}
@@ -236,7 +236,7 @@ func validate(cfg *Config) error {
 		return err
 	}
 
-	for key, v := range map[string]*string{"guard.secrets": &cfg.Guard.Secrets, "guard.debug": &cfg.Guard.Debug} {
+	for key, v := range map[string]*string{"guard.secrets": &cfg.Guard.Secrets, "guard.debug": &cfg.Guard.Debug, "guard.protected": &cfg.Guard.Protected} {
 		switch *v = strings.ToLower(strings.TrimSpace(*v)); *v {
 		case "block", "warn", "off":
 		default:
@@ -377,6 +377,8 @@ var knownKeys = map[string]bool{
 	"knowledge.enabled":          true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,
 	"guard.secrets":          true, "guard.debug": true,
+	"guard.protected": true, "guard.protected_paths": true,
+	"gate.critical_paths": true,
 	"watch.enabled": true, "watch.stall_after_s": true,
 	"radar": true,
 }

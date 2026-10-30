@@ -149,6 +149,36 @@ func TestGateReason(t *testing.T) {
 	}
 }
 
+// TestCriticalPathsReplaceTheBuiltInLayout pins #503: gate.critical_paths
+// gates on the project's own layout, names the glob that matched, and
+// replaces the Supabase rules rather than adding to them.
+func TestCriticalPathsReplaceTheBuiltInLayout(t *testing.T) {
+	routes := map[string]model.RouteEntry{"standard/m": route(model.BackendClaude, "haiku", false)}
+	paths := []string{"src/core/src/migrations/**", "src/shared/src/middlewares/auth*.ts", "infra/", "Dockerfile"}
+	tests := []struct {
+		file, want string
+	}{
+		{"src/core/src/migrations/1700-add-col.ts", "touches src/core/src/migrations/**"},
+		{"src/core/src/migrations/2024/01/x.ts", "touches src/core/src/migrations/**"},
+		{"src/shared/src/middlewares/auth.jwt.ts", "touches src/shared/src/middlewares/auth*.ts"},
+		{"infra/main.tf", "touches infra/"},
+		{"Dockerfile", "touches Dockerfile"},
+		{"src/shared/src/middlewares/cors.ts", ""},
+		{"supabase/migrations/x.sql", ""},
+	}
+	for _, tt := range tests {
+		task := gated([]string{tt.file}, 1, 1, "standard/m")
+		if got := IsCritical(task, routes, paths...); got != (tt.want != "") {
+			t.Errorf("IsCritical(%s) = %v, want %v", tt.file, got, tt.want != "")
+		}
+		if tt.want != "" {
+			if got := GateReason(task, routes, paths...); got != tt.want {
+				t.Errorf("GateReason(%s) = %q, want %q", tt.file, got, tt.want)
+			}
+		}
+	}
+}
+
 func TestTerminalGateDecodesAnswers(t *testing.T) {
 	tests := []struct {
 		name  string

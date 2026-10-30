@@ -82,3 +82,54 @@ func TestScanIsFastOnALargeDiff(t *testing.T) {
 		t.Fatalf("a 20,000-line diff took %v at best, over the 500 ms budget", best)
 	}
 }
+
+// TestScanBlocksAProtectedFileWholly pins #504: a file guard.protected_paths
+// names is one finding for the whole file, added, changed or deleted, and
+// none of its lines reach the finding.
+func TestScanBlocksAProtectedFileWholly(t *testing.T) {
+	protected := []string{".vscode/launch.json", "infrastructure/customers/**"}
+	deleted := "diff --git a/infrastructure/customers/acme/db.yml b/infrastructure/customers/acme/db.yml\n" +
+		"--- a/infrastructure/customers/acme/db.yml\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-password: s3cret\n"
+	got := Scan(diff(".vscode/launch.json", `"DB_PASSWORD": "hunter2"`)+deleted+diff("src/app.ts", "x()"), protected...)
+	if len(got) != 2 {
+		t.Fatalf("got %v, want one finding per protected file", got)
+	}
+	for i, want := range []string{
+		".vscode/launch.json: a protected file (guard.protected_paths: .vscode/launch.json)",
+		"infrastructure/customers/acme/db.yml: a protected file (guard.protected_paths: infrastructure/customers/**)",
+	} {
+		if got[i].Rule != RuleProtected || got[i].String() != want {
+			t.Errorf("finding %d = %+v, want %q", i, got[i], want)
+		}
+		if strings.Contains(got[i].String(), "hunter2") || strings.Contains(got[i].String(), "s3cret") {
+			t.Errorf("finding prints the file's content: %s", got[i])
+		}
+	}
+	if got := Scan(diff(".vscode/launch.json", `"DB_PASSWORD": "hunter2"`)); len(got) != 0 {
+		t.Errorf("without protected_paths got %v, want nothing", got)
+	}
+}
+
+func TestMatchPath(t *testing.T) {
+	tests := []struct {
+		pattern, file string
+		want          bool
+	}{
+		{"a/b.go", "a/b.go", true},
+		{"./a/b.go", "a/b.go", true},
+		{"a/", "a/b/c.go", true},
+		{"a/", "ab/c.go", false},
+		{"a/*.go", "a/b.go", true},
+		{"a/*.go", "a/b/c.go", false},
+		{"a/**", "a/b/c.go", true},
+		{"a/**/c.go", "a/c.go", true},
+		{"a/**/c.go", "a/b/d/c.go", true},
+		{"**/launch.json", ".vscode/launch.json", true},
+		{"a/**", "b/a/c.go", false},
+	}
+	for _, tt := range tests {
+		if got := MatchPath(tt.pattern, tt.file); got != tt.want {
+			t.Errorf("MatchPath(%q, %q) = %v, want %v", tt.pattern, tt.file, got, tt.want)
+		}
+	}
+}
