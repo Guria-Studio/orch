@@ -80,6 +80,7 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 	add.Flags().StringSliceVar(&l.Area, "area", nil, "Paths or globs it applies to (repeatable)")
 	add.Flags().StringSliceVar(&l.Tags, "tags", nil, "Keywords (repeatable)")
 	add.Flags().StringVar(&l.Task, "task", "", "The task it came from")
+	add.Flags().StringVar(&l.Kind, "kind", "lesson", "lesson | rule: a rule is carried to every task touching its --area, and checked by the verify review")
 	add.Flags().StringVar(&l.Source, "source", "operator", "Who learned it: "+strings.Join(knowledge.Sources, " | "))
 
 	var asJSON bool
@@ -105,13 +106,17 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(tw, "ID\tSOURCE\tAREA\tTITLE")
+			_, _ = fmt.Fprintln(tw, "ID\tKIND\tSOURCE\tAREA\tTITLE")
 			for _, l := range lessons {
 				area := strings.Join(l.Area, ",")
 				if area == "" {
 					area = "-"
 				}
-				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", l.ID, l.Source, area, l.Title)
+				kind := l.Kind
+				if kind == "" {
+					kind = "lesson"
+				}
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", l.ID, kind, l.Source, area, l.Title)
 			}
 			return tw.Flush()
 		},

@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Guria-Studio/orch/internal/guard"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -43,6 +44,12 @@ const (
 // (#452): a task in the database only, never in tasks.json.
 const CurateTaskPrefix = "knowledge-curate-"
 
+// KindRule marks an operator's rule (#505): a constraint every task touching
+// its area must follow, carried in the prompt outside knowledge.max_in_prompt
+// and handed to the local verify's reviewer. A file without a kind is a
+// lesson.
+const KindRule = "rule"
+
 // Sources are who can write a lesson.
 var Sources = []string{"agent", "verify", "review", "conflict", "operator"}
 
@@ -50,6 +57,7 @@ var Sources = []string{"agent", "verify", "review", "conflict", "operator"}
 type Lesson struct {
 	ID      string   `yaml:"id" json:"id"`
 	Title   string   `yaml:"title" json:"title"`
+	Kind    string   `yaml:"kind,omitempty" json:"kind,omitempty"`
 	Area    []string `yaml:"area,omitempty" json:"area,omitempty"`
 	Tags    []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Source  string   `yaml:"source" json:"source"`
@@ -183,6 +191,16 @@ func check(l *Lesson) error {
 	if !slices.Contains(Sources, l.Source) {
 		return fmt.Errorf("source %q is not one of %s", l.Source, strings.Join(Sources, ", "))
 	}
+	switch l.Kind = strings.TrimSpace(l.Kind); l.Kind {
+	case "", "lesson":
+		l.Kind = ""
+	case KindRule:
+		if l.Source != "operator" {
+			return errors.New("only the operator writes a rule (kind: rule, source: operator); record what you learned as a lesson")
+		}
+	default:
+		return fmt.Errorf("kind %q is not one of lesson, %s", l.Kind, KindRule)
+	}
 	l.Task = strings.TrimSpace(l.Task)
 	l.Area, l.Tags = clean(l.Area), clean(l.Tags)
 	return nil
@@ -191,11 +209,14 @@ func check(l *Lesson) error {
 // Update rewrites the lesson with id under root with l's title, body, area,
 // tags, task and source; its id, file and created date stay.
 func Update(root, id string, l Lesson) (Lesson, error) {
-	if err := check(&l); err != nil {
-		return Lesson{}, err
-	}
 	old, err := find(root, id)
 	if err != nil {
+		return Lesson{}, err
+	}
+	if strings.TrimSpace(l.Kind) == "" {
+		l.Kind = old.Kind // an edit that does not say keeps the kind
+	}
+	if err := check(&l); err != nil {
 		return Lesson{}, err
 	}
 	l.ID, l.Created, l.Path = old.ID, old.Created, old.Path
@@ -261,7 +282,7 @@ func AreaMatches(l Lesson, paths []string) bool {
 			if p == "" {
 				continue
 			}
-			if ok, _ := path.Match(a, p); ok || p == prefix || strings.HasPrefix(p, prefix+"/") ||
+			if guard.MatchPath(a, p) || p == prefix || strings.HasPrefix(p, prefix+"/") ||
 				strings.HasPrefix(a, p+"/") {
 				return true
 			}
@@ -324,10 +345,23 @@ func Search(ctx context.Context, r Ranker, lessons []Lesson, text string, n int)
 	return out, nil
 }
 
+// Rules are the operator's rules among lessons whose area covers one of
+// paths. A rule with no area covers nothing: it would reach every task.
+func Rules(lessons []Lesson, paths []string) []Lesson {
+	var out []Lesson
+	for _, l := range lessons {
+		if l.Kind == KindRule && AreaMatches(l, paths) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 // Select picks the lessons a task's prompt carries: those whose area covers
 // one of the task's paths come first, then those its text finds, each group
-// in BM25 order, at most n.
+// in BM25 order, at most n. Rules are not lessons and are never picked here.
 func Select(ctx context.Context, r Ranker, lessons []Lesson, paths []string, text string, n int) ([]Lesson, error) {
+	lessons = slices.DeleteFunc(slices.Clone(lessons), func(l Lesson) bool { return l.Kind == KindRule })
 	if len(lessons) == 0 || n <= 0 {
 		return nil, nil
 	}
@@ -372,13 +406,21 @@ func Select(ctx context.Context, r Ranker, lessons []Lesson, paths []string, tex
 // ForTask loads root's lessons and selects the ones task's prompt carries: by
 // its files and its spec file, then by its title and description.
 func ForTask(ctx context.Context, r Ranker, root string, task model.Task, specRoot string, n int) ([]Lesson, error) {
-	lessons, err := Load(root)
-	if err != nil || len(lessons) == 0 {
-		return nil, err
+	_, lessons, err := ForTaskWithRules(ctx, r, root, task, specRoot, n)
+	return lessons, err
+}
+
+// ForTaskWithRules is ForTask, and the rules whose area covers the task's
+// files, all of them, outside n (#505).
+func ForTaskWithRules(ctx context.Context, r Ranker, root string, task model.Task, specRoot string, n int) (rules, lessons []Lesson, err error) {
+	all, err := Load(root)
+	if err != nil || len(all) == 0 {
+		return nil, nil, err
 	}
 	paths := append([]string(nil), task.Files...)
 	if spec, _, _ := strings.Cut(task.SpecRef, "#"); spec != "" {
 		paths = append(paths, path.Join(specRoot, spec))
 	}
-	return Select(ctx, r, lessons, paths, task.Title+"\n"+task.Description, n)
+	lessons, err = Select(ctx, r, all, paths, task.Title+"\n"+task.Description, n)
+	return Rules(all, task.Files), lessons, err
 }

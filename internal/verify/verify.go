@@ -26,6 +26,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/ci"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -47,6 +48,9 @@ type Verifier struct {
 	// RequireTests sends back a change that touches no test file
 	// (dispatch.tdd).
 	RequireTests bool
+	// Rules has the review check the operator's rules (knowledge files of
+	// kind: rule) whose area covers a changed file (#505); knowledge.enabled.
+	Rules bool
 	// Once runs the review: with its State set the review's spend is
 	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
@@ -89,7 +93,7 @@ func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.V
 	if res.Failure != "" || !v.Cfg.Review {
 		return res
 	}
-	res.Failure = v.review(ctx, req, timeout, &res)
+	res.Failure = v.review(ctx, req, timeout, &res, v.rules(req.TaskID, req.Dir, changed))
 	return res
 }
 
@@ -298,7 +302,7 @@ func skipNotFound(taskID, key, command, out string) {
 // review asks another provider to review the diff, and returns its blocking
 // findings for the agent, or "". A review that completes names its reviewer
 // and all its findings in res.
-func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout time.Duration, res *engine.VerifyResult) string {
+func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout time.Duration, res *engine.VerifyResult, rules []knowledge.Lesson) string {
 	taskID, writer, dir := req.TaskID, req.Writer, req.Dir
 	reviewer := v.reviewer(writer)
 	if reviewer == "" {
@@ -316,7 +320,7 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 	diff, cut := ci.TruncateDiff(diff, maxDiffBytes)
 	answer, err := ci.AskOnce(ctx, v.Once, state.ReviewSpendID(taskID, req.Attempt),
 		model.RouteEntry{Backend: reviewer, CLIModel: v.Cfg.ReviewModel},
-		ci.BuildPrompt(checklist(dir, v.Cfg.Checklist), diff, cut), timeout)
+		ci.BuildPrompt(withRules(checklist(dir, v.Cfg.Checklist), rules), diff, cut), timeout)
 	if err != nil {
 		slog.Warn("verify: the review did not complete; passing the work", "task", taskID, "reviewer", reviewer, "err", err)
 		return ""
@@ -471,6 +475,36 @@ func checklist(dir, configured string) string {
 		}
 	}
 	return ci.BuiltinChecklist
+}
+
+// rules are the operator's rules whose area covers one of changed, read from
+// the task's worktree; none when Rules is off or they cannot be read.
+func (v Verifier) rules(taskID, dir string, changed []string) []knowledge.Lesson {
+	if !v.Rules || len(changed) == 0 {
+		return nil
+	}
+	all, err := knowledge.Load(dir)
+	if err != nil {
+		slog.Warn("verify: reading the project's rules failed; reviewing without them", "task", taskID, "err", err)
+		return nil
+	}
+	return knowledge.Rules(all, changed)
+}
+
+// withRules appends rules to the review's checklist (#505): the reviewer is
+// who checks a change against them.
+func withRules(list string, rules []knowledge.Lesson) string {
+	if len(rules) == 0 {
+		return list
+	}
+	var b strings.Builder
+	b.WriteString(strings.TrimRight(list, "\n"))
+	b.WriteString("\n\n## Project rules\n\nThe operator's rules for the files this change touches (.orch/knowledge/). " +
+		"A change that breaks one is a blocking finding.\n")
+	for _, r := range rules {
+		fmt.Fprintf(&b, "\n### %s\n\n%s\n", r.Title, strings.TrimSpace(r.Body))
+	}
+	return b.String()
 }
 
 func onPath(tool string) bool {

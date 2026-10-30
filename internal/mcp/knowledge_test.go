@@ -133,3 +133,15 @@ func TestKnowledgeSearchSaysWhatItCouldNotRead(t *testing.T) {
 		t.Errorf("search over a broken lesson = %q, want it to say it could not read the lessons", msg)
 	}
 }
+
+// orch_learn cannot write a rule: that is the operator's (#505).
+func TestLearnRefusesARule(t *testing.T) {
+	root, backend := newTestProject(t)
+	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	var learned learnOut
+	res := call(t, cs, "orch_learn", map[string]any{"task_id": "F0.T1", "title": "Layering",
+		"lesson": "Controllers call services.", "area": []string{"app/"}, "kind": "rule"}, &learned)
+	if !res.IsError || !strings.Contains(learned.Message, "only the operator writes a rule") {
+		t.Errorf("orch_learn = %v %q, want the rule refused, saying why", res.IsError, learned.Message)
+	}
+}

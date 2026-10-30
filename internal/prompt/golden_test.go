@@ -513,6 +513,36 @@ func TestKnowledgeReachesThePrompt(t *testing.T) {
 	}
 }
 
+// TestRulesReachThePrompt pins the "Project rules" block above the lessons
+// (#505). The golden is Go's own; without rules every other golden is the
+// proof nothing moved.
+func TestRulesReachThePrompt(t *testing.T) {
+	cases := loadCases(t)
+	c := cases.Cases[0]
+	task := model.Task{ID: c.Task.ID, Title: c.Task.Title, Description: c.Task.Description,
+		Model: c.Task.Model, Files: c.Task.Files, SpecRef: c.Task.SpecRef}
+	got, _ := Render(task, nil, c.Task.SpecRef, Options{
+		RunID: cases.RunID, ProjectRoot: cases.ProjectRoot, SpecRoot: c.SpecRoot, Learn: true,
+		Rules: []knowledge.Lesson{
+			{ID: "layering", Kind: knowledge.KindRule, Title: "Routes call services, never the database", Area: []string{"app/**"},
+				Body: "A route handler calls a service in app/services/; only a service opens a session."},
+		},
+		Knowledge: []knowledge.Lesson{
+			{ID: "20261021-pytest", Title: "Run pytest with -p no:cacheprovider", Body: "The worktree is read-only for .pytest_cache."},
+		},
+	})
+	path := filepath.Join("testdata", "go", "rules.txt")
+	if *updateGoGoldens {
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+		return
+	}
+	if want := readGolden(t, "go", "rules.txt"); got != want {
+		t.Errorf("rendered prompt differs from its golden.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
 // The block is capped: a long lesson is cut, and lessons past the block's
 // size are left out rather than crowding out the task.
 func TestKnowledgeBlockIsBounded(t *testing.T) {

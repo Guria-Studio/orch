@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -96,6 +97,8 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 	if err != nil {
 		return withExitCode(1, err)
 	}
+	// The operator's rules are not the curator's to merge or delete (#505).
+	lessons = slices.DeleteFunc(lessons, func(l knowledge.Lesson) bool { return l.Kind == knowledge.KindRule })
 	if len(lessons) == 0 {
 		_, err := fmt.Fprintf(out, "no lessons to curate (%s is empty)\n", knowledge.Dir)
 		return err
@@ -227,6 +230,8 @@ tasks get them in their prompt, so they must stay few, short and true.
   matter valid.
 - Change nothing outside %[1]s/: work that touches any other file is sent back
   and never published.
+- Leave files whose front matter says kind: rule alone: they are the
+  operator's rules, not lessons, and are not listed below.
 
 Current lessons (%[4]d):
 `, knowledge.Dir, knowledge.MaxLines, knowledge.MaxChars, len(lessons))
