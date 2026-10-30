@@ -551,6 +551,12 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		return false, nil
 	}
 
+	// (1d) Too little disk for another worktree (#497): the task waits.
+	if s.lowDisk(task.ID) {
+		lock.Release()
+		return false, nil
+	}
+
 	// (2) Budget gate, BEFORE the semaphores, so a capped provider does not
 	// churn a slot it cannot use. Skipping here is equivalent to a full
 	// semaphore: the next tick re-checks.

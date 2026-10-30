@@ -128,6 +128,9 @@ dispatch:
   # Give each task its own docker compose project (COMPOSE_PROJECT_NAME), so
   # parallel tasks never recreate or remove each other's containers.
   isolate_compose: true
+  # Hold back a new task while the disk has less free space than this, in MB:
+  # every worktree carries its own build output. 0 never holds one.
+  min_free_disk_mb: 2048
 
 # Sprint F-4 — VCS integration (PR automation + CI polling).
 # Requires dispatch.worktree_mode: true to have any effect.
