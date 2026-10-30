@@ -14,7 +14,7 @@ export interface PipelineStep {
 
 export const PIPELINE: PipelineStep[] = [
   { key: "prd", skills: ["orch-plan", "orch-prd"], writes: "docs/prd/NNN-<slug>.md", command: "/orch-plan <idea>" },
-  { key: "arch", skills: ["orch-arch"], reads: "docs/prd/NNN-<slug>.md", writes: "docs/arch/NNN-<slug>.md", command: "/orch-arch" },
+  { key: "arch", skills: ["orch-discover", "orch-arch"], reads: "docs/prd/NNN-<slug>.md", writes: "docs/arch/NNN-<slug>.md", command: "/orch-arch" },
   { key: "spec", skills: ["orch-spec"], reads: "docs/arch/NNN-<slug>.md", writes: "specs/fN-<slug>.md", command: "/orch-spec" },
   { key: "tasks", skills: ["orch-tasks"], reads: "specs/fN-<slug>.md", writes: "tasks.json", command: "/orch-tasks" },
   { key: "run", skills: ["orch-tdd", "orch-e2e", "orch"], reads: "tasks.json", command: "orch run" },

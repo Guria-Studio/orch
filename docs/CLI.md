@@ -36,7 +36,11 @@ flags Python does unless a difference is called out.
   warnings. Two came later: `orch-tdd`, how an agent works a task
   test-first (see `dispatch.tdd` in [`CONFIG.md`](CONFIG.md)), and `orch-e2e`,
   how an agent explores a running app in a browser and leaves Playwright specs
-  (the E2E task `orch-spec` ends a phase with screens with).
+  (the E2E task `orch-spec` ends a phase with screens with). And `orch-discover`
+  (#507), step 0 of `orch-plan` on a repository that already has code: it
+  writes `docs/arch/000-discovery.md`, every claim citing its file, and
+  proposes `gate.critical_paths`, `guard.protected_paths`, rules and
+  `verify.commands` that it applies only once the operator confirms.
 - **G4.5 — landed**: `doctor` (narrower than Python — see its table row).
   `internal/doctor`'s checks (the package) landed earlier; this is the
   `orch doctor` command surface on top of them, wired separately.

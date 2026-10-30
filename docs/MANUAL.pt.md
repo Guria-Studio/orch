@@ -743,7 +743,7 @@ orch install-skills --dry-run                # preview primeiro
 `~/.claude/skills`. `codex`/`opencode` não têm mecanismo próprio de
 skills, então recebem uma seção claramente delimitada e substituível de
 forma idempotente no `AGENTS.md` do projeto; `cursor` recebe um arquivo
-`.cursor/rules/<name>.mdc`. Oito skills vêm embutidos no binário: `orch-tdd`,
+`.cursor/rules/<name>.mdc`. Nove skills vêm embutidos no binário: `orch-tdd`,
 como um agente trabalha uma tarefa com os testes primeiro (vermelho, verde,
 limpar); `orch-e2e`, como um agente percorre o app rodando num navegador e
 deixa specs do Playwright; `orch`, o manual de operação para um agente dentro de um projeto, e o pipeline de
@@ -751,7 +751,12 @@ planejamento — `orch-plan` executa `orch-prd` (ideia → `docs/prd/`),
 `orch-arch` (→ `docs/arch/`), `orch-spec` (→ `specs/`, no formato exato
 que `orch atomize` lê) e `orch-tasks` (→ `tasks.json` via
 `orch atomize --apply`), parando para você depois de cada documento e
-antes de aplicar qualquer coisa. A página Sistema › Skills do dashboard tem
+antes de aplicar qualquer coisa. Num repositório que já tem código, o
+`orch-plan` executa antes o `orch-discover` (→ `docs/arch/000-discovery.md`):
+o que o código é, cada afirmação citando seu arquivo, com os segredos
+versionados, os efeitos ao subir e as perguntas para o cliente, e depois
+propõe `gate.critical_paths`, `guard.protected_paths`, regras e
+`verify.commands`, aplicando só as que você confirmar. A página Sistema › Skills do dashboard tem
 uma aba **Como funciona** que percorre esses passos — cada skill, o que lê e o
 que escreve, o comando que a inicia — e marca as que nenhuma CLI tem
 instaladas ainda.

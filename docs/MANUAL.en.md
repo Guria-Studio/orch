@@ -731,7 +731,7 @@ orch install-skills --dry-run                # preview first
 `codex`/`opencode` have no skills mechanism of their own, so they get a
 clearly-delimited, idempotently-replaceable section appended to the
 project's `AGENTS.md` instead; `cursor` gets a `.cursor/rules/<name>.mdc`
-file. Eight skills ship embedded in the binary: `orch-tdd`, how an agent
+file. Nine skills ship embedded in the binary: `orch-tdd`, how an agent
 works a task test-first (red, green, clean); `orch-e2e`, how an agent
 explores a running app in a browser and leaves Playwright specs; and `orch`,
 the operating
@@ -740,7 +740,12 @@ manual for an agent working inside a project, and the planning pipeline —
 (→ `docs/arch/`), `orch-spec` (→ `specs/`, in the exact format
 `orch atomize` parses) and `orch-tasks` (→ `tasks.json` via
 `orch atomize --apply`), stopping for you after each document and before
-anything is applied. The dashboard's System › Skills page has a **How it works** tab
+anything is applied. On a repository that already has code, `orch-plan` first
+runs `orch-discover` (→ `docs/arch/000-discovery.md`): what the code is, every
+claim citing its file, with the tracked secrets, the boot-time side effects
+and the questions for the client, and then proposes `gate.critical_paths`,
+`guard.protected_paths`, rules and `verify.commands`, applying only the ones
+you confirm. The dashboard's System › Skills page has a **How it works** tab
 that walks these steps — each skill, what it reads and writes, the command
 that starts it — and flags the ones no CLI has installed yet.
 

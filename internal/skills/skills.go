@@ -21,8 +21,8 @@ import (
 )
 
 // skillsFS embeds every "<name>/SKILL.md" next to this file: "orch", the
-// operating manual, and the planning pipeline orch-plan, orch-prd,
-// orch-arch, orch-spec and orch-tasks (G6.5). Adding one is exactly this:
+// operating manual, and the planning pipeline orch-plan, orch-discover,
+// orch-prd, orch-arch, orch-spec and orch-tasks (G6.5, #507). Adding one is exactly this:
 // drop "<name>/SKILL.md" in a new directory beside them — nothing else in
 // this package needs to change, since List walks whatever the embed pattern
 // matched rather than naming skills individually. What does need changing
