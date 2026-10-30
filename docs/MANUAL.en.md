@@ -337,6 +337,15 @@ list` / `show` / `rm` manage them and `orch knowledge stats` compares
 first-try success before and since the first lesson. See
 [`CONFIG.md`](CONFIG.md#knowledge--new-451).
 
+**Local verify with the task's app** (`verify.app`): orch starts the app in
+the task's worktree, with the task's `.env`, before running the E2E tests,
+once per verify of every task. An app that migrates its database on boot, starts
+scheduled jobs or calls real providers does that each time. So point it at a
+database and services only that task uses. `dispatch.isolate_compose` isolates
+only the containers inside the task's compose project, not a database the
+`.env` points to outside it. See
+[`CONFIG.md`](CONFIG.md#verify--new).
+
 **Concurrency, budgets, retries** are all config-driven, not flags — see
 [`CONFIG.md`](CONFIG.md).
 

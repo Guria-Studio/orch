@@ -348,6 +348,15 @@ cuyo `area` cubre los archivos de la task. `orch knowledge list` / `show` /
 intento antes y desde la primera lección. Ver
 [`CONFIG.md`](CONFIG.md#knowledge--new-451).
 
+**Verify local con la app de la task** (`verify.app`): orch arranca la app en
+el worktree de la task, con el `.env` de la task, antes de correr los tests
+E2E, una vez por cada verify de cada task. Una app que migra su base de datos
+al arrancar, inicia jobs programados o llama a proveedores reales lo hace cada
+vez. Así que apúntala a una base de datos y servicios que solo use esa task.
+`dispatch.isolate_compose` aísla solo los contenedores dentro del proyecto
+compose de la task, no una base de datos a la que el `.env` apunte fuera de
+él. Ver [`CONFIG.md`](CONFIG.md#verify--new).
+
 **Concurrencia, budgets, reintentos** son todos manejados por config, no
 por flags — ver [`CONFIG.md`](CONFIG.md).
 

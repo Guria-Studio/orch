@@ -348,6 +348,14 @@ administram e `orch knowledge stats` compara o sucesso na primeira tentativa
 antes e desde a primeira lição. Veja
 [`CONFIG.md`](CONFIG.md#knowledge--new-451).
 
+**Verify local com o app da task** (`verify.app`): o orch sobe o app no
+worktree da task, com o `.env` da task, antes de rodar os testes E2E, uma vez
+por verify de cada task. Um app que migra o banco ao subir, inicia jobs
+agendados ou chama provedores reais faz isso toda vez. Então aponte-o para um
+banco e serviços que só essa task usa. `dispatch.isolate_compose` isola só os
+contêineres dentro do projeto compose da task, não um banco para o qual o
+`.env` aponte fora dele. Veja [`CONFIG.md`](CONFIG.md#verify--new).
+
 **Concorrência, budgets, retries** são todos controlados por config, não
 por flags — veja [`CONFIG.md`](CONFIG.md).
 

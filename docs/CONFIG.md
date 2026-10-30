@@ -804,6 +804,27 @@ the cause is the machine and not the change, the agent can block the task and
 say so. `e2e` without `app` runs too, for a suite that starts its own server
 (Playwright's `webServer`).
 
+**The app starts with the task's environment — make what it touches
+disposable (#506).** `app.start` runs in the task's worktree with its `.env`
+and environment, once per verify of every task. orch cannot tell what the app
+does when it boots, so check it before turning `app` on. The usual boot-time
+side effects:
+
+- **Migrations that run on start** (TypeORM's `migrationsRun: true`, an
+  entrypoint that runs `prisma migrate deploy`, Django's `migrate` in the
+  start script). Against a shared or staging database, every verify migrates
+  it, and a migration that fails outside a transaction leaves the schema half
+  applied.
+- **Schedulers and background jobs** that start with the app and act on real
+  data.
+- **Outbound calls to real providers**: payments, email, SMS, webhooks.
+
+Point the app at a database and services that exist only for the task.
+`dispatch.isolate_compose` gives each task its own compose project, which
+isolates only the containers **inside** that project: a database the `.env`
+points to outside it (a hosted one, another compose project, the host's own)
+is shared by every task and by you.
+
 **E2E results.** With `e2e_report` set to the file Playwright's JSON reporter
 writes, verify reads it after the E2E commands, pass or fail, and keeps the
 attempt's results under
