@@ -101,6 +101,46 @@ func TestVerifyRunsTheDetectedChecks(t *testing.T) {
 	}
 }
 
+// Detected checks run only for the packages the change touches (#498): an
+// app-only task is not sent back because the firmware's toolchain is missing
+// on this machine. A file outside every package may affect them all.
+func TestVerifyRunsOnlyTheTouchedPackagesChecks(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is not installed")
+	}
+	dir := branchWithWork(t)
+	write(t, filepath.Join(dir, "apps", "app", "Makefile"), "test:\n\t@true\n")
+	write(t, filepath.Join(dir, "apps", "fw", "Makefile"), "test:\n\t@echo fw-toolchain-missing; exit 2\n")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "packages")
+	gitIn(t, dir, "branch", "-f", "main")
+	write(t, filepath.Join(dir, "apps", "app", "main.go"), "package main\n")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "app only")
+
+	v := Verifier{Cfg: config.Verify{TimeoutS: 10}, Base: "main"}
+	req := engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}
+	if got := v.Verify(context.Background(), req).Failure; got != "" {
+		t.Errorf("Verify = %q, want the app-only change to skip the firmware's checks", got)
+	}
+
+	write(t, filepath.Join(dir, "README.md"), "shared\n")
+	gitIn(t, dir, "commit", "-q", "-am", "root file")
+	if got := v.Verify(context.Background(), req).Failure; !strings.Contains(got, "fw-toolchain-missing") {
+		t.Errorf("Verify = %q, want a file outside every package to run them all", got)
+	}
+}
+
+// A configured command is told what changed, so a project's own verify script
+// can scope itself (#498).
+func TestVerifyTellsTheCommandsWhatChanged(t *testing.T) {
+	dir := branchWithWork(t) // adds store.go only
+	v := Verifier{Cfg: config.Verify{Commands: []string{`test "$ORCH_CHANGED_FILES" = store.go`}, TimeoutS: 10}, Base: "main"}
+	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure; got != "" {
+		t.Errorf("Verify = %q, want ORCH_CHANGED_FILES to list the change", got)
+	}
+}
+
 func TestVerifySendsBackABlockingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
