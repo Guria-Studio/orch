@@ -757,7 +757,11 @@ a note and verifies nothing.
 1. **Commands.** Each runs at the worktree root through `sh -c`, in order,
    bounded by `timeout_s`. `commands: []` runs what `orch ci setup` detects:
    install, lint, typecheck, test and build, per package, where the repository
-   has them. A detected command whose tool is not installed is skipped. So
+   has them, only for the packages the task's change touches (#498): each
+   changed file belongs to the deepest package that holds it, so an app-only
+   task does not run, or fail on, the firmware's toolchain. A changed file
+   outside every package (shared code, a root config) runs them all. A
+   detected command whose tool is not installed is skipped. So
    is a configured one (`commands`, `app.start`, `e2e`) that `sh` cannot find
    (exit 127, e.g. a typo): it is the config, not the agent's work, and the
    run log warns with the key to fix. Without `app.start`, the E2E is skipped.
@@ -784,7 +788,10 @@ Every command runs with the agent's own environment: `ORCH_TASK_ID`,
 `ORCH_TASK_SLOT` and, with `dispatch.isolate_compose`, the task's
 `COMPOSE_PROJECT_NAME`. So two tasks verifying at once do not share
 containers, and their ports can follow the slot as in
-[`dispatch`](#dispatch).
+[`dispatch`](#dispatch). They also get `ORCH_CHANGED_FILES`, the paths the task
+changed against the base, one per line, so a project's own verify script can
+check only the areas the change touches:
+`case "$ORCH_CHANGED_FILES" in *fw/*) idf.py build ;; esac`.
 
 **The task's app and E2E.** After the commands pass, `app.start` brings up
 the app of the task's worktree, and verify waits up to `ready_timeout_s` for

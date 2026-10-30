@@ -66,13 +66,18 @@ type Verifier struct {
 // turn it off.
 func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.VerifyResult {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
+	changed := v.changedFiles(ctx, req.TaskID, req.Dir)
 	if v.RequireTests {
-		if failure := v.requireTests(ctx, req.TaskID, req.Dir); failure != "" {
+		if failure := requireTests(changed); failure != "" {
 			return engine.VerifyResult{Failure: failure}
 		}
 	}
+	if len(changed) > 0 {
+		// A project's own verify script can scope itself to the change (#498).
+		req.Env = withVar(req.Env, "ORCH_CHANGED_FILES="+strings.Join(changed, "\n"))
+	}
 	var ran []engine.VerifyCommand
-	for _, c := range v.commands(req.TaskID, req.Dir) {
+	for _, c := range v.commands(req.TaskID, req.Dir, changed) {
 		if out, err := timed(&ran, c, func() (string, error) { return run(ctx, req.Dir, req.Env, c, timeout) }); notFound(err) {
 			skipNotFound(req.TaskID, "verify.commands", c, out)
 		} else if err != nil {
@@ -229,8 +234,9 @@ func withVar(env []string, kv string) []string {
 	return append(slices.Clone(env), kv)
 }
 
-// commands are the configured ones, or what `orch ci setup` detects.
-func (v Verifier) commands(taskID, dir string) []string {
+// commands are the configured ones, or what `orch ci setup` detects for the
+// packages the change touches.
+func (v Verifier) commands(taskID, dir string, changed []string) []string {
 	if len(v.Cfg.Commands) > 0 {
 		return v.Cfg.Commands
 	}
@@ -240,7 +246,7 @@ func (v Verifier) commands(taskID, dir string) []string {
 		return nil
 	}
 	var out []string
-	for _, p := range st.Packages {
+	for _, p := range scope(st.Packages, changed) {
 		for _, c := range []string{p.Install, p.Lint, p.Typecheck, p.Test, p.Build} {
 			if c == "" {
 				continue
@@ -363,13 +369,45 @@ func (v Verifier) baseRef(ctx context.Context, dir string) string {
 	return base
 }
 
-// requireTests sends back a change that touches no test file. An empty
-// change passes here: the other checks decide what nothing means.
-func (v Verifier) requireTests(ctx context.Context, taskID, dir string) string {
+// scope keeps the packages a change touches (#498): each changed file
+// belongs to the deepest package that holds it, so an app-only change does not
+// run, and fail on, the firmware's toolchain. A file outside every package
+// (shared code, a root config) may affect any of them and keeps them all, as
+// a change that could not be listed does.
+func scope(pkgs []ci.Package, changed []string) []ci.Package {
+	if len(changed) == 0 {
+		return pkgs
+	}
+	keep := map[string]bool{}
+	for _, f := range changed {
+		owner, depth := "", -1
+		for _, p := range pkgs {
+			n := 0
+			if p.Dir != "." {
+				if !strings.HasPrefix(f, p.Dir+"/") {
+					continue
+				}
+				n = len(p.Dir)
+			}
+			if n > depth {
+				owner, depth = p.Dir, n
+			}
+		}
+		if depth < 0 {
+			return pkgs
+		}
+		keep[owner] = true
+	}
+	return slices.DeleteFunc(slices.Clone(pkgs), func(p ci.Package) bool { return !keep[p.Dir] })
+}
+
+// changedFiles is what the task changed against its base, as git prints the
+// paths; nil when nothing changed or the change cannot be listed.
+func (v Verifier) changedFiles(ctx context.Context, taskID, dir string) []string {
 	out, err := run(ctx, dir, nil, "git diff --name-only --merge-base "+shellQuote(v.baseRef(ctx, dir))+" --", time.Minute)
 	if err != nil {
-		slog.Warn("verify: listing the changed files failed; not checking for tests", "task", taskID, "err", err)
-		return ""
+		slog.Warn("verify: listing the changed files failed; checking every package, and not for tests", "task", taskID, "err", err)
+		return nil
 	}
 	var changed []string
 	for _, f := range strings.Split(out, "\n") {
@@ -377,11 +415,17 @@ func (v Verifier) requireTests(ctx context.Context, taskID, dir string) string {
 			changed = append(changed, f)
 		}
 	}
+	return changed
+}
+
+// requireTests sends back a change that touches no test file. An empty
+// change passes here: the other checks decide what nothing means.
+func requireTests(changed []string) string {
 	if len(changed) == 0 || slices.ContainsFunc(changed, IsTestFile) {
 		return ""
 	}
 	if len(changed) > 10 {
-		changed = append(changed[:10], "…")
+		changed = append(slices.Clone(changed[:10]), "…")
 	}
 	return "dispatch.tdd is on, and your change touches no test file (it changes " + strings.Join(changed, ", ") + "). " +
 		"Write a test for each acceptance criterion with the framework the repository already uses, " +
