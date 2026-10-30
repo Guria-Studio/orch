@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/vcs"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 const conflictPR = "https://github.com/o/r/pull/2"

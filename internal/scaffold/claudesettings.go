@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/doctor"
 )
 
 // AllowOrchTools adds the rules of doctor.OrchToolRules that are missing to

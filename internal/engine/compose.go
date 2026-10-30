@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // Parallel tasks run in sibling worktrees of one repository, and docker

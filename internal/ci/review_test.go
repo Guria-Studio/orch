@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // TestParseVerdictFromARealClaudeAnswer reads what claude 2.1.272 really

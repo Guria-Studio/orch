@@ -60,7 +60,7 @@ the dashboard's React app embedded in it. No virtualenv, no pip, no server
 process to keep alive.
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 orch init my-project --template python-api
 ```
 

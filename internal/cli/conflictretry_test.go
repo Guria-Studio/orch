@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // TestOldConfigKeepsConflictRetriesOff (#438): a config written before

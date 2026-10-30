@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/providers"
-	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // LatestFunc is an npm package's latest version (update.LatestCLI behind the

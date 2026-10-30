@@ -37,7 +37,7 @@
 ## 1. Instalación
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 ```
 
 Descarga el tarball correcto para `linux`/`darwin` × `amd64`/`arm64` desde
@@ -45,10 +45,10 @@ el último GitHub Release, verifica su checksum, e instala en
 `~/.local/bin` (`INSTALL_DIR=...` para cambiarlo). Sin toolchain de Go,
 sin Python, sin dependencias que resolver — `orch` es un binario estático.
 
-O desde el código, solo la CLI (`go install github.com/hectorcanaimero/orch/cmd/orch@latest`, Go ≥ 1.25): se compila sin los bundles web, así que `orch dashboard` y `orch publish` necesitan el script o un tarball del release.
+O desde el código, solo la CLI (`go install github.com/Guria-Studio/orch/cmd/orch@latest`, Go ≥ 1.25): se compila sin los bundles web, así que `orch dashboard` y `orch publish` necesitan el script o un tarball del release.
 
 O bajá un tarball directamente de
-[la página de Releases](https://github.com/hectorcanaimero/orch/releases)
+[la página de Releases](https://github.com/Guria-Studio/orch/releases)
 y poné `orch` en tu `PATH` a mano. Ver [`RELEASING.md`](RELEASING.md) para
 el esquema completo de tags y cómo se construyen los releases.
 
@@ -158,7 +158,7 @@ cada tarea corre en un worktree nuevo, así que orch define
 tu entorno para mantener ese control.
 
 Un proyecto nuevo trae `report_findings.enabled: false`. Los agentes pueden
-abrir issues **públicos** sobre orch en hectorcanaimero/orch con tu login de
+abrir issues **públicos** sobre orch en Guria-Studio/orch con tu login de
 `gh` ([`DOGFOODING.md`](DOGFOODING.md)), y eso no es lo primero que hay que
 preguntar: el primer `orch run` que termina una task lo ofrece, una vez.
 `--no-report-findings` es un no rotundo y no se ofrece nunca.
@@ -818,7 +818,7 @@ el status actual de la task.
 
 ```bash
 # Re-correr el instalador — siempre trae el último release v* (sin -py)
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 
 # o: orch upgrade
 
@@ -850,7 +850,7 @@ pipx install .
 o
 
 ```bash
-pipx install git+https://github.com/hectorcanaimero/orch.git@v0.11.0-py
+pipx install git+https://github.com/Guria-Studio/orch.git@v0.11.0-py
 ```
 
 Esa línea no recibe features nuevas — sólo el binario en Go avanza. Ver
@@ -875,5 +875,5 @@ prefijo de branch aparte.
 Este manual es un documento vivo, que se actualiza en el mismo PR que
 agrega un subcomando nuevo. Si te encontrás con un caso que no está
 cubierto, abrí un issue en
-<https://github.com/hectorcanaimero/orch/issues> o mandá un PR con la
+<https://github.com/Guria-Studio/orch/issues> o mandá un PR con la
 sección que falta.

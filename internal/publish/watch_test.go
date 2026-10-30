@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // recorder counts publishes and remembers what was published.

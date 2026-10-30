@@ -3,10 +3,10 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/explain"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/explain"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // newExplainCmd is `orch explain` — one screen that says where a project is

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // fakeBundle is shaped like what vite actually emits: the entry page named

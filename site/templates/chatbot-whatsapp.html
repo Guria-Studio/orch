@@ -23,7 +23,7 @@
       <a href="../templates/">Templates</a>
       <a href="../playground/">Playground</a>
       <a href="../#install">Install</a>
-      <a href="https://github.com/hectorcanaimero/orch">GitHub</a>
+      <a href="https://github.com/Guria-Studio/orch">GitHub</a>
     </nav>
   </header>
 
@@ -46,7 +46,7 @@
     <section aria-labelledby="graph-title" class="page-section">
       <h2 id="graph-title">The plan</h2>
       <p class="page-note">A task starts only when everything above it is done. The violet trace is the longest chain: it sets how soon the plan can finish.</p>
-      <div class="dag-wrap" tabindex="0" role="group" aria-label="Dependency graph, scrollable"><svg class="dag" viewBox="0 0 492 326" width="492" height="326" style="--w:492px" role="img" aria-label="Dependency graph: 4 tasks in 3 layers"><defs><marker id="dag-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="dag-arrowhead"/></marker></defs><path class="dag-edge is-critical" d="M370.0 78.0 C370.0 104.0 246.0 104.0 246.0 128.0" marker-end="url(#dag-arrow)"/><path class="dag-edge is-critical" d="M246.0 196.0 C246.0 222.0 246.0 222.0 246.0 246.0" marker-end="url(#dag-arrow)"/><path class="dag-edge" d="M122.0 78.0 C122.0 163.0 246.0 163.0 246.0 246.0" marker-end="url(#dag-arrow)"/><g class="dag-node"><title>F0.T1 — Waha docker-compose + persistent volume</title><rect x="12.0" y="12.0" width="220" height="66" rx="12"/><text class="dag-id" x="26.0" y="34.0">F0.T1</text><text class="dag-title" x="26.0" y="52.0">Waha docker-compose +</text><text class="dag-title" x="26.0" y="68.0">persistent volume</text></g><g class="dag-node is-critical"><title>F0.T2 — FastAPI project skeleton</title><rect x="260.0" y="12.0" width="220" height="66" rx="12"/><text class="dag-id" x="274.0" y="34.0">F0.T2</text><text class="dag-title" x="274.0" y="52.0">FastAPI project skeleton</text></g><g class="dag-node is-critical"><title>F1.T1 — POST /webhook receives Waha events</title><rect x="136.0" y="130.0" width="220" height="66" rx="12"/><text class="dag-id" x="150.0" y="152.0">F1.T1</text><text class="dag-title" x="150.0" y="170.0">POST /webhook receives Waha</text><text class="dag-title" x="150.0" y="186.0">events</text></g><g class="dag-node is-critical"><title>F2.T1 — Claude agent replies to incoming messages</title><rect x="136.0" y="248.0" width="220" height="66" rx="12"/><text class="dag-id" x="150.0" y="270.0">F2.T1</text><text class="dag-title" x="150.0" y="288.0">Claude agent replies to</text><text class="dag-title" x="150.0" y="304.0">incoming messages</text></g></svg></div>
+      <div class="dag-wrap" tabindex="0" role="group" aria-label="Dependency graph, scrollable"><svg class="dag" viewBox="0 0 492 326" width="492" height="326" style="--w:492px" role="img" aria-label="Dependency graph: 4 tasks in 3 layers"><defs><marker id="dag-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="dag-arrowhead"/></marker></defs><path class="dag-edge" d="M246.0 78.0 C246.0 104.0 122.0 104.0 122.0 128.0" marker-end="url(#dag-arrow)"/><path class="dag-edge is-critical" d="M246.0 78.0 C246.0 104.0 370.0 104.0 370.0 128.0" marker-end="url(#dag-arrow)"/><path class="dag-edge is-critical" d="M370.0 196.0 C370.0 222.0 246.0 222.0 246.0 246.0" marker-end="url(#dag-arrow)"/><path class="dag-edge" d="M122.0 196.0 C122.0 222.0 246.0 222.0 246.0 246.0" marker-end="url(#dag-arrow)"/><g class="dag-node"><title>F0.T1 — Waha docker-compose + persistent volume</title><rect x="12.0" y="130.0" width="220" height="66" rx="12"/><text class="dag-id" x="26.0" y="152.0">F0.T1</text><text class="dag-title" x="26.0" y="170.0">Waha docker-compose +</text><text class="dag-title" x="26.0" y="186.0">persistent volume</text></g><g class="dag-node is-critical"><title>F0.T2 — FastAPI project skeleton</title><rect x="136.0" y="12.0" width="220" height="66" rx="12"/><text class="dag-id" x="150.0" y="34.0">F0.T2</text><text class="dag-title" x="150.0" y="52.0">FastAPI project skeleton</text></g><g class="dag-node is-critical"><title>F1.T1 — POST /webhook receives Waha events</title><rect x="260.0" y="130.0" width="220" height="66" rx="12"/><text class="dag-id" x="274.0" y="152.0">F1.T1</text><text class="dag-title" x="274.0" y="170.0">POST /webhook receives Waha</text><text class="dag-title" x="274.0" y="186.0">events</text></g><g class="dag-node is-critical"><title>F2.T1 — Claude agent replies to incoming messages</title><rect x="136.0" y="248.0" width="220" height="66" rx="12"/><text class="dag-id" x="150.0" y="270.0">F2.T1</text><text class="dag-title" x="150.0" y="288.0">Claude agent replies to</text><text class="dag-title" x="150.0" y="304.0">incoming messages</text></g></svg></div>
     </section>
 
     <section aria-labelledby="tasks-title" class="page-section">
@@ -57,7 +57,7 @@
         <table class="tasks">
           <thead><tr><th scope="col">ID</th><th scope="col">Task</th><th scope="col">Model</th><th scope="col" class="num">Estimate</th><th scope="col">Waits for</th></tr></thead>
           <tbody>
-            <tr><td><code>F0.T1</code></td><td class="title">Waha docker-compose &#43; persistent volume</td><td><code>claude/claude-sonnet-4-6</code></td><td class="num">0.4 h</td><td>—</td></tr>
+            <tr><td><code>F0.T1</code></td><td class="title">Waha docker-compose &#43; persistent volume</td><td><code>claude/claude-sonnet-4-6</code></td><td class="num">0.4 h</td><td><code>F0.T2</code></td></tr>
             <tr><td><code>F0.T2</code></td><td class="title">FastAPI project skeleton</td><td><code>claude/claude-sonnet-4-6</code></td><td class="num">0.3 h</td><td>—</td></tr>
             
           </tbody>
@@ -97,7 +97,7 @@
       <a href="../">Home</a>
       <a href="../templates/">Templates</a>
       <a href="../playground/">Playground</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">Manual</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.en.md">Manual</a>
     </nav>
   </footer>
   <script src="../copy.js" defer></script>

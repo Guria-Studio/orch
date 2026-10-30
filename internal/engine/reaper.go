@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/prompt"
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // completion is one finished child, posted by its supervising goroutine.

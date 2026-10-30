@@ -6,7 +6,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // VCSConfig is the subset of config the VCS readiness check needs — the

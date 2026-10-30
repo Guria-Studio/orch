@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 var now = time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)

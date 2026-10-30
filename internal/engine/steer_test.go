@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // stopRequestsAt hands the loop one stop request from its second read on —

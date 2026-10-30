@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The events the project knowledge is recorded as (#453).

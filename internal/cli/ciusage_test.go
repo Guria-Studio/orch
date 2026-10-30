@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 func fakeActions(t *testing.T, visibility string, usage vcs.ActionsUsage) {

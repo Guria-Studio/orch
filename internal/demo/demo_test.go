@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The demo is only worth having if the dashboard reads it the way it reads a

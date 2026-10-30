@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/demo"
-	"github.com/hectorcanaimero/orch/internal/receipt"
+	"github.com/Guria-Studio/orch/internal/demo"
+	"github.com/Guria-Studio/orch/internal/receipt"
 )
 
 // `orch report receipt` prints the same receipt the dashboard shows, from the

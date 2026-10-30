@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/providers"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Portuguese is a first-class language, not a fallback to Spanish: a client

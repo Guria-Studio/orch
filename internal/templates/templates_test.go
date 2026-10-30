@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/graph"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/router"
 )
 
 // The five canonical templates. Named rather than derived, so that a template

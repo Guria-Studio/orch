@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/prompt"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // TestTaskNoteRetryWritesTheNote: #454's Send back from the CLI. `task note

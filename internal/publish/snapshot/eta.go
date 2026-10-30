@@ -1,6 +1,6 @@
 package snapshot
 
-import "github.com/hectorcanaimero/orch/internal/model"
+import "github.com/Guria-Studio/orch/internal/model"
 
 // etaHoursRemaining ports `eta_hours_remaining` (orchestrator/dashboard/
 // metrics.py): the plan's remaining estimate, scaled by how the team's

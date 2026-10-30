@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // MuseProvider adapts the `muse` CLI (Muse Code, #395).

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 func operatorSend(t *testing.T, s *Server, method, path, body string) *httptest.ResponseRecorder {

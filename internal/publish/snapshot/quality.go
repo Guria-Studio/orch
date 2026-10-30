@@ -1,6 +1,6 @@
 package snapshot
 
-import "github.com/hectorcanaimero/orch/internal/model"
+import "github.com/Guria-Studio/orch/internal/model"
 
 // Quality is how deliveries are checked before they count, in the terms a
 // client reads: which kinds of check every pull request goes through, and how

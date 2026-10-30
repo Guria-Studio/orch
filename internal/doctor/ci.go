@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // CheckCIStack warns when orch-ci.yml is still the placeholder `orch init`

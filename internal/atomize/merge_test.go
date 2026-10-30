@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // defaultParsedTask ports test_atomize.py's _parsed() helper.

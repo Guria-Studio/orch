@@ -5,9 +5,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // StopRequests is where the loop reads the operator's stop requests (#356):

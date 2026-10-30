@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // Provider failover (#439): a route's `failover` lists other route keys, in

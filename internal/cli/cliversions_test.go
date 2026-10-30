@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // withFakeClaude puts a `claude` that reports version on a PATH of its own,

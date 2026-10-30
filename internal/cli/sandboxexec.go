@@ -3,7 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/sandbox"
 )
 
 // sandboxExec is sandbox.Exec, swapped by the test that checks what the

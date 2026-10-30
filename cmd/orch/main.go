@@ -7,7 +7,7 @@ package main
 import (
 	"os"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // version is overridden at build time via -ldflags "-X main.version=...".

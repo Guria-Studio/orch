@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The Knowledge page (#453): the project's lessons, how each one did, and the

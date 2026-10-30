@@ -49,9 +49,9 @@ What the client sees (and only this):
 What they never see: raw logs, per-model spend, exit codes, provider names, or
 anything that returns 403 in stakeholder mode.
 
-GitHub: https://github.com/hectorcanaimero/orch
-Install: pipx install https://github.com/hectorcanaimero/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
-Docs: https://github.com/hectorcanaimero/orch/blob/main/docs/DELIVERING-TO-STAKEHOLDERS.md
+GitHub: https://github.com/Guria-Studio/orch
+Install: pipx install https://github.com/Guria-Studio/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
+Docs: https://github.com/Guria-Studio/orch/blob/main/docs/DELIVERING-TO-STAKEHOLDERS.md
 
 Happy to answer questions about the architecture, the auth model, or the dispatch
 logic. Also open to feedback on the stakeholder UX — I'm planning to add timeline

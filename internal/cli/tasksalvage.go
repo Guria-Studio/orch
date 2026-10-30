@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // eventSalvageAccepted records work accepted with `orch task salvage --accept`.

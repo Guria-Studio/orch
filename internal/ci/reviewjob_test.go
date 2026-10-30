@@ -72,7 +72,7 @@ func TestRenderWithAGeminiReview(t *testing.T) {
 		"orch ci review --provider gemini --model gemini-2.5-flash --post --blocking",
 		// orch comes pinned and checksum-verified from its release, not from
 		// a script piped into a shell.
-		"gh release download v0.14.0 --repo hectorcanaimero/orch",
+		"gh release download v0.14.0 --repo Guria-Studio/orch",
 		"sha256sum --check --ignore-missing checksums.txt",
 	} {
 		if !strings.Contains(string(out), want) {
@@ -124,7 +124,7 @@ func TestReviewChecklistFollowsTheStack(t *testing.T) {
 // A dev build has no release of its own to pin, so the job takes the latest.
 func TestInstallOrchWithoutAVersionTakesTheLatestRelease(t *testing.T) {
 	got := installOrch("")
-	if !strings.HasPrefix(got, "gh release download --repo hectorcanaimero/orch ") {
+	if !strings.HasPrefix(got, "gh release download --repo Guria-Studio/orch ") {
 		t.Errorf("installOrch(\"\") = %q, want the latest release", got)
 	}
 	if pinned := installOrch("v0.14.0"); !strings.HasPrefix(pinned, "gh release download v0.14.0 --repo") {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // CheckOrphanWorktrees reports what internal/worktree's own bookkeeping (an

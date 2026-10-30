@@ -36,7 +36,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiClient: { get: apiGet },
 }))
 vi.mock("@/hooks/useTunnelCapabilities", () => ({
-  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" } } }),
+  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "Guria-Studio/orch", branch: "main" } } }),
 }))
 
 const OPERATOR_NAV = DESTINATIONS.map((d) => ({ ...d, tabs: d.tabs.filter((tab) => !tab.portfolioGated) }))

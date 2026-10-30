@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // scriptedVerifier answers each call with the next failure in its script,

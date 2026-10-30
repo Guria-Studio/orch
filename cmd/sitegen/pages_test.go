@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/templates"
 )
 
 // TestTemplateGalleryIsCurrent holds the committed site/templates to what

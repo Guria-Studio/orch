@@ -3,8 +3,8 @@ package snapshot
 import (
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Languages are the languages a snapshot is written in. `pt` is Brazilian

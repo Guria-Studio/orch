@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/demo"
-	"github.com/hectorcanaimero/orch/internal/usage"
+	"github.com/Guria-Studio/orch/internal/demo"
+	"github.com/Guria-Studio/orch/internal/usage"
 )
 
 // `orch report usage` (#417) against the demo's spend: the text names the

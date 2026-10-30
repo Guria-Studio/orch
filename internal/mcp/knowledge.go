@@ -10,8 +10,8 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // knowledgeOff is what both tools answer when the project keeps no memory.

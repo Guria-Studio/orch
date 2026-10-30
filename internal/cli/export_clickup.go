@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/export"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/export"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 func newExportClickUpCmd(flags *projectFlags) *cobra.Command {

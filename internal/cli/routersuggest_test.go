@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // suggestProject is a project whose "work" tasks ran 12 times on codex/gpt-5

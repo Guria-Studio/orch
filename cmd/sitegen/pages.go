@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/sitegen"
-	"github.com/hectorcanaimero/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/sitegen"
+	"github.com/Guria-Studio/orch/internal/templates"
 )
 
 type phaseView struct {
@@ -152,7 +152,7 @@ var pageTmpl = template.Must(template.New("").Funcs(template.FuncMap{
       <a href="../templates/">Templates</a>
       <a href="../playground/">Playground</a>
       <a href="../#install">Install</a>
-      <a href="https://github.com/hectorcanaimero/orch">GitHub</a>
+      <a href="https://github.com/Guria-Studio/orch">GitHub</a>
     </nav>
   </header>
 {{end}}
@@ -164,7 +164,7 @@ var pageTmpl = template.Must(template.New("").Funcs(template.FuncMap{
       <a href="../">Home</a>
       <a href="../templates/">Templates</a>
       <a href="../playground/">Playground</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">Manual</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.en.md">Manual</a>
     </nav>
   </footer>
   <script src="../copy.js" defer></script>
@@ -212,7 +212,7 @@ var pageTmpl = template.Must(template.New("").Funcs(template.FuncMap{
       <h2 id="install-title">Run it for real</h2>
       <p class="page-note">Install orch, put the spec under <code>specs/</code> and let <code>orch atomize --apply</code> write <code>tasks.json</code>. Then <code>orch run</code> dispatches every ready task to its agent.</p>
       <div class="copy-cmd">
-        <pre class="term" tabindex="0"><code><span data-copy-source>curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh</span></code></pre>
+        <pre class="term" tabindex="0"><code><span data-copy-source>curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh</span></code></pre>
         <button class="replay" type="button" data-copy hidden>Copy</button>
       </div>
     </section>

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/engine"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 func e2eEvent(id int64, run, task string, attempt, passed, failed int) state.Event {

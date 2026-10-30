@@ -76,7 +76,7 @@ typical_dispatch_tokens: 200000
 # `orch init` and `orch start` write `enabled: true` and say so
 # (`--no-report-findings` writes false). `enabled: true` turns on the MCP tool
 # `orch_report_finding`: an agent files a bug, improvement or feature request
-# as a PUBLIC `auto-reported` issue on hectorcanaimero/orch under your own
+# as a PUBLIC `auto-reported` issue on Guria-Studio/orch under your own
 # `gh` login, and every dispatch prompt ends with an optional "Feedback about
 # orch itself" block. Agents are told to leave out secrets, project code and
 # project or customer names. Set `enabled: false` to turn it off; a config

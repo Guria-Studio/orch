@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pricing"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The money endpoints of G5.2(b2): what the project has spent, and what the

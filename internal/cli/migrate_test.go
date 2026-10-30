@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // fileProjectFixtureDir is testdata/file-project — a synthetic file-mode

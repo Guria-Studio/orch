@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	"github.com/hectorcanaimero/orch/internal/sitegen"
+	"github.com/Guria-Studio/orch/internal/sitegen"
 )
 
 func main() {

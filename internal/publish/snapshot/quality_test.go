@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 func TestQualityCountsDeliveriesThroughCI(t *testing.T) {

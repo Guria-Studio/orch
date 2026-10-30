@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // Text renders the overview for a person: what this project is, where the DAG

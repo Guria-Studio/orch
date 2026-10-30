@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 func task(id string, st model.Status, deps ...string) model.Task {

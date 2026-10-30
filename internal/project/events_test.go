@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 func ev(taskID, eventType, ts string, extra map[string]any) state.Event {

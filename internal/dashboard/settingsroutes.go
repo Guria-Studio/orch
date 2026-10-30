@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 func (s *Server) settingsRoutes() []route {

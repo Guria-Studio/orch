@@ -3,7 +3,7 @@ package dashboard
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/estimate"
+	"github.com/Guria-Studio/orch/internal/estimate"
 )
 
 // The demo has history and work left: the estimate rests on its attempts.

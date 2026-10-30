@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // eventJSON is one event the way Python's `iter_events`

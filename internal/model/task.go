@@ -3,7 +3,7 @@ package model
 import (
 	"encoding/json"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // Task is a single unit of work from tasks.json. Field names match the

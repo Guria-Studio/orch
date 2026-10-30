@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The window vector: every answer below is one Python's BudgetGate actually

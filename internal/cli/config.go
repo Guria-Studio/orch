@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // newConfigCmd is the `orch config` parent. Python's `_run_config_subcommand`

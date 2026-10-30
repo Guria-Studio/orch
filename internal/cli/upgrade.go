@@ -15,9 +15,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/doctor"
-	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // The update check's collaborators, swapped by the tests: none of them may
@@ -45,7 +45,7 @@ func executablePath() (string, error) {
 
 const (
 	skipUpdateFlag  = "skip-update-check"
-	installScript   = "curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh"
+	installScript   = "curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh"
 	noticeTimeout   = 2 * time.Second
 	gateTimeout     = 3 * time.Second
 	upgradeAPIAfter = 10 * time.Second

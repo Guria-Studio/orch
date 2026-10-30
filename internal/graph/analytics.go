@@ -3,7 +3,7 @@ package graph
 import (
 	"sort"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // Analytics over the DAG: what is ready, what is waiting, where the long pole

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // UnresolvedCommand is a shell command in config.yaml whose program is not

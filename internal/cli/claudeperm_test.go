@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/doctor"
 )
 
 func runOrch(t *testing.T, stdin string, args ...string) (string, error) {

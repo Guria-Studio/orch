@@ -17,7 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // fakeGitHub serves one release list and one downloadable release, and
@@ -53,7 +53,7 @@ func fakeGitHub(t *testing.T, latest string, critical bool, binary []byte) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/repos/hectorcanaimero/orch/releases":
+		case "/repos/Guria-Studio/orch/releases":
 			_, _ = w.Write([]byte(list))
 		case "/dl/" + latest + "/checksums.txt":
 			_, _ = fmt.Fprintf(w, "%s  %s\n", hex.EncodeToString(sum[:]), asset)

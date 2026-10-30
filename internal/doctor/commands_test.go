@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 func TestUnresolvedCommands(t *testing.T) {
@@ -35,7 +35,7 @@ func TestUnresolvedCommands(t *testing.T) {
 		"builtins, assignments and repo scripts resolve": {
 			cfg: config.Config{
 				Dispatch: config.Dispatch{WorktreeSetup: "./scripts/setup.sh"},
-				Verify: config.Verify{Enabled: true, Commands: []string{"true", "cd web && tue", "CI=1 true", "$TOOL test"}},
+				Verify:   config.Verify{Enabled: true, Commands: []string{"true", "cd web && tue", "CI=1 true", "$TOOL test"}},
 			},
 		},
 		"verify.app.start on a typo": {

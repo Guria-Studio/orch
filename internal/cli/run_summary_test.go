@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/demo"
-	"github.com/hectorcanaimero/orch/internal/notify"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/demo"
+	"github.com/Guria-Studio/orch/internal/notify"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // When a run's loop ends, orch run prints its summary (#456); a run that did

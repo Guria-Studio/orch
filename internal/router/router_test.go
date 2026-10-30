@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // Cases ported from test_router.py (275 lines) and test_model_router.py (229),

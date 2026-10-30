@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
-	"github.com/hectorcanaimero/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/engine"
 )
 
 // #437: the smoke dispatches through `orch run`'s own path (here with the

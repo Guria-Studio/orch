@@ -5,7 +5,7 @@
 # already-published release, it doesn't build anything.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 #   ./scripts/install.sh                 # latest release
 #   ./scripts/install.sh v0.12.0         # a specific tag
 #
@@ -19,7 +19,7 @@
 # line (#442). Keep it to POSIX; `shellcheck -s sh scripts/install.sh`.
 set -eu
 
-REPO="hectorcanaimero/orch"
+REPO="Guria-Studio/orch"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${ORCH_VERSION:-${1:-latest}}"
 

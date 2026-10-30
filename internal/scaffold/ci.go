@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/ci"
 )
 
 // defaultTestCommand is the packaged config's `github.test_command`.

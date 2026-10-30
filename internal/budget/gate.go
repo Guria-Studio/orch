@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // SpendReader is the slice of `state.Backend` the gate needs.

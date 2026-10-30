@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/sandbox"
 )
 
 // runAsSandboxLauncher makes this test binary stand in for `orch

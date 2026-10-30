@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/scaffold"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/scaffold"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // #376: report_findings is offered once, by the first run after which a task

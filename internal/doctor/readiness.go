@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/graph"
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // CheckReadiness says what `orch run` would dispatch now (tasks.ready) and

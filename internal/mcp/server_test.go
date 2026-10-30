@@ -11,11 +11,11 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/prompt"
-	"github.com/hectorcanaimero/orch/internal/scaffold"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/scaffold"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The whole package is exercised through a real MCP session — an in-memory

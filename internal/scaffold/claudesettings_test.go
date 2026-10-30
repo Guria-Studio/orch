@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/doctor"
 )
 
 func TestAllowOrchTools(t *testing.T) {

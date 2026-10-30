@@ -3,7 +3,7 @@ package providers
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 func TestMuseArgv(t *testing.T) {

@@ -40,7 +40,7 @@ route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in 
 ## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 orch dashboard            # outside a project: the welcome page walks you through it
 ```
 
@@ -70,7 +70,7 @@ step by step; `orch dashboard --tunnel` gives your client a tokenized link.
 **Script** (Linux/macOS, `amd64`/`arm64`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 ```
 
 Downloads the matching tarball from the latest GitHub Release, verifies
@@ -78,13 +78,13 @@ its checksum, and installs to `~/.local/bin` (`INSTALL_DIR=...` to
 override).
 
 **Manual**: grab a tarball from the
-[Releases page](https://github.com/hectorcanaimero/orch/releases) and put
+[Releases page](https://github.com/Guria-Studio/orch/releases) and put
 `orch` on your `PATH` yourself.
 
 **From source** (`go install`, Go ≥ 1.25): the CLI only.
 
 ```bash
-go install github.com/hectorcanaimero/orch/cmd/orch@latest
+go install github.com/Guria-Studio/orch/cmd/orch@latest
 ```
 
 It builds without the web bundles, so `orch dashboard` answers "no index.html
@@ -199,7 +199,7 @@ line, a prompt, a diff, or a per-model cost breakdown.
 per provider, the client page and its PDF, the guided `orch init` wizard with
 five templates, the operator dashboard (Now, ⌘K, run receipts) in English,
 Spanish and Portuguese, `orch dashboard --demo`, and a Cloudflare quick tunnel
-that requires a token. The [releases](https://github.com/hectorcanaimero/orch/releases)
+that requires a token. The [releases](https://github.com/Guria-Studio/orch/releases)
 are the living list.
 
 **Next** — a DAG visual editor, a VS Code extension, and `orch dashboard
@@ -213,8 +213,8 @@ before a human merges it — see [`docs/CI-REVIEW.md`](docs/CI-REVIEW.md).
 ## Follow the build
 
 A release a week, in the open: every change, what broke and the numbers behind
-it. [Releases](https://github.com/hectorcanaimero/orch/releases) ·
-[Atom feed](https://github.com/hectorcanaimero/orch/releases.atom) ·
+it. [Releases](https://github.com/Guria-Studio/orch/releases) ·
+[Atom feed](https://github.com/Guria-Studio/orch/releases.atom) ·
 [LinkedIn, in Portuguese](https://www.linkedin.com/in/knaimero/) ·
 [X, in Spanish](https://x.com/hectorcanaimero) ·
 [tryorch.us](https://tryorch.us)
@@ -243,7 +243,7 @@ describes the Go version). The last Python release is frozen on the
 that line, only the Go binary moves forward.
 
 ```bash
-pipx install git+https://github.com/hectorcanaimero/orch.git@v0.11.0-py
+pipx install git+https://github.com/Guria-Studio/orch.git@v0.11.0-py
 ```
 
 Its own manual is preserved at that tag. See

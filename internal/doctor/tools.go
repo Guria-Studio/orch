@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // Tool groups, stable on the wire: the dashboard's Tools page lists them in

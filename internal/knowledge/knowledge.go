@@ -25,8 +25,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Dir is where a project keeps its lessons, relative to its root.

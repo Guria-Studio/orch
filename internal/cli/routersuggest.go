@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/estimate"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pricing"
-	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/estimate"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/router"
 )
 
 // routerSuggestPayload is `orch router suggest --json`.

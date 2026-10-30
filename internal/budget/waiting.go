@@ -3,7 +3,7 @@ package budget
 import (
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Waiting is a task the gate deferred: which provider it is waiting on, when

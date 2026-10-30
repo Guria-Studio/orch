@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/prompt"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // A verify rejection followed by a pass leaves a draft lesson in the task's

@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/atomize"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/skills"
+	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/skills"
 )
 
 // The contract tests for the embedded skills live here rather than in

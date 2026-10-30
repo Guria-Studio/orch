@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/atomize"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // DefaultIssuesLabel is the label `orch sync issues` reads when neither the

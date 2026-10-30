@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/hectorcanaimero/orch/internal/tunnel"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // The dashboard tunnel: a Cloudflare quick tunnel or a tailscale serve/funnel

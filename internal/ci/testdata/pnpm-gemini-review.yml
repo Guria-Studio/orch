@@ -56,7 +56,7 @@ jobs:
       - name: Install orch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: "gh release download v0.14.0 --repo hectorcanaimero/orch --pattern \"orch_*_linux_amd64.tar.gz\" --pattern checksums.txt --dir \"$RUNNER_TEMP/orch\" && cd \"$RUNNER_TEMP/orch\" && sha256sum --check --ignore-missing checksums.txt && mkdir -p \"$HOME/.local/bin\" && tar -xzf orch_*_linux_amd64.tar.gz -C \"$HOME/.local/bin\" orch && echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\""
+        run: "gh release download v0.14.0 --repo Guria-Studio/orch --pattern \"orch_*_linux_amd64.tar.gz\" --pattern checksums.txt --dir \"$RUNNER_TEMP/orch\" && cd \"$RUNNER_TEMP/orch\" && sha256sum --check --ignore-missing checksums.txt && mkdir -p \"$HOME/.local/bin\" && tar -xzf orch_*_linux_amd64.tar.gz -C \"$HOME/.local/bin\" orch && echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\""
       - name: Review
         env:
           GH_TOKEN: ${{ github.token }}

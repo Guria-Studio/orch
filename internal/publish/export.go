@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // robotsTXT keeps the export out of search results.

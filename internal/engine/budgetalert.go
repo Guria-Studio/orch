@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // EventBudgetAlert marks a budget alert sent to the notification channels,

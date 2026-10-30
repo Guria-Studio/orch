@@ -33,10 +33,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/templates"
 	"gopkg.in/yaml.v3"
 )
 

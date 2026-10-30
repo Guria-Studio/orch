@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 func gated(files []string, hours float64, phase int, modelName string) model.Task {

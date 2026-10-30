@@ -3,8 +3,8 @@ package graph
 import (
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // Validate runs every static check and returns the problems in the same order

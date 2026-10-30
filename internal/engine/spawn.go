@@ -23,9 +23,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/providers"
-	"github.com/hectorcanaimero/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/sandbox"
 )
 
 // TermToKillGrace is how long a child gets between SIGTERM and SIGKILL on

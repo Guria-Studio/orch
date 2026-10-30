@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/router"
 )
 
 // probeTimeout caps every CLI probe this file runs — CHECKLIST rule 18.

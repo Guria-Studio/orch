@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/mcp"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/mcp"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // newMCPCmd wires `orch mcp` — the stdio MCP server.

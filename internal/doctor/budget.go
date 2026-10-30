@@ -3,7 +3,7 @@ package doctor
 import (
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/budget"
 )
 
 // CheckBudgetPreset warns when budgetsYAML's preset has a provider window

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // Event and spend rows are inserted with `INSERT OR IGNORE` against a UNIQUE

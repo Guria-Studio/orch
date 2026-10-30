@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
-	"github.com/hectorcanaimero/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/templates"
 )
 
 // A real server, the real embedded SPA, real HTTP requests. Not a unit test —

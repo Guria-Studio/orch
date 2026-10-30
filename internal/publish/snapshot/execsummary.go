@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/graph"
 )
 
 // summaryPhrases is one language's wording of the executive summary. Each

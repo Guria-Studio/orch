@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // TerminalGate is the real semi-mode gate: it prints a summary and blocks on

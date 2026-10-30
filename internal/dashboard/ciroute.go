@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // The operator's CI page: how the project's pipeline is set up, the orch half

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/doctor"
 )
 
 // fakeCLIs puts executables with these names alone on PATH.

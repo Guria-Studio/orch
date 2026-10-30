@@ -3,7 +3,7 @@ package router
 import (
 	"os/exec"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // BackendPreference is every backend, in the order a route is picked in when several backends

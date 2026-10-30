@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/engine"
 )
 
 // A curation whose lessons no longer parse, or outgrow what a prompt

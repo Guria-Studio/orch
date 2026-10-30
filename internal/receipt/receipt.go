@@ -19,14 +19,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pricing"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // BuiltWith is the footer a shared receipt carries unless its author opts out.
-const BuiltWith = "Built with [orch](https://github.com/hectorcanaimero/orch)"
+const BuiltWith = "Built with [orch](https://github.com/Guria-Studio/orch)"
 
 // Receipt is one run's summary. Its JSON is what `/api/receipt` and
 // `orch report receipt --json` return.

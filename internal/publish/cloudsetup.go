@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/cloudworker"
+	"github.com/Guria-Studio/orch/internal/publish/cloudworker"
 )
 
 // CloudSetupOptions drives `orch cloud setup`. Every field with a side effect

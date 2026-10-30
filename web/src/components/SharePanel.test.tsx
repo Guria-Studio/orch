@@ -35,7 +35,7 @@ function caps(providers: TunnelProvider[]): TunnelCapabilities {
     reason: "ok",
     reasons: [],
     providers,
-    repo: { remote: "github.com:hectorcanaimero/orch.git", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" },
+    repo: { remote: "github.com:Guria-Studio/orch.git", host: "github.com", slug: "Guria-Studio/orch", branch: "main" },
     local_url: "http://127.0.0.1:7420",
   }
 }
@@ -61,7 +61,7 @@ describe("SharePanel", () => {
     api.getTunnelCapabilities.mockResolvedValue(caps([provider("cloudflared", true), provider("tailscale-serve", false), provider("tailscale-funnel", false)]))
     api.getTunnelStatus.mockResolvedValue(idle)
     renderPanel()
-    expect(await screen.findByText("hectorcanaimero/orch")).toBeInTheDocument()
+    expect(await screen.findByText("Guria-Studio/orch")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
     expect(screen.getByText("http://127.0.0.1:7420")).toBeInTheDocument()
     // Two programs; tailscale's modes appear inside its card once it is installed.

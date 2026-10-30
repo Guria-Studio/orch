@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/budget"
 )
 
 // TestBudgetAlertText: Go only, so there is no Python capture. The numbers

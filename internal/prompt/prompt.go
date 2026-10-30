@@ -44,10 +44,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // DefaultSpecRoot is where `specRef` values are resolved from when config.yaml

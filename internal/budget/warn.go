@@ -3,7 +3,7 @@ package budget
 import (
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // WarnUndersizedPresets returns one warning per provider whose window cannot

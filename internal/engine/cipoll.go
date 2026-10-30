@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/prompt"
-	"github.com/hectorcanaimero/orch/internal/state"
-	"github.com/hectorcanaimero/orch/internal/vcs"
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // CI status values, as written into `tasks_runtime.ci_status`. Python's

@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The operator's stop and note controls (#356). The dashboard stays read-only

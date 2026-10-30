@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // capturedIssues reads the same real `gh issue list` payload internal/vcs

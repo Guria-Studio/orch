@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // startWith posts a provider choice to /api/tunnel/start as the local operator.

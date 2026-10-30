@@ -76,7 +76,7 @@ changelog:
 
 release:
   github:
-    owner: hectorcanaimero
+    owner: Guria-Studio
     name: orch
   draft: false
   # v*.*.* is stable; anything else (a future -rc./-beta. suffix) marks

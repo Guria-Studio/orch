@@ -14,15 +14,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/dashboard"
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/publish"
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
-	"github.com/hectorcanaimero/orch/internal/state"
-	"github.com/hectorcanaimero/orch/internal/tunnel"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/dashboard"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/publish"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // newDashboardCmd ports `orch dashboard` (the `run` function in

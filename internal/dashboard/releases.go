@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/update"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // The What's new page (#364): orch's releases with their notes, the running

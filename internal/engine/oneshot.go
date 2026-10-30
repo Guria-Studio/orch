@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // OneShot runs one prompt outside the task loop (#461) — `orch report

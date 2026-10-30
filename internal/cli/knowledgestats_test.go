@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // orch knowledge stats splits the done tasks at the first lesson: a task done

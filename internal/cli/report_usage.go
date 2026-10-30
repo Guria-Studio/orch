@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
-	"github.com/hectorcanaimero/orch/internal/usage"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/usage"
 )
 
 // usageQuotaNote is what every usage view says about the numbers (#417).

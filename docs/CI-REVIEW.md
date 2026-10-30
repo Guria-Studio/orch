@@ -173,7 +173,7 @@ Both also run inside their own jobs, before the rules they test are trusted.
 One secret, set once by someone with admin on the repo:
 
 ```bash
-gh secret set GEMINI_API_KEY --repo hectorcanaimero/orch
+gh secret set GEMINI_API_KEY --repo Guria-Studio/orch
 # paste the key from https://aistudio.google.com/apikey
 ```
 
@@ -189,8 +189,8 @@ model name in a workflow file is a guess that goes stale.
 To pin one:
 
 ```bash
-gh variable set GEMINI_REVIEW_MODEL --body 'gemini-2.5-pro' --repo hectorcanaimero/orch
-gh variable delete GEMINI_REVIEW_MODEL --repo hectorcanaimero/orch   # back to the default
+gh variable set GEMINI_REVIEW_MODEL --body 'gemini-2.5-pro' --repo Guria-Studio/orch
+gh variable delete GEMINI_REVIEW_MODEL --repo Guria-Studio/orch   # back to the default
 ```
 
 The action itself is pinned to a commit SHA (`v0.1.22`) because it is the step
@@ -204,11 +204,11 @@ Least invasive first:
 
 ```bash
 # 1. Stop reviewing, keep everything in place: delete the key.
-gh secret delete GEMINI_API_KEY --repo hectorcanaimero/orch
+gh secret delete GEMINI_API_KEY --repo Guria-Studio/orch
 
 # 2. Disable the workflow entirely (checks stop appearing).
-gh workflow disable "PR review" --repo hectorcanaimero/orch
-gh workflow enable  "PR review" --repo hectorcanaimero/orch
+gh workflow disable "PR review" --repo Guria-Studio/orch
+gh workflow enable  "PR review" --repo Guria-Studio/orch
 
 # 3. Skip it for one PR.
 gh pr edit <N> --add-label needs-human   # blocks eligibility, review still runs
@@ -228,7 +228,7 @@ order.
 ### 1. Protect `main`
 
 ```bash
-gh api -X PUT repos/hectorcanaimero/orch/branches/main/protection \
+gh api -X PUT repos/Guria-Studio/orch/branches/main/protection \
   --input - <<'JSON'
 {
   "required_status_checks": {
@@ -268,8 +268,8 @@ can genuinely go green. Nothing to special-case.
 ### 2. Let PRs merge themselves
 
 ```bash
-gh api -X PATCH repos/hectorcanaimero/orch --field allow_auto_merge=true
-gh variable set ORCH_AUTOMERGE --body 'on' --repo hectorcanaimero/orch
+gh api -X PATCH repos/Guria-Studio/orch --field allow_auto_merge=true
+gh variable set ORCH_AUTOMERGE --body 'on' --repo Guria-Studio/orch
 ```
 
 Both are needed. Without `allow_auto_merge` the `Arm auto-merge` step fails
@@ -281,7 +281,7 @@ annotation pointing back here, but the fix is the flag.
 `ORCH_AUTOMERGE` is global and reversible:
 
 ```bash
-gh variable set ORCH_AUTOMERGE --body 'off' --repo hectorcanaimero/orch
+gh variable set ORCH_AUTOMERGE --body 'off' --repo Guria-Studio/orch
 ```
 
 Anything other than `on` — including the variable not existing — means off.
@@ -397,7 +397,7 @@ review:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - run: curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+    - run: curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
     - run: npm install -g @anthropic-ai/claude-code
     - run: orch ci review --provider claude --model claude-sonnet-4-5 --post
       env:

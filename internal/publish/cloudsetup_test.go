@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/cloudfake"
-	"github.com/hectorcanaimero/orch/internal/publish/cloudworker"
+	"github.com/Guria-Studio/orch/internal/publish/cloudfake"
+	"github.com/Guria-Studio/orch/internal/publish/cloudworker"
 )
 
 // setupRig is one offline `orch cloud setup`: the fake npx in

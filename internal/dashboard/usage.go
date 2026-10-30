@@ -4,8 +4,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/pricing"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The Usage page's views of the spend rows: a period, a per-backend day

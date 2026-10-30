@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // backdate rewrites a task's finished_at to `days` before the BACKEND's clock,

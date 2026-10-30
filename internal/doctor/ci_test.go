@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/ci"
 )
 
 func writeFile(t *testing.T, root, rel, body string) {

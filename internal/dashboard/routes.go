@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/hectorcanaimero/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/config"
 )
 
 // The routes this phase wires. G5.2(b) adds the read endpoints; tunnel is

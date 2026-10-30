@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/publish/cloudfake"
+	"github.com/Guria-Studio/orch/internal/publish/cloudfake"
 )
 
 // writeSite lays out a directory shaped like an export.

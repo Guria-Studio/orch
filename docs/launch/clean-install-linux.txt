@@ -3,7 +3,7 @@
 # setup: apt-get install curl ca-certificates git (only prerequisites)
 
 ## A. The one-liner as published on main (scripts/install.sh at origin/main)
-$ curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+$ curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 sh: 15: set: Illegal option -o pipefail
 [exit 2]
 

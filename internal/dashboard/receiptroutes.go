@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/doctor"
-	"github.com/hectorcanaimero/orch/internal/receipt"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/receipt"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // The two cards the Now page shows when nothing is running: the last run's

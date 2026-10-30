@@ -48,8 +48,8 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hectorcanaimero/orch/internal/explain"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/explain"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // ServerName is the name the server reports in `initialize`. It is what an

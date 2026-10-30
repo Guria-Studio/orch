@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/skills"
+	"github.com/Guria-Studio/orch/internal/skills"
 )
 
 // Each skill says, per agent CLI, whether it is installed as this orch

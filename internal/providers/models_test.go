@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // #397: the CLIs that can say which models they run now, read from what each

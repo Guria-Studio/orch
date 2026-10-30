@@ -10,16 +10,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/doctor"
-	"github.com/hectorcanaimero/orch/internal/graph"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/sandbox"
-	"github.com/hectorcanaimero/orch/internal/scaffold"
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/scaffold"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // doctorProjectJSON / doctorSummaryJSON / doctorPayload mirror
