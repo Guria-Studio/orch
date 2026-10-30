@@ -398,7 +398,7 @@ func (s *Scheduler) Refill(ctx context.Context) (int, error) {
 		}
 		route = s.routeFor(route)
 
-		if s.Opts.Mode == ModeSemi && s.Gate != nil && IsCritical(task, s.Routes) {
+		if s.Opts.Mode == ModeSemi && s.Gate != nil && IsCritical(task, s.Routes, s.Opts.Cfg.Gate.CriticalPaths...) {
 			stop, dispatch := s.askOperator(task)
 			if stop {
 				break
@@ -489,7 +489,7 @@ func (s *Scheduler) drainRetryQueue(ctx context.Context) (int, error) {
 // gate itself only decodes a keystroke — but the bookkeeping differs by
 // answer, so it lives here rather than in the Refill loop's body.
 func (s *Scheduler) askOperator(task model.Task) (stop, dispatch bool) {
-	switch s.Gate.Ask(task, GateReason(task, s.Routes)) {
+	switch s.Gate.Ask(task, GateReason(task, s.Routes, s.Opts.Cfg.Gate.CriticalPaths...)) {
 	case DecisionDispatch:
 		return false, true
 	case DecisionDefer:

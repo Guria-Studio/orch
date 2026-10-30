@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Guria-Studio/orch/internal/guard"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
@@ -104,14 +105,37 @@ func TouchesCriticalFiles(task model.Task) bool {
 // IsHighEffort reports whether the estimate alone gates the task (FR-C-1d).
 func IsHighEffort(task model.Task) bool { return task.EstimateHours >= HighEffortHours }
 
+// criticalPathFor is the first of paths (gate.critical_paths, #503) that
+// names one of the task's declared files, or "".
+func criticalPathFor(task model.Task, paths []string) string {
+	for _, p := range paths {
+		for _, f := range task.Files {
+			if guard.MatchPath(p, f) {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+// touchesCritical is rule (b): the configured critical paths, or the built-in
+// Supabase layout when none are configured.
+func touchesCritical(task model.Task, paths []string) bool {
+	if len(paths) > 0 {
+		return criticalPathFor(task, paths) != ""
+	}
+	return TouchesCriticalFiles(task)
+}
+
 // IsCritical composes the four FR-C-1 rules. In semi mode, a task that
 // answers true here is offered to the operator before it is dispatched.
+// criticalPaths (gate.critical_paths) replace the built-in file rule.
 //
 // Rule (c) — `phase == 10 && premium` — is subsumed by (a) and is kept only
 // because the spec lists it separately; Python keeps it for the same reason.
-func IsCritical(task model.Task, routes map[string]model.RouteEntry) bool {
+func IsCritical(task model.Task, routes map[string]model.RouteEntry, criticalPaths ...string) bool {
 	return IsPremium(task, routes) ||
-		TouchesCriticalFiles(task) ||
+		touchesCritical(task, criticalPaths) ||
 		(task.Phase == 10 && IsPremium(task, routes)) ||
 		IsHighEffort(task)
 }
@@ -119,10 +143,18 @@ func IsCritical(task model.Task, routes map[string]model.RouteEntry) bool {
 // GateReason renders why the gate fired, for the operator's prompt. Only the
 // first matching rule is reported — enough to know why — and the order is the
 // spec's (FR-C-1).
-func GateReason(task model.Task, routes map[string]model.RouteEntry) string {
+func GateReason(task model.Task, routes map[string]model.RouteEntry, criticalPaths ...string) string {
 	switch {
 	case IsPremium(task, routes):
 		return fmt.Sprintf("premium tier (%s)", routes[task.Model].Tier)
+	case len(criticalPaths) > 0:
+		if p := criticalPathFor(task, criticalPaths); p != "" {
+			return "touches " + p
+		}
+		if IsHighEffort(task) {
+			return highEffortReason(task)
+		}
+		return "critical"
 	case TouchesMigrations(task):
 		return "touches supabase/migrations/**"
 	case TouchesEdgeFunctions(task):
@@ -130,11 +162,15 @@ func GateReason(task model.Task, routes map[string]model.RouteEntry) string {
 	case TouchesPackagesCritical(task):
 		return "touches packages/*/lib/{auth,billing,security}/**"
 	case IsHighEffort(task):
-		// Python interpolates the float with an f-string, so an estimate of
-		// 12.0 reads "estimate_hours=12.0", not "12".
-		return fmt.Sprintf("estimate_hours=%s >= %s",
-			pyfmt.Float(task.EstimateHours), pyfmt.Float(HighEffortHours))
+		return highEffortReason(task)
 	default:
 		return "critical"
 	}
+}
+
+func highEffortReason(task model.Task) string {
+	// Python interpolates the float with an f-string, so an estimate of
+	// 12.0 reads "estimate_hours=12.0", not "12".
+	return fmt.Sprintf("estimate_hours=%s >= %s",
+		pyfmt.Float(task.EstimateHours), pyfmt.Float(HighEffortHours))
 }
