@@ -163,6 +163,32 @@ func TestNoTemplateRepeatsTheSpecRoot(t *testing.T) {
 	}
 }
 
+// A template whose CI runs `pytest` cannot let a task with no dependencies —
+// one that may merge first — leave the repo without a test: pytest exits 5
+// when it collects none, and orch reads that as a red CI (#500).
+func TestEveryPytestTemplateRootTaskShipsATest(t *testing.T) {
+	for _, name := range canonical {
+		if !strings.Contains(readTemplateFile(t, name, "config.yaml.tmpl"), "test_command: pytest") {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			for _, task := range loadTemplateTasks(t, name) {
+				if len(task.Dependencies) > 0 {
+					continue
+				}
+				hasTest := false
+				for _, f := range task.Files {
+					hasTest = hasTest || strings.HasPrefix(f, "tests/test_")
+				}
+				if !hasTest {
+					t.Errorf("%s has no dependencies and no tests/test_*.py in files: "+
+						"its PR's CI collects no tests and fails", task.ID)
+				}
+			}
+		})
+	}
+}
+
 // Every template ships the three files `orch init` reads from it. Only
 // tasks.json.tmpl is required by the loader; the other two being optional is
 // what would let one go missing without anyone noticing.
@@ -268,9 +294,16 @@ var divergedFromPython = map[string]string{
 	"projects/data-pipeline/config.yaml.tmpl":    tunnelTemplateReason,
 	"projects/nextjs-saas/config.yaml.tmpl":      tunnelTemplateReason,
 	"projects/python-api/config.yaml.tmpl":       tunnelTemplateReason,
+	"projects/chatbot-whatsapp/tasks.json.tmpl": noTestsReason + "; F0.T1 waits for F0.T2, " +
+		"since before it there is no pyproject.toml for CI's `pip install -e .[dev]`",
+	"projects/data-pipeline/tasks.json.tmpl": noTestsReason,
+	"projects/python-api/tasks.json.tmpl":    noTestsReason,
 	"gitignore.tmpl": "task worktrees moved out of the checkout to ../<project>.worktrees/ (#249); " +
 		"a comment says `.worktrees/` stays ignored only for what an older orch left inside the project",
 }
+
+const noTestsReason = "the scaffold task wrote only tests/__init__.py, so the template's own CI " +
+	"(`pytest`, exit 5 on no tests collected) failed its first task (#500); it now asks for tests/test_smoke.py"
 
 const tunnelTemplateReason = "the tunnel block sat under `dashboard:`, which the Go loader ignores, with an `auto_start` nothing reads; it is a top-level `tunnel: enabled:` for the Cloudflare quick tunnel"
 

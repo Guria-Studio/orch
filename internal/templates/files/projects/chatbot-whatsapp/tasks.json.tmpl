@@ -19,7 +19,7 @@
       "model": "claude/claude-sonnet-4-6",
       "reason": "Docker+compose scaffolding is templated — Sonnet handles it.",
       "status": "todo",
-      "dependencies": [],
+      "dependencies": ["F0.T2"],
       "estimateHours": 0.4,
       "files": ["docker-compose.yml", ".env.example", "Makefile"],
       "specRef": "f0-foundation.md#T1"
@@ -28,13 +28,13 @@
       "id": "F0.T2",
       "phase": 0,
       "title": "FastAPI project skeleton",
-      "description": "pyproject.toml (fastapi>=0.115,<0.116; uvicorn[standard]>=0.30; httpx>=0.27; python-dotenv; anthropic>=0.40; dev: pytest, ruff). app/__init__.py, app/main.py with `app = FastAPI()`, tests/__init__.py. `pip install -e .[dev]` must succeed.",
+      "description": "pyproject.toml (fastapi>=0.115,<0.116; uvicorn[standard]>=0.30; httpx>=0.27; python-dotenv; anthropic>=0.40; dev: pytest, ruff). app/__init__.py, app/main.py with `app = FastAPI()`, tests/__init__.py, and tests/test_smoke.py that imports `app.main.app` (CI runs `pytest`, which fails when it collects no tests). `pip install -e .[dev]` must succeed.",
       "model": "claude/claude-sonnet-4-6",
       "reason": "Deterministic scaffold.",
       "status": "todo",
       "dependencies": [],
       "estimateHours": 0.3,
-      "files": ["pyproject.toml", "app/__init__.py", "app/main.py", "tests/__init__.py"],
+      "files": ["pyproject.toml", "app/__init__.py", "app/main.py", "tests/__init__.py", "tests/test_smoke.py"],
       "specRef": "f0-foundation.md#T2"
     },
     {

@@ -16,13 +16,13 @@
       "id": "F0.T1",
       "phase": 0,
       "title": "Python package + DuckDB warehouse file",
-      "description": "pyproject.toml (dependencies: duckdb>=1.1, pandas>=2.2, httpx>=0.27, apscheduler>=3.10, python-dotenv; dev: pytest>=8.0, ruff>=0.6). Package layout: pipeline/{__init__.py,extract.py,transform.py,load.py,jobs.py}, tests/__init__.py. warehouse/ dir at project root (gitignored) with a bootstrap SQL that creates a `raw` schema and a `marts` schema. `pip install -e .[dev]` must complete cleanly.",
+      "description": "pyproject.toml (dependencies: duckdb>=1.1, pandas>=2.2, httpx>=0.27, apscheduler>=3.10, python-dotenv; dev: pytest>=8.0, ruff>=0.6). Package layout: pipeline/{__init__.py,extract.py,transform.py,load.py,jobs.py}, tests/__init__.py, tests/test_smoke.py that imports the `pipeline` modules (CI runs `pytest`, which fails when it collects no tests). warehouse/ dir at project root (gitignored) with a bootstrap SQL that creates a `raw` schema and a `marts` schema. `pip install -e .[dev]` must complete cleanly.",
       "model": "claude/claude-sonnet-4-6",
       "reason": "Scaffold + one DuckDB bootstrap — deterministic.",
       "status": "todo",
       "dependencies": [],
       "estimateHours": 0.4,
-      "files": ["pyproject.toml", "pipeline/__init__.py", "pipeline/extract.py", "pipeline/transform.py", "pipeline/load.py", "pipeline/jobs.py", "tests/__init__.py", "warehouse/bootstrap.sql"],
+      "files": ["pyproject.toml", "pipeline/__init__.py", "pipeline/extract.py", "pipeline/transform.py", "pipeline/load.py", "pipeline/jobs.py", "tests/__init__.py", "tests/test_smoke.py", "warehouse/bootstrap.sql"],
       "specRef": "f0-foundation.md#T1"
     },
     {
