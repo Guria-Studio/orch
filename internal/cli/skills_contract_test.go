@@ -31,7 +31,7 @@ func TestTheSkillsAreEmbedded(t *testing.T) {
 	for _, s := range all {
 		got = append(got, s.Name)
 	}
-	want := []string{"orch", "orch-arch", "orch-e2e", "orch-plan", "orch-prd", "orch-spec", "orch-tasks", "orch-tdd"}
+	want := []string{"orch", "orch-arch", "orch-discover", "orch-e2e", "orch-plan", "orch-prd", "orch-spec", "orch-tasks", "orch-tdd"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("embedded skills = %v, want %v", got, want)
 	}

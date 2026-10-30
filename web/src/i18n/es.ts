@@ -823,7 +823,7 @@ export const es = {
   "skills.howto.step.tasks": "Specs → Tareas",
   "skills.howto.step.run": "Ejecución",
   "skills.howto.desc.prd": "Te entrevista para obtener los datos que faltan y escribe un PRD con requisitos numerados y comprobables. orch-plan recorre todo el pipeline; orch-prd, solo este paso.",
-  "skills.howto.desc.arch": "Lee el código y el PRD, y escribe los componentes, contratos y decisiones.",
+  "skills.howto.desc.arch": "Lee el código y el PRD, y escribe los componentes, contratos y decisiones. En un repositorio que ya tiene código, orch-discover escribe antes qué es, con evidencia, en docs/arch/000-discovery.md.",
   "skills.howto.desc.spec": "Escribe specs en el formato exacto que parsea orch atomize: fases, paquetes y tareas.",
   "skills.howto.desc.tasks": "Ejecuta orch atomize en dry-run, muestra el diff y lo aplica cuando confirmas.",
   "skills.howto.desc.run": "orch run despacha el DAG. Los agentes usan orch-tdd en tareas test-first, orch-e2e en tareas E2E y orch para leer el estado del proyecto.",

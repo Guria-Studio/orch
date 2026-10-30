@@ -10,6 +10,7 @@ decides where to resume, and stops at the points where a human has to agree
 before more work is built on top.
 
 ```
+[code exists] ─► orch-discover ─► [gate: proposals]
 idea ─► orch-prd ─► [gate: scope] ─► orch-arch ─► [gate: design]
      ─► orch-spec ─► orch-tasks ─► [gate: apply the diff] ─► [gate: dispatch]
 ```
@@ -32,6 +33,7 @@ Match the idea to existing artifacts before creating new ones:
 
 | Exists already | Resume at |
 | --- | --- |
+| source code, and no current `docs/arch/000-discovery.md` | `orch-discover` |
 | nothing for this idea | `orch-prd` |
 | `docs/prd/NNN-<slug>.md` | `orch-arch` |
 | `docs/arch/NNN-<slug>.md` | `orch-spec` |
@@ -42,6 +44,12 @@ user has already accepted unless they ask; edit it instead, keeping its
 requirement and task ids.
 
 ## 2. Run the stages
+
+0. **`orch-discover`**, only when the repository already has code →
+   `docs/arch/000-discovery.md`. Reuse it when it exists and the commits since
+   its `commit:` do not touch what the idea changes (the skill says how to
+   tell). **Gate — proposals:** the user picks which of its proposed config
+   keys and rules to apply, and its unknowns go to the client.
 
 For each stage, load its skill and follow it **completely** — its rules
 (numbered requirements, files per package, the exact spec format) are what

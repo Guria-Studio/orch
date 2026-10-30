@@ -12,6 +12,9 @@ headers of the specs, and every task in `tasks.json` hangs off one of them.
 
 ## Inputs
 
+0. `docs/arch/000-discovery.md`, when the repository has one (`orch-discover`):
+   what the code is, with evidence. Build on its facts; a design that
+   contradicts one says so explicitly and why, as with earlier architecture.
 1. The PRD: `docs/prd/NNN-<slug>.md`. If there is none, stop and run
    `orch-prd` first — an architecture without requirements has nothing to be
    right about.

@@ -232,6 +232,7 @@ New work reaches `tasks.json` through four documents, each with its own skill:
 
 | Skill | Writes | From |
 | --- | --- | --- |
+| `orch-discover` | `docs/arch/000-discovery.md` | the code, once, on a repository that has some |
 | `orch-prd` | `docs/prd/NNN-<slug>.md` | an idea |
 | `orch-arch` | `docs/arch/NNN-<slug>.md` | the PRD and the code |
 | `orch-spec` | `specs/f<N>-<slug>.md` | the architecture |
