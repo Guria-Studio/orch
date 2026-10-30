@@ -220,6 +220,48 @@ func TestGitHubCIStatusMapsGitHubsUppercaseStates(t *testing.T) {
 	}
 }
 
+// #501: a failed check whose Actions job never got a runner (billing, a
+// spending limit) is not a test failure — no agent can fix it.
+func TestGitHubCIStatusAJobThatNeverStartedIsNotStarted(t *testing.T) {
+	withFakeBin(t)
+	log := ghLog(t)
+	t.Setenv("FAKE_GH_CHECKS_STDOUT", readCapture(t, "2.101.0", "pr-checks-job-not-started.json"))
+	t.Setenv("FAKE_GH_API_STDOUT", readCapture(t, "2.101.0", "actions-job-not-started.json"))
+
+	got, err := NewGitHubProvider().CIStatus("https://github.com/hectorcanaimero/billing-api/pull/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != CINotStarted {
+		t.Errorf("got %q, want %q", got, CINotStarted)
+	}
+	if l := readLog(t, log); !strings.Contains(l, "api --hostname github.com repos/hectorcanaimero/billing-api/actions/jobs/123724387525") {
+		t.Errorf("the job was not looked up: %s", l)
+	}
+}
+
+func TestGitHubCIStatusAJobThatRanAndFailedIsAFailure(t *testing.T) {
+	withFakeBin(t)
+	t.Setenv("FAKE_GH_CHECKS_STDOUT", readCapture(t, "2.101.0", "pr-checks-job-not-started.json"))
+	t.Setenv("FAKE_GH_API_STDOUT", readCapture(t, "2.101.0", "actions-job-ran.json"))
+
+	if got, err := NewGitHubProvider().CIStatus("https://github.com/o/r/pull/1"); err != nil || got != CIFailure {
+		t.Errorf("got %q, %v; want failure", got, err)
+	}
+}
+
+// A job gh cannot describe is a failure, as before #501: guessing "not
+// started" would skip a retry the agent may need.
+func TestGitHubCIStatusAnUnreadableJobIsAFailure(t *testing.T) {
+	withFakeBin(t)
+	t.Setenv("FAKE_GH_CHECKS_STDOUT", readCapture(t, "2.101.0", "pr-checks-job-not-started.json"))
+	t.Setenv("FAKE_GH_API_EXIT", "1")
+
+	if got, err := NewGitHubProvider().CIStatus("https://github.com/o/r/pull/1"); err != nil || got != CIFailure {
+		t.Errorf("got %q, %v; want failure", got, err)
+	}
+}
+
 // TestGitHubCIStatusAsksForFieldsThatExist is the regression that matters, and
 // it asserts on the ARGV rather than on the answer.
 //

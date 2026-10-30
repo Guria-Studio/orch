@@ -125,6 +125,10 @@ const (
 	// (#236). Only reported alongside no checks: a PR whose CI already ran
 	// is judged by that run.
 	CIConflict CIState = "conflict"
+	// CINotStarted is a failed CI whose every failing job never ran: GitHub
+	// gave it no runner (an Actions billing problem, a spending limit) (#501).
+	// No change to the code can turn it green, so it is not CIFailure.
+	CINotStarted CIState = "not_started"
 )
 
 // PRState is whether a PR/MR is still open, or settled one way or the other.

@@ -95,3 +95,14 @@ the PR a retry finds already open on its branch (#386).
 |---|---|
 | `pr-list-head.json` | `gh pr list --head fix/387-codex-state-dir --state all --json url --limit 1` — one PR (#409) for the branch; `--state open` prints the same shape |
 | `pr-list-none.json` | `gh pr list --head no-such-branch-xyz --state open --json url --limit 1` — no PR for the branch: `[]` |
+
+For a CI job GitHub never started (#501), captured from the private repo
+where it happened, an Actions billing failure. The job payloads keep only
+the fields `CIStatus` reads (`--jq`), the rest of a private repo's job is not
+the point:
+
+| file | what it is |
+|---|---|
+| `pr-checks-job-not-started.json` | `gh pr checks 1 -R <owner>/billing-api --json name,state,bucket,link` — one `FAILURE`, a job that never ran ("The job was not started because recent account payments have failed…") |
+| `actions-job-not-started.json` | `gh api repos/<owner>/billing-api/actions/jobs/123724387525 --jq '{id,status,conclusion,started_at,completed_at,runner_id,runner_name,steps}'` — that job: `runner_id` 0, `steps` empty |
+| `actions-job-ran.json` | the same for job 123727313209, which ran and failed (`pytest` exit 5, #500), with each step's `name,status,conclusion,number` |
