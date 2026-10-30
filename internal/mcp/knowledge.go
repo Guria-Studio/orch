@@ -24,6 +24,7 @@ type learnIn struct {
 	Lesson string   `json:"lesson" jsonschema:"what happened and what worked, at most ~15 lines; no secrets"`
 	Area   []string `json:"area,omitempty" jsonschema:"paths or globs it applies to, e.g. internal/auth/ or web/src/**; tasks touching them get it first"`
 	Tags   []string `json:"tags,omitempty" jsonschema:"a few keywords"`
+	Kind   string   `json:"kind,omitempty" jsonschema:"lesson (the default); a rule is the operator's to write"`
 }
 
 type learnOut struct {
@@ -63,7 +64,7 @@ func (s *server) learn(_ context.Context, _ *mcpsdk.CallToolRequest, in learnIn)
 		return refuse("a lesson is a few lines (at most ~15), not a document; say what happened and what worked")
 	}
 	l, err := knowledge.Add(s.taskDir(task), knowledge.Lesson{Title: in.Title, Body: in.Lesson,
-		Area: in.Area, Tags: in.Tags, Source: "agent", Task: task}, time.Now())
+		Area: in.Area, Tags: in.Tags, Kind: in.Kind, Source: "agent", Task: task}, time.Now())
 	if err != nil {
 		return refuse(err.Error())
 	}

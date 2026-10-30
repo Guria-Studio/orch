@@ -112,6 +112,10 @@ type Options struct {
 	// Knowledge are the project lessons picked for this task (#451), most
 	// relevant first. Empty, the block is not rendered.
 	Knowledge []knowledge.Lesson
+	// Rules are the operator's rules whose area covers the task's files
+	// (#505), all of them, in a block of their own above the lessons. Empty,
+	// the block is not rendered.
+	Rules []knowledge.Lesson
 	// Learn invites the agent to record a lesson with orch_learn
 	// (knowledge.enabled). Off, the prompt is byte-identical to the one
 	// without the feature.
@@ -183,7 +187,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"files":           renderFiles(task.Files),
 		"spec_ref_line":   specLine,
 		"deps_block":      renderDepsBlock(completedDeps),
-		"knowledge_block": knowledgeBlock(opts.Knowledge),
+		"knowledge_block": rulesBlock(opts.Rules) + knowledgeBlock(opts.Knowledge),
 		"notes_block":     renderNotesBlock(opts.OperatorNotes),
 		"feedback_block":  feedbackBlock(opts.FeedbackFile),
 		"conflict_block":  conflictBlock(opts.Conflict),
@@ -407,12 +411,24 @@ const (
 // After the dependencies: what the project learned is context, like what
 // they reported; the operator's notes still come last.
 func knowledgeBlock(lessons []knowledge.Lesson) string {
+	return lessonsBlock("Project knowledge (lessons earlier tasks recorded in .orch/knowledge/; follow them\n"+
+		"unless the spec or the operator says otherwise):\n", lessons)
+}
+
+// rulesBlock lists the operator's rules for the task's files (#505), or
+// nothing. Above the lessons: a rule is a constraint, not a hint.
+func rulesBlock(rules []knowledge.Lesson) string {
+	return lessonsBlock("Project rules (must follow; the operator set them in .orch/knowledge/ for the\n"+
+		"files you touch, and the review of your work checks them):\n", rules)
+}
+
+// lessonsBlock is header and one capped entry per lesson, or nothing.
+func lessonsBlock(header string, lessons []knowledge.Lesson) string {
 	if len(lessons) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("Project knowledge (lessons earlier tasks recorded in .orch/knowledge/; follow them\n" +
-		"unless the spec or the operator says otherwise):\n")
+	b.WriteString(header)
 	head := b.Len()
 	for _, l := range lessons {
 		var e strings.Builder

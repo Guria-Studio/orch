@@ -3,6 +3,7 @@ package knowledge
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -299,5 +300,63 @@ func TestUsageCountsPromptsAndFirstTries(t *testing.T) {
 	want := map[string]Use{"a": {Prompts: 4, Tasks: 2, FirstTry: 1}, "b": {Prompts: 1, Tasks: 1}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Usage = %+v, want %+v", got, want)
+	}
+}
+
+// TestRulesReachTheirAreaOutsideTheCap pins #505: a rule goes to the tasks
+// touching its area and no other, is never one of the capped lessons, and
+// does not take one's place.
+func TestRulesReachTheirAreaOutsideTheCap(t *testing.T) {
+	db, _, err := state.Open(context.Background(), filepath.Join(t.TempDir(), "orch.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	r := state.NewSQLite(db, "p", t.TempDir())
+	root := t.TempDir()
+	add := func(l Lesson) {
+		t.Helper()
+		if _, err := Add(root, l, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := range 5 {
+		add(Lesson{Title: fmt.Sprintf("Controller lesson %d", i), Body: "about controllers", Area: []string{"src/app/"}})
+	}
+	add(Lesson{Title: "Banking layering", Kind: KindRule, Body: "Controller → service → repository.", Area: []string{"src/app/src/controllers*/**"}})
+	add(Lesson{Title: "Controller errors", Kind: KindRule, Body: "Map errors in the filter.", Area: []string{"src/app/"}})
+	add(Lesson{Title: "Migrations", Kind: KindRule, Body: "Never edit an applied migration.", Area: []string{"src/core/src/migrations/**"}})
+	add(Lesson{Title: "Everywhere", Kind: KindRule, Body: "No area: never auto-selected."})
+
+	task := model.Task{ID: "F1.T1", Title: "controllers", Files: []string{"src/app/src/controllersV2/pay/pay.controller.ts"}}
+	rules, lessons, err := ForTaskWithRules(context.Background(), r, root, task, "specs", 5)
+	if err != nil {
+		t.Fatalf("ForTaskWithRules: %v", err)
+	}
+	var got []string
+	for _, l := range rules {
+		got = append(got, l.Title)
+	}
+	if strings.Join(got, "|") != "Banking layering|Controller errors" {
+		t.Errorf("rules = %v, want the two whose area covers the file", got)
+	}
+	if len(lessons) != 5 {
+		t.Errorf("%d lessons, want all 5 beside the rules", len(lessons))
+	}
+	for _, l := range lessons {
+		if l.Kind == KindRule {
+			t.Errorf("rule %q picked as a lesson", l.Title)
+		}
+	}
+}
+
+// Only the operator writes a rule (#505).
+func TestOnlyTheOperatorWritesARule(t *testing.T) {
+	_, err := Add(t.TempDir(), Lesson{Title: "t", Body: "b", Kind: KindRule, Source: "agent"}, now)
+	if err == nil || !strings.Contains(err.Error(), "only the operator writes a rule") {
+		t.Errorf("Add = %v, want the agent's rule refused", err)
+	}
+	if _, err := Add(t.TempDir(), Lesson{Title: "t", Body: "b", Kind: "policy"}, now); err == nil {
+		t.Error("an unknown kind was accepted")
 	}
 }

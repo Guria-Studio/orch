@@ -236,7 +236,7 @@ loops back as a task). `type` is `bug`, `improvement` or `feature`.
 
 ### `orch_learn`
 
-`{title, lesson, area?, tags?, task_id?}` — records one lesson for the tasks
+`{title, lesson, area?, tags?, kind?, task_id?}` — records one lesson for the tasks
 after this one (#451): a convention, a trap, what fixed a failure, in a few
 lines (more than 20 is refused). It is written as a markdown file under
 `.orch/knowledge/` (`source: agent`, `task` from `task_id` or
@@ -246,7 +246,8 @@ it is committed with the task's work and reaches the base through its PR.
 Later tasks whose files or spec fall under `area` get it first in their
 prompt's `Project knowledge` block. Needs `knowledge.enabled: true` (what
 `orch init` writes; absent is off): when off the tool is listed and answers
-with an error saying so. Returns `{id, path, message}`. See
+with an error saying so. `kind: rule` is refused: a rule (#505) is the
+operator's to write. Returns `{id, path, message}`. See
 [`CONFIG.md`](CONFIG.md#knowledge--new-451).
 
 ### `orch_knowledge_search`

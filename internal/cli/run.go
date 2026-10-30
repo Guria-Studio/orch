@@ -288,7 +288,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 		if opts.verifier != nil {
 			scheduler.Verifier = opts.verifier
 		} else if cfg.Verify.Enabled {
-			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD,
+			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD, Rules: cfg.Knowledge.Enabled,
 				Once: engine.OneShot{State: backend, Gate: budgetGate}}
 		}
 	} else if cfg.Verify.Enabled {

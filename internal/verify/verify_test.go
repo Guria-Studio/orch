@@ -584,3 +584,22 @@ func TestVerifyCollectsARealPlaywrightReport(t *testing.T) {
 		t.Error("the Playwright report was left in the worktree, where the commit would pick it up")
 	}
 }
+
+// The review checks the operator's rules whose area covers a changed file,
+// and only those (#505).
+func TestVerifyReviewCarriesTheRulesForTheChange(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, ".orch", "knowledge", "layering.md"),
+		"---\nid: layering\ntitle: Banking layering\nkind: rule\nsource: operator\narea: [\"src/app/**\"]\n---\nNever call a provider from a controller.\n")
+	v := Verifier{Rules: true}
+	in := withRules("checklist", v.rules("T-1", dir, []string{"src/app/pay.ts"}))
+	if !strings.Contains(in, "## Project rules") || !strings.Contains(in, "Never call a provider from a controller.") {
+		t.Errorf("checklist for a change in the area:\n%s", in)
+	}
+	if out := withRules("checklist", v.rules("T-1", dir, []string{"docs/x.md"})); out != "checklist" {
+		t.Errorf("checklist for a change outside the area:\n%s", out)
+	}
+	if off := (Verifier{}).rules("T-1", dir, []string{"src/app/pay.ts"}); off != nil {
+		t.Errorf("rules with knowledge off = %v", off)
+	}
+}

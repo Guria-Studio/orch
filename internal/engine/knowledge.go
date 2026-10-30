@@ -11,25 +11,25 @@ import (
 	"github.com/Guria-Studio/orch/internal/prompt"
 )
 
-// lessonsFor picks the project lessons task's prompt carries (#451), from the
-// directory the agent will run in: its worktree holds the base branch's
-// lessons and those of the dependencies merged into it. Nil when the project
-// keeps no memory, or nothing matches; an unreadable lesson costs the block,
-// never the dispatch.
-func (s *Scheduler) lessonsFor(ctx context.Context, task model.Task, workdir string) []knowledge.Lesson {
+// lessonsFor picks the operator's rules (#505) and the project lessons
+// task's prompt carries (#451), from the directory the agent will run in: its
+// worktree holds the base branch's lessons and those of the dependencies
+// merged into it. Nil when the project keeps no memory, or nothing matches;
+// an unreadable lesson costs the blocks, never the dispatch.
+func (s *Scheduler) lessonsFor(ctx context.Context, task model.Task, workdir string) (rules, lessons []knowledge.Lesson) {
 	if s.Knowledge == nil || !s.Opts.Cfg.Knowledge.Enabled {
-		return nil
+		return nil, nil
 	}
 	specRoot := s.Opts.Cfg.SpecRoot
 	if specRoot == "" {
 		specRoot = prompt.DefaultSpecRoot
 	}
-	lessons, err := knowledge.ForTask(ctx, s.Knowledge, workdir, task, specRoot, s.Opts.Cfg.Knowledge.Prompt())
+	rules, lessons, err := knowledge.ForTaskWithRules(ctx, s.Knowledge, workdir, task, specRoot, s.Opts.Cfg.Knowledge.Prompt())
 	if err != nil {
 		s.logger().Warn("reading the project knowledge for the prompt failed; dispatching without it", "task", task.ID, "err", err)
-		return nil
+		return nil, nil
 	}
-	return lessons
+	return rules, lessons
 }
 
 // recordLessonsUsed records which lessons a dispatch's prompt carried

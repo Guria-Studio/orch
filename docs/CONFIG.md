@@ -946,6 +946,31 @@ and reviewed in PRs like `tasks.json` and the specs; the FTS5 index in
   curation is retried with a new `orch knowledge curate`, which is what the
   run summary's next step says (it is not in `tasks.json`, so `orch run`
   never picks it up again).
+- **Rules** (#505). A file with `kind: rule` in its front matter is an
+  operator's rule, not a lesson: a short constraint every task touching its
+  `area` must follow, such as "Controller → service → repository; never call a
+  provider's HTTP client from a controller". Every rule whose `area` covers one
+  of a task's `files` goes into the prompt, in a `Project rules (must follow)`
+  block above the lessons, **outside** `max_in_prompt` (each cut like a
+  lesson). The local [`verify`](#verify--new) review gets the rules whose
+  `area` covers a file in the diff appended to its checklist, and a change
+  that breaks one is a blocking finding. A rule with no `area` reaches no task.
+  Only the operator writes one (`orch knowledge add --kind rule`, or the file
+  by hand with `source: operator`): `orch_learn` refuses it, and
+  `orch knowledge curate` leaves rules alone. `orch knowledge list` shows each
+  file's kind. In `area`, `**` matches any number of directories, for lessons
+  too.
+
+  ```markdown
+  ---
+  id: banking-layering
+  title: Banking API layering
+  kind: rule
+  area: ["src/app/src/controllers*/**", "src/app/src/services/**"]
+  source: operator
+  ---
+  Controller → app service → core repository. Never call a provider HTTP client from a controller.
+  ```
 
 **On in new projects, off when the key is absent**, like `retry.conflict`: a
 config written before #451 never starts writing files into the repository.
