@@ -36,7 +36,7 @@
 ## 1. Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 ```
 
 Downloads the right `linux`/`darwin` × `amd64`/`arm64` tarball from the
@@ -44,10 +44,10 @@ latest GitHub Release, verifies its checksum, and installs to
 `~/.local/bin` (override with `INSTALL_DIR=...`). No Go toolchain, no
 Python, no dependencies to resolve — `orch` is one static binary.
 
-Or from source, CLI only (`go install github.com/hectorcanaimero/orch/cmd/orch@latest`, Go ≥ 1.25): it builds without the web bundles, so `orch dashboard` and `orch publish` need the script or a release tarball instead.
+Or from source, CLI only (`go install github.com/Guria-Studio/orch/cmd/orch@latest`, Go ≥ 1.25): it builds without the web bundles, so `orch dashboard` and `orch publish` need the script or a release tarball instead.
 
 Or grab a tarball directly from
-[the Releases page](https://github.com/hectorcanaimero/orch/releases) and
+[the Releases page](https://github.com/Guria-Studio/orch/releases) and
 put `orch` on your `PATH` yourself. See [`RELEASING.md`](RELEASING.md) for
 the full tag scheme and how releases are built.
 
@@ -152,7 +152,7 @@ task runs in a fresh worktree, so orch sets `GEMINI_CLI_TRUST_WORKSPACE=true` on
 each gemini dispatch; set it to `false` in your environment to keep the gate.
 
 A new project has `report_findings.enabled: false`. Agents may file
-**public** issues about orch itself on hectorcanaimero/orch under your `gh`
+**public** issues about orch itself on Guria-Studio/orch under your `gh`
 login ([`DOGFOODING.md`](DOGFOODING.md)), and that is not the first thing to
 ask: the first `orch run` that finishes a task offers it, once.
 `--no-report-findings` means no outright, and is never offered.
@@ -802,7 +802,7 @@ task's current status.
 
 ```bash
 # Re-run the installer — it always fetches the latest v* (non -py) release
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 
 # or: orch upgrade
 
@@ -833,7 +833,7 @@ pipx install .
 or
 
 ```bash
-pipx install git+https://github.com/hectorcanaimero/orch.git@v0.11.0-py
+pipx install git+https://github.com/Guria-Studio/orch.git@v0.11.0-py
 ```
 
 No new features land on that line — only the Go binary moves forward. See
@@ -856,5 +856,5 @@ namespace, split by a `-py` suffix rather than a separate branch prefix.
 
 This manual is a living doc, updated in the same PR that lands a new
 subcommand. If you hit a case that isn't covered, open an issue at
-<https://github.com/hectorcanaimero/orch/issues> or send a PR with the
+<https://github.com/Guria-Studio/orch/issues> or send a PR with the
 missing section.

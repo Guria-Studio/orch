@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // comment is one entry in a task's trail, in the shape every writer writes.

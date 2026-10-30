@@ -63,7 +63,7 @@ those ids. Everything after `— ` is the task title.
 | `Files` | `Archivos` | `files` | recommended — for concurrency + strict-files enforcement |
 
 Full format reference:
-<https://github.com/hectorcanaimero/orch/blob/main/docs/SPEC-FORMAT.md>
+<https://github.com/Guria-Studio/orch/blob/main/docs/SPEC-FORMAT.md>
 
 ## Spec-Driven Development (optional)
 

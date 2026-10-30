@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/worktree"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // WorktreeManager is everything the engine asks of internal/worktree: the

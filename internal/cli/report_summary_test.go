@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/demo"
-	"github.com/hectorcanaimero/orch/internal/engine"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/demo"
+	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // `orch report summary` words the demo's finished run in the language asked

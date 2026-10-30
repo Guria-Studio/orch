@@ -124,7 +124,7 @@ func TestCheckReadsGitHubOnceADay(t *testing.T) {
 	body := fixture(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
-		if r.URL.Path != "/repos/hectorcanaimero/orch/releases" {
+		if r.URL.Path != "/repos/Guria-Studio/orch/releases" {
 			http.NotFound(w, r)
 			return
 		}

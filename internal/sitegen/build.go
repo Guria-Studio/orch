@@ -3,9 +3,9 @@ package sitegen
 import (
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/atomize"
-	"github.com/hectorcanaimero/orch/internal/graph"
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // Result is what the playground shows for one spec.

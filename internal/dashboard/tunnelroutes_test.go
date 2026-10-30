@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // newTunnelServer builds a server with a given profile and tunnel wiring.

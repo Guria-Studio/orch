@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/sandbox"
 )
 
 // orch sandbox-exec hands sandbox.Exec the --rw and --ro paths in order and

@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/skills"
+	"github.com/Guria-Studio/orch/internal/skills"
 )
 
 // newInstallSkillsCmd ports `orch install-skills` (orchestrator/orch.py's

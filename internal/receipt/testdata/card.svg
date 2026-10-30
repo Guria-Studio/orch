@@ -16,5 +16,5 @@
 <text x="72" y="484" font-family="Inter, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="24" font-weight="400" fill="#a1a1aa" text-anchor="start">50m of agent time · 1 blocked · 1 failed attempt</text>
 <text x="72" y="524" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="22" font-weight="400" fill="#71717a" text-anchor="start">claude · codex</text>
 <rect x="0" y="626" width="1200" height="4" fill="#7c3aed"/>
-<text x="1128" y="584" font-family="Inter, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#a78bfa" text-anchor="end">Built with orch · github.com/hectorcanaimero/orch</text>
+<text x="1128" y="584" font-family="Inter, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#a78bfa" text-anchor="end">Built with orch · github.com/Guria-Studio/orch</text>
 </svg>

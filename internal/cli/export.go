@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/export"
-	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/export"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newExportCmd wires `orch export`, the parent for verbs that send work out.

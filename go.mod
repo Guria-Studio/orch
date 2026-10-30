@@ -1,4 +1,4 @@
-module github.com/hectorcanaimero/orch
+module github.com/Guria-Studio/orch
 
 go 1.25.0
 

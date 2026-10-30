@@ -3,8 +3,8 @@ package dashboard
 import (
 	"sort"
 
-	"github.com/hectorcanaimero/orch/internal/pricing"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Spend aggregation for the metrics page, ported from the per-model and

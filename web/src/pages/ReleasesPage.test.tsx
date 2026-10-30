@@ -13,7 +13,7 @@ vi.mock("@/hooks/useReleases", async (importOriginal) => ({
 }))
 
 const release = (tag: string, extra: Partial<ReleasesPayload["releases"][number]> = {}) => ({
-  tag, url: `https://github.com/hectorcanaimero/orch/releases/tag/${tag}`, critical: false,
+  tag, url: `https://github.com/Guria-Studio/orch/releases/tag/${tag}`, critical: false,
   notes: `- change in ${tag}`, published_at: "2026-10-16T12:00:00Z", newer: false, current: false, ...extra,
 })
 

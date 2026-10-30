@@ -27,8 +27,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 	"gopkg.in/yaml.v3"
 )
 

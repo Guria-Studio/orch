@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // /api/task/{task_id}/activity is what a running agent is doing: its

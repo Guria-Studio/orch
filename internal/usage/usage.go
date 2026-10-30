@@ -13,7 +13,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Tokens is what a set of dispatches used.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/knowledge"
 )
 
 // Summary is a run's receipt in plain words (#456): what was built, what

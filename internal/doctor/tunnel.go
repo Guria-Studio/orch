@@ -1,6 +1,6 @@
 package doctor
 
-import "github.com/hectorcanaimero/orch/internal/tunnel"
+import "github.com/Guria-Studio/orch/internal/tunnel"
 
 // CheckTunnel reports whether the dashboard can be shared: cloudflared on
 // PATH with no cloudflared config file blocking quick tunnels, or else

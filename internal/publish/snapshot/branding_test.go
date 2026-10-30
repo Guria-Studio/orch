@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // onePixelPNG is a real 1×1 PNG. A hand-written byte slice would not survive

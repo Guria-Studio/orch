@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // fakeFindings records what the tool asked GitHub for.
@@ -31,12 +31,12 @@ func (f *fakeFindings) CreateIssue(repo, title, body string, labels []string) (s
 		repo, title, body string
 		labels            []string
 	}{repo, title, body, labels})
-	return fmt.Sprintf("https://github.com/hectorcanaimero/orch/issues/%d", 998+len(f.created)), nil
+	return fmt.Sprintf("https://github.com/Guria-Studio/orch/issues/%d", 998+len(f.created)), nil
 }
 
 func (f *fakeFindings) CommentIssue(repo string, number int, body string) (string, error) {
 	f.comments = append(f.comments, fmt.Sprintf("%s#%d: %s", repo, number, body))
-	return fmt.Sprintf("https://github.com/hectorcanaimero/orch/issues/%d#issuecomment-%d", number, len(f.comments)), nil
+	return fmt.Sprintf("https://github.com/Guria-Studio/orch/issues/%d#issuecomment-%d", number, len(f.comments)), nil
 }
 
 // orch_report_finding is how an agent in any orch project reports a problem
@@ -174,7 +174,7 @@ func TestReportFindingCommentsOnWhatThisProjectFiled(t *testing.T) {
 		t.Setenv("ORCH_TASK_ID", task)
 		var out reportFindingOut
 		call(t, cs, "orch_report_finding", reports[i], &out)
-		if out.URL != "https://github.com/hectorcanaimero/orch/issues/999" {
+		if out.URL != "https://github.com/Guria-Studio/orch/issues/999" {
 			t.Errorf("call %d: url = %q, want the first issue's (%s)", i+1, out.URL, out.Message)
 		}
 		if out.Filed != (i == 0) {
@@ -196,12 +196,12 @@ func TestReportFindingCommentsOnWhatThisProjectFiled(t *testing.T) {
 func TestReportFindingCommentsOnAnOpenDuplicate(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{existing: []vcs.Issue{{Number: 433, Title: `Local verify ran a nonexistent command "tue"`, State: "OPEN",
-		URL: "https://github.com/hectorcanaimero/orch/issues/433"}}}
+		URL: "https://github.com/Guria-Studio/orch/issues/433"}}}
 	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Findings: fake})
 	var out reportFindingOut
 	call(t, cs, "orch_report_finding", map[string]any{"type": "bug",
 		"title": `Local verify ran a bogus command ("tue") and rejected a task`, "summary": "exit 127"}, &out)
-	if len(fake.created) != 0 || len(fake.comments) != 1 || out.URL != "https://github.com/hectorcanaimero/orch/issues/433" {
+	if len(fake.created) != 0 || len(fake.comments) != 1 || out.URL != "https://github.com/Guria-Studio/orch/issues/433" {
 		t.Errorf("created %d, comments %v, url %q: want a comment on #433 and its URL", len(fake.created), fake.comments, out.URL)
 	}
 }

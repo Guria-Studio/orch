@@ -13,7 +13,7 @@
 > without you writing a single status report.*
 
 ```bash
-pipx install https://github.com/hectorcanaimero/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
+pipx install https://github.com/Guria-Studio/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
 ```
 
 ---
@@ -141,13 +141,13 @@ authenticated with a subscription.
 
 ```bash
 # Recommended — prebuilt wheel from GitHub Releases (SPA already embedded, no Node needed)
-pipx install https://github.com/hectorcanaimero/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
+pipx install https://github.com/Guria-Studio/orch/releases/latest/download/orchestrator-0.6.1-py3-none-any.whl
 
 # Self-update
 orch upgrade
 
 # From source (contributors)
-pipx install --force git+https://github.com/hectorcanaimero/orch.git@main
+pipx install --force git+https://github.com/Guria-Studio/orch.git@main
 ```
 
 Verify:

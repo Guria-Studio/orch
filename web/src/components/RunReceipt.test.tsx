@@ -12,7 +12,7 @@ vi.mock("@/hooks/useReceipt", async (importOriginal) => ({
 
 const payload: ReceiptPayload = {
   markdown: "## orch run `r` — finished\n",
-  built_with: "Built with [orch](https://github.com/hectorcanaimero/orch)",
+  built_with: "Built with [orch](https://github.com/Guria-Studio/orch)",
   receipt: {
     run_id: "r", started_at: "", finished_at: "", finished: true, wall_seconds: 60, agent_seconds: 30,
     dispatches: 1, failed_attempts: 0, retries: 0, done: [], blocked: [], providers: [],

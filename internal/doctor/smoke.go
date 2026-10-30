@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // SmokeEvidence is what one backend's `orch doctor --smoke` dispatch left

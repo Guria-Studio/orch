@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // Backend is the only way anything reads or writes orch's state.

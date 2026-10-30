@@ -35,7 +35,7 @@
       <a href="templates/">Templates</a>
       <a href="playground/">Playground</a>
       <a class="keep" href="#install">Install</a>
-      <a href="https://github.com/hectorcanaimero/orch">GitHub</a>
+      <a href="https://github.com/Guria-Studio/orch">GitHub</a>
     </nav>
   </header>
 
@@ -146,7 +146,7 @@ Ready to dispatch: 1
       <h2 id="demo-title">A real run, in 29 seconds</h2>
       <figure class="shot">
         <img src="assets/orch-demo.gif" width="979" height="694" loading="lazy" alt="orch init, the plan, orch run dispatching two claude tasks that each open a pull request with green CI, then the client page moving from 0% to 50% to 100% on its own.">
-        <figcaption>A real run, sped up: <code>orch init --template python-api</code>, <code>orch run</code> with <code>claude</code>, two PRs with green CI, and the client page updating itself. <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/media/GIF-NOTES.md">What was set up off camera</a>.</figcaption>
+        <figcaption>A real run, sped up: <code>orch init --template python-api</code>, <code>orch run</code> with <code>claude</code>, two PRs with green CI, and the client page updating itself. <a href="https://github.com/Guria-Studio/orch/blob/main/docs/media/GIF-NOTES.md">What was set up off camera</a>.</figcaption>
       </figure>
     </section>
 
@@ -191,24 +191,24 @@ Ready to dispatch: 1
     <section class="install wrap" id="install" aria-labelledby="install-title">
       <h2 id="install-title">Install</h2>
       <p class="install-note">One command. orch is a single binary for Linux and macOS, on <code>amd64</code> and <code>arm64</code>.</p>
-<pre class="term" tabindex="0"><code>curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh</code></pre>
-      <p class="install-note install-after">It downloads the <a href="https://github.com/hectorcanaimero/orch/releases/latest">latest release</a>, checks it against <code>checksums.txt</code>, and puts <code>orch</code> in <code>~/.local/bin</code> — set <code>INSTALL_DIR</code> for somewhere else.</p>
+<pre class="term" tabindex="0"><code>curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh</code></pre>
+      <p class="install-note install-after">It downloads the <a href="https://github.com/Guria-Studio/orch/releases/latest">latest release</a>, checks it against <code>checksums.txt</code>, and puts <code>orch</code> in <code>~/.local/bin</code> — set <code>INSTALL_DIR</code> for somewhere else.</p>
       <details class="install-source">
         <summary>Build from source instead</summary>
-<pre class="term" tabindex="0"><code>git clone https://github.com/hectorcanaimero/orch
+<pre class="term" tabindex="0"><code>git clone https://github.com/Guria-Studio/orch
 cd orch
 make build
 ./bin/orch --version</code></pre>
         <p>Needs Go 1.25+ and pnpm.</p>
       </details>
-      <p class="install-next">Then, in a git repository: <code>orch start "what you want to build"</code> sets the project up, plans it and runs it, asking before it spends. To go step by step instead: <code>orch init</code>, <code>orch install-skills --all</code> to give your agent the planning skills, and <code>orch doctor</code> to check that every CLI your tasks route to is installed and signed in. <code>orch dashboard --demo</code> opens a finished project of its own, so you can look at the dashboard before you run anything. The <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">manual</a> walks through the rest.</p>
+      <p class="install-next">Then, in a git repository: <code>orch start "what you want to build"</code> sets the project up, plans it and runs it, asking before it spends. To go step by step instead: <code>orch init</code>, <code>orch install-skills --all</code> to give your agent the planning skills, and <code>orch doctor</code> to check that every CLI your tasks route to is installed and signed in. <code>orch dashboard --demo</code> opens a finished project of its own, so you can look at the dashboard before you run anything. The <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.en.md">manual</a> walks through the rest.</p>
     </section>
     <section class="follow wrap" id="follow" aria-labelledby="follow-title">
       <h2 id="follow-title">Follow the build</h2>
       <p class="follow-lede">A release a week, in the open: every change, what broke and the numbers behind it.</p>
       <nav class="follow-links" aria-label="Follow">
-        <a href="https://github.com/hectorcanaimero/orch/releases">Releases on GitHub</a>
-        <a href="https://github.com/hectorcanaimero/orch/releases.atom">Atom feed</a>
+        <a href="https://github.com/Guria-Studio/orch/releases">Releases on GitHub</a>
+        <a href="https://github.com/Guria-Studio/orch/releases.atom">Atom feed</a>
         <a href="https://www.linkedin.com/in/knaimero/">LinkedIn, in Portuguese</a>
         <a href="https://x.com/hectorcanaimero">X, in Spanish</a>
       </nav>
@@ -219,13 +219,13 @@ make build
   <footer class="foot wrap">
     <p>orch is MIT-licensed and built in the open.</p>
     <nav aria-label="Footer">
-      <a href="https://github.com/hectorcanaimero/orch">Source</a>
+      <a href="https://github.com/Guria-Studio/orch">Source</a>
       <a href="templates/">Templates</a>
       <a href="playground/">Playground</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.en.md">Manual</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.es.md">Manual en español</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/MANUAL.pt.md">Manual em português</a>
-      <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/CLI.md">Command reference</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.en.md">Manual</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.es.md">Manual en español</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/MANUAL.pt.md">Manual em português</a>
+      <a href="https://github.com/Guria-Studio/orch/blob/main/docs/CLI.md">Command reference</a>
       <a href="architecture/">How it is built</a>
     </nav>
   </footer>

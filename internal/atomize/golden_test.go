@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // goldenParsedTask mirrors the field names asdict(ParsedTask) produces in

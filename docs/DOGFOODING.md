@@ -84,7 +84,7 @@ tool too, as long as it has orch's MCP server.
   the agent is guessing, `low`. Recorded, not enforced.
 
 It is **only about orch**. A problem in the project's own code belongs on the
-project's tracker; the tool always files on `hectorcanaimero/orch`.
+project's tracker; the tool always files on `Guria-Studio/orch`.
 
 ---
 
@@ -127,11 +127,11 @@ ask for no secrets, project code or names.
 ## For the operator
 
 - **See what was filed**:
-  `gh issue list --repo hectorcanaimero/orch --label auto-reported --author @me`.
+  `gh issue list --repo Guria-Studio/orch --label auto-reported --author @me`.
 - **Stop it**: set `report_findings.enabled: false`. `orch run` and `orch mcp`
   read the key when they start, so the next run's prompts drop the block and
   the next MCP server refuses the call.
-- **Report by hand**: `gh issue create --repo hectorcanaimero/orch` works the
+- **Report by hand**: `gh issue create --repo Guria-Studio/orch` works the
   same without the tool.
 
 The tool's reference, with the rest of the MCP surface, is in

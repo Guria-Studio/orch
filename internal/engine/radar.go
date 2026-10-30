@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Events the conflict radar records (#482). Go only.

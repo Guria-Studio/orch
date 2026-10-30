@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // TestSpecLineSaysWhenTheSpecIsNotThere: #341 and #342 were agents told to

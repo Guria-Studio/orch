@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/dashboard"
+	"github.com/Guria-Studio/orch/internal/dashboard"
 )
 
 // fakePlanner is a claude that, asked to plan (stream-json), writes one spec

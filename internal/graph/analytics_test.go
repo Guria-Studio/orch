@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // The golden is what PYTHON answers for the same eleven graphs — see

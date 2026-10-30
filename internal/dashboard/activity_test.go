@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // writeLog puts a dispatch log where engine.LogPathFor writes it for the

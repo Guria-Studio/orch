@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // DefaultIntervalS is how often `--watch` looks when `publish.interval_s` says

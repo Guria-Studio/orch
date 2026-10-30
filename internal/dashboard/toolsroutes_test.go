@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/doctor"
+	"github.com/Guria-Studio/orch/internal/doctor"
 )
 
 func TestToolsListsWhatTheProjectUses(t *testing.T) {

@@ -173,7 +173,7 @@ describe("NowPage", () => {
     state.receipt = {
       markdown: "## orch run `run-6` — finished\n",
       summary: null,
-      built_with: "Built with [orch](https://github.com/hectorcanaimero/orch)",
+      built_with: "Built with [orch](https://github.com/Guria-Studio/orch)",
       receipt: {
         run_id: "run-6", started_at: "2026-09-15T08:00:00Z", finished_at: "2026-09-15T10:05:00Z", finished: true,
         wall_seconds: 7500, agent_seconds: 3000, dispatches: 3, failed_attempts: 1, retries: 1,

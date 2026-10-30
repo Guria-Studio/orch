@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // Events the agent watch records about a running attempt (#487). Neither

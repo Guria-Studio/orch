@@ -12,13 +12,13 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hectorcanaimero/orch/internal/state"
-	"github.com/hectorcanaimero/orch/internal/vcs"
+	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // FindingsRepo is where orch_report_finding files. Fixed: the findings are
 // about orch, whichever project the agent happened to be working in.
-const FindingsRepo = "hectorcanaimero/orch"
+const FindingsRepo = "Guria-Studio/orch"
 
 // FindingsLabel marks an issue an agent filed. `orch sync issues` refuses to
 // ingest it, so a report never loops back into a project as a task.

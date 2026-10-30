@@ -8,7 +8,7 @@
 # the numbers with the commit it printed first.
 set -eu
 
-TAG="${1:-$(gh release list -R hectorcanaimero/orch --limit 1 --json tagName -q '.[0].tagName')}"
+TAG="${1:-$(gh release list -R Guria-Studio/orch --limit 1 --json tagName -q '.[0].tagName')}"
 OUT="${TMPDIR:-/tmp}/orch-measure"
 rm -rf "$OUT" && mkdir -p "$OUT/rel"
 
@@ -16,7 +16,7 @@ echo "commit: $(git rev-parse --short HEAD) ($(git log -1 --format=%cs)); $(go v
 echo "release measured: $TAG"
 
 echo "## released binaries (what install.sh downloads), bytes"
-gh release download "$TAG" -R hectorcanaimero/orch -D "$OUT/rel" -p "orch_${TAG}_*" -p checksums.txt
+gh release download "$TAG" -R Guria-Studio/orch -D "$OUT/rel" -p "orch_${TAG}_*" -p checksums.txt
 (cd "$OUT/rel" && sha256sum -c checksums.txt --ignore-missing >/dev/null && echo "checksums OK")
 for f in "$OUT"/rel/orch_*.tar.gz; do
   d="${f%.tar.gz}"; mkdir -p "$d"; tar -xzf "$f" -C "$d" orch

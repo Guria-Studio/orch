@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // Atomize is the single-file convenience entry point; AtomizeDir's tests

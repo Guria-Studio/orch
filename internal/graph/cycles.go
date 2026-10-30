@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/hectorcanaimero/orch/internal/model"
+import "github.com/Guria-Studio/orch/internal/model"
 
 // FindCycles returns every dependency cycle as a path of task ids, closed —
 // `A -> C -> B -> A`. Ported from `preflight.find_cycles`, including the

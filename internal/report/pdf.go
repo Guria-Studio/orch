@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-pdf/fpdf"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // Options tunes the rendering.

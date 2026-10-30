@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 func (s *Server) quotaRoutes() []route {

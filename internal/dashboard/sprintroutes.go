@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/graph"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/graph"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // The last two read endpoints of G5.2: where the project is going, and when

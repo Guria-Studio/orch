@@ -9,9 +9,9 @@ import (
 
 	"path/filepath"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 func getSummary(t *testing.T, s *Server, token string) (*httptest.ResponseRecorder, stakeholderSummaryPayload) {

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
-	"github.com/hectorcanaimero/orch/internal/export"
-	"github.com/hectorcanaimero/orch/internal/export/clickuptest"
+	"github.com/Guria-Studio/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/export"
+	"github.com/Guria-Studio/orch/internal/export/clickuptest"
 )
 
 // TestExportClickUp drives the real command against a fake ClickUp. The

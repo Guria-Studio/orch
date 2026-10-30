@@ -194,7 +194,7 @@ type Portal struct {
 var DefaultPortalDocuments = []string{"docs/prd/*.md", "docs/arch/*.md", "specs/f*.md"}
 
 // ReportFindings lets the MCP tool orch_report_finding file GitHub issues
-// about orch itself on hectorcanaimero/orch, with the operator's own `gh`.
+// about orch itself on Guria-Studio/orch, with the operator's own `gh`.
 //
 // Off by default: a public issue under someone's account is not something a
 // project should do because an agent decided to. Go only, no Python source —

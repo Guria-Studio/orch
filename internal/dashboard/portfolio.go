@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // portfolioPayload is `/api/portfolio`'s body: one row per project the

@@ -3,7 +3,7 @@ package state
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // The six vectors below are not invented: they are the exact preimages and

@@ -205,7 +205,7 @@ fetched on demand.
 
 `{type, title, summary, evidence?, repro?, suggested_fix?, confidence?, confirm_new?}`
 — files a bug, an improvement or a feature request **about orch itself** on
-`hectorcanaimero/orch`, labelled
+`Guria-Studio/orch`, labelled
 `auto-reported` (which `orch sync issues` refuses to ingest, so a report never
 loops back as a task). `type` is `bug`, `improvement` or `feature`.
 

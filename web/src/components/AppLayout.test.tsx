@@ -27,7 +27,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiClient: { get: apiGet },
 }))
 vi.mock("@/hooks/useTunnelCapabilities", () => ({
-  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" } } }),
+  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "Guria-Studio/orch", branch: "main" } } }),
 }))
 
 function Where() {
@@ -136,7 +136,7 @@ describe("AppLayout", () => {
     renderAt("/work/list")
     const sidebar = screen.getByRole("complementary")
     expect(await within(sidebar).findByText("acme-billing-api")).toBeInTheDocument()
-    expect(within(sidebar).getByText("hectorcanaimero/orch")).toBeInTheDocument()
+    expect(within(sidebar).getByText("Guria-Studio/orch")).toBeInTheDocument()
     expect(within(screen.getByRole("navigation", { name: "Main" })).getByText("3 in flight")).toBeInTheDocument()
     expect(screen.getByText("run active")).toBeInTheDocument()
     expect(within(sidebar).getByText(/Operator · /)).toBeInTheDocument()

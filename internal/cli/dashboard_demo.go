@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/demo"
+	"github.com/Guria-Studio/orch/internal/demo"
 )
 
 // prepareDemo builds the synthetic project `orch dashboard --demo` serves and

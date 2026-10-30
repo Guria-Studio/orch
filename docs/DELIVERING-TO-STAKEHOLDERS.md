@@ -16,7 +16,7 @@ That sentence. That's it. No spreadsheet, no Slack thread, no weekly email.
 
 ## Prerequisites
 
-- `orch` installed (`curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh`, or a binary from the Releases page — see the README)
+- `orch` installed (`curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh`, or a binary from the Releases page — see the README)
 - At least one AI CLI on your PATH: `claude`, `codex`, or `opencode`
 - For sharing a link: `cloudflared` (Cloudflare's tunnel client — no Cloudflare account needed). The dashboard's Tunnel page shows the install steps for your system; on macOS it is `brew install cloudflared`.
 

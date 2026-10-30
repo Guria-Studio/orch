@@ -14,13 +14,13 @@ macOS, `amd64`/`arm64`). Check `orch --version` first; if it is missing, ask
 the user before installing anything, then use one of:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
 ```
 
 The script verifies the release checksum and installs to `~/.local/bin`
 (`INSTALL_DIR=...` to override). A tarball from the Releases page works too.
 The old Python package (`pipx`, `v0.11.0-py`) is frozen; both read the same
-`tasks.json` and `config.yaml`. Repo: <https://github.com/hectorcanaimero/orch>.
+`tasks.json` and `config.yaml`. Repo: <https://github.com/Guria-Studio/orch>.
 
 **The skills themselves:** `orch install-skills --all` installs this skill and
 the planning pipeline below into Claude Code (`~/.claude/skills/`); add
@@ -149,7 +149,7 @@ does not do at all — a command or flag you looked for, a step you had to do by
 hand that orch could do — report it with
 `orch_report_finding` (`type` bug|improvement|feature, `title`, `summary`,
 optional `evidence`, `repro`, `suggested_fix`, `confidence`). It files an
-`auto-reported` issue on hectorcanaimero/orch, so keep it about orch: no
+`auto-reported` issue on Guria-Studio/orch, so keep it about orch: no
 secrets, no project code or names. It searches first and returns an existing
 report instead of filing a duplicate; if it lists similar issues, read them
 and call again with `confirm_new: true` only if yours is different. It works

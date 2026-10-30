@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 // Welcome is what `orch dashboard` serves outside a project: the SPA's

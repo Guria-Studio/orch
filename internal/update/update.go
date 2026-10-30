@@ -27,7 +27,7 @@ import (
 
 const (
 	// Repo is where orch is released.
-	Repo = "hectorcanaimero/orch"
+	Repo = "Guria-Studio/orch"
 	// CriticalMarker, anywhere in a release's notes, makes it critical.
 	CriticalMarker = "<!-- orch:critical -->"
 	// DisableEnv turns the check, the notice and the critical gate off.

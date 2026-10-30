@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // newTestProject copies the committed parity fixture into a fresh temp dir

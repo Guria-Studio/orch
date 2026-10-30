@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/guard"
+	"github.com/Guria-Studio/orch/internal/guard"
 )
 
 // guardOutcome runs the pre-PR guard (#484) on a clean exit's diff, from the

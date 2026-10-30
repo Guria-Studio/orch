@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/export"
-	"github.com/hectorcanaimero/orch/internal/export/clickuptest"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/export"
+	"github.com/Guria-Studio/orch/internal/export/clickuptest"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 func cuTask(id string, phase int, status model.Status, deps ...string) model.Task {

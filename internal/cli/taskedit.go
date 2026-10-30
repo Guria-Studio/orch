@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/project"
-	"github.com/hectorcanaimero/orch/internal/router"
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // openTaskEditor builds the project's TaskEditor (#390, v0.22): the one path
@@ -56,8 +56,8 @@ func editErr(id string, err error) error {
 // taskFields are the definition flags `task add` and `task edit` share.
 type taskFields struct {
 	title, model, description, reason, specRef, deps, files string
-	phase                                                    int
-	estimate                                                 float64
+	phase                                                   int
+	estimate                                                float64
 }
 
 func (f *taskFields) register(fs *pflag.FlagSet) {

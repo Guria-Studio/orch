@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/router"
 )
 
 // CheckRoutes reports whether every task's model resolves to a route in r.

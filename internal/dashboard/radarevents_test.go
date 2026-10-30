@@ -3,7 +3,7 @@ package dashboard
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The conflict radar's events (#482) read as warnings naming the other task.

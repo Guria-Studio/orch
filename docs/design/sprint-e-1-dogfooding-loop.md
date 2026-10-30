@@ -178,7 +178,7 @@ Return dict:
 
 ```yaml
 findings:
-  publish_repo: "hectorcanaimero/orch"
+  publish_repo: "Guria-Studio/orch"
   publish_rate_limit_per_hour: 3
   label: "auto-reported"
   min_publish_confidence: "medium"

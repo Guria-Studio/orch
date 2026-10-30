@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // fakeNPXDir is internal/publish's fake npx, which plays wrangler and logs

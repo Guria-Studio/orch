@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/dashboard"
+	"github.com/Guria-Studio/orch/internal/dashboard"
 )
 
 // newDashboardTokenCmd is G8.2 (F3.3)'s operator-facing surface: nobody

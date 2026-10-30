@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // render produces an UNCOMPRESSED PDF, which is what lets these tests read the

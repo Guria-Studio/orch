@@ -1,6 +1,6 @@
 package atomize
 
-import "github.com/hectorcanaimero/orch/internal/model"
+import "github.com/Guria-Studio/orch/internal/model"
 
 // Atomize parses one spec file's markdown (already read into specMD, from
 // sourcePath under docsRoot — needed to compute SpecRef the same way

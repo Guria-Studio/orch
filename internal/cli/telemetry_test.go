@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // appendTelemetryConfig points the fixture project's config.yaml at a test

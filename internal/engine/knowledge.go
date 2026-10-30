@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/knowledge"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/prompt"
+	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/prompt"
 )
 
 // lessonsFor picks the project lessons task's prompt carries (#451), from the

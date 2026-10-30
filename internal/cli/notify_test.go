@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/cli"
 )
 
 // TestNotifyExitCodes ports `_run_notify_subcommand`'s exit codes.

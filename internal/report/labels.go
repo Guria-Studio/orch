@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/publish/snapshot"
+	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 )
 
 // labels is the page's own wording in one language. The executive summary

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // The cases here are ported from `test_sqlite_backend.py` (828 lines),

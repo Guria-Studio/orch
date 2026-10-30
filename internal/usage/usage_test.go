@@ -3,7 +3,7 @@ package usage
 import (
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 func TestBuildSplitsByModelTaskAndAttempt(t *testing.T) {

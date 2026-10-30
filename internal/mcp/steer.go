@@ -7,7 +7,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // The operator's two steering tools (#356). They go through project.Steer,

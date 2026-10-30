@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/templates"
 )
 
 // Bug 19: a fenced code block is documentation ABOUT the spec format, never

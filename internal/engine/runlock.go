@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/project"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // RunLockFile is the file under a project's state directory that one `orch

@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // Card sizes: the Open Graph image size, which X, LinkedIn and Slack all
@@ -84,7 +84,7 @@ func (r *Receipt) SVG(project string, builtWith bool) string {
 
 	if builtWith {
 		fmt.Fprintf(&b, `<rect x="0" y="%d" width="%d" height="4" fill="#7c3aed"/>`+"\n", CardHeight-4, CardWidth)
-		text(&b, CardWidth-72, 584, 22, "#a78bfa", cardSans, "500", "end", "Built with orch · github.com/hectorcanaimero/orch")
+		text(&b, CardWidth-72, 584, 22, "#a78bfa", cardSans, "500", "end", "Built with orch · github.com/Guria-Studio/orch")
 	}
 	b.WriteString("</svg>\n")
 	return b.String()

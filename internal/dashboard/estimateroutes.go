@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/config"
-	"github.com/hectorcanaimero/orch/internal/estimate"
-	"github.com/hectorcanaimero/orch/internal/router"
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/estimate"
+	"github.com/Guria-Studio/orch/internal/router"
 )
 
 // /api/estimate is `orch estimate` for the Now page (#357): what the next

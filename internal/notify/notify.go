@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/budget"
-	"github.com/hectorcanaimero/orch/internal/pyfmt"
+	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
 // DefaultTimeout is Python's `notifications.timeout_s` default.

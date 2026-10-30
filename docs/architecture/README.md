@@ -3,7 +3,7 @@
 Five diagrams of the Go binary, authored with archify (a Claude Code skill)
 as small typed JSON specs and rendered to self-contained interactive HTML.
 The rendered pages are published with the project site:
-<https://hectorcanaimero.github.io/orch/architecture/> (sources for the HTML:
+<https://tryorch.us/architecture/> (sources for the HTML:
 `site/architecture/`).
 
 | Diagram | Type | Spec | Page |

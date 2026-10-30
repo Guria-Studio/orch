@@ -3,7 +3,7 @@ package dashboard
 import (
 	"net/http"
 
-	"github.com/hectorcanaimero/orch/internal/skills"
+	"github.com/Guria-Studio/orch/internal/skills"
 )
 
 func (s *Server) skillsRoutes() []route {

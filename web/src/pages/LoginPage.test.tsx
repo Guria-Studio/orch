@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import { LoginPage } from "@/pages/LoginPage"
 
 vi.mock("@/hooks/useTunnelCapabilities", () => ({
-  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "hectorcanaimero/orch", branch: "main" } } }),
+  useTunnelCapabilities: () => ({ data: { repo: { remote: "", host: "github.com", slug: "Guria-Studio/orch", branch: "main" } } }),
 }))
 
 describe("LoginPage", () => {
@@ -17,6 +17,6 @@ describe("LoginPage", () => {
         <LoginPage />
       </MemoryRouter>,
     )
-    expect(screen.getByText(`hectorcanaimero/orch · ${window.location.origin}`)).toBeInTheDocument()
+    expect(screen.getByText(`Guria-Studio/orch · ${window.location.origin}`)).toBeInTheDocument()
   })
 })

@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hectorcanaimero/orch/internal/publish"
-	"github.com/hectorcanaimero/orch/internal/publish/cloudworker"
+	"github.com/Guria-Studio/orch/internal/publish"
+	"github.com/Guria-Studio/orch/internal/publish/cloudworker"
 )
 
 // newCloudCmd is `orch cloud` — the operator's side of an orch-cloud Worker

@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/google/uuid"
-	"github.com/hectorcanaimero/orch/internal/model"
 )
 
 // PromptDelivery says how a provider's CLI wants the prompt.

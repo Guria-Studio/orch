@@ -11,10 +11,10 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
-	"github.com/hectorcanaimero/orch/internal/cli"
-	"github.com/hectorcanaimero/orch/internal/publish"
-	"github.com/hectorcanaimero/orch/internal/publish/cloudfake"
-	"github.com/hectorcanaimero/orch/internal/sandbox"
+	"github.com/Guria-Studio/orch/internal/cli"
+	"github.com/Guria-Studio/orch/internal/publish"
+	"github.com/Guria-Studio/orch/internal/publish/cloudfake"
+	"github.com/Guria-Studio/orch/internal/sandbox"
 )
 
 // TestMain lets testscript scripts `exec orch ...` in-process — cheaper and

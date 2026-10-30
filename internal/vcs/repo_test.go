@@ -4,8 +4,8 @@ import "testing"
 
 func TestParseRemote(t *testing.T) {
 	cases := []struct{ in, clean, host, slug string }{
-		{"git@github.com:hectorcanaimero/orch.git", "github.com:hectorcanaimero/orch.git", "github.com", "hectorcanaimero/orch"},
-		{"https://github.com/hectorcanaimero/orch.git", "https://github.com/hectorcanaimero/orch.git", "github.com", "hectorcanaimero/orch"},
+		{"git@github.com:Guria-Studio/orch.git", "github.com:Guria-Studio/orch.git", "github.com", "Guria-Studio/orch"},
+		{"https://github.com/Guria-Studio/orch.git", "https://github.com/Guria-Studio/orch.git", "github.com", "Guria-Studio/orch"},
 		// A token in the remote never reaches the page.
 		{"https://x-access-token:ghs_secret@github.com/o/r.git", "https://github.com/o/r.git", "github.com", "o/r"},
 		{"ssh://git@gitlab.example.com:2222/group/sub/proj.git", "ssh://gitlab.example.com:2222/group/sub/proj.git", "gitlab.example.com", "group/sub/proj"},

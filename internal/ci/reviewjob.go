@@ -7,7 +7,7 @@ import (
 )
 
 // Repo is where orch is released, for the review job's install step.
-const Repo = "hectorcanaimero/orch"
+const Repo = "Guria-Studio/orch"
 
 // ChecklistPath is the review checklist `orch ci setup` writes and
 // `orch ci review` reads by default.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hectorcanaimero/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // CheckSQLite opens dbPath and reports the outcome. Ports state.db.accessible

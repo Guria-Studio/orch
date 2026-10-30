@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/model"
 )
 
 // The text a person reads in ClickUp: task descriptions, List descriptions
@@ -29,13 +29,13 @@ var clickUpText = map[string]clickUpWords{
 		dependsOn: "Depends on", nothingDepends: "Nothing: it can start as soon as it is promoted to to do.",
 		who: "Who does it and why", files: "Files the agent may change", spec: "Spec", pkg: "Package",
 		mirrorNote: "Mirrored from orch. orch is the source of truth: changes made here do not go back to orch.",
-		model: "Assigned model", estimate: "Estimate", timeout: "an attempt that runs past %s is stopped and retried",
+		model:      "Assigned model", estimate: "Estimate", timeout: "an attempt that runs past %s is stopped and retried",
 		coversRef: "details in the PRD", notInTasks: "not in tasks.json",
 		started: "🚀 orch started this task.", finished: "✅ orch finished this task.",
 		blocked: "⛔ orch blocked this task.", ready: "📋 This task is ready to run.",
 		backlog: "🗂️ This task went back to the backlog.", moved: "Status in ClickUp: %s → %s.",
 		lastNote: "Latest orch note (%s, %s): %s", spend: "Spend so far: US$ %s over %d %s, %s output tokens, %s of work.",
-		attempts: "attempt(s)",
+		attempts:   "attempt(s)",
 		phaseIntro: "Phase F%d of orch project `%s`, mirrored by `orch export clickup`.",
 		phaseCount: "%d task(s). Each task's description has what to do, how we know it is done, its dependencies and the files it may change.",
 		decimal:    ".",
@@ -45,13 +45,13 @@ var clickUpText = map[string]clickUpWords{
 		dependsOn: "Depende de", nothingDepends: "Nada: puede empezar apenas se promueva a to do.",
 		who: "Quién la hace y por qué", files: "Archivos que el agente puede tocar", spec: "Spec", pkg: "Paquete",
 		mirrorNote: "Sincronizado desde orch. orch es la fuente de verdad: los cambios hechos acá no vuelven a orch.",
-		model: "Modelo asignado", estimate: "Estimación", timeout: "si un intento pasa de %s, orch lo corta y reintenta",
+		model:      "Modelo asignado", estimate: "Estimación", timeout: "si un intento pasa de %s, orch lo corta y reintenta",
 		coversRef: "detalle en el PRD", notInTasks: "no está en tasks.json",
 		started: "🚀 orch empezó esta tarea.", finished: "✅ orch terminó esta tarea.",
 		blocked: "⛔ orch bloqueó esta tarea.", ready: "📋 La tarea está lista para ejecutarse.",
 		backlog: "🗂️ La tarea volvió al backlog.", moved: "Estado en ClickUp: %s → %s.",
 		lastNote: "Último registro de orch (%s, %s): %s", spend: "Consumo acumulado: US$ %s en %d %s, %s tokens de salida, %s de trabajo.",
-		attempts: "intento(s)",
+		attempts:   "intento(s)",
 		phaseIntro: "Fase F%d del proyecto orch `%s`, sincronizada con `orch export clickup`.",
 		phaseCount: "%d tarea(s). La descripción de cada una dice qué hay que hacer, cómo sabemos que está terminada, de qué depende y qué archivos puede tocar.",
 		decimal:    ",",
@@ -61,13 +61,13 @@ var clickUpText = map[string]clickUpWords{
 		dependsOn: "Depende de", nothingDepends: "Nada: pode começar assim que for promovida a to do.",
 		who: "Quem faz e por quê", files: "Arquivos que o agente pode alterar", spec: "Spec", pkg: "Pacote",
 		mirrorNote: "Sincronizado a partir do orch. O orch é a fonte da verdade: mudanças feitas aqui não voltam para o orch.",
-		model: "Modelo atribuído", estimate: "Estimativa", timeout: "uma tentativa que passar de %s é interrompida e repetida",
+		model:      "Modelo atribuído", estimate: "Estimativa", timeout: "uma tentativa que passar de %s é interrompida e repetida",
 		coversRef: "detalhes no PRD", notInTasks: "não está no tasks.json",
 		started: "🚀 O orch começou esta tarefa.", finished: "✅ O orch terminou esta tarefa.",
 		blocked: "⛔ O orch bloqueou esta tarefa.", ready: "📋 A tarefa está pronta para rodar.",
 		backlog: "🗂️ A tarefa voltou para o backlog.", moved: "Status no ClickUp: %s → %s.",
 		lastNote: "Último registro do orch (%s, %s): %s", spend: "Consumo até agora: US$ %s em %d %s, %s tokens de saída, %s de trabalho.",
-		attempts: "tentativa(s)",
+		attempts:   "tentativa(s)",
 		phaseIntro: "Fase F%d do projeto orch `%s`, sincronizada pelo `orch export clickup`.",
 		phaseCount: "%d tarefa(s). A descrição de cada uma diz o que fazer, como sabemos que está pronta, suas dependências e os arquivos que pode alterar.",
 		decimal:    ",",

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/tunnel"
 )
 
 func TestCheckTunnel(t *testing.T) {

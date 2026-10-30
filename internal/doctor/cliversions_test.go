@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 func latestIs(version string, err error) LatestFunc {

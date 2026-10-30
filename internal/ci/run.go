@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hectorcanaimero/orch/internal/engine"
-	"github.com/hectorcanaimero/orch/internal/model"
-	"github.com/hectorcanaimero/orch/internal/providers"
+	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/providers"
 )
 
 // ReviewTaskID names the review's dispatch. Under ORCH_FAKE_PROVIDER it is the
