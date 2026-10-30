@@ -3,10 +3,11 @@
 Draft, not published. The author posts it; nothing here is scheduled.
 
 **Every number below has a source.** The "Sources" section at the end gives the
-command that produced each one, run in this repo on 2026-09-13 against `main`
-at `5db7091`. Anything nobody has measured is absent rather than estimated:
-there is no startup time here and no performance comparison against the Python
-version, because nobody has measured either.
+command that produced each one, re-measured on 2026-10-29 against the
+`v0.29.0` release artifacts and `main` at `ba0fff4` (`docs/launch/measure.sh`
+reruns all of them; its output is `docs/launch/measurements.txt`). Anything
+nobody has measured is absent rather than estimated: there is no performance
+comparison against the Python version, because nobody has measured one.
 
 ---
 
@@ -15,16 +16,16 @@ version, because nobody has measured either.
 Each item says who can unblock it. The post must not go out with any of them
 open — two of them make the first command in the post fail.
 
-| # | Item | State on 2026-09-13 | Who |
+| # | Item | State on 2026-10-29 | Who |
 |---|---|---|---|
-| 1 | **Tag `v0.12.0`** so a Go release exists | No `v*` release without `-py` exists. `scripts/install.sh` asks the API for the newest non-`-py` release, finds none, and **the one-line install in the post fails**. | the author (tagging publishes) |
-| 2 | **Run the install line on a clean machine** (Linux and macOS) and paste what it prints into the first comment | not possible before 1 | the author |
-| 3 | **Homebrew tap**: create `hectorcanaimero/homebrew-orch` and the `HOMEBREW_TAP_GITHUB_TOKEN` secret, or drop the `brew` line from the post | neither exists; goreleaser's brew step needs both | the author |
-| 4 | **The GIF** — `docs/media/GIF-SCRIPT.md` recorded with the Go binary (plan item G7.3, which is also the migration's gate) | not recorded; needs an interactive terminal and real tokens | the author |
-| 5 | **GitHub Pages** enabled, so `orch publish --to git` has a live page to link | Pages is off on the repo | the author (repo setting) |
-| 6 | Re-measure the numbers below on the release commit and update "Sources" | measured on `5db7091`, before the release | anyone |
-| 7 | Re-check the rivals' star counts and features in the comparison table | copied from `README.md`, which says to verify them before citing | anyone |
-| 8 | Post on a **Tuesday, Wednesday or Thursday** (plan: week 9) | 2026-09-13 is a Sunday; no date chosen | the author |
+| 1 | **A Go release exists** | ✅ done — `v0.29.0` is the latest of 18 Go releases (`v0.12.0` onwards) | — |
+| 2 | **Run the install line on a clean machine** and paste what it prints into the first comment | **Linux: it failed, and is fixed in the PR that adds this line.** On a fresh `ubuntu:24.04` the documented `curl … \| sh` died on line 15 (`set: Illegal option -o pipefail`): Ubuntu's `sh` is dash 0.5.12. `scripts/install.sh` is POSIX sh now; the transcript before/after is `docs/launch/clean-install-linux.txt`. The fix reaches users only once merged (the one-liner reads `main`). **macOS: not run** — no Mac on the build host. | the author (macOS) |
+| 3 | **Homebrew tap** | ❌ **dropped for the launch (the author's decision)**. The `brew` lines are gone from the post, README, manuals, site and templates, and `.goreleaser.yaml` has no `brews:` block. Install paths: the script, a release tarball, `go install` (CLI only). | — |
+| 4 | **The GIF** — `docs/media/GIF-SCRIPT.md` with the Go binary (G7.3) | recorded on 2026-10-29 with one real provider (`claude`); see `docs/media/GIF-NOTES.md` for what is real, what the script asked for that could not be shot, and why | the author (re-shoot with three CLIs if the 1.0 gate insists) |
+| 5 | **GitHub Pages** live for `site/` and `orch publish --to git` | **not right yet**: Pages is on, but in legacy mode serving `main:/docs` at `hectorcanaimero.github.io/orch/`, with no custom domain — `tryorch.us` resolves to GitHub Pages and answers 404. `site/` is deployed by `.github/workflows/pages.yml`, which needs Pages' source set to *GitHub Actions* and the `tryorch.us` CNAME. | the author (repo setting) |
+| 6 | Re-measure the numbers below on the release commit and update "Sources" | ✅ done on `v0.29.0` / `ba0fff4` | — |
+| 7 | Re-check the rivals' star counts and features in the comparison table | ✅ done on 2026-10-29 (GitHub API + each README) | re-check on posting day |
+| 8 | Post on a **Tuesday, Wednesday or Thursday** | no date chosen | the author |
 
 ---
 
@@ -48,7 +49,7 @@ I built orch to stop babysitting AI coding agents.
 
 You write a spec, it becomes a `tasks.json` DAG, and orch walks the graph: it
 works out which tasks are ready, dispatches each one to whichever CLI you routed
-it to (`claude`, `codex`, `opencode`, `gemini`, `agy`), isolates it in its own
+it to (`claude`, `codex`, `opencode`, `gemini`, `agy`, `muse`), isolates it in its own
 git worktree, opens a PR, waits for CI, and retries or blocks on the result.
 There is a per-provider budget guardrail that stops dispatching before a bad
 night spends a month's tokens, a dashboard that shows what is running, and a
@@ -68,8 +69,9 @@ several in parallel) that I directed and reviewed, with a second model (Gemini)
 reviewing every PR in CI against a checklist in the repo. That is relevant to
 what follows, so it goes up front.
 
-The rewrite is not finished and this post does not pretend it is. What follows
-is what is true today.
+The rewrite is done — `main` has held no Python since G7.5 — but not everything
+is smooth, and this post does not pretend it is. What follows is what is true
+today.
 
 ---
 
@@ -96,7 +98,8 @@ needs Python ≥3.11" is a step where people leave.
   old project once.
 - Three dashboard pages (Architecture, Documents, Doctor — the last one is
   `orch doctor` now) and the web setup wizard. The operator JS bundle went from
-  680 kB to 483 kB at that trim (489 kB today, after the portfolio page).
+  680 kB to 483 kB at that trim. (It has grown back to 990 kB since, with the
+  backoffice redesign — that is what new pages cost.)
 - `orch stop`. Ctrl+C drains and exits; a second one kills the agents.
 - The plan said the tunnel supervisor would support cloudflared. The Python code
   never had cloudflared, only autossh (Pinggy) and bore, so that is what got
@@ -108,47 +111,55 @@ React app while still in Python.)
 
 **What it weighs.**
 
-- The binary: **15.7 MB** on linux/amd64, 14.9 MB linux/arm64, 16.0 MB
-  darwin/amd64, 15.3 MB darwin/arm64 — built with the release flags
-  (`-s -w`), with the operator app (489 kB of JS) and the stakeholder page
-  (174 kB) embedded.
+- The binary: **20.5 MB** on linux/amd64, 19.3 MB linux/arm64, 20.8 MB
+  darwin/amd64, 19.8 MB darwin/arm64 — the `v0.29.0` release artifacts as
+  `install.sh` downloads them (8.1–8.7 MB as `.tar.gz`), with the operator app
+  (990 kB of JS) and the client page (242 kB) embedded.
+- Startup: `orch --version` takes **4.8 ms** (median of 50, p95 5.1 ms);
+  `orch validate` on a fresh `python-api` project 6.3 ms, `orch tasks` 10.9 ms
+  — release binary, Ryzen 7 5700G, Linux, update check off.
 - Dependencies: the Python package had 4 runtime dependencies; the Go module has
-  6 direct ones that ship in the binary (`cobra`, `yaml.v3`,
-  `modernc.org/sqlite`, the MCP SDK, `uuid`, `fpdf`) plus one used only by tests.
-- **The Go tree is not smaller.** 32,051 lines of non-test Go against 21,279 of
-  non-test Python, and 33,583 lines of Go tests against 26,606 of Python tests.
-  The migration plan estimated about 9,500 lines of Go; it was wrong by more
-  than 3×. Part of the difference is new capability (below), part is Go being
-  explicit about every error, and I have not measured how the two split.
+  10 direct ones, 9 of them shipped in the binary (`cobra`/`pflag`, `yaml.v3`,
+  `modernc.org/sqlite`, the MCP SDK, `uuid`, `fpdf`, `go-landlock`, `x/term`)
+  plus one used only by tests.
+- **The Go tree is not smaller.** 66,268 lines of non-test Go against 21,279 of
+  non-test Python, and 58,953 lines of Go tests against 26,606 of Python tests.
+  The migration plan estimated about 9,500 lines of Go; at the cut-over
+  (`v0.12.0`) it was already 32,051, and most of the rest is what came after
+  (below), not the port.
 
-**What the Go version does that Python did not:** an MCP server with seven
+**What the Go version does that Python did not:** an MCP server with 13
 `orch_*` tools so a dispatched agent can report status without shell scripts,
 `orch explain`, `orch publish` (the client page as a static site, to a
-directory or a `gh-pages` branch), `orch report pdf`, `orch sync issues`
-(labelled GitHub issues become tasks), a portfolio view of several projects in
-one dashboard, and a planning pipeline shipped as agent skills (PRD →
-architecture → spec → tasks; in review as #217).
+directory, a `gh-pages` branch or a Cloudflare Worker), `orch report pdf`,
+`orch sync issues` (labelled GitHub issues become tasks), `orch estimate`,
+`orch bench`, a local verify step before the push, a Landlock sandbox for
+agents on Linux, a portfolio view of several projects in one dashboard, and a
+planning pipeline shipped as agent skills (PRD → architecture → spec → tasks).
 
 **What is still rough, stated plainly:**
 
-- **All five backends have adapters, and every success path is tested against a
-  real captured run** — but capturing them is how I learned that **gemini cannot
-  be dispatched by orch today, in either version**: it refuses to run in a
-  directory it was not told to trust, and orch always dispatches into a fresh
-  worktree. The fix is one flag that switches off a security prompt on a CLI
-  running unattended, and I want that argued in its own PR.
-- On a ChatGPT-plan login, `codex` refuses every codex model id in the default
-  router. I have not tested it with an API key.
-- 11 of the 43 opencode model ids in the default router do not exist in
-  opencode's current catalogue.
-- The migration's own gate — reproduce the demo end to end with the Go binary,
-  real dispatch, green PR, published page — has not been run yet.
+- **All six backends have adapters, and every success path is tested against a
+  real captured run.** Capturing them is how I learned that gemini refused to
+  run in a directory it was not told to trust — and orch always dispatches into
+  a fresh worktree. That is fixed: orch now sets `GEMINI_CLI_TRUST_WORKSPACE`
+  for gemini only, the same door claude's and codex's approval flags already
+  open.
+- As of the cut-over, on a ChatGPT-plan login `codex` refused every codex model
+  id in the default router, and 11 of the 43 opencode model ids in the default
+  router did not exist in opencode's catalogue. Neither is re-checked here
+  (neither CLI is on the machine these numbers come from); `orch doctor`'s
+  `models.available` check now warns about the second per machine.
+- The demo GIF was shot with one provider (`claude`), not three. The first
+  take is also where I found that a private repository on an account with a
+  billing problem makes every CI job "fail" before it starts, and orch read
+  that as a red test run and retried.
 
 ---
 
 ## The part I would actually want to discuss
 
-**Porting found 31 numbered bugs in the Python version. Its test suite — 1,530
+**Porting found 32 numbered bugs in the Python version. Its test suite — 1,530
 passing tests — was green through every one of them.**
 
 They were found by someone trying to reproduce a behaviour in another language
@@ -207,78 +218,96 @@ tests the parser against its author's beliefs. Capture the real thing.
 
 ## Honest comparison
 
-Against the tools people in this space actually use. Rival columns are copied
-from `README.md` and must be re-checked on posting day (see "Before posting").
+Against the tools people in this space actually use. Re-checked on 2026-10-29
+against the GitHub API and each project's README; re-check on posting day.
 
 | | Multica | Vibe Kanban | Agetor | Claude Squad | **orch** |
 |---|:---:|:---:|:---:|:---:|:---:|
-| GitHub stars | 49.6k | 28.1k | 65 | 8.5k | **1** |
+| GitHub stars | 54.3k | 28.5k | 104 | 8.7k | **2** |
 | Stack | Go + Next.js + Postgres | Rust | TypeScript (Electrobun) | Go | Go |
-| License | Apache-2.0 + commercial | Apache-2.0 | MIT | AGPL-3.0 | MIT |
-| CLIs/agents supported | 26 | 10+ | 5 | ~6 | 5 (gemini blocked by bug 30) |
-| Desktop app | ✅ Electron | ❌ | ✅ macOS | ❌ (TUI) | ❌ |
-| Mobile app | ✅ iOS | ❌ | ❌ | ❌ | ❌ |
-| Cloud-hosted option | ✅ multica.ai | ❌ | ❌ | ❌ | ❌ |
+| License | Multica License (Apache-2.0 + additional conditions) | Apache-2.0 | MIT | AGPL-3.0 | MIT |
+| CLIs/agents supported | 26 | 10+ | 8 | ~4 named + any CLI | 6 |
+| Desktop app | ✅ Electron | ❌ | ✅ macOS (Apple Silicon) | ❌ (TUI) | ❌ |
+| Mobile app | ✅ iOS (build from source) | ❌ | ❌ | ❌ | ❌ |
+| Cloud-hosted option | ✅ multica.ai | ❌ (Bloop's cloud shut down; self-host guide) | ❌ | ❌ | ❌ |
 | Single binary | ❌ | ❌ | ❌ | ✅ | ✅ |
 | Read-only stakeholder view | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Per-provider budget guardrail (blocks dispatch) | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Spec → tasks pipeline | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Spec → tasks pipeline | ❌ | ❌ | ❌ (agent pipelines, not spec → DAG) | ❌ | ✅ |
 | Static export of the client page | ❌ | ❌ | ❌ | ❌ | ✅ (`orch publish`) |
+
+What changed since the 2026-09-13 draft: Multica 49.6k → 54.3k stars and its
+license is now its own "Multica License" (Apache-2.0 text plus conditions,
+GitHub reports `NOASSERTION`); Vibe Kanban 28.1k → 28.5k; Agetor 65 → 104 stars
+and 5 → 8 harnesses (Claude Code, Codex, Cursor, Gemini CLI, fx, Antigravity,
+GitHub Copilot, OpenCode); Claude Squad 8.5k → 8.7k, its README names Claude
+Code, Codex, Gemini and Aider plus any CLI as a profile (last push 2026-08-20);
+orch 1 → 2 stars and 5 → 6 backends (`muse`). Multica's "usage analytics" shows
+cost per run, but nothing in its README blocks a dispatch on a budget.
 
 And against itself:
 
-| | Python (v0.11.0) | Go (today) |
+| | Python (v0.11.0) | Go (v0.29.0) |
 |---|---|---|
-| Install | `pipx install`, needs Python ≥3.11 | one binary, 14.9–16.0 MB |
+| Install | `pipx install`, needs Python ≥3.11 | one binary, 19.3–20.8 MB (8.1–8.7 MB download) |
 | Runtime dependencies on the machine | Python + 4 packages | none |
-| Dispatch backends | claude, codex, opencode, gemini, agy | same five (gemini blocked in both) |
-| Command surfaces | 21 | 24 (no `findings`, no `stop`) |
+| Dispatch backends | claude, codex, opencode, gemini, agy | those five + muse (gemini dispatchable since the trust fix) |
+| Command surfaces | 21 | 37 (36 in `orch --help` + hidden `sandbox-exec`; no `findings`, no `stop`) |
 | Dashboard | FastAPI + uvicorn + a built SPA on disk | `net/http`, SPA embedded |
-| New in Go | — | MCP server (7 tools), `explain`, `publish`, `report pdf`, `sync issues`, portfolio |
-| Non-test lines | 21,279 | 32,051 |
-| Tests | 1,530 passing pytest cases (1,327 `test_` functions) | 1,061 test functions |
+| New in Go | — | MCP server (13 tools), `explain`, `publish`, `report pdf`, `sync issues`, `estimate`, `bench`, verify, sandbox, portfolio |
+| Non-test lines | 21,279 | 66,268 |
+| Tests | 1,530 passing pytest cases (1,327 `test_` functions) | 1,805 test functions (3,103 passing tests and subtests in `go test ./...`), 44 testscript files, 247 web test cases |
 
 Two caveats that belong next to the table, not in a footnote:
 
 - **"No runtime dependencies" is about the machine, not the code.** The Go binary
   compiles its dependencies in. Same parts, shipped differently.
-- **1,061 vs 1,530 is not "fewer tests".** They count different things — Go test
-  functions, many of them table-driven with a dozen cases each, against pytest's
-  collected cases including parametrised ones.
+- **The test counts count different things** — Go test functions, many of them
+  table-driven, against pytest's collected cases including parametrised ones.
 
 ---
 
 ## Sources
 
-Run on 2026-09-13 in this repository at `main` = `5db7091`, Go 1.25.0.
+Run on 2026-10-29: release `v0.29.0` (artifacts from GitHub, checksums
+verified) and `main` = `ba0fff4` for everything counted in the tree; Go 1.27.1,
+linux/amd64, AMD Ryzen 7 5700G. `sh docs/launch/measure.sh v0.29.0` reruns the
+lot; `docs/launch/measurements.txt` is its output.
 
 | Number | Command |
 |---|---|
-| binary 15.7 / 14.9 / 16.0 / 15.3 MB (16,490,680 / 15,663,288 / 16,818,480 / 15,995,634 bytes) | `make web`, then for each of linux/amd64, linux/arm64, darwin/amd64, darwin/arm64: `CGO_ENABLED=0 GOOS=… GOARCH=… go build -ldflags='-s -w -X main.version=v0.12.0-dev' ./cmd/orch` and `stat -c %s`; the flags are the `builds.ldflags` of `.goreleaser.yaml`. MB = bytes / 1,048,576. |
-| operator JS 489 kB, stakeholder JS 174 kB | the `pnpm build` / `pnpm build:stakeholder` output (`index-*.js`, `stakeholder-*.js`) |
-| operator bundle 680 → 483 kB at the trim | PR #163 (the portfolio page, #203, took it to 488–489 kB) |
-| 32,051 / 33,583 Go lines | `rg --files -g '*.go' -g '!*_test.go' internal cmd \| xargs cat \| wc -l`, and the same with `-g '*_test.go'` |
-| 21,279 / 26,606 Python lines | `rg --files -g '*.py' orchestrator \| rg -v '^orchestrator/tests/' \| xargs cat \| wc -l`, and `rg '^orchestrator/tests/'` for tests |
+| binary 20.5 / 19.3 / 20.8 / 19.8 MB (20,521,144 / 19,333,304 / 20,848,048 / 19,767,730 bytes); archives 8,627,626 / 8,076,899 / 8,721,879 / 8,324,955 | `gh release download v0.29.0 -p 'orch_v0.29.0_*' -p checksums.txt`, `sha256sum -c`, untar, `stat -c %s` (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64). MB = bytes / 1,000,000. `main` built the same way with `.goreleaser.yaml`'s `-s -w` is ~1–4 % larger (21,438,624 bytes linux/amd64): the welcome page landed after the tag |
+| was 15.7 MB at `v0.12.0-dev` | the 2026-09-13 draft (`5db7091`), MB = bytes / 1,048,576 there |
+| startup 4.8 ms / 6.3 ms / 10.9 ms | `measure.sh`'s timing block: 5 warm-ups then 50 runs of the release binary with `ORCH_NO_UPDATE_CHECK=1` — `orch --version`, `orch validate` and `orch tasks` inside a fresh `orch init --template python-api` project; median, p95 alongside |
+| operator JS 990 kB, client page JS 242 kB | `make web`, then `du -cb internal/dashboard/dist/build/assets/*.js` and `internal/publish/dist/stakeholder/assets/*.js` (989,885 / 241,631 bytes) |
+| operator bundle 680 → 483 kB at the trim | PR #163 |
+| 66,268 / 58,953 Go lines | `rg --files -g '*.go' -g '!*_test.go' internal cmd \| xargs cat \| wc -l`, and the same with `-g '*_test.go'` |
+| 32,051 Go lines at the cut-over | the 2026-09-13 draft, same command at `5db7091` |
+| 21,279 / 26,606 Python lines | the 2026-09-13 draft (Python is on `python-legacy` now; not re-run) |
 | ≈9,500 lines estimated | the migration plan's Python → Go map (the "Orch en Go" planning document) |
-| 1,061 Go test functions | `rg -c '^func Test' --glob '*_test.go' internal cmd` summed |
-| 1,327 Python test functions | `rg -c '^\s*def test_' orchestrator/tests` summed |
-| 1,530 passing Python tests | the pytest baseline in `CLAUDE.md` (1530 passed + 3 skipped), kept current by the PRs that add tests |
-| 4 Python runtime dependencies | `dependencies` in `pyproject.toml` |
-| 6 direct Go modules shipped, 1 test-only | the first `require` block of `go.mod` (7 entries); `rogpeppe/go-internal` is imported only from `_test.go` files |
-| 21 Python command surfaces | the 18 entries of `_SUBCOMMANDS` in `orchestrator/orch.py`, plus `task` and `router` (dispatched before it) and the default run loop |
-| 24 Go command surfaces | `orch --help` (23, excluding `help` and `completion`) plus the hidden, deprecated `migrate` |
+| 1,805 Go test functions | `rg -c '^func Test' --glob '*_test.go' internal cmd` summed |
+| 3,103 passing tests and subtests, 0 failing | `make web && go test ./... -count=1 -json`, counting `"Action":"pass"` / `"fail"` events that carry a `Test` |
+| 44 testscript files, 247 web test cases | `rg --files -g '*.txtar' \| wc -l`; `rg -c '^\s*(it\|test)\(' -g '*.test.ts*' web/src` summed |
+| 1,327 / 1,530 Python tests | the 2026-09-13 draft (pytest baseline then in `CLAUDE.md`) |
+| 4 Python runtime dependencies | `dependencies` in `pyproject.toml` on `python-legacy` |
+| 10 direct Go modules, 9 shipped, 1 test-only | the first `require` block of `go.mod`; `rogpeppe/go-internal` is imported only from `_test.go` files (`rg -l` per module) |
+| 21 Python command surfaces | the 2026-09-13 draft |
+| 37 Go command surfaces | `orch --help` (36, excluding `help` and `completion`) plus the hidden `sandbox-exec` (`rg 'Hidden:\s*true' internal/cli`) |
 | 30 checklist rules | `rg -c '^[0-9]+\. \*\*' .github/review/CHECKLIST.md` |
 | rules 23–30 and their origins | the rules themselves, in `.github/review/CHECKLIST.md` |
-| 31 numbered bugs | highest number in `rg -o -i 'bug ([0-9]+)' -r '$1' docs internal web/src .github \| sort -n -u`; the entries live in `docs/brainstorm/go-migration-notes/*.md` and the frozen `go-migration-notes.md`. A 32nd is logged in open PR #217. |
+| 32 numbered bugs | highest number in `rg -o -i 'bug ([0-9]+)' -r '$1' docs internal web/src .github \| sort -n -u` |
 | bug 20 found by a Go test | `docs/brainstorm/go-migration-notes/orch-98.md`: "a testscript hung until its 540 s timeout" |
-| 5 backends with adapters | `internal/providers/{claude,codex,opencode,gemini,agy}.go`; real captures listed in `internal/providers/testdata/README.md` (PR #215) |
-| gemini blocked (bug 30), codex model refusal, 11 of 43 opencode ids | PR #215 and `docs/brainstorm/go-migration-notes/sonnet-2.md` |
-| 126 PRs merged since #91 | `gh pr list --state merged --limit 300 --json number --jq '[.[] \| select(.number >= 91)] \| length'` |
-| 29 packages under `internal/` | `rg --files -g '*.go' -g '!*_test.go' internal \| xargs -n1 dirname \| sort -u \| wc -l` (nested packages such as `publish/snapshot` count separately) |
-| 7 MCP tools | `docs/MCP.md` |
-| no Go release yet | `gh release list` (newest is `v0.11.0-py`) and the release lookup in `scripts/install.sh` |
+| 6 backends with adapters | `internal/providers/{claude,codex,opencode,gemini,agy,muse}.go`; real captures in `internal/providers/testdata/` |
+| gemini trust fix | `HeadlessEnv` in `internal/providers/gemini.go` (`GEMINI_CLI_TRUST_WORKSPACE=true`) |
+| codex model refusal, 11 of 43 opencode ids | PR #215 and `docs/brainstorm/go-migration-notes/sonnet-2.md` — as of the cut-over, not re-checked |
+| 297 PRs merged since #91 | `gh pr list --state merged --limit 1000 --json number --jq '[.[] \| select(.number >= 91)] \| length'` |
+| 45 packages under `internal/` | `rg --files -g '*.go' -g '!*_test.go' internal \| xargs -n1 dirname \| sort -u \| wc -l` |
+| 13 MCP tools | `rg -o 'Name:\s*"orch_[a-z_]+"' internal/mcp`, unique; matches `docs/MCP.md` |
+| 18 Go releases, latest `v0.29.0` | `gh release list` |
+| rivals' stars, licenses, agents | `gh api repos/<owner>/<repo>` (`stargazers_count`, `license`, `pushed_at`) and each README, 2026-10-29 |
+| clean Linux install | `docs/launch/clean-install-linux.txt` (fresh `ubuntu:24.04` container) |
 
-**Deliberately not in this post**, because nobody has measured them: startup
-time, memory use, throughput, and any "N× faster" claim. If someone asks in the
-thread, the honest answer is that the rewrite was about distribution and
+**Deliberately not in this post**, because nobody has measured them: memory
+use, throughput, and any "N× faster" claim against Python. If someone asks in
+the thread, the honest answer is that the rewrite was about distribution and
 correctness, and the performance question has not been asked yet.

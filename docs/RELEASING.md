@@ -61,27 +61,11 @@ Pushing the tag triggers `release-go.yml`, which:
    cgo — `modernc.org/sqlite` is pure Go) via `goreleaser`.
 3. Archives each as a `.tar.gz`, computes `checksums.txt`, and attaches
    both to a new GitHub Release under that tag.
-4. Pushes an updated Homebrew formula to
-   `github.com/hectorcanaimero/homebrew-orch` — **that repo has to exist
-   first**; goreleaser pushes a commit to it, it doesn't create it. Not
-   created by this PR (creating a new public repo under the maintainer's
-   GitHub account is a real, visible action outside a PR's scope) — do
-   this once, by hand, before the first real `v*` tag:
-
-   ```bash
-   gh repo create hectorcanaimero/homebrew-orch --public \
-     --description "Homebrew tap for orch"
-   ```
-
-   Also needs a `HOMEBREW_TAP_GITHUB_TOKEN` repo secret — a PAT with
-   `contents:write` on that tap repo specifically; the default
-   `GITHUB_TOKEN` this workflow otherwise uses only has permissions on
-   *this* repo. `.goreleaser.yaml` passes it as `brews.repository.token`.
-
-   **Until that secret exists the tap push is skipped** (`skip_upload`
-   is templated on it), so a release still publishes its GitHub archives
-   and `install.sh` works; `brew install` does not until a release runs
-   with the secret set. `v0.12.0` shipped this way.
+There is no Homebrew tap: it was dropped for the launch (the author's
+decision, #442), and `.goreleaser.yaml` has no `brews:` block, so a release
+needs no secret beyond the workflow's own `GITHUB_TOKEN`. Users install with
+`scripts/install.sh`, a release tarball, or `go install` (CLI only — it
+builds without the web bundles).
 
 ### Release notes, and critical releases
 
@@ -115,7 +99,7 @@ Nothing publishes on an ordinary push or PR — only an actual `v*` tag
 push triggers a real release. Every other event (PR, push to `main`)
 only runs the dry-run job in `.github/workflows/go.yml`
 (`goreleaser release --snapshot --clean`, which skips every publish
-step — no GitHub release, no Homebrew push, no checksums uploaded
+step — no GitHub release, no checksums uploaded
 anywhere) so a broken `.goreleaser.yaml` or build fails a PR check
 immediately instead of at the next real tag.
 
@@ -125,8 +109,8 @@ immediately instead of at the next real tag.
 goreleaser release --snapshot --clean
 ```
 
-Builds every OS/arch pair, archives, and writes the Homebrew formula
-under `dist/`, all without touching GitHub or the tap repo. `dist/` is
+Builds every OS/arch pair and the archives under `dist/`, without
+touching GitHub. `dist/` is
 gitignored (the same `/dist/` rule the Python wheel build uses).
 
 ## `install.sh`

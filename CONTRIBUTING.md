@@ -36,5 +36,5 @@ make build    # bin/orch, version from git describe (runs make web first)
 ## Releasing
 
 A `v*` tag on `main` builds and publishes the binary through goreleaser — see
-[`docs/RELEASING.md`](docs/RELEASING.md) for the tag scheme, the dry run every PR
-already gets, and what the Homebrew step needs.
+[`docs/RELEASING.md`](docs/RELEASING.md) for the tag scheme and the dry run every PR
+already gets.

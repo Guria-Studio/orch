@@ -15,7 +15,6 @@ the user before installing anything, then use one of:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
-brew install hectorcanaimero/orch/orch
 ```
 
 The script verifies the release checksum and installs to `~/.local/bin`

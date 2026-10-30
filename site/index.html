@@ -142,6 +142,14 @@ Ready to dispatch: 1
       </dl>
     </section>
 
+    <section class="demo wrap" id="demo" aria-labelledby="demo-title">
+      <h2 id="demo-title">A real run, in 29 seconds</h2>
+      <figure class="shot">
+        <img src="assets/orch-demo.gif" width="979" height="694" loading="lazy" alt="orch init, the plan, orch run dispatching two claude tasks that each open a pull request with green CI, then the client page moving from 0% to 50% to 100% on its own.">
+        <figcaption>A real run, sped up: <code>orch init --template python-api</code>, <code>orch run</code> with <code>claude</code>, two PRs with green CI, and the client page updating itself. <a href="https://github.com/hectorcanaimero/orch/blob/main/docs/media/GIF-NOTES.md">What was set up off camera</a>.</figcaption>
+      </figure>
+    </section>
+
     <section class="client-view wrap" id="client" aria-labelledby="client-title">
       <div class="client-text">
         <h2 id="client-title">What your client sees</h2>
@@ -184,7 +192,7 @@ Ready to dispatch: 1
       <h2 id="install-title">Install</h2>
       <p class="install-note">One command. orch is a single binary for Linux and macOS, on <code>amd64</code> and <code>arm64</code>.</p>
 <pre class="term" tabindex="0"><code>curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh</code></pre>
-      <p class="install-note install-after">It downloads the <a href="https://github.com/hectorcanaimero/orch/releases/latest">latest release</a>, checks it against <code>checksums.txt</code>, and puts <code>orch</code> in <code>~/.local/bin</code> — set <code>INSTALL_DIR</code> for somewhere else. A Homebrew tap is not published yet.</p>
+      <p class="install-note install-after">It downloads the <a href="https://github.com/hectorcanaimero/orch/releases/latest">latest release</a>, checks it against <code>checksums.txt</code>, and puts <code>orch</code> in <code>~/.local/bin</code> — set <code>INSTALL_DIR</code> for somewhere else.</p>
       <details class="install-source">
         <summary>Build from source instead</summary>
 <pre class="term" tabindex="0"><code>git clone https://github.com/hectorcanaimero/orch

@@ -44,11 +44,7 @@ latest GitHub Release, verifies its checksum, and installs to
 `~/.local/bin` (override with `INSTALL_DIR=...`). No Go toolchain, no
 Python, no dependencies to resolve — `orch` is one static binary.
 
-Or via Homebrew:
-
-```bash
-brew install hectorcanaimero/orch/orch
-```
+Or from source, CLI only (`go install github.com/hectorcanaimero/orch/cmd/orch@latest`, Go ≥ 1.25): it builds without the web bundles, so `orch dashboard` and `orch publish` need the script or a release tarball instead.
 
 Or grab a tarball directly from
 [the Releases page](https://github.com/hectorcanaimero/orch/releases) and
@@ -808,8 +804,7 @@ task's current status.
 # Re-run the installer — it always fetches the latest v* (non -py) release
 curl -fsSL https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh | sh
 
-# Or, via Homebrew
-brew upgrade orch
+# or: orch upgrade
 
 # Verify
 orch --version

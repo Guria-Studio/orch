@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # scripts/install.sh — download and install the latest orch Go binary
 # release. See docs/RELEASING.md for the tag scheme and what
 # .github/workflows/release-go.yml builds; this script only consumes an
@@ -12,7 +12,12 @@
 # Env overrides:
 #   INSTALL_DIR   Where the binary lands. Default: $HOME/.local/bin.
 #   ORCH_VERSION  Same as passing a version argument.
-set -euo pipefail
+#
+# POSIX sh, not bash: the documented one-liner pipes this into `sh`, which
+# is dash on Debian/Ubuntu, and dash 0.5.12 (Ubuntu 24.04) has no
+# `set -o pipefail` — a bashism here made the install die on its first
+# line (#442). Keep it to POSIX; `shellcheck -s sh scripts/install.sh`.
+set -eu
 
 REPO="hectorcanaimero/orch"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
@@ -45,6 +50,8 @@ if [ "$VERSION" = "latest" ]; then
   # v0.11.0-py, so picking by tag name 404'd on v0.10.1 (#234). Pick the
   # newest release that actually carries this platform's Go archive — the
   # API lists releases newest first.
+  # Without pipefail a failed curl just leaves TAG empty, which the check
+  # below reports.
   TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" \
     | grep -o "releases/download/v[0-9][^/\"]*/orch_v[^/\"]*_${goos}_${goarch}\.tar\.gz" \
     | head -n 1 \
