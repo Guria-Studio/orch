@@ -324,7 +324,9 @@ dependentes comecem de uma base que tem o código; um merge que nunca entra
 é informado com o erro do próprio gh no evento `pr_auto_merge_failed` e na
 nota da task);
 um vermelho recebe uma nova tentativa com os logs da falha anexados, e
-depois `blocked`. Um PR em conflito com sua base é atualizado sobre o
+depois `blocked`. Um vermelho porque o GitHub nunca iniciou o job (billing
+do Actions, o limite de gastos) é bloqueado na hora com esse motivo, sem
+gastar nova tentativa. Um PR em conflito com sua base é atualizado sobre o
 trabalho já feito da task: o orch faz merge da base e push quando entra
 limpo, sem agente; senão o agente recebe os arquivos em conflito e os commits
 da base que os causaram para resolver, `retry.conflict` vezes (1 num projeto

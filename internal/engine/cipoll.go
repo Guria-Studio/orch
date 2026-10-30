@@ -176,7 +176,7 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 		// PR), a conflict, or a PR still pending or unreadable, and those at
 		// most every prStateEvery. Asking on every poll doubled the gh calls.
 		settledByCI := err == nil && state == vcs.CISuccess
-		mustAsk := err == nil && (state == vcs.CIFailure || state == vcs.CIConflict)
+		mustAsk := err == nil && (state == vcs.CIFailure || state == vcs.CIConflict || state == vcs.CINotStarted)
 		if !settledByCI && (mustAsk || p.prStateDue(row.ID, now)) {
 			if p.prSettled(ctx, s, row) {
 				acted++
@@ -201,6 +201,14 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 			acted++
 		case vcs.CIConflict:
 			if p.ciConflict(ctx, s, row) {
+				acted++
+			}
+		case vcs.CINotStarted:
+			// Nothing in the code made it red, so no agent retry: the
+			// operator fixes GitHub, re-runs the job and unblocks (#501).
+			// A retry outstanding decides it at its reap, as in ciFailed.
+			if !s.inFlightIDs()[row.ID] && !s.retryQueueIDs()[row.ID] {
+				p.block(ctx, s, row, ciNotStartedReason, false)
 				acted++
 			}
 		case vcs.CINone:
@@ -623,6 +631,9 @@ func requeueOnPR(ctx context.Context, s *Scheduler, row state.TaskRuntime, task 
 }
 
 // conflictBlockReason is why a conflicting PR blocks its task.
+const ciNotStartedReason = "GitHub did not start the CI job (check Actions billing and the spending limit), " +
+	"so no agent retry was spent; re-run the job and unblock the task"
+
 const conflictBlockReason = "the PR conflicts with its base branch, so CI will not run"
 
 // ciConflict brings a PR that conflicts with its base up to date, in the

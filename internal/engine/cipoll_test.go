@@ -476,6 +476,33 @@ func TestCIFailureBlocksOnceTheAttemptsAreUsed(t *testing.T) {
 	}
 }
 
+// #501: a CI job GitHub never started is blocked with that reason at once —
+// no agent retry spent on a red the code did not cause.
+func TestCINotStartedBlocksWithoutARetry(t *testing.T) {
+	f := newCIFixture(t, pendingRow("C-1", "https://github.com/o/r/pull/1", 0))
+	f.vcs.status["https://github.com/o/r/pull/1"] = vcs.CINotStarted
+
+	if _, err := f.poller.Poll(context.Background(), f.s); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+
+	if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+		t.Errorf("status = %q, want blocked", got)
+	}
+	if len(f.s.RetryQueue()) != 0 {
+		t.Error("an agent retry was queued for a CI job that never ran")
+	}
+	if got := f.ci.incremented(); len(got) != 0 {
+		t.Errorf("CI attempts incremented %v", got)
+	}
+	for _, e := range f.backend.events {
+		if e.eventType == EventCIBlocked && e.extra["reason"] == ciNotStartedReason {
+			return
+		}
+	}
+	t.Errorf("no ci_blocked event naming the reason; events = %v", f.backend.eventTypes("C-1"))
+}
+
 // TestCIFailureWithUnreadableLogsStillRetries: a placeholder beats skipping
 // the retry, which is Python's choice too.
 func TestCIFailureWithUnreadableLogsStillRetries(t *testing.T) {

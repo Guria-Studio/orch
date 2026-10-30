@@ -117,6 +117,7 @@ type githubChecksRow struct {
 	Name   string `json:"name"`
 	State  string `json:"state"`
 	Bucket string `json:"bucket"`
+	Link   string `json:"link"`
 }
 
 func (p *GitHubProvider) CIStatus(prURL string) (CIState, error) {
@@ -125,7 +126,7 @@ func (p *GitHubProvider) CIStatus(prURL string) (CIState, error) {
 	}
 	// `state` only. `conclusion` is not a field gh offers, and asking for it
 	// fails the whole command — see githubChecksRow.
-	out, err := run("gh", nil, "pr", "checks", prURL, "--json", "name,state,bucket")
+	out, err := run("gh", nil, "pr", "checks", prURL, "--json", "name,state,bucket,link")
 	var re *runError
 	if errors.As(err, &re) && strings.Contains(re.stderr, "no checks reported") {
 		// gh's own spelling of an empty list: exit 1 and this on stderr.
@@ -157,6 +158,7 @@ func (p *GitHubProvider) CIStatus(prURL string) (CIState, error) {
 
 	sawFailure := false
 	allSuccess := true
+	var failed []githubChecksRow
 	for _, c := range checks {
 		mapped, ok := githubConclusionMap[normalizeCheckState(c.State)]
 		if !ok {
@@ -164,18 +166,51 @@ func (p *GitHubProvider) CIStatus(prURL string) (CIState, error) {
 		}
 		if mapped == CIFailure {
 			sawFailure = true
+			failed = append(failed, c)
 		}
 		if mapped != CISuccess {
 			allSuccess = false
 		}
 	}
 	if sawFailure {
-		return CIFailure, nil
+		for _, c := range failed {
+			if !p.jobNeverStarted(c.Link) {
+				return CIFailure, nil
+			}
+		}
+		return CINotStarted, nil
 	}
 	if allSuccess {
 		return CISuccess, nil
 	}
 	return CIPending, nil
+}
+
+// reActionsJob is an Actions job's check link:
+// https://<host>/<owner>/<repo>/actions/runs/<run>/job/<job>.
+var reActionsJob = regexp.MustCompile(`^https://([^/]+)/([^/]+)/([^/]+)/actions/runs/\d+/job/(\d+)$`)
+
+// jobNeverStarted reports whether link is an Actions job that got no runner
+// and ran no step — what GitHub does with a job it refuses to start (#501).
+// Anything it cannot tell, including a check that is not an Actions job
+// (those have no steps either), is false: the failure stays a failure.
+func (p *GitHubProvider) jobNeverStarted(link string) bool {
+	m := reActionsJob.FindStringSubmatch(link)
+	if m == nil {
+		return false
+	}
+	out, err := run("gh", nil, "api", "--hostname", m[1], "repos/"+m[2]+"/"+m[3]+"/actions/jobs/"+m[4])
+	if err != nil {
+		return false
+	}
+	var job struct {
+		RunnerID int64             `json:"runner_id"`
+		Steps    []json.RawMessage `json:"steps"`
+	}
+	if json.Unmarshal([]byte(out), &job) != nil {
+		return false
+	}
+	return job.RunnerID == 0 && len(job.Steps) == 0
 }
 
 // noChecks tells a PR that has no checks because it conflicts with its base

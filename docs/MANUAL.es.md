@@ -322,7 +322,9 @@ minutos, y un PR atrasado respecto de su base se actualiza primero, así las
 dependientes arrancan de una base que tiene el código; un merge que nunca
 entra se informa con el error del propio gh en el evento
 `pr_auto_merge_failed` y en la nota de la task); uno rojo recibe
-un reintento con los logs del fallo adjuntos, y después `blocked`. Un PR
+un reintento con los logs del fallo adjuntos, y después `blocked`. Un rojo
+porque GitHub nunca arrancó el job (billing de Actions, el límite de gasto)
+se bloquea al instante con esa razón, sin gastar reintento. Un PR
 que entra en conflicto con su base se pone al día sobre el trabajo ya hecho
 de la task: orch mergea la base y hace push si entra limpia, sin agente; si
 no, el agente recibe los archivos en conflicto y los commits de la base que
