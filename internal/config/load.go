@@ -243,6 +243,9 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("%s: %q is not one of block, warn, off", key, *v)
 		}
 	}
+	if cfg.Dispatch.MinFreeDiskMB < 0 {
+		return fmt.Errorf("dispatch.min_free_disk_mb: %d is negative; 0 never holds a dispatch", cfg.Dispatch.MinFreeDiskMB)
+	}
 	switch cfg.Radar = strings.ToLower(strings.TrimSpace(cfg.Radar)); cfg.Radar {
 	case "warn", "serialize", "off":
 	default:
@@ -350,7 +353,7 @@ var knownKeys = map[string]bool{
 	"dashboard.language":                  true,
 	"dispatch.worktree_mode":              true, "dispatch.base_branch": true,
 	"dispatch.worktree_setup": true, "dispatch.isolate_compose": true, "dispatch.tdd": true,
-	"dispatch.sandbox": true, "dispatch.sandbox_allow": true,
+	"dispatch.sandbox": true, "dispatch.sandbox_allow": true, "dispatch.min_free_disk_mb": true,
 	"vcs.provider": true, "vcs.host": true, "vcs.auto_pr": true,
 	"vcs.ci_max_retries": true, "vcs.ci_poll_interval_s": true,
 	"github.test_command": true, "github.auto_merge": true,
@@ -379,7 +382,7 @@ var knownKeys = map[string]bool{
 	"guard.secrets":          true, "guard.debug": true,
 	"guard.protected": true, "guard.protected_paths": true,
 	"gate.critical_paths": true,
-	"watch.enabled": true, "watch.stall_after_s": true,
+	"watch.enabled":       true, "watch.stall_after_s": true,
 	"radar": true,
 }
 

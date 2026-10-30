@@ -93,6 +93,7 @@ dispatch:
   tdd: false             # agents work test-first
   sandbox: false         # confine each agent to its worktree (Linux, Landlock)
   sandbox_allow: []      # extra read-write paths for a sandboxed agent
+  min_free_disk_mb: 2048 # what `orch init` writes; absent = 0, never hold
 ```
 
 **`sandbox`** (default `false`, Go only, #481) confines every dispatched task
@@ -171,6 +172,17 @@ its own (#324). Use the command your CI installs with: `pnpm install
 with `sh -c` in the worktree, for at most 10 minutes; a non-zero exit blocks
 the task with the tail of its output, and the worktree is removed. Empty (the
 default) runs nothing. Go only.
+
+**`min_free_disk_mb`** (Go only, #497) holds back a new dispatch, in worktree
+mode, while the disk holding the project has less free space than this many
+MB. Each worktree is a full checkout with its own dependencies and build
+output, so several tasks in parallel can fill a disk mid-task and fail it with
+`No space left on device`. A held task waits like one over its budget: the run
+log says so once (`deferred: low disk space`, with `free_mb`), a stalled run's
+warning names it (`low-disk`), and it is dispatched as soon as space is back,
+for instance when finished tasks have their worktrees removed. Running tasks
+are never stopped. `orch init` writes `2048`; a config without the key gets
+`0`, which never holds a dispatch, so an existing project behaves as before.
 
 **`isolate_compose`** (default `true`, Go only) gives each dispatched task its
 own docker compose project. Parallel tasks run in sibling worktrees of one

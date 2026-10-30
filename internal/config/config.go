@@ -343,6 +343,10 @@ type Dispatch struct {
 	// (#481). Linux only; `orch run` refuses to start when it is on and the
 	// kernel cannot enforce it. Off by default. Go only.
 	Sandbox bool `yaml:"sandbox"`
+	// MinFreeDiskMB holds back a new dispatch in worktree mode while the
+	// project's disk has less free space than this (#497). 0, the default
+	// for a config without the key, never holds one. Go only.
+	MinFreeDiskMB int `yaml:"min_free_disk_mb"`
 	// SandboxAllow are extra paths a sandboxed agent may read and write, `~/`
 	// meaning $HOME: what a hook or tool of the operator's own needs.
 	SandboxAllow []string `yaml:"sandbox_allow"`
