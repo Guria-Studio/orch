@@ -380,7 +380,7 @@ func TestGetTaskCarriesTheDispatchShape(t *testing.T) {
 	if got.SpecRef != "f0-foundation.md#T1" {
 		t.Errorf("spec_ref = %q", got.SpecRef)
 	}
-	want := []string{"pyproject.toml", "app/__init__.py", "app/main.py", "tests/__init__.py"}
+	want := []string{"pyproject.toml", "app/__init__.py", "app/main.py", "tests/__init__.py", "tests/test_smoke.py"}
 	if !reflect.DeepEqual(got.Files, want) {
 		t.Errorf("files = %v; want %v", got.Files, want)
 	}
