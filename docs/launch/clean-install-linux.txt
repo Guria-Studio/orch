@@ -1,30 +1,30 @@
-# date: 2026-10-29T21:14:08Z  image: ubuntu:24.04 (fresh container, --rm)
+# date: 2026-11-01T14:54:38Z  image: ubuntu:24.04 (fresh container, --rm)
 # os: Ubuntu 24.04.5 LTS x86_64; /bin/sh -> /usr/bin/dash
 # setup: apt-get install curl ca-certificates git (only prerequisites)
 
-## A. The one-liner as published on main (scripts/install.sh at origin/main)
+## A. The one-liner as published (scripts/install.sh at Guria-Studio/orch main)
 $ curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
-sh: 15: set: Illegal option -o pipefail
-[exit 2]
-
-## B. Same pipe into sh with this PR's scripts/install.sh (mounted at /fixed/install.sh)
-$ cat /fixed/install.sh | sh
-==> Installing orch v0.29.0 (linux/amd64) to /root/.local/bin
-==> Downloading orch_v0.29.0_linux_amd64.tar.gz...
+==> Installing orch v0.30.0 (linux/amd64) to /root/.local/bin
+==> Downloading orch_v0.30.0_linux_amd64.tar.gz...
 ==> Verifying checksum...
-orch_v0.29.0_linux_amd64.tar.gz: OK
-==> Installed: orch version v0.29.0
-==> Next: run `orch dashboard` and open the page it prints — it walks you through your first project.
+orch_v0.30.0_linux_amd64.tar.gz: OK
+==> Installed: orch version v0.30.0
 warning: /root/.local/bin is not on your PATH — add it, e.g.:
     export PATH="/root/.local/bin:$PATH"
+==> Next: run `orch dashboard` and open the page it prints — it walks you through your first project.
 [exit 0]
 
 $ orch --version
-orch version v0.29.0
+orch version v0.30.0
 [exit 0]
 
 $ ls -l ~/.local/bin/orch
--rwxr-xr-x 1 root root 20521144 Oct 29 21:14 /root/.local/bin/orch
+-rwxr-xr-x 1 root root 20615352 Nov  1 14:54 /root/.local/bin/orch
+[exit 0]
+
+## B. The old URL still redirects (hectorcanaimero/orch -> Guria-Studio/orch)
+$ curl -fsSL -o /dev/null -w "%{http_code}\n" https://raw.githubusercontent.com/hectorcanaimero/orch/main/scripts/install.sh
+200
 [exit 0]
 
 ## orch doctor in an empty git repo (no provider CLI installed in the container — expected FAILs)
@@ -75,6 +75,7 @@ Environment
 Not ready to `orch run`: router.parse — router load failed: read /tmp/p/.orchestrator/model_router.yaml: open /tmp/p/.orchestrator/model_router.yaml: no such file or directory
 [exit 2]
 
+## A fresh python-api project validates
 $ orch init /tmp/demo --template python-api >/dev/null && orch validate --project-root /tmp/demo | tail -3
 SEVERITY  KIND          TASK   FIELD    MESSAGE
 warn      spec.missing  F0.T1  specRef  spec file specs/f0-foundation.md not found
