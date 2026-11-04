@@ -6,6 +6,11 @@ from [`GIF-SCRIPT.md`](GIF-SCRIPT.md), on a headless Linux host, with the
 331 KiB, infinite loop. Everything needed to rebuild it is in
 [`gif-source/`](gif-source/).
 
+The launch ships `v0.30.0`; the GIF was not re-shot. Nothing it shows changed
+between the two tags — `v0.30.0`'s only UI change is the welcome page
+`orch dashboard` serves *outside* a project (#496), which the GIF does not
+show. The repository has since moved to `Guria-Studio/orch`.
+
 ## Real
 
 - Every command on screen ran for real, in the order shown, in one take:

@@ -18,7 +18,8 @@ local, no daemon. One static Go binary with the React SPA embedded.
   (`.orchestrator/state/<project>/orch.db`); `tasks.json` is static input.
   Migrations embedded in `internal/state/migrations/`.
 - **Release**: goreleaser on `v*` tags (`.github/workflows/release-go.yml`,
-  `docs/RELEASING.md`); `scripts/install.sh` and a Homebrew tap.
+  `docs/RELEASING.md`); installed with `scripts/install.sh` or a release
+  tarball. No Homebrew tap (dropped for the launch, #442).
 
 ## The Python line is archived
 
@@ -158,11 +159,13 @@ To keep context small, do not proactively call these MCP servers or skills on or
 ## Current context
 
 - **Branch**: `main` (per `git status`; check for drift).
-- **Version**: the Go binary's first release is `v0.12.0` (check `git tag -l 'v*'`
-  — it may not be tagged yet). The Python line ended on `python-legacy`.
-- **Gate**: G7.3 — reproduce the GIF of `docs/media/GIF-SCRIPT.md` with the Go
-  binary and real providers. Python was deleted from `main` only after it passed
-  (ADR-G6).
+- **Version**: latest release `v0.30.0` (check `git describe --tags origin/main`);
+  the Go line started at `v0.12.0`, the Python line ended on `python-legacy`.
+  The repo lives at `github.com/Guria-Studio/orch` (`hectorcanaimero/orch`
+  redirects).
+- **Gate**: launch (#442) — Show HN on Tuesday 2026-11-03 from
+  `docs/HN-POST-DRAFT.md` (its "Before posting" table is the checklist). G7.3
+  (demo GIF with the Go binary) is done: `docs/media/GIF-NOTES.md`.
 
 ## Gotchas already learned
 
