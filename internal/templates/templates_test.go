@@ -144,12 +144,14 @@ func TestEveryTemplateModelIsInferable(t *testing.T) {
 //
 // Bug 12: every template carried the prefix, so every prompt sent its agent to
 // `specs/specs/<file>` — one directory below where `orch init` puts them.
+// Templates ship no specs, so since #535 they set no specRef: each task's
+// description is the whole brief. One that sets a specRef again is held to
+// this rule (and templates-validate.txtar wants its spec shipped).
 func TestNoTemplateRepeatsTheSpecRoot(t *testing.T) {
 	for _, name := range canonical {
 		t.Run(name, func(t *testing.T) {
 			for _, task := range loadTemplateTasks(t, name) {
 				if task.SpecRef == "" {
-					t.Errorf("%s has no specRef", task.ID)
 					continue
 				}
 				if strings.HasPrefix(task.SpecRef, "specs/") {
@@ -283,7 +285,8 @@ var goOnly = map[string]bool{
 // entry here is the drift TestGoTreeMatchesPython exists to catch.
 // claudeAliasReason: templates pinned claude-sonnet-4-6 a generation late;
 // they name the family and the claude CLI runs its current model (#534).
-const claudeAliasReason = "models are claude/sonnet and claude/opus, not pinned 4.6 ids (#534)"
+const claudeAliasReason = "models are claude/sonnet and claude/opus, not pinned 4.6 ids (#534); " +
+	"no specRef, since the template ships no specs and validate warned on each (#535)"
 
 var divergedFromPython = map[string]string{
 	"specs/README.md": "told users to run `orch --mode auto`; in the Go binary --mode is a flag " +

@@ -1,0 +1,24 @@
+# Every template scaffolds a project `orch validate` passes clean (#535):
+# no errors and no warnings. Templates named specs/f0-foundation.md and the
+# like, which they never shipped, so the first thing a new user saw was a
+# spec.missing warning per task — and a dispatch blocked on it.
+
+exec orch init p-chatbot --template chatbot-whatsapp --project-name p-chatbot --no-permissions
+exec orch validate --project-root p-chatbot --project-id p-chatbot
+stdout '^0 error\(s\) · 0 warning\(s\) · 0 total$'
+
+exec orch init p-data --template data-pipeline --project-name p-data --no-permissions
+exec orch validate --project-root p-data --project-id p-data
+stdout '^0 error\(s\) · 0 warning\(s\) · 0 total$'
+
+exec orch init p-expo --template expo-mobile --project-name p-expo --no-permissions
+exec orch validate --project-root p-expo --project-id p-expo
+stdout '^0 error\(s\) · 0 warning\(s\) · 0 total$'
+
+exec orch init p-next --template nextjs-saas --project-name p-next --no-permissions
+exec orch validate --project-root p-next --project-id p-next
+stdout '^0 error\(s\) · 0 warning\(s\) · 0 total$'
+
+exec orch init p-py --template python-api --project-name p-py --no-permissions
+exec orch validate --project-root p-py --project-id p-py
+stdout '^0 error\(s\) · 0 warning\(s\) · 0 total$'
