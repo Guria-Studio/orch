@@ -23,6 +23,11 @@ func TestMetricsReadsTheAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A project with no attempt yet says so instead of a table of zeroes.
+	if out, err := runOrch(t, "", "--project-root", dir, "metrics"); err != nil || !strings.Contains(out, "No attempts recorded yet") {
+		t.Errorf("metrics on a fresh project = %v\n%s", err, out)
+	}
+
 	ctx := context.Background()
 	backend, closeDB, err := openBackend(ctx, paths, cfg)
 	if err != nil {
