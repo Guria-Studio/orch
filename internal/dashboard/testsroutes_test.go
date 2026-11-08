@@ -80,6 +80,7 @@ func TestTestReportAndFilesAreServed(t *testing.T) {
 
 	// A video seeks with Range requests.
 	req := httptest.NewRequest(http.MethodGet, "/api/tests/run-1/C-1/2/files/t002/video.webm", nil)
+	req.Host = "127.0.0.1:7420"
 	req.Header.Set("Range", "bytes=2-4")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)

@@ -216,8 +216,14 @@ const testTasksJSON = `{
 
 func newReadServer(t *testing.T, st StateReader) *Server {
 	t.Helper()
+	return newReadServerWith(t, cfg(ProfileOperator, ""), st)
+}
+
+// newReadServerWith is newReadServer with its own Config.
+func newReadServerWith(t *testing.T, c Config, st StateReader) *Server {
+	t.Helper()
 	root := writeProject(t, "spec_root: specs\n", testTasksJSON)
-	s, err := New(cfg(ProfileOperator, ""), Options{
+	s, err := New(c, Options{
 		Static: spaHandler(t),
 		State:  st,
 		Paths:  config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")},

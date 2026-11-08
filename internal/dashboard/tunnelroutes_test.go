@@ -119,6 +119,16 @@ func TestTunnelCapabilitiesReportsTheFirstFailingGate(t *testing.T) {
 			}
 			s := newTunnelServer(t, tc.profile, token, tc.opts)
 			rec := getWithHost(t, s, "/api/tunnel/capabilities", tc.host)
+			// No tunnel is up here, so a caller naming the tunnel's host is a
+			// page rebinding to localhost: the bind gate refuses it before
+			// the route answers (#537). The gate order itself is
+			// internal/tunnel's TestEvaluateCapabilitiesGateOrder.
+			if tc.host == tunnelHost {
+				if rec.Code != http.StatusForbidden {
+					t.Fatalf("status = %d, want 403 from the bind gate", rec.Code)
+				}
+				return
+			}
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200 — this route always answers", rec.Code)
 			}
