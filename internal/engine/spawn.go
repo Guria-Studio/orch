@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/sandbox"
 )
@@ -128,6 +129,11 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 	// A provider on PromptFile (muse) is handed the file itself.
 	if provider.PromptDelivery() == providers.PromptFile && sr.Req.PromptPath == "" {
 		sr.Req.PromptPath = sr.PromptPath
+	}
+	// gemini reports its tokens only in stream-json, which an old one lacks
+	// (#543).
+	if provider.Name() == model.BackendGemini && !sr.Req.StreamJSON {
+		sr.Req.StreamJSON = GeminiStreamJSON()
 	}
 	argv := provider.Argv(sr.Req)
 	if len(argv) == 0 {
