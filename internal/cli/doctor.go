@@ -102,7 +102,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			var tasks []model.Task
 			if tf, err := model.LoadTasksFile(paths.TasksJSON()); err == nil {
 				tasks = tf.Tasks
-				checks = append(checks, checkTasksValid(tasks))
+				checks = append(checks, checkTasksValid(tasks), checkTaskSpecs(paths.Root, cfg, tasks))
 			} else {
 				checks = append(checks, doctor.Check{
 					Name: "tasks.parse", Status: doctor.StatusError,
@@ -224,6 +224,22 @@ func checkTasksValid(tasks []model.Task) doctor.Check {
 		}
 	}
 	return c
+}
+
+// checkTaskSpecs is validate's spec.missing check as one doctor line (#535):
+// doctor said "DAG valid" while validate warned that the tasks' specs were
+// not there, and a spec missing from the base blocks its task at dispatch.
+func checkTaskSpecs(root string, cfg config.Config, tasks []model.Task) doctor.Check {
+	const name = "tasks.specs"
+	problems := specProblems(root, cfg.SpecRoot, cfg.Dispatch.BaseBranch, tasks)
+	if len(problems) == 0 {
+		return doctor.Check{Name: name, Status: doctor.StatusOK, Detail: "every task's specRef is found, or it has none"}
+	}
+	return doctor.Check{
+		Name: name, Status: doctor.StatusWarn,
+		Detail:      fmt.Sprintf("%d task(s) name a spec that is missing, first: %s", len(problems), problems[0].Message),
+		Remediation: "`orch validate` lists each one: write the spec, or fix or clear the task's specRef.",
+	}
 }
 
 // hydrateForDoctor gives tasks the database's status. A project with no

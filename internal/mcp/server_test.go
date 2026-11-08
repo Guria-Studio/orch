@@ -51,6 +51,12 @@ func newTestProject(t *testing.T) (string, state.Backend) {
 	if err != nil {
 		t.Fatalf("load tasks.json: %v", err)
 	}
+	// Templates ship no specRef (#535); the spec plumbing is tested on one
+	// set here, as an operator's spec would set it.
+	tasks.Tasks[0].SpecRef = "f0-foundation.md#T1"
+	if err := model.SaveTasksFile(filepath.Join(root, "tasks.json"), tasks); err != nil {
+		t.Fatalf("save tasks.json: %v", err)
+	}
 	if err := backend.Bootstrap(ctx, tasks.Tasks); err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
