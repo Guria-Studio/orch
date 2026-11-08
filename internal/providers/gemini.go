@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,10 +11,12 @@ import (
 // GeminiProvider adapts the `gemini` CLI. Port of dispatcher.py's
 // GeminiBackend.
 //
-// gemini prints plain text: there is no structured envelope, so cost and both
-// token counts are always zero and the exit code is the only success signal.
-// Spend for a gemini route is therefore always estimated downstream from the
-// dashboard's pricing.yaml, exactly as in Python.
+// A gemini with `--output-format stream-json` (0.59 has it) is run with it
+// when the engine's probe finds it, and reports its real tokens (#543). An
+// older one prints plain text with no usage at all: its tokens are zero and
+// Estimated, and the engine estimates them from the prompt and output size
+// (engine.spendRow). Either way pricing.yaml prices the tokens; gemini
+// reports no dollar figure.
 type GeminiProvider struct{}
 
 func (GeminiProvider) Name() model.Backend { return model.BackendGemini }
@@ -45,11 +48,15 @@ func HeadlessEnv(b model.Backend) []string {
 // environment on top of the usual working directory; that is the engine's
 // half of the contract, not the argv's.
 func (GeminiProvider) Argv(req Request) []string {
-	return []string{
+	argv := []string{
 		"gemini",
 		"-p", req.PromptText,
 		"--model", req.Route.CLIModel,
 	}
+	if req.StreamJSON {
+		argv = append(argv, "--output-format", "stream-json")
+	}
+	return argv
 }
 
 // Parse reports success purely from the exit code, and quotes the last
@@ -62,6 +69,9 @@ func (GeminiProvider) Argv(req Request) []string {
 func (GeminiProvider) Parse(exitCode int, output []byte) Result {
 	text := string(output)
 	success := exitCode == 0
+	if r, ok := parseGeminiStream(exitCode, text); ok {
+		return r
+	}
 
 	var errMsg, answer string
 	if success {
@@ -84,9 +94,89 @@ func (GeminiProvider) Parse(exitCode int, output []byte) Result {
 	}
 }
 
-// ExtractCost is always zero for gemini: the CLI reports no usage at all.
-func (GeminiProvider) ExtractCost([]byte) (cost float64, tokensIn, tokensOut int) {
-	return 0, 0, 0
+// geminiEvent is the part of a stream-json line Parse reads.
+type geminiEvent struct {
+	Type    string `json:"type"`
+	Role    string `json:"role"`
+	Content string `json:"content"`
+	Status  string `json:"status"`
+	Error   *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+	Stats *struct {
+		Total  int `json:"total_tokens"`
+		Input  int `json:"input_tokens"`
+		Output int `json:"output_tokens"`
+		Cached int `json:"cached"`
+	} `json:"stats"`
+}
+
+// parseGeminiStream reads a `--output-format stream-json` run
+// (testdata/gemini/0.59.0/stream-*.jsonl), ok false when output holds no
+// result event — a plain-text run, or one killed before it finished.
+//
+// Lines that are not JSON are skipped: the engine merges stderr into the log,
+// and gemini prints notices and stack traces there.
+//
+// The tokens are the result's stats. input_tokens counts the cached ones too
+// (`input` is the rest), which is TokensIn's meaning. The stats name no
+// thoughts, but total_tokens counts them: what the total holds beyond input
+// and output is the thinking gemini bills as output, so it is both added to
+// TokensOut and reported as ReasoningTokens.
+func parseGeminiStream(exitCode int, text string) (Result, bool) {
+	var answer strings.Builder
+	var result *geminiEvent
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var ev geminiEvent
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		switch {
+		case ev.Type == "message" && ev.Role == "assistant":
+			answer.WriteString(ev.Content)
+		case ev.Type == "result":
+			result = &ev
+		}
+	}
+	if result == nil {
+		return Result{}, false
+	}
+	r := Result{
+		ExitCode: exitCode,
+		Success:  exitCode == 0 && result.Status == "success",
+		Stdout:   text,
+		Text:     strings.TrimSpace(answer.String()),
+	}
+	if s := result.Stats; s != nil {
+		r.TokensIn, r.CacheReadTokens = s.Input, s.Cached
+		r.ReasoningTokens = max(s.Total-s.Input-s.Output, 0)
+		r.TokensOut = s.Output + r.ReasoningTokens
+	} else {
+		r.Estimated = true
+	}
+	if !r.Success {
+		switch {
+		case result.Error != nil && result.Error.Message != "":
+			r.ErrorMessage = result.Error.Message
+		case exitCode != 0:
+			r.ErrorMessage = fmt.Sprintf("gemini exited with code %d", exitCode)
+		default:
+			r.ErrorMessage = "gemini reported status " + result.Status
+		}
+		r.Text = ""
+	}
+	return r, true
+}
+
+// ExtractCost reports the token counts of a stream-json run; the USD figure is
+// always zero, since gemini reports none and pricing.yaml prices the tokens.
+func (GeminiProvider) ExtractCost(output []byte) (cost float64, tokensIn, tokensOut int) {
+	r, _ := parseGeminiStream(0, string(output))
+	return 0, r.TokensIn, r.TokensOut
 }
 
 // lastNonEmptyLine returns the final line of s that is not blank once

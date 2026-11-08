@@ -39,7 +39,9 @@ func TestLoadConfigReadsTheShippedPresets(t *testing.T) {
 		if cfg == nil {
 			t.Fatalf("LoadConfig(%q) returned no config", preset)
 		}
-		want := []string{"agy", "claude", "codex", "opencode"}
+		// Every backend orch dispatches to, so the gate sees every
+		// provider's spend (#543): gemini and muse were left unrationed.
+		want := []string{"agy", "claude", "codex", "gemini", "muse", "opencode"}
 		got := cfg.Names()
 		if len(got) != len(want) {
 			t.Fatalf("preset %q has providers %v, want %v", preset, got, want)

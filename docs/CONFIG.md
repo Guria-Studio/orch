@@ -435,8 +435,14 @@ Two different guardrails:
   stops sending that provider new tasks (it writes a `budget_skip` event, and
   `orch status` shows `defer_reason: blocked-by-budget:<provider> until <reset>`);
   when every configured provider is capped the run sleeps until the earliest
-  reset (`budget_pause`). A provider the preset does not name is never gated.
-  A dispatch whose provider reports no usage at all (gemini) counts as
+  reset (`budget_pause`). A provider the preset does not name is never gated;
+  the packaged presets name all six backends (gemini and muse since #543). A
+  gemini that has `--output-format stream-json` (0.59 does; orch checks
+  `gemini --help` once per process) is run with it and reports its real tokens,
+  cache reads apart and its thinking counted as output. A dispatch whose
+  provider reports no usage at all (an older gemini, a silent opencode) is
+  estimated at four characters a token of its prompt and its output, marked
+  estimated; one with no prompt or output to measure counts as
   `typical_dispatch_tokens`, not as zero.
 - **`budget.per_dispatch_usd`** is a per-task limit (default 5.0). A task that
   has already cost that much does not get the attempt-3 escalation — that is
