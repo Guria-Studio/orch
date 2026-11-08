@@ -59,6 +59,9 @@ orch --version
 orch --help
 ```
 
+`orch --help` lista os comandos por camada: *Start a project*, *Run tasks*,
+*Follow progress*, *Deliver results*, *Integrations*, *Advanced*.
+
 ### CLIs de IA que você precisa
 
 Pelo menos **uma** dessas no seu `PATH`, autenticada com uma assinatura
@@ -539,7 +542,7 @@ terminal.
 
 ```bash
 $ orch status --help
-Project status: tasks, costs, last events, run summary
+The quick check: task counts, costs, last events, run summary (--json for scripts)
 
 Flags:
   -h, --help            help for status
