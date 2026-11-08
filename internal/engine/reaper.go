@@ -62,10 +62,30 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 			out.Failure = providers.Classify(out.Result)
 		}
 	}
+	s.reportedDoneOutcome(d, &out)
 	s.verifyOutcome(d, attempt, &out)
 	s.guardOutcome(d, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
+}
+
+// reportedDoneOutcome turns a failed exit into a clean one when the agent
+// reported done anyway. The agent may have finished the work and called
+// task-finish.sh while the CLI wrapper reported a failure — a
+// skills-shortening warning, a step_finish buffering race. The state backend
+// is asked rather than believed: if it says done, the sub-agent wins, and its
+// work takes the road a clean exit takes — verify, guard, then push and PR or
+// a local land. Finishing it on the spot released dependents onto a base that
+// did not have the work (#527, the #230 class).
+func (s *Scheduler) reportedDoneOutcome(d Dispatch, out *Outcome) {
+	if out.Result.Success || !s.taskStatusIs(context.Background(), d.Req.TaskID, model.StatusDone) {
+		return
+	}
+	s.logger().Info("the sub-agent finished despite the wrapper's failure; treating it as a clean exit",
+		"task", d.Req.TaskID, "detector_reason", truncateReason(out.Result.ErrorMessage))
+	out.Result.Success = true
+	out.Result.ErrorMessage = ""
+	out.Failure = ""
 }
 
 // Reap handles every child that has finished since the last call, and returns
@@ -435,17 +455,21 @@ func (s *Scheduler) markDone(ctx context.Context, entry *InFlight) error {
 func (s *Scheduler) handleFailure(ctx context.Context, entry *InFlight, out Outcome) error {
 	reason := truncateReason(out.Result.ErrorMessage)
 
-	// The agent may have finished the work and called task-finish.sh while
-	// the CLI wrapper reported a failure anyway — a skills-shortening
-	// warning, a step_finish buffering race. The state backend is asked
-	// rather than believed: if it says the task is done, the sub-agent wins.
+	// supervise already turned a done the sub-agent reported into a clean
+	// exit. Reaching here with done means the backend answered only now (it
+	// failed or lagged then), and the work was tidied as a failure: in
+	// worktree mode it is on its branch only, so it blocks for the operator
+	// rather than releasing dependents onto a base without it (#527).
 	//
-	// Python reads tasks.json here, which no longer works: since v0.11 made
-	// SQLite the default, task-finish.sh writes the database and leaves
-	// tasks.json alone, so the guard is dead on every project scaffolded
-	// since. Reading the backend is the port of the intent; see
+	// Python reads tasks.json for this, which no longer works: since v0.11
+	// made SQLite the default, task-finish.sh writes the database and leaves
+	// tasks.json alone. Reading the backend is the port of the intent; see
 	// docs/brainstorm/go-migration-notes.md.
 	if s.taskStatusIs(ctx, entry.Task.ID, model.StatusDone) {
+		if s.Worktree != nil && s.Opts.WorktreeMode {
+			return s.blockTask(ctx, entry, "the agent reported done, but its work was not verified or published; "+
+				"`orch task salvage "+entry.Task.ID+"` reviews its branch and accepts it", out)
+		}
 		s.logger().Info("the sub-agent finished despite the wrapper's failure; respecting it",
 			"task", entry.Task.ID, "detector_reason", reason)
 		if err := s.Queue.MarkDone(entry.Task.ID); err != nil {
