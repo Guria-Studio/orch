@@ -355,7 +355,7 @@ func smokeEvidence(ctx context.Context, db state.Backend, stateDir, root string,
 		e.Usage.CacheReadTokens += s.CacheReadTokens
 		e.Usage.CacheCreationTokens += s.CacheCreationTokens
 		e.Usage.Estimated = e.Usage.Estimated || s.Estimated
-		e.CostUSD += prices.ResolveCost(s.CostUSD, s.Model, s.TokensIn, s.TokensOut)
+		e.CostUSD += prices.ResolveCost(s.CostUSD, s.Model, s.Tokens())
 	}
 	row := smokeRow{Backend: string(b), Model: r.Entry.CLIModel, SpendUSD: e.CostUSD, Checks: doctor.SmokeChecks(e)}
 	if r.Entry.Effort != nil {

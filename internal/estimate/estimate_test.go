@@ -45,7 +45,7 @@ func TestCompute(t *testing.T) {
 				task("B", model.StatusTodo, "sonnet"),
 			}, Routes: routes, Slots: 4, TypicalTokens: 200_000},
 			tasks:     []string{"A", "B"},
-			cost:      2 * prices.EstimateCost("claude-sonnet", 200_000, 10_000),
+			cost:      2 * prices.EstimateCost("claude-sonnet", pricing.Tokens{In: 200_000, Out: 10_000}),
 			wallS:     600,
 			critS:     600,
 			confident: "none",

@@ -26,22 +26,38 @@ var defaultsFS embed.FS
 // for a model the table has never heard of.
 var hardcodedFallback = ModelPrice{Input: 1.00, Output: 4.00}
 
-// ModelPrice is USD per million tokens.
+// ModelPrice is USD per million tokens. CacheRead and CacheWrite are the
+// prompt-cache rates; zero means the row has none and cached tokens are
+// priced as Input.
 type ModelPrice struct {
-	Input  float64
-	Output float64
+	Input      float64
+	Output     float64
+	CacheRead  float64
+	CacheWrite float64
+}
+
+// Tokens is one dispatch's usage. In counts every input token, cache
+// included; CacheRead and CacheWrite are the parts of In read from and
+// written to the prompt cache (state.Spend's convention).
+type Tokens struct {
+	In, Out, CacheRead, CacheWrite int
 }
 
 // Cost is what a dispatch of this size costs. Negative token counts are read
 // as zero rather than as a refund.
-func (p ModelPrice) Cost(tokensIn, tokensOut int) float64 {
-	if tokensIn < 0 {
-		tokensIn = 0
+func (p ModelPrice) Cost(t Tokens) float64 {
+	in, out := max(t.In, 0), max(t.Out, 0)
+	read, write := max(t.CacheRead, 0), max(t.CacheWrite, 0)
+	cost := float64(out) * p.Output
+	if p.CacheRead > 0 && read <= in {
+		cost += float64(read) * p.CacheRead
+		in -= read
 	}
-	if tokensOut < 0 {
-		tokensOut = 0
+	if p.CacheWrite > 0 && write <= in {
+		cost += float64(write) * p.CacheWrite
+		in -= write
 	}
-	return (float64(tokensIn)*p.Input + float64(tokensOut)*p.Output) / 1_000_000.0
+	return (cost + float64(in)*p.Input) / 1_000_000.0
 }
 
 // Table is the layered price list: a project's own `pricing.yaml` on top of
@@ -53,7 +69,12 @@ func (p ModelPrice) Cost(tokensIn, tokensOut int) float64 {
 // head while reading a YAML file.
 type Table struct {
 	prices map[string]ModelPrice
+	asOf   string
 }
+
+// AsOf is the packaged table's `as_of` date: when its prices were last
+// checked against the providers' price lists.
+func (t Table) AsOf() string { return t.asOf }
 
 // Load reads the embedded defaults and layers a project override on top.
 //
@@ -66,8 +87,14 @@ type Table struct {
 func Load(projectRoot string) Table {
 	merged := map[string]ModelPrice{}
 
+	var asOf string
 	body, err := defaultsFS.ReadFile("defaults/pricing.yaml")
 	if err == nil {
+		var head struct {
+			AsOf string `yaml:"as_of"`
+		}
+		_ = yaml.Unmarshal(body, &head)
+		asOf = head.AsOf
 		for name, price := range parseModels(body) {
 			merged[name] = price
 		}
@@ -85,7 +112,7 @@ func Load(projectRoot string) Table {
 	if _, ok := merged["default"]; !ok {
 		merged["default"] = hardcodedFallback
 	}
-	return Table{prices: merged}
+	return Table{prices: merged, asOf: asOf}
 }
 
 // ForModel resolves a price: the exact name, then `default`, then the floor.
@@ -107,8 +134,8 @@ func (t Table) Has(model string) bool {
 }
 
 // EstimateCost looks up and computes in one call.
-func (t Table) EstimateCost(model string, tokensIn, tokensOut int) float64 {
-	return t.ForModel(model).Cost(tokensIn, tokensOut)
+func (t Table) EstimateCost(model string, tokens Tokens) float64 {
+	return t.ForModel(model).Cost(tokens)
 }
 
 // ResolveCost is the rule the whole package exists for: a recorded cost above
@@ -119,14 +146,14 @@ func (t Table) EstimateCost(model string, tokensIn, tokensOut int) float64 {
 // as "free". That is Python's rule and it is the right one here: the backends
 // that genuinely cost nothing to call are the same ones that report no cost at
 // all, so the two are indistinguishable in the row.
-func (t Table) ResolveCost(recordedCost float64, model string, tokensIn, tokensOut int) float64 {
+func (t Table) ResolveCost(recordedCost float64, model string, tokens Tokens) float64 {
 	if recordedCost > 0 {
 		return recordedCost
 	}
 	if model == "" {
 		model = "default"
 	}
-	return t.EstimateCost(model, tokensIn, tokensOut)
+	return t.EstimateCost(model, tokens)
 }
 
 // Models lists every key, sorted, for a UI that wants to show the table.
@@ -158,8 +185,10 @@ func parseModels(body []byte) map[string]ModelPrice {
 			continue
 		}
 		out[name] = ModelPrice{
-			Input:  asFloat(row["input"]),
-			Output: asFloat(row["output"]),
+			Input:      asFloat(row["input"]),
+			Output:     asFloat(row["output"]),
+			CacheRead:  asFloat(row["cache_read"]),
+			CacheWrite: asFloat(row["cache_write"]),
 		}
 	}
 	return out

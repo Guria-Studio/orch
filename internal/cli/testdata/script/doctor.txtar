@@ -74,8 +74,8 @@ stdout '"name":"tasks\.parse","status":"error"[^}]*"section":"config"'
 
 -- ready/tasks.json --
 {"meta":{},"phases":[],"tasks":[
-  {"id":"T1","phase":1,"title":"Model","model":"claude/claude-haiku-4-5","status":"done","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
-  {"id":"T2","phase":1,"title":"API","model":"claude/claude-haiku-4-5","status":"backlog","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
+  {"id":"T1","phase":1,"title":"Model","model":"claude/haiku","status":"done","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T2","phase":1,"title":"API","model":"claude/haiku","status":"backlog","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
 ]}
 -- badtasks/tasks.json --
 {"tasks": [
@@ -86,4 +86,4 @@ concurrency: [this is not a mapping
 -- badrouter/tasks.json --
 {"meta":{},"phases":[],"tasks":[]}
 -- badrouter/.orchestrator/model_router.yaml --
-claude/claude-sonnet-4-6: [this is not a mapping
+claude/sonnet: [this is not a mapping

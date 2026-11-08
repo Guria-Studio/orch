@@ -174,7 +174,7 @@ func TestStartFinishCycle(t *testing.T) {
 
 	var started setStatusOut
 	call(t, cs, "orch_set_status", map[string]any{
-		"task_id": "F0.T1", "status": "in-progress", "author": "claude/claude-sonnet-4-6",
+		"task_id": "F0.T1", "status": "in-progress", "author": "claude/sonnet",
 	}, &started)
 	if !started.OK || started.From != "todo" || started.To != "in-progress" {
 		t.Fatalf("start = %+v; want ok todo -> in-progress", started)
@@ -183,7 +183,7 @@ func TestStartFinishCycle(t *testing.T) {
 	var finished setStatusOut
 	call(t, cs, "orch_set_status", map[string]any{
 		"task_id": "F0.T1", "status": "done",
-		"note": "scaffolded the layout", "author": "claude/claude-sonnet-4-6",
+		"note": "scaffolded the layout", "author": "claude/sonnet",
 	}, &finished)
 	if !finished.OK || finished.From != "in-progress" || finished.To != "done" {
 		t.Fatalf("finish = %+v; want ok in-progress -> done", finished)
@@ -208,7 +208,7 @@ func TestStartFinishCycle(t *testing.T) {
 	if !ok {
 		t.Fatalf("comment is %T, not a JSON object", got.Comments[len(got.Comments)-1])
 	}
-	if last["body"] != "scaffolded the layout" || last["author"] != "claude/claude-sonnet-4-6" {
+	if last["body"] != "scaffolded the layout" || last["author"] != "claude/sonnet" {
 		t.Errorf("last comment = %v; want the note and the author that wrote it", last)
 	}
 }
@@ -335,7 +335,7 @@ func TestBlockRecordsTheReason(t *testing.T) {
 	var out setStatusOut
 	call(t, cs, "orch_block", map[string]any{
 		"task_id": "F1.T1", "reason": "F0.T1's layout is missing app/main.py",
-		"author": "claude/claude-sonnet-4-6",
+		"author": "claude/sonnet",
 	}, &out)
 	if !out.OK || out.To != "blocked" {
 		t.Fatalf("block = %+v; want ok -> blocked", out)
@@ -371,7 +371,7 @@ func TestGetTaskCarriesTheDispatchShape(t *testing.T) {
 	if got.Title != "Scaffold FastAPI project layout" {
 		t.Errorf("title = %q", got.Title)
 	}
-	if got.Model != "claude/claude-sonnet-4-6" {
+	if got.Model != "claude/sonnet" {
 		t.Errorf("model = %q", got.Model)
 	}
 	if got.EstimateHours != 0.3 {

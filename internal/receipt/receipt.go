@@ -272,7 +272,7 @@ func Build(events []state.Event, spend []state.Spend, tasks []state.TaskRuntime,
 		case s.CostUSD > 0:
 			p.CostUSD += s.CostUSD
 		case s.TokensIn+s.TokensOut > 0:
-			est := table.EstimateCost(s.Model, s.TokensIn, s.TokensOut)
+			est := table.EstimateCost(s.Model, s.Tokens())
 			p.CostUSD += est
 			p.EstimatedCostUSD += est
 		}

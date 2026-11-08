@@ -100,7 +100,7 @@ func Compute(in Input) Estimate {
 		backend, cliModel := route(in.Routes, t.Model)
 		own := sample(in, modelRows(in.Spend, cliModel))
 		cost := firstKnown(own.costs, all.costs, func() float64 {
-			return in.Prices.EstimateCost(cliModel, in.TypicalTokens, in.TypicalTokens/defaultOutputShare)
+			return in.Prices.EstimateCost(cliModel, pricing.Tokens{In: in.TypicalTokens, Out: in.TypicalTokens / defaultOutputShare})
 		})
 		dur := firstKnown(own.durations, all.durations, DefaultDuration.Seconds)
 		cost *= out.AttemptsPerTask
@@ -218,7 +218,7 @@ func sample(in Input, rows []state.Spend) stats {
 	var out stats
 	for _, s := range rows {
 		out.durations = append(out.durations, s.DurationS)
-		if c := in.Prices.ResolveCost(s.CostUSD, s.Model, s.TokensIn, s.TokensOut); c > 0 {
+		if c := in.Prices.ResolveCost(s.CostUSD, s.Model, s.Tokens()); c > 0 {
 			out.costs = append(out.costs, c)
 		}
 	}

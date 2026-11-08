@@ -149,7 +149,7 @@ func SuggestRoutes(in SuggestInput) []KindRoutes {
 			a := acc(kind, s)
 			a.attempts++
 			a.durations = append(a.durations, s.DurationS)
-			if c := in.Prices.ResolveCost(s.CostUSD, s.Model, s.TokensIn, s.TokensOut); c > 0 {
+			if c := in.Prices.ResolveCost(s.CostUSD, s.Model, s.Tokens()); c > 0 {
 				a.costs = append(a.costs, c)
 			}
 		}

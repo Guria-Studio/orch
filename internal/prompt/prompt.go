@@ -502,7 +502,7 @@ func LastComment(dep model.Task) string {
 // report. A task that finished normally ends up with a trail like:
 //
 //	{"author": "orch",                    "body": "in-progress"}
-//	{"author": "claude/claude-sonnet-4-6", "body": "added the health endpoint"}
+//	{"author": "claude/sonnet", "body": "added the health endpoint"}
 //	{"author": "orch",                    "body": "dispatch succeeded"}
 //
 // The agent calls task-finish (or orch_set_status) from inside its run; the

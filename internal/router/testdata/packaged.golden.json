@@ -19,33 +19,33 @@
     "is_premium": true,
     "tier": "premium"
   },
-  "claude/claude-haiku-4-5": {
+  "claude/haiku": {
     "agent": null,
     "backend": "claude",
-    "cli_model": "claude-haiku-4-5",
+    "cli_model": "haiku",
     "effort": null,
     "escalation_model": null,
     "fallback_cli_model": null,
     "is_premium": false,
     "tier": "cheap"
   },
-  "claude/claude-opus-4-7": {
+  "claude/opus": {
     "agent": null,
     "backend": "claude",
-    "cli_model": "claude-opus-4-7",
+    "cli_model": "opus",
     "effort": null,
     "escalation_model": null,
-    "fallback_cli_model": "claude-opus-4-5",
+    "fallback_cli_model": null,
     "is_premium": true,
     "tier": "premium"
   },
-  "claude/claude-sonnet-4-6": {
+  "claude/sonnet": {
     "agent": null,
     "backend": "claude",
-    "cli_model": "claude-sonnet-4-6",
+    "cli_model": "sonnet",
     "effort": null,
     "escalation_model": null,
-    "fallback_cli_model": "claude-sonnet-4-5",
+    "fallback_cli_model": null,
     "is_premium": false,
     "tier": "standard"
   },

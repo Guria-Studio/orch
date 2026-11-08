@@ -30,7 +30,7 @@ func TestModelListsAvailableDropsUnlistedRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	kept, dropped := opencodeListed.Available(packaged)
-	for _, k := range []string{"opencode/kimi-k3", "opencode-go/kimi-k3", "opencode/glm-5.2", "claude/claude-opus-4-7", "agy/pro"} {
+	for _, k := range []string{"opencode/kimi-k3", "opencode-go/kimi-k3", "opencode/glm-5.2", "claude/opus", "agy/pro"} {
 		if _, ok := kept[k]; !ok {
 			t.Errorf("%s dropped; its model is listed, or its CLI listed nothing", k)
 		}

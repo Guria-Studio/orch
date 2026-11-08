@@ -604,7 +604,7 @@ Tres tasks, tres CLIs:
 
 ```json
 "tasks": [
-  { "id": "T1", "model": "claude/claude-sonnet-4-6", ... },
+  { "id": "T1", "model": "claude/sonnet", ... },
   { "id": "T2", "model": "codex/gpt-5.4", ... },
   { "id": "T3", "model": "gemini/gemini-2.5-flash", ... }
 ]
@@ -612,9 +612,9 @@ Tres tasks, tres CLIs:
 
 ```yaml
 # .orchestrator/model_router.yaml — orch init already writes these entries
-claude/claude-sonnet-4-6:
+claude/sonnet:
   backend: claude
-  cli_model: claude-sonnet-4-6
+  cli_model: sonnet
   tier: standard
   is_premium: false
 codex/gpt-5.4:
@@ -644,9 +644,9 @@ eventos y el dashboard muestran el backend que corrió de verdad. Una clave
 que no es una ruta hace fallar `orch validate`.
 
 ```yaml
-claude/claude-sonnet-4-6:
+claude/sonnet:
   backend: claude
-  cli_model: claude-sonnet-4-6
+  cli_model: sonnet
   tier: standard
   failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]
 ```

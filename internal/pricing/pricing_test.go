@@ -39,6 +39,20 @@ func loadGolden(t *testing.T) pricingGolden {
 var goOnlyModels = map[string]string{
 	"gemini-4-argon-high":     "#382: agy 1.4's premium model, which agy/pro routes to now",
 	"gemini-3.8-flash-medium": "#382: agy 1.4's cheap model, which agy/flash routes to now",
+	"opus":                    "#534: the alias claude/opus routes to",
+	"sonnet":                  "#534: the alias claude/sonnet routes to",
+	"haiku":                   "#534: the alias claude/haiku routes to",
+	"claude-fable-5-1":        "#534: the current generation",
+	"claude-opus-5-5":         "#534: the current generation",
+	"claude-sonnet-5-5":       "#534: the current generation",
+	"claude-haiku-5-5":        "#534: the current generation",
+}
+
+// repricedFromPython are rows whose price Python had wrong, each with the
+// reason.
+var repricedFromPython = map[string]string{
+	"claude-opus-4-7":  "#534: Opus 4.5 and later list at 5/25, not Opus 4.1's 15/75",
+	"claude-haiku-4-5": "#534: Haiku 4.5 lists at 1/5; 0.80/4 was Haiku 3.5's",
 }
 
 // The embedded pricing.yaml is compared against the table PYTHON loads, not
@@ -64,6 +78,12 @@ func TestEmbeddedTableMatchesPython(t *testing.T) {
 			continue
 		}
 		price := table.ForModel(model)
+		if _, ok := repricedFromPython[model]; ok {
+			if price.Input == want.Input && price.Output == want.Output {
+				t.Errorf("repricedFromPython lists %s, but it matches Python again; remove the entry", model)
+			}
+			continue
+		}
 		if price.Input != want.Input || price.Output != want.Output {
 			t.Errorf("%s = %v/%v, want %v/%v",
 				model, price.Input, price.Output, want.Input, want.Output)
@@ -74,7 +94,7 @@ func TestEmbeddedTableMatchesPython(t *testing.T) {
 func TestResolveCostMatchesPython(t *testing.T) {
 	table := Load("")
 	for _, tc := range loadGolden(t).Resolutions {
-		got := table.ResolveCost(tc.RecordedCost, tc.Model, tc.TokensIn, tc.TokensOut)
+		got := table.ResolveCost(tc.RecordedCost, tc.Model, Tokens{In: tc.TokensIn, Out: tc.TokensOut})
 		if got != tc.CostUSD {
 			t.Errorf("ResolveCost(%v, %q, %d, %d) = %v, want %v",
 				tc.RecordedCost, tc.Model, tc.TokensIn, tc.TokensOut, got, tc.CostUSD)
@@ -89,14 +109,14 @@ func TestResolveCostMatchesPython(t *testing.T) {
 func TestZeroRecordedCostIsEstimatedNotTakenLiterally(t *testing.T) {
 	table := Load("")
 	// claude-sonnet-4-6 is 3.00 in / 15.00 out per 1M.
-	if got := table.ResolveCost(0, "claude-sonnet-4-6", 1_000_000, 0); got != 3.0 {
+	if got := table.ResolveCost(0, "claude-sonnet-4-6", Tokens{In: 1_000_000}); got != 3.0 {
 		t.Errorf("a zero cost resolved to %v, want an estimate of 3", got)
 	}
-	if got := table.ResolveCost(0.5, "claude-sonnet-4-6", 1_000_000, 0); got != 0.5 {
+	if got := table.ResolveCost(0.5, "claude-sonnet-4-6", Tokens{In: 1_000_000}); got != 0.5 {
 		t.Errorf("a recorded cost resolved to %v, want it kept at 0.5", got)
 	}
 	// A negative recorded cost is a broken row, not a credit: it estimates.
-	if got := table.ResolveCost(-2, "claude-sonnet-4-6", 1_000_000, 0); got != 3.0 {
+	if got := table.ResolveCost(-2, "claude-sonnet-4-6", Tokens{In: 1_000_000}); got != 3.0 {
 		t.Errorf("a negative cost resolved to %v, want an estimate of 3", got)
 	}
 }
@@ -109,10 +129,10 @@ func TestUnknownModelsAndNegativeTokens(t *testing.T) {
 		t.Error("Has() claims a row for a model that is not in the table")
 	}
 	// The default row is 1.00 / 4.00.
-	if got := table.EstimateCost("a-model-nobody-priced", 1_000_000, 1_000_000); got != 5.0 {
+	if got := table.EstimateCost("a-model-nobody-priced", Tokens{In: 1_000_000, Out: 1_000_000}); got != 5.0 {
 		t.Errorf("unknown model estimated at %v, want the default row's 5", got)
 	}
-	if got := table.ForModel("claude-sonnet-4-6").Cost(-5_000_000, 1_000_000); got != 15.0 {
+	if got := table.ForModel("claude-sonnet-4-6").Cost(Tokens{In: -5_000_000, Out: 1_000_000}); got != 15.0 {
 		t.Errorf("negative tokens cost %v, want them read as zero (15)", got)
 	}
 }
@@ -188,5 +208,41 @@ func TestQuotedPricesParse(t *testing.T) {
 	price := Load(root).ForModel("gpt-5")
 	if price.Input != 7.5 || price.Output != 30 {
 		t.Errorf("got %v/%v, want 7.5/30", price.Input, price.Output)
+	}
+}
+
+// TestCacheTokensArePricedAtTheCacheRates (#534): TokensIn counts the prompt
+// cache, and the table priced every input token at the full rate — a codex
+// dispatch that read 90% of its prompt from cache was estimated at ten times
+// what it cost. A row with cache rates prices those tokens at them; a row
+// without them keeps the full input rate, as before.
+func TestCacheTokensArePricedAtTheCacheRates(t *testing.T) {
+	cached := ModelPrice{Input: 2, Output: 10, CacheRead: 0.2, CacheWrite: 2.5}
+	got := cached.Cost(Tokens{In: 1_000_000, Out: 100_000, CacheRead: 600_000, CacheWrite: 200_000})
+	want := 0.2*2 + 0.6*0.2 + 0.2*2.5 + 0.1*10
+	if diff := got - want; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("cost with cache rates = %v, want %v", got, want)
+	}
+	plain := ModelPrice{Input: 2, Output: 10}
+	if got := plain.Cost(Tokens{In: 1_000_000, CacheRead: 600_000}); got != 2 {
+		t.Errorf("cost without cache rates = %v, want every input token at the input rate (2)", got)
+	}
+}
+
+// TestDefaultTableIsDatedAndPricesTheCurrentClaudeModels (#534): the table
+// had no 5.x rows and no date, so nobody could tell how stale it was. The
+// claude aliases the packaged routes use are priced too: the estimate looks a
+// route's cli_model up.
+func TestDefaultTableIsDatedAndPricesTheCurrentClaudeModels(t *testing.T) {
+	table := Load("")
+	if table.AsOf() == "" {
+		t.Error("the packaged pricing.yaml has no as_of date")
+	}
+	for _, m := range []string{"opus", "sonnet", "haiku", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"} {
+		if !table.Has(m) {
+			t.Errorf("no price for %s", m)
+		} else if table.ForModel(m).CacheRead == 0 {
+			t.Errorf("%s has no cache_read rate", m)
+		}
 	}
 }

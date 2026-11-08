@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
 )
 
 // The types here are persistence types, not domain types. They live in state
@@ -124,6 +125,11 @@ type Spend struct {
 	// provider reported none. Downstream surfaces flag it so nobody reads
 	// an invented number as telemetry.
 	Estimated bool
+}
+
+// Tokens is the usage pricing.Table prices, cache included.
+func (s Spend) Tokens() pricing.Tokens {
+	return pricing.Tokens{In: s.TokensIn, Out: s.TokensOut, CacheRead: s.CacheReadTokens, CacheWrite: s.CacheCreationTokens}
 }
 
 // Event is one line of a run's history.

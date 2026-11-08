@@ -53,7 +53,7 @@ func TestDoctorSmokeThroughTheFakeRunner(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &p); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, stdout.String())
 	}
-	if len(p.Backends) != 1 || p.Backends[0].Backend != "claude" || p.Backends[0].Model != "claude-haiku-4-5" {
+	if len(p.Backends) != 1 || p.Backends[0].Backend != "claude" || p.Backends[0].Model != "haiku" {
 		t.Fatalf("rows = %+v", p.Backends)
 	}
 	got := map[string]doctor.Status{}

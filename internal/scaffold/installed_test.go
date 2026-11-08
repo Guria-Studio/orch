@@ -23,7 +23,7 @@ func TestInstalledTierDefaultsOnlyNameInstalledCLIs(t *testing.T) {
 		want      map[string]string
 	}{
 		{"claude wins when present", only(model.BackendClaude, model.BackendCodex, model.BackendOpencode), map[string]string{
-			"premium": "claude/claude-opus-4-7", "standard": "claude/claude-sonnet-4-6", "cheap": "claude/claude-haiku-4-5"}},
+			"premium": "claude/opus", "standard": "claude/sonnet", "cheap": "claude/haiku"}},
 		{"codex alone has no cheap route", only(model.BackendCodex), map[string]string{
 			"premium": "codex/gpt-5.6", "standard": "codex/gpt-5.4"}},
 		{"nothing installed", only(), map[string]string{}},
