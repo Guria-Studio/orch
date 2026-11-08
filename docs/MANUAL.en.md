@@ -8,6 +8,24 @@
 > is the source of truth this manual is kept in sync with. Looking for the
 > old Python `orch`? See [Python legacy](#python-legacy) at the bottom.
 
+**orch runs AI agents as a team and shows your client a live page, not a
+status thread.** It is for freelancers and agencies building with AI: it splits
+the work into a graph of tasks, runs each one on the coding agent CLI you route
+it to, in parallel, and keeps a page your client can open to see where the work
+stands. No client? The same page is your own status board.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
+cd my-project                        # a git repository
+orch start "what you want to build"
+```
+
+`orch start` sets the project up with the AI CLIs it finds, lets claude plan the
+idea with you, estimates the plan and runs the first tasks with the dashboard
+open. The rest of this manual is that same path step by step, and what comes
+after it: `orch run` for the remaining tasks, `orch dashboard` to watch and
+review the work, and `orch publish` for the client page.
+
 **Total setup time**: ~2 minutes (one `curl | sh`, no Python, no venv).
 **Per-feature time**: a few minutes of spec-writing + unattended execution.
 
@@ -392,8 +410,9 @@ $ orch dashboard --help
 Serve the operator dashboard on a local HTTP port.
 
 Reads the project's state and shows it; it never writes. The
-stakeholder profile gates every data route behind a token and an
-allow-list — see `profile` and `token` under `dashboard:` in
+client profile (`stakeholder` in config) gates every data route
+behind a token and an allow-list, so your client sees only the
+client page — see `profile` and `token` under `dashboard:` in
 config.yaml, which the flags below override.
 
 Usage:
@@ -404,7 +423,7 @@ Flags:
       --host string      Address to bind; 0.0.0.0 exposes it beyond localhost (default "127.0.0.1")
       --port int         Port to listen on; 0 picks any free one (default 7420)
       --profile string   Access profile: operator, stakeholder or both (default: config.yaml)
-      --token string     Shared token a stakeholder session must present (default: config.yaml)
+      --token string     Shared token a client session must present (default: config.yaml)
       --tunnel           Also start the Cloudflare quick tunnel (needs tunnel.enabled and cloudflared), and stop it on exit
 
 Global Flags:
@@ -431,7 +450,7 @@ orch report summary
 
 # A link to hand a client, over a Cloudflare quick tunnel (needs
 # `tunnel: enabled: true` in config.yaml and cloudflared on PATH — the
-# Tunnel page shows how to install it). Prints the client-portal link, with
+# Tunnel page shows how to install it). Prints the client page link, with
 # the token every request through the tunnel needs; Ctrl+C revokes it.
 orch dashboard --tunnel
 ```
@@ -465,8 +484,8 @@ from there: **Accept** squash-merges the task's PR (`orch task accept`),
 (`vcs.provider: local`) there is no PR: Accept commits what the task left in
 its worktree and squash-merges `orch/<id>` into the base here, as the run
 does, then marks the task done; if the work conflicts with the base nothing
-changes and the error names the files, for you to send it back. A stakeholder
-does not get the tab unless `api_task_diff` is in
+changes and the error names the files, for you to send it back. A client
+session does not get the tab unless `api_task_diff` is in
 `dashboard.stakeholder_routes`.
 
 **System › Knowledge** lists the project's lessons (`.orch/knowledge/`) with
@@ -480,18 +499,19 @@ operator adds, edits and deletes lessons there through the same function as
 the file is yours to commit. **Curate now** runs
 `orch knowledge curate` (#452): a dialog shows what the curation would do and
 cost, and **Confirm** dispatches its one task in the background; the page then
-links to that task, which the run shows like any other. One curation at a time. A stakeholder never gets the page.
+links to that task, which the run shows like any other. One curation at a time. A client session never gets the page.
 
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the
 bottom of the sidebar (or ⌘K → *Change language*) switches it and this browser
 remembers the choice. `dashboard.language` in `config.yaml` is a different
-setting: it picks what the **client** reads (portal, executive summary, PDF),
+setting: it picks what the **client** reads (client page, executive summary, PDF),
 not the operator's screens. Commands, flags and config keys stay in English.
 
 `--profile operator` (the default) shows everything: tasks, spend per
-model, logs. `--profile stakeholder` gates every data route behind the
-`--token` and an allow-list of stakeholder-safe routes — no log lines, no
+model, logs. `--profile stakeholder` — the client profile; the name is a
+config alias — gates every data route behind the `--token` and an allow-list
+of client-safe routes — no log lines, no
 prompts, no per-model cost breakdown unless `dashboard.show_spend_to_stakeholder`
 is on. See [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md) for the access
 model in full and [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
@@ -865,7 +885,7 @@ namespace, split by a `-py` suffix rather than a separate branch prefix.
 - Spec markdown format: [`SPEC-FORMAT.md`](SPEC-FORMAT.md)
 - MCP server / tools: [`MCP.md`](MCP.md)
 - Dashboard access model: [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md)
-- Sharing the dashboard with a client: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
+- Sharing the client page: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
 - Release process / tag scheme: [`RELEASING.md`](RELEASING.md)
 
 ## Feedback

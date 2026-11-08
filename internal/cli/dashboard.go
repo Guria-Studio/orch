@@ -48,10 +48,11 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 		Short: "Serve the operator dashboard",
 		Long: "Serve the operator dashboard on a local HTTP port.\n\n" +
 			"Reads the project's state and shows it; it never writes. The\n" +
-			"stakeholder profile gates every data route behind a token and an\n" +
-			"allow-list — see `profile` and `token` under `dashboard:` in\n" +
+			"client profile (`stakeholder` in config) gates every data route\n" +
+			"behind a token and an allow-list, so your client sees only the\n" +
+			"client page — see `profile` and `token` under `dashboard:` in\n" +
 			"config.yaml, which the flags below override.\n\n" +
-			"The stakeholder token is the exception: a token stored by\n" +
+			"The client token is the exception: a token stored by\n" +
 			"`orch dashboard token rotate` wins over --token, which wins over\n" +
 			"dashboard.token. A token given while the database has one is\n" +
 			"ignored, with a warning at startup.",
@@ -275,7 +276,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 		fmt.Sprintf("Access profile: %s, %s or %s (default: config.yaml)",
 			dashboard.ProfileOperator, dashboard.ProfileStakeholder, dashboard.ProfileBoth))
 	cmd.Flags().StringVar(&token, "token", "",
-		"Shared token a stakeholder session must present (default: config.yaml; "+
+		"Shared token a client session must present (default: config.yaml; "+
 			"ignored once orch dashboard token rotate has stored one)")
 	cmd.Flags().BoolVar(&withTunnel, "tunnel", false,
 		"Also start the Cloudflare quick tunnel (needs tunnel.enabled and cloudflared), and stop it on exit")
@@ -454,7 +455,7 @@ func startTunnelFromCLI(ctx context.Context, cmd *cobra.Command, server *dashboa
 		if operator, portal := server.TunnelLinks(); operator != "" {
 			_, _ = fmt.Fprintf(out, "Tunnel (Cloudflare quick tunnel) is up. The token in these links is "+
 				"required through the tunnel and changes on every start:\n"+
-				"  Dashboard:     %s\n  Client portal: %s\n", operator, portal)
+				"  Dashboard:   %s\n  Client page: %s\n", operator, portal)
 			return nil
 		}
 		select {

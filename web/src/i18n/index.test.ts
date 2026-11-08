@@ -4,6 +4,8 @@ import { es } from "@/i18n/es"
 import { pt } from "@/i18n/pt"
 import { fmt, getLanguage, resolveLanguage, setLanguage, t, type MessageKey, type Plural } from "@/i18n"
 import { englishLeaks } from "@/i18n/leaks"
+import { forbiddenTerms, glossary, glossaryFor } from "@/i18n/glossary"
+import { copy } from "@/stakeholder/i18n"
 import { formatRelative } from "@/lib/time"
 
 afterEach(() => setLanguage("en"))
@@ -80,6 +82,32 @@ describe("setLanguage", () => {
     expect(t("tasks.title")).toBe("Tareas")
     expect(fmt.day("2026-09-18")).toMatch(/18.*sept/i)
     expect(window.localStorage.getItem("orch_lang")).toBe("es")
+  })
+})
+
+// The glossary pins the words the UI uses: "client", never "stakeholder"
+// (a config key and profile name only). Every dictionary, the operator's and
+// the client page's, in every language, is held to it.
+describe("forbidden terms", () => {
+  const dicts: [string, Record<string, unknown>][] = [
+    ["en", en],
+    ["es", es],
+    ["pt", pt],
+    ...Object.entries(copy).map(([lang, d]) => [`client page ${lang}`, d] as [string, Record<string, unknown>]),
+    ...(["en", "es", "pt"] as const).map((lang) => [`glossary ${lang}`, glossaryFor(lang)] as [string, Record<string, unknown>]),
+  ]
+  it.each(dicts)("the %s dictionary uses none", (_, dict) => {
+    const found = Object.entries(dict).flatMap(([key, v]) =>
+      Object.keys(forbiddenTerms)
+        .filter((term) => new RegExp(term, "i").test(JSON.stringify(v)))
+        .map((term) => `${key}: ${term}`),
+    )
+    expect(found).toEqual([])
+  })
+
+  it("names the word to use instead, which the glossary defines", () => {
+    expect(forbiddenTerms).toEqual({ stakeholder: "client" })
+    expect(glossary.client.title).toBe("Client")
   })
 })
 

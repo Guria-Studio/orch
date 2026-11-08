@@ -4,13 +4,32 @@
 >
 > Este manual documenta o binário em **Go** do `orch` — a reescrita como
 > binário único. Cada comando abaixo é a saída real de `orch --help` num
-> binário compilado; a referência completa de flags vive em
+> binário compilado; a referência completa de flags fica em
 > [`CLI.md`](CLI.md), que é a fonte de verdade com a qual este manual é
-> mantido sincronizado. Procurando o `orch` em Python? Veja
+> mantido em sincronia. Procurando o antigo `orch` em Python? Veja
 > [Python legacy](#python-legacy) no final.
 
+**O orch roda agentes de IA como uma equipe e mostra ao seu cliente uma página
+ao vivo, não uma thread de status.** É para freelancers e agências que
+constroem com IA: divide o trabalho num grafo de tarefas, roda cada uma na CLI
+de agente de código para a qual você a roteia, em paralelo, e mantém uma página
+que o seu cliente pode abrir para ver em que pé está o trabalho. Sem cliente? A
+mesma página é o seu próprio painel de status.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
+cd my-project                        # a git repository
+orch start "what you want to build"
+```
+
+`orch start` configura o projeto com as CLIs de IA que encontra, deixa o claude
+planejar a ideia com você, estima o plano e roda as primeiras tarefas com o
+dashboard aberto. O resto deste manual é esse mesmo caminho passo a passo, e o
+que vem depois: `orch run` para as tarefas restantes, `orch dashboard` para
+acompanhar e revisar o trabalho, e `orch publish` para a página do cliente.
+
 **Tempo total de setup**: ~2 minutos (um `curl | sh`, sem Python, sem venv).
-**Tempo por feature**: alguns minutos escrevendo o spec + execução não supervisionada.
+**Tempo por feature**: alguns minutos escrevendo o spec + execução sem supervisão.
 
 ---
 
@@ -20,14 +39,14 @@
 2. [Criar um projeto novo](#2-criar-um-projeto-novo)
 3. [Escrever specs e atomizá-los em tasks.json](#3-escrever-specs-e-atomizá-los-em-tasksjson)
 4. [Revisar o plano antes de rodar](#4-revisar-o-plano-antes-de-rodar)
-5. [Run — despachar tasks para os agentes de IA](#5-run--despachar-tasks-para-os-agentes-de-ia)
+5. [Run — despachar tarefas para os agentes de IA](#5-run--despachar-tarefas-para-os-agentes-de-ia)
 6. [Abrir o dashboard](#6-abrir-o-dashboard)
 7. [Inspecionar uma execução: status, tasks, events, logs](#7-inspecionar-uma-execução-status-tasks-events-logs)
-8. [Corrigir coisas manualmente: task set, task-status, reset](#8-corrigir-coisas-manualmente-task-set-task-status-reset)
+8. [Corrigir coisas à mão: task set, task-status, reset](#8-corrigir-coisas-à-mão-task-set-task-status-reset)
 9. [O roteador de modelos](#9-o-roteador-de-modelos)
 10. [Inspecionar a config](#10-inspecionar-a-config)
-11. [MCP — deixando um agente controlar o orch diretamente](#11-mcp--deixando-um-agente-controlar-o-orch-diretamente)
-12. [Instalar o skill de Claude Code do orch](#12-instalar-o-skill-de-claude-code-do-orch)
+11. [MCP — deixar um agente controlar o orch diretamente](#11-mcp--deixar-um-agente-controlar-o-orch-diretamente)
+12. [Instalar a skill de Claude Code do orch](#12-instalar-a-skill-de-claude-code-do-orch)
 13. [Quando algo falha](#13-quando-algo-falha)
 14. [Atualizar o orch](#14-atualizar-o-orch)
 15. [Python legacy](#python-legacy)
@@ -41,15 +60,15 @@ curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/inst
 ```
 
 Baixa o tarball certo para `linux`/`darwin` × `amd64`/`arm64` a partir do
-último GitHub Release, verifica o checksum, e instala em
+último GitHub Release, verifica o checksum e instala em
 `~/.local/bin` (use `INSTALL_DIR=...` para mudar). Sem toolchain de Go,
-sem Python, sem dependências para resolver — `orch` é um binário estático.
+sem Python, sem dependências para resolver — `orch` é um único binário estático.
 
 Ou a partir do código, só a CLI (`go install github.com/Guria-Studio/orch/cmd/orch@latest`, Go ≥ 1.25): compila sem os bundles web, então `orch dashboard` e `orch publish` precisam do script ou de um tarball do release.
 
 Ou baixe um tarball diretamente da
 [página de Releases](https://github.com/Guria-Studio/orch/releases) e
-coloque `orch` no seu `PATH` manualmente. Veja [`RELEASING.md`](RELEASING.md)
+coloque `orch` no seu `PATH` você mesmo. Veja [`RELEASING.md`](RELEASING.md)
 para o esquema completo de tags e como os releases são construídos.
 
 Verifique:
@@ -61,21 +80,21 @@ orch --help
 
 ### CLIs de IA que você precisa
 
-Pelo menos **uma** dessas no seu `PATH`, autenticada com uma assinatura
-ou API key. orch despacha para as cinco, e um mesmo projeto pode
-misturá-las: cada task vai para a CLI à qual o seu modelo é roteado
+Pelo menos **uma** destas no seu `PATH`, autenticada com uma assinatura
+ou API key. O orch despacha para todas, e um mesmo projeto pode
+misturá-las — cada tarefa vai para a CLI para a qual o seu modelo é roteado
 ([§9](#9-o-roteador-de-modelos)):
 
 - **`claude`** — Claude Code CLI (Anthropic)
 - **`codex`** — Codex CLI (OpenAI)
 - **`gemini`** — Gemini CLI (Google)
-- **`opencode`** — OpenCode (qualquer provedor que esteja configurado)
+- **`opencode`** — OpenCode (qualquer provedor para o qual esteja configurado)
 - **`agy`** — Antigravity (o gateway multi-modelo do Google)
-- **`muse`** — Muse Code (Meta). O orch o roda sem aprovações e sem seu
+- **`muse`** — Muse Code (Meta). O orch o roda sem aprovações e sem o seu
   sandbox (`--approval-mode never --disable-sandbox`), para que o agente
-  possa reportar sua tarefa concluída
+  possa reportar sua tarefa como concluída
 
-Você só precisa das CLIs para as quais suas tasks são roteadas.
+Você só precisa das CLIs para as quais suas tarefas são de fato roteadas.
 
 Rode `orch doctor` a qualquer momento para ver o que está realmente
 acessível — veja [§13](#13-quando-algo-falha).
@@ -88,7 +107,7 @@ acessível — veja [§13](#13-quando-algo-falha).
 faz esta seção inteira e a §3 por você — cria o projeto com as CLIs do seu
 PATH, instala as skills de planejamento, deixa o claude planejar a ideia com
 você (`/orch-plan`), valida e estima o plano, e oferece rodar as duas primeiras
-tarefas com o dashboard aberto. O resto da seção é o mesmo caminho passo a
+tarefas com o dashboard aberto. O resto desta seção é o mesmo caminho passo a
 passo.
 
 ```bash
@@ -122,50 +141,51 @@ Flags:
 Rode **sem argumentos**, no diretório do seu projeto, e ele faz três
 perguntas — project id (padrão: o nome do diretório), template (padrão:
 blank) e a confirmação —, então dar Enter em todas deixa um projeto que roda.
-Ele escreve no **diretório atual**, escolhe os modelos padrão entre as CLIs de
-IA que encontra no `PATH` (primeiro claude, depois codex, gemini, opencode,
-agy, muse) e grava a branch do seu repositório como `dispatch.base_branch`.
-`orch init --advanced` pergunta também o root, o backend de estado, o preset
-de orçamento, o spec root, os modelos por tier e o layout openspec.
+Ele cria o projeto no **diretório atual**, escolhe os modelos padrão entre as
+CLIs de IA que encontra no `PATH` (primeiro claude, depois codex, gemini,
+opencode, agy, muse) e grava a branch do seu repositório como
+`dispatch.base_branch`. `orch init --advanced` pergunta também o root, o
+backend de estado, o preset de orçamento, o spec root, os modelos por tier e o
+layout openspec.
 
 ```bash
 orch init
 ```
 
 Isso escreve `.orchestrator/config.yaml`, `.orchestrator/model_router.yaml`,
-`tasks.json`, e (com `--sdd`) um layout `openspec/`. Também escreve um
+`tasks.json` e (com `--sdd`) um layout `openspec/`. Também escreve um
 `.mcp.json` apontando para `orch mcp` — veja
-[§11](#11-mcp--deixando-um-agente-controlar-o-orch-diretamente) — que fica
-intocado num re-`init`, `--force` incluso, já que pode já listar outros
-servidores MCP do projeto.
+[§11](#11-mcp--deixar-um-agente-controlar-o-orch-diretamente) — que fica
+intocado num novo `init`, `--force` incluído, já que pode já listar outros
+servidores MCP do seu projeto.
 
-Um agente reporta sua tarefa com `scripts/task-finish.sh` / `task-block.sh`
-e as ferramentas MCP do orch, e uma CLI rodando headless recusa o que não tem
-uma regra. Por isso `orch init` e `orch start` **concedem por padrão as
-permissões básicas do orch** a cada CLI para a qual o projeto roteia e que
-está no seu `PATH` — nunca a uma que ele não usa, e só essas regras restritas,
-nunca uma flag que pula permissões: as do claude no `.claude/settings.json` do
-projeto, as do agy em `~/.gemini/antigravity-cli/settings.json` (fora do
-projeto, então o caminho e cada regra adicionada são impressos). O wizard
-pergunta e Enter aceita; `init` em modo batch e `start --yes` simplesmente as
-escrevem. `--no-permissions` não escreve nada e nomeia `orch
-claude-permissions` / `orch agy-permissions`, que as adicionam depois. codex,
-opencode e muse não precisam de nada escrito; `orch doctor` informa cada CLI
-(gemini como desconhecido). O gemini recusa uma pasta que não foi marcada como
-confiável, e cada tarefa roda num worktree novo, então o orch define
-`GEMINI_CLI_TRUST_WORKSPACE=true` em cada dispatch do gemini; defina como `false`
-no seu ambiente para manter esse controle.
+Um agente reporta sua tarefa com `scripts/task-finish.sh` /
+`task-block.sh` e as ferramentas MCP do orch, e uma CLI rodando headless recusa
+o que não tem uma regra. Por isso `orch init` e `orch start` **concedem por
+padrão as permissões básicas do orch** a cada CLI para a qual o projeto roteia
+e que está no seu `PATH` — nunca a uma que ele não usa, e só essas regras
+restritas, nunca uma flag que pula permissões: as do claude no
+`.claude/settings.json` do projeto, as do agy em
+`~/.gemini/antigravity-cli/settings.json` (fora do projeto, então o caminho e
+cada regra adicionada são impressos). O wizard pergunta e Enter aceita; `init`
+em modo batch e `start --yes` simplesmente as escrevem. `--no-permissions` não
+escreve nada e cita `orch claude-permissions` / `orch agy-permissions`, que as
+adicionam depois. codex, opencode e muse não precisam de nada escrito;
+`orch doctor` informa cada CLI (gemini como desconhecido). O gemini recusa uma
+pasta que não foi marcada como confiável, e cada tarefa roda num worktree novo,
+então o orch define `GEMINI_CLI_TRUST_WORKSPACE=true` em cada dispatch do
+gemini; defina como `false` no seu ambiente para manter esse controle.
 
 Um projeto novo vem com `report_findings.enabled: false`. Os agentes podem
-abrir issues **públicas** sobre o orch em Guria-Studio/orch com o seu login
-do `gh` ([`DOGFOODING.md`](DOGFOODING.md)), e isso não é a primeira coisa a
-perguntar: o primeiro `orch run` que termina uma task oferece, uma vez.
-`--no-report-findings` é um não definitivo e nunca é oferecido.
+abrir issues **públicas** sobre o próprio orch em Guria-Studio/orch com o seu
+login do `gh` ([`DOGFOODING.md`](DOGFOODING.md)), e isso não é a primeira
+coisa a perguntar: o primeiro `orch run` que termina uma tarefa oferece, uma
+vez. `--no-report-findings` é um não definitivo, e nunca é oferecido.
 
-Um projeto em branco começa com **uma task de exemplo**, `F0.T1` ("Add a
+Um projeto em branco começa com **uma tarefa de exemplo**, `F0.T1` ("Add a
 Getting started section to README.md"), no modelo mais barato de uma CLI
 instalada, para que o primeiro `orch run` mostre um agente trabalhando. Cada
-task parte de um commit, então primeiro faça commit do que o init escreveu —
+tarefa parte de um commit, então primeiro faça commit do que o init escreveu —
 o init avisa quando o repositório não tem nenhum:
 
 ```bash
@@ -174,9 +194,9 @@ orch run
 ```
 
 Sem remote do git, o trabalho fica na branch local `orch/<task-id>` de cada
-task: sem push nem pull request.
+tarefa: sem push e sem pull request.
 
-Um projeto com template (`--template`) já vem com tasks reais e roteadas
+Um projeto com template (`--template`) já vem com tarefas reais e roteadas
 em `tasks.json` — `orch tasks` funciona na hora, sem precisar atomizar
 nada para experimentar o resto deste manual.
 
@@ -184,10 +204,10 @@ nada para experimentar o resto deste manual.
 
 ## 3. Escrever specs e atomizá-los em tasks.json
 
-Specs são arquivos markdown sob `<project-root>/docs` (ou onde
+Specs são arquivos markdown em `<project-root>/docs` (ou onde
 `spec_root` em `config.yaml` apontar) no formato descrito em
-[`SPEC-FORMAT.md`](SPEC-FORMAT.md). `orch atomize` os parseia e faz merge
-de tasks novas em `tasks.json` — **somente leitura a menos que você passe
+[`SPEC-FORMAT.md`](SPEC-FORMAT.md). `orch atomize` os lê e faz merge
+das tarefas novas em `tasks.json` — **somente leitura, a menos que você passe
 `--apply`**:
 
 ```bash
@@ -207,34 +227,34 @@ Flags:
       --tasks-json string   Path a tasks.json (default: <project-root>/tasks.json)
 ```
 
-(O texto de ajuda dos flags está em espanhol no binário — é a saída real,
-não um detalhe de tradução deste manual.)
+(O texto de ajuda das flags está em espanhol no binário hoje — é a saída
+real, não um erro deste manual.)
 
 ```bash
-# Preview: parseia cada spec sob o diretório de specs, mostra um diff, não escreve nada
+# Preview: lê cada spec no diretório de specs, mostra um diff, não escreve nada
 orch atomize
 
 # Só um arquivo
 orch atomize --file specs/f1-auth.md
 
-# Apply — escreve tasks.json (com backup tasks.json.bak-<ts>, salvo --no-backup)
+# Apply — escreve tasks.json (com backup tasks.json.bak-<ts>, a menos que use --no-backup)
 orch atomize --file specs/f1-auth.md --apply
 ```
 
-**Garantias**: idempotente (rodar de novo com o mesmo spec não toca nos
-IDs de tasks existentes, só adiciona os novos); uma task que declara um
+**Garantias**: idempotente (rodar de novo com o mesmo spec não mexe nos
+IDs de tarefas existentes, só adiciona os novos); uma tarefa que cita um
 modelo que não está em `model_router.yaml` é pega pelo `orch validate` /
-no despacho, não é aceita silenciosamente; blocos de código com fences
-num spec são pulados pelo parser (assim um spec de exemplo dentro de
-`specs/README.md` não é importado como tasks reais).
+no dispatch, não é aceita em silêncio; blocos de código cercados num spec
+são ignorados pelo parser (assim um spec de exemplo dentro de
+`specs/README.md` não é importado como tarefas reais).
 
 ---
 
 ## 4. Revisar o plano antes de rodar
 
-O binário em Go **ainda não tem flag `--dry-run`** em `run` — é um gap
-conhecido e documentado em relação ao Python (veja a linha de `run` em
-[`CLI.md`](CLI.md)). Para pré-visualizar o que uma execução faria, use os
+O comando `run` do binário em Go **ainda não tem flag `--dry-run`** — é uma
+lacuna conhecida e documentada em relação ao Python (veja a linha de `run` em
+[`CLI.md`](CLI.md)). Para ver antes o que uma execução faria, use os
 comandos de somente leitura:
 
 ```bash
@@ -248,10 +268,10 @@ orch tasks --status todo
 orch graph | dot -Tpng -o plan.png
 ```
 
-`orch validate` roda os mesmos checks que o preflight do Python tinha e
-que já têm um lar em Go: carregamento de config/router/tasks, schema,
-ciclos de dependência e rotas de modelo não resolvidas. Exit code `0`
-limpo, `2` se encontrou pelo menos um erro.
+`orch validate` roda os checks do preflight do Python que já têm um
+lugar em Go hoje: carregamento de config/router/tasks, schema, ciclos de
+dependência e rotas de modelo não resolvidas. Exit code `0` limpo, `2` se
+encontrou pelo menos um erro.
 
 ```bash
 $ orch validate --help
@@ -267,13 +287,13 @@ Flags:
 ```
 
 Rode também `orch doctor` aqui (veja [§13](#13-quando-algo-falha)) — ele
-cobre o lado do ambiente que `validate` não toca: CLIs de provedor
-efetivamente no `PATH`, prontidão do VCS, worktrees órfãos, sanidade do
-preset de budget, saúde do SQLite.
+cobre o lado do ambiente que `validate` não cobre: CLIs de provedor que estão
+de fato no `PATH`, prontidão do VCS, worktrees órfãos, sanidade do preset de
+orçamento, saúde do SQLite.
 
 ---
 
-## 5. Run — despachar tasks para os agentes de IA
+## 5. Run — despachar tarefas para os agentes de IA
 
 ```bash
 $ orch run --help
@@ -296,73 +316,72 @@ Flags:
 # Despacha tudo que está pronto, sem perguntar
 orch run
 
-# Pergunta antes de cada task marcada como crítica
+# Pergunta antes de cada tarefa marcada como crítica
 orch run --mode semi
 
-# Isola cada task no seu próprio git worktree/branch e abre um PR por
-# task quando tem sucesso (precisa de dispatch.worktree_mode /
-# vcs.auto_pr — veja CONFIG.md)
+# Isola cada tarefa no seu próprio git worktree/branch e abre um PR por tarefa
+# quando dá certo (precisa de dispatch.worktree_mode / vcs.auto_pr — veja CONFIG.md)
 orch run --worktree-mode
 
 # Ainda não há remote para fazer push
 orch run --no-push
 ```
 
-**Ctrl-C** drena o trabalho em andamento antes de sair, com exit code
+**Ctrl-C** termina o trabalho em andamento antes de sair, com exit code
 **130**. Um **segundo** Ctrl-C manda SIGKILL para todos os grupos de
-processos filhos imediatamente.
+processos filhos na hora.
 
-**Modo worktree**: cada task ganha seu próprio git worktree e branch, em
-`<projeto>.worktrees/<task-id>/` ao lado do projeto (veja `CONFIG.md`);
-quando tem sucesso, `orch` faz commit, push, e — se `vcs.auto_pr`
-estiver ativo — abre um PR para `dispatch.base_branch`, e deixa a task
-`in-progress` para o poller de CI terminar. Um check de CI verde a marca
-como `done` (e também faz merge, se `github.auto_merge` estiver ativo — um merge
-recusado porque a base acabou de mudar é tentado de novo por alguns
-minutos, e um PR atrás da sua base é atualizado antes, para que as
-dependentes comecem de uma base que tem o código; um merge que nunca entra
-é informado com o erro do próprio gh no evento `pr_auto_merge_failed` e na
-nota da task);
-um vermelho recebe uma nova tentativa com os logs da falha anexados, e
-depois `blocked`. Um vermelho porque o GitHub nunca iniciou o job (billing
-do Actions, o limite de gastos) é bloqueado na hora com esse motivo, sem
-gastar nova tentativa. Um PR em conflito com sua base é atualizado sobre o
-trabalho já feito da task: o orch faz merge da base e push quando entra
-limpo, sem agente; senão o agente recebe os arquivos em conflito e os commits
-da base que os causaram para resolver, `retry.conflict` vezes (1 num projeto
-novo; uma config sem a chave continua bloqueando como antes) antes de a task
-ficar `blocked` nomeando os arquivos. Uma execução que abre um PR termina antes de fazer
-polling do CI desse PR — uma execução que termina verde é percebida na
-*próxima* `orch run`, igual ao Python.
+**Modo worktree**: cada tarefa ganha seu próprio git worktree e branch, em
+`<project>.worktrees/<task-id>/` ao lado do projeto (veja `CONFIG.md`); quando
+dá certo, o `orch` faz commit, push e — se `vcs.auto_pr` estiver ativo — abre
+um PR para `dispatch.base_branch`, e deixa a tarefa `in-progress` para o poller
+de CI. Um check de CI verde a marca como `done` (e também faz o merge, se
+`github.auto_merge` estiver ativo — um merge recusado porque a base acabou de
+mudar é tentado de novo por alguns minutos, e um PR atrás da sua base é
+atualizado antes, para que as dependentes partam de uma base que tem o código;
+um merge que nunca entra é informado com o erro do próprio gh no evento
+`pr_auto_merge_failed` e na nota da tarefa); um vermelho recebe uma nova
+tentativa com os logs da falha anexados, e depois `blocked`. Um vermelho que o
+GitHub causou por nunca iniciar o job (billing do Actions, o limite de gastos)
+é bloqueado na hora com esse motivo, sem gastar nova tentativa. Um PR em
+conflito com sua base é atualizado no trabalho guardado da tarefa: o orch faz
+merge da base e push quando o merge entra limpo, sem agente; senão o agente
+recebe os arquivos em conflito e os commits da base por trás deles para
+resolver, `retry.conflict` vezes (1 num projeto novo; uma config sem a chave
+mantém o bloqueio de antes) antes de a tarefa ser bloqueada citando os
+arquivos. Uma execução que abre um PR termina antes de acompanhar o CI desse
+PR — uma execução que termina verde é percebida no *próximo* `orch run`, igual
+ao Python.
 
 **Conhecimento do projeto** (`knowledge.enabled`, ligado num projeto novo): o
-que uma task aprende chega às que vêm depois. As lições são arquivos markdown
-curtos em `.orch/knowledge/`, commitados e revisados como qualquer outro
-arquivo. Um agente registra uma com a tool MCP `orch_learn` (ela entra no PR
-dele); o orch escreve um rascunho quando o verify local rejeitou uma tentativa
-e a seguinte passou, ou quando o agente resolveu um PR em conflito; você
-adiciona as suas com `orch knowledge add`. Cada prompt de despacho leva as
-poucas mais relevantes em `Project knowledge` — primeiro aquelas cuja `area`
-cobre os arquivos da task. `orch knowledge list` / `show` / `rm` as
-administram e `orch knowledge stats` compara o sucesso na primeira tentativa
-antes e desde a primeira lição. Veja
+que uma tarefa aprende chega às tarefas seguintes. As lições são arquivos
+markdown curtos em `.orch/knowledge/`, commitados e revisados como qualquer
+outro arquivo. Um agente registra uma com a ferramenta MCP `orch_learn` (ela
+entra no PR dele); o orch escreve um rascunho quando o verify local rejeitou
+uma tentativa e a seguinte passou, ou quando o agente resolveu um PR em
+conflito; você adiciona as suas com `orch knowledge add`. Cada prompt de
+dispatch leva as poucas mais relevantes em `Project knowledge` — primeiro
+aquelas cuja `area` cobre os arquivos da tarefa. `orch knowledge list` /
+`show` / `rm` cuidam delas e `orch knowledge stats` compara o sucesso de
+primeira antes e desde a primeira lição. Veja
 [`CONFIG.md`](CONFIG.md#knowledge--new-451).
 
-**Verify local com o app da task** (`verify.app`): o orch sobe o app no
-worktree da task, com o `.env` da task, antes de rodar os testes E2E, uma vez
-por verify de cada task. Um app que migra o banco ao subir, inicia jobs
+**Verify local com o app da tarefa** (`verify.app`): o orch sobe o app no
+worktree da tarefa, com o `.env` da tarefa, antes de rodar os testes E2E, uma
+vez por verify de cada tarefa. Um app que migra o banco ao subir, inicia jobs
 agendados ou chama provedores reais faz isso toda vez. Então aponte-o para um
-banco e serviços que só essa task usa. `dispatch.isolate_compose` isola só os
-contêineres dentro do projeto compose da task, não um banco para o qual o
-`.env` aponte fora dele. Veja [`CONFIG.md`](CONFIG.md#verify--new).
+banco e serviços que só essa tarefa usa. `dispatch.isolate_compose` isola só os
+contêineres dentro do projeto compose da tarefa, não um banco para o qual o
+`.env` aponte fora dele. Veja
+[`CONFIG.md`](CONFIG.md#verify--new).
 
-**Concorrência, budgets, retries** são todos controlados por config, não
-por flags — veja [`CONFIG.md`](CONFIG.md).
+**Concorrência, orçamentos, novas tentativas** são todos definidos por config,
+não por flags — veja [`CONFIG.md`](CONFIG.md).
 
 ### Começar sem GitHub
 
 Um repositório ainda sem remote — ou uma máquina sem `gh` — não precisa de pull
-requests para levar o trabalho ao branch base. Defina `vcs.provider: local`
+requests para levar o trabalho à branch base. Defina `vcs.provider: local`
 (`orch init` escreve isso por você nesse caso; `orch start` também, quando o
 repositório já tem um commit):
 
@@ -373,16 +392,16 @@ vcs:
   provider: local
 ```
 
-Cada tarefa continua trabalhando no seu próprio branch, no seu próprio
+Cada tarefa continua trabalhando na sua própria branch, no seu próprio
 worktree. Quando termina e passa no verify local, o orch **faz o squash merge
 dela em `dispatch.base_branch` aqui mesmo** — um commit por tarefa, com o
-título que o PR teria — e apaga o branch. As tarefas são mescladas uma de cada
-vez, e uma dependente só é despachada quando as dependências já estão na base,
-então ela parte do trabalho delas. Nada é enviado com push e o `gh` nunca roda.
-Uma tarefa cujo trabalho conflita com a base recebe a base mesclada no seu
-worktree e volta ao agente para resolver o conflito, `retry.conflict` vezes;
-depois é bloqueada citando os arquivos (o trabalho fica em `orch/<task-id>`).
-Se o branch base estiver em checkout com mudanças não commitadas nos mesmos
+título que o PR teria — e apaga a branch. As tarefas entram uma de cada vez, e
+uma dependente só é despachada quando as dependências já estão na base, então
+ela parte do trabalho delas. Nada é enviado com push e o `gh` nunca roda. Uma
+tarefa cujo trabalho conflita com a base recebe a base mesclada no seu worktree
+e volta ao agente para resolver o conflito, `retry.conflict` vezes; depois é
+bloqueada citando os arquivos (o trabalho fica em `orch/<task-id>`). Se a
+branch base estiver em checkout com mudanças não commitadas nos mesmos
 arquivos, o merge é recusado e a tarefa é bloqueada: faça commit ou stash e
 depois `orch task-status <id> todo`.
 
@@ -404,8 +423,9 @@ $ orch dashboard --help
 Serve the operator dashboard on a local HTTP port.
 
 Reads the project's state and shows it; it never writes. The
-stakeholder profile gates every data route behind a token and an
-allow-list — see `profile` and `token` under `dashboard:` in
+client profile (`stakeholder` in config) gates every data route
+behind a token and an allow-list, so your client sees only the
+client page — see `profile` and `token` under `dashboard:` in
 config.yaml, which the flags below override.
 
 Usage:
@@ -416,8 +436,13 @@ Flags:
       --host string      Address to bind; 0.0.0.0 exposes it beyond localhost (default "127.0.0.1")
       --port int         Port to listen on; 0 picks any free one (default 7420)
       --profile string   Access profile: operator, stakeholder or both (default: config.yaml)
-      --token string     Shared token a stakeholder session must present (default: config.yaml)
+      --token string     Shared token a client session must present (default: config.yaml)
       --tunnel           Also start the Cloudflare quick tunnel (needs tunnel.enabled and cloudflared), and stop it on exit
+
+Global Flags:
+      --config string         Path to config.yaml (default: .orchestrator/config.yaml)
+      --project-id string     Project id override. Env fallback: ORCH_PROJECT_ID.
+      --project-root string   Project root; default = cwd. Env fallback: ORCH_PROJECT_ROOT.
 ```
 
 ```bash
@@ -425,86 +450,87 @@ Flags:
 orch dashboard
 
 # Um projeto sintético com histórico realista, para explorar primeiro
-# (nada é despachado; os dados são apagados ao parar)
+# (nada é despachado; os dados são apagados quando você o para)
 orch dashboard --demo
 
-# A última execução concluída em Markdown, para colar num PR ou num chat:
-# tarefas feitas e bloqueadas, tempo real e dos agentes, gasto por provedor,
-# PRs (--json para scripts)
+# A última execução concluída em Markdown, para colar num PR ou num chat: tarefas
+# feitas e bloqueadas, tempo real e dos agentes, gasto por provedor, PRs (--json para scripts)
 orch report receipt
 
-# A mesma execução em palavras simples: o que foi construído, por que cada
-# task bloqueada parou e os próximos passos com o comando de cada um (o orch
-# run imprime isso ao terminar)
+# A mesma execução em palavras simples: o que foi construído, por que cada tarefa
+# bloqueada parou e os próximos passos com o comando de cada um (o orch run imprime isso ao terminar)
 orch report summary
 
-# Um link para passar a um cliente, por um túnel rápido da Cloudflare
-# (precisa de `tunnel: enabled: true` no config.yaml e do cloudflared no
-# PATH — a página Tunnel mostra como instalar). Imprime o link do portal do
-# cliente com o token que toda requisição pelo túnel exige; Ctrl+C o revoga.
+# Um link para passar a um cliente, por um túnel rápido da Cloudflare (precisa de
+# `tunnel: enabled: true` no config.yaml e do cloudflared no PATH — a página
+# Tunnel mostra como instalar). Imprime o link da página do cliente, com
+# o token que toda requisição pelo túnel exige; Ctrl+C o revoga.
 orch dashboard --tunnel
 ```
 
 O dashboard do operador tem quatro destinos. **Now** é a primeira tela: a
-execução, cada agente trabalhando com seu relógio, as tasks bloqueadas e as que
-esperam uma janela de budget (com o comando `orch task set` que desbloqueia cada
-uma — o dashboard só lê), as fases e a janela de budget; depois de uma
-execução, o recibo dela com o resumo em palavras simples embaixo — por que cada
-task bloqueada parou e os próximos passos com seus comandos. **Work** reúne List,
-Kanban, Graph, Phases e Pace como abas que compartilham os filtros na URL;
-**Cost** reúne Budget e Metrics; **Delivery**, o resumo para o cliente, CI,
-Tests (cada execução E2E do verify local, com o que um teste que falhou
-deixou: erro, passo, captura, vídeo, trace) e Share (o túnel). **Logs** abre como painel sobre qualquer página. Os endereços
-antigos (`/kanban`, `/budget`, `/tunnel`…) redirecionam para o novo lugar.
-**⌘K** (Ctrl+K) busca páginas, tasks e filtros e copia comandos da CLI; `g` e
-depois `n`/`w`/`c`/`d` troca de destino, `/` busca na lista de tasks e `?`
-mostra todos os atalhos. A página de uma task mostra a descrição como
-Markdown: código inline, e blocos com a linguagem, cores de sintaxe e um botão
-de copiar (Editar continua mostrando o texto cru).
+execução, cada agente trabalhando com seu relógio correndo, as tarefas
+bloqueadas e as que esperam uma janela de orçamento (com o comando
+`orch task set` que desbloqueia cada uma — o dashboard só lê), as fases e a
+janela de orçamento; depois que uma execução termina, o recibo dela com a
+execução em palavras simples embaixo — por que cada tarefa bloqueada parou e os
+próximos passos com seus comandos. **Work** reúne List, Kanban, Graph, Phases e
+Pace como abas que compartilham os mesmos filtros na URL; **Cost** reúne Budget
+e Metrics; **Delivery** reúne o resumo para o cliente, CI, Tests (cada execução
+E2E que o verify local fez, com o que um teste que falhou deixou: erro, passo,
+captura de tela, vídeo, trace) e Share (o túnel). **Logs** abre como um painel
+sobre qualquer página. Os endereços antigos (`/kanban`, `/budget`, `/tunnel`…)
+redirecionam para o novo lugar. **⌘K** (Ctrl+K) busca páginas, tarefas e
+filtros e copia comandos da CLI; `g` e depois `n`/`w`/`c`/`d` troca de destino,
+`/` busca na lista de tarefas e `?` lista todos os atalhos. A página de uma
+tarefa mostra a descrição como Markdown: código inline, e blocos cercados com a
+linguagem, cores de sintaxe e um botão de copiar (Editar continua mostrando o
+texto cru).
 
-A aba **Alterações** é a revisão: o que o branch `orch/<id>` da task mudou
-em relação à base (`git diff --merge-base`), como lista de arquivos com +/− e
-hunks com cores de sintaxe — um arquivo com mais de 400 linhas alteradas abre
-recolhido. Ao lado, cada vez que a verificação local devolveu o trabalho, e
-os achados da revisão sob o `arquivo:linha` que citam. O operador local age
-dali: **Aceitar** faz squash-merge do PR (`orch task accept`), **Devolver**
-reabre a task com sua nota para o agente (`orch task note --retry`),
-**Bloquear** a retém com a nota como motivo. No modo local (`vcs.provider:
-local`) não há PR: Aceitar faz commit do que a task deixou no seu worktree e
-squash-merge de `orch/<id>` na base aqui, como o run faz, e marca a task como
-concluída; se o trabalho conflita com a base nada muda e o erro cita os
-arquivos, para você devolvê-la. Um stakeholder não vê
-a aba a menos que `api_task_diff` esteja em `dashboard.stakeholder_routes`.
+A aba **Alterações** dela é a revisão: o que a branch `orch/<id>` da tarefa
+mudou em relação à base (`git diff --merge-base`), como lista de arquivos com
+contagens +/− e hunks com cores de sintaxe — um arquivo com mais de 400 linhas
+alteradas abre recolhido. Ao lado, cada vez que o verify local devolveu o
+trabalho, e os achados da revisão sob o `arquivo:linha` que citam. O operador
+local age dali: **Aceitar** faz o squash merge do PR da tarefa
+(`orch task accept`), **Devolver** reabre a tarefa com a sua nota para o agente
+(`orch task note --retry`), **Bloquear** a segura com a nota como motivo. No
+modo local (`vcs.provider: local`) não há PR: Aceitar faz commit do que a
+tarefa deixou no seu worktree e o squash merge de `orch/<id>` na base aqui,
+como a execução faz, e depois marca a tarefa como concluída; se o trabalho
+conflita com a base nada muda e o erro cita os arquivos, para você devolvê-la.
+Uma sessão de cliente não vê a aba a menos que `api_task_diff` esteja em
+`dashboard.stakeholder_routes`.
 
-**Sistema › Conhecimento** lista as lições do projeto (`.orch/knowledge/`)
-com área, origem, tarefa e data, filtra por área e origem e busca do mesmo
-jeito que a ferramenta MCP `orch_knowledge_search`. Por lição mostra quantos
-prompts de despacho a levaram e, das tarefas concluídas a que eles serviram,
-quantas terminaram de primeira: uma lição que nenhum prompt usou, ou cujas
-tarefas ainda precisaram de novas tentativas, é candidata a editar ou apagar.
-O operador local adiciona, edita e apaga lições ali com a mesma função de
+**Sistema › Conhecimento** lista as lições do projeto (`.orch/knowledge/`) com
+área, origem, tarefa e data, filtra por área e origem e busca do mesmo jeito
+que a ferramenta MCP `orch_knowledge_search`. Por lição mostra quantos prompts
+de dispatch a levaram e, das tarefas a que eles serviam que estão concluídas,
+quantas terminaram de primeira — uma lição que nenhum prompt usou, ou cujas
+tarefas ainda precisaram de novas tentativas, é uma para editar ou apagar. O
+operador local adiciona, edita e apaga lições ali com a mesma função de
 `orch knowledge add` / `rm`; cada mudança vira um evento `knowledge_edited`, e
 o commit do arquivo é seu. **Curar agora** roda
 `orch knowledge curate` (#452): um diálogo mostra o que a curadoria faria e
 quanto custaria, e **Confirmar** despacha sua única tarefa em segundo plano; a
 página então aponta para essa tarefa, que a execução mostra como qualquer
-outra. Uma curadoria por vez. Um stakeholder nunca vê a página.
+outra. Uma curadoria por vez. Uma sessão de cliente nunca vê a página.
 
 O dashboard está em inglês, espanhol e português (Brasil). Ele começa no idioma
-do seu navegador e, se não for nenhum desses, em inglês; o botão de idioma no
-rodapé da barra lateral (ou ⌘K → *Mudar idioma*) troca o idioma e este
-navegador lembra a escolha. `dashboard.language` no `config.yaml` é outra
-coisa: escolhe o que o **cliente** lê (portal, resumo executivo, PDF), não as
-telas do operador. Comandos, flags e chaves de config ficam em inglês.
+do seu navegador e, se não houver, em inglês; o botão de idioma no rodapé da
+barra lateral (ou ⌘K → *Mudar idioma*) troca o idioma e este navegador lembra a
+escolha. `dashboard.language` no `config.yaml` é outra configuração: escolhe o
+que o **cliente** lê (página do cliente, resumo executivo, PDF), não as telas
+do operador. Comandos, flags e chaves de config ficam em inglês.
 
-`--profile operator` (o padrão) mostra tudo: tasks, gasto por modelo,
-logs. `--profile stakeholder` protege cada rota de dados atrás do
-`--token` e de uma allow-list de rotas seguras para o stakeholder — sem
-linhas de log, sem prompts, sem detalhamento de custo por modelo a menos
-que `dashboard.show_spend_to_stakeholder` esteja ativo. Veja
-[`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md) para o modelo de acesso
-completo e [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
-para o passo a passo voltado ao cliente (resumo executivo, timeline de
+`--profile operator` (o padrão) mostra tudo: tarefas, gasto por modelo, logs.
+`--profile stakeholder` — o perfil do cliente; o nome é um alias de config —
+protege cada rota de dados atrás do `--token` e de uma allow-list de rotas
+seguras para o cliente — sem linhas de log, sem prompts, sem detalhamento de
+custo por modelo a menos que `dashboard.show_spend_to_stakeholder` esteja
+ativo. Veja [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md) para o modelo de
+acesso completo e [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
+para o passo a passo voltado ao cliente (resumo executivo, linha do tempo de
 fases, ETA, bloqueios).
 
 ---
@@ -512,29 +538,29 @@ fases, ETA, bloqueios).
 ## 7. Inspecionar uma execução: status, tasks, events, logs
 
 ```bash
-# Resumo em uma tela: tasks por status, gasto, últimos eventos, resumo da execução
+# Resumo em uma tela: tarefas por status, gasto, últimos eventos, resumo da execução
 orch status
 
-# Todas as tasks com status/roteamento/deps, filtrável
+# Todas as tarefas com status/roteamento/deps, filtrável
 orch tasks --status todo,in-progress
 orch tasks --only 'F1.*'
 
-# Histórico de eventos de uma task
+# Histórico de eventos de uma tarefa
 orch events F1.1.T2 --tail 50
 
-# O log bruto do agente para essa task
+# O log bruto do agente dessa tarefa
 orch logs F1.1.T2 --tail 200
 ```
 
-Os quatro aceitam `--json` (exceto `logs`, que também nunca teve isso em
-Python) para scripting, e compartilham os flags de projeto
+Os quatro aceitam `--json` (exceto `logs`, que também nunca teve isso no
+Python) para scripts, e compartilham as flags de projeto
 (`--project-root`/`--project-id`/`--config`).
 
 Para acompanhar uma execução em vez de tirar fotos, `orch tui` mantém essa
-mesma visão ao vivo no terminal: a tabela de tasks com o tempo decorrido de
-cada uma, o progresso por fase, o gasto por provedor e o log da task
-selecionada como passos. `↑`/`↓` (ou `j`/`k`) escolhem uma task, `f` alterna o
-filtro de status, `q` sai. Só lê, então roda ao lado de `orch run` em outro
+mesma visão ao vivo no terminal: a tabela de tarefas com o tempo decorrido de
+cada uma, o progresso por fase, o gasto por provedor e o log da tarefa
+selecionada como passos. `↑`/`↓` (ou `j`/`k`) escolhem uma tarefa, `f` alterna
+o filtro de status, `q` sai. Só lê, então roda ao lado de `orch run` em outro
 terminal.
 
 ```bash
@@ -550,21 +576,21 @@ Flags:
 
 ---
 
-## 8. Corrigir coisas manualmente: task set, task-status, reset
+## 8. Corrigir coisas à mão: task set, task-status, reset
 
 ```bash
-# Mover o status de uma task diretamente (transições ilegais saem com exit 3)
+# Mudar o status de uma tarefa diretamente (transições ilegais saem com exit 3)
 orch task-status F1.1.T5 todo --note "re-queued after manual fix"
 
-# A mesma coisa, pela superfície mais nova `task set` — também onde vai
-# pousar futuramente um override de model/backend assim que
-# state.Backend suportar escrevê-los (hoje esses dois flags estão
-# registrados mas retornam um erro claro de "not implemented yet" em vez
-# de não fazer nada silenciosamente). Não há flag de milestone: um
-# milestone é uma fase, e a fase de uma task vive no tasks.json
+# A mesma coisa, pela superfície mais nova `task set` — também é onde vai
+# entrar um futuro override de model/backend quando state.Backend suportar
+# escrevê-los (hoje essas duas flags estão registradas mas retornam um erro
+# claro de "not implemented yet" em vez de não fazer nada em silêncio). Não há
+# flag de milestone: um milestone é uma fase, e a fase de uma tarefa fica no
+# tasks.json
 orch task set --id F1.1.T5 --status todo
 
-# Ver quais tasks in-progress parecem travadas, sem tocar em nada
+# Ver quais tarefas in-progress parecem travadas, sem mexer em nada
 orch reset
 
 # Reverter de fato para todo
@@ -583,21 +609,20 @@ Flags:
       --status string    Set the task status (e.g. done, in-progress, blocked)
 ```
 
-`reset` lê o status **real** de runtime a partir do backend de estado,
-não o campo `status` (potencialmente desatualizado) do `tasks.json` — uma
-diferença deliberada em relação ao Python, documentada em
-[`CLI.md`](CLI.md).
+`reset` lê o status **real** de runtime a partir do backend de estado, não o
+campo `status` próprio (possivelmente desatualizado) do `tasks.json` — uma
+diferença deliberada em relação ao Python, documentada em [`CLI.md`](CLI.md).
 
 ---
 
 ## 9. O roteador de modelos
 
-`model_router.yaml` mapeia o modelo declarado de uma task para um
-backend CLI, seu nome `cli_model`, e um tier de custo.
+`model_router.yaml` mapeia o modelo declarado de uma tarefa para uma CLI de
+backend, seu nome `cli_model` e um tier de custo.
 
-**Usar várias IAs.** O `"model"` de uma task no `tasks.json` é uma
-chave do `model_router.yaml`, e essa entrada nomeia a CLI que a executa.
-Três tasks, três CLIs:
+**Usar várias IAs.** O `"model"` de uma tarefa no `tasks.json` é uma chave do
+`model_router.yaml`, e essa entrada nomeia a CLI que a executa. Três
+tarefas, três CLIs:
 
 ```json
 "tasks": [
@@ -626,19 +651,19 @@ gemini/gemini-2.5-flash:
   is_premium: false
 ```
 
-`orch router validate` verifica que cada task resolve para uma entrada,
-e `orch doctor` que cada CLI nomeada por essas entradas está instalada.
+`orch router validate` verifica que cada tarefa resolve para uma entrada, e
+`orch doctor` que cada CLI nomeada por essas entradas está instalada.
 
-**Failover quando um provedor fica sem cota.** Por padrão uma task com
-rate limit espera `retry.rate_limit` e tenta a mesma CLI de novo. Dê à
-sua rota uma lista `failover:` de outras chaves de rota e a nova tentativa
-vai na hora para a primeira cujo provedor ainda tem cota, no mesmo
-worktree, então o trabalho feito é mantido. O aviso do claude de que a
-janela esgotou também conta. O orch lembra o provedor esgotado até o reset
-(a hora que o claude informa, senão o backoff de rate limit), e as tasks
-seguintes dessa rota na mesma execução vão direto para o failover. Gasto,
-eventos e dashboard mostram o backend que realmente rodou. Uma chave que
-não é rota faz `orch validate` falhar.
+**Failover quando um provedor fica sem cota.** Por padrão uma tarefa com rate
+limit espera `retry.rate_limit` e tenta a mesma CLI de novo. Dê à rota dela uma
+lista `failover:` de outras chaves de rota e a nova tentativa vai na hora para
+a primeira cujo provedor ainda tem cota, no mesmo worktree, então o trabalho
+feito até ali é mantido. O aviso do próprio claude de que a janela esgotou
+também conta. O orch lembra o provedor esgotado até o reset dele (a hora que o
+claude informa, senão o backoff de rate limit), e as tarefas seguintes da
+execução nessa rota vão direto para o failover. Gasto, eventos e dashboard
+mostram o backend que realmente rodou. Uma chave que não é rota faz
+`orch validate` falhar.
 
 ```yaml
 claude/sonnet:
@@ -668,8 +693,8 @@ Available Commands:
 
 `add-missing` mostra o plano e pergunta `y/N` antes de escrever, igual ao
 Python — `--yes` é como um script pula o prompt (nunca por detecção de
-TTY: uma execução não supervisionada com `--mode auto` não pode pausar
-silenciosamente esperando stdin).
+TTY: uma execução sem supervisão com `--mode auto` não pode pausar em silêncio
+esperando stdin).
 
 ---
 
@@ -679,11 +704,11 @@ silenciosamente esperando stdin).
 orch config show
 ```
 
-Imprime a config efetiva — padrões combinados com `config.yaml` e
-quaisquer overrides — seguido de onde cada valor veio, e quaisquer
-chaves no seu `config.yaml` que o orch não reconhece (uma boa forma de
-pegar uma chave digitada errada que não faz nada silenciosamente).
-Referência completa de chaves: [`CONFIG.md`](CONFIG.md).
+Imprime a config efetiva — padrões combinados com `config.yaml` e quaisquer
+overrides — seguida de onde veio cada valor, e quaisquer chaves no seu
+`config.yaml` que o orch não reconhece (uma boa forma de pegar uma chave
+digitada errada que não faz nada em silêncio). Referência completa de chaves:
+[`CONFIG.md`](CONFIG.md).
 
 ```bash
 $ orch config --help
@@ -695,7 +720,7 @@ Available Commands:
 
 ---
 
-## 11. MCP — deixando um agente controlar o orch diretamente
+## 11. MCP — deixar um agente controlar o orch diretamente
 
 ```bash
 $ orch mcp --help
@@ -709,15 +734,15 @@ from a terminal. See docs/MCP.md.
 ```
 
 `orch init` já escreveu um `.mcp.json` apontando para `orch mcp` — um
-agente compatível com MCP (Claude Code incluso) o pega automaticamente a
-partir da raiz do projeto. Não há equivalente em Python; veja
-[`MCP.md`](MCP.md) para a lista completa de tools e o formato do erro de
-transição ilegal (ele nomeia cada status para o qual a task pode se mover
-legalmente, já que quem chama é um modelo que pode tentar de novo).
+agente compatível com MCP (Claude Code incluído) o pega automaticamente na
+raiz do projeto. Não há equivalente em Python; veja [`MCP.md`](MCP.md)
+para a lista completa de ferramentas e o formato do erro de transição ilegal
+(ele cita cada status para o qual a tarefa pode passar em seguida, já que
+quem chama é um modelo que pode tentar de novo).
 
 ---
 
-## 12. Instalar o skill de Claude Code do orch
+## 12. Instalar a skill de Claude Code do orch
 
 ```bash
 $ orch install-skills --help
@@ -739,27 +764,28 @@ orch install-skills --target codex --target opencode
 orch install-skills --dry-run                # preview primeiro
 ```
 
-`--target claude` escreve diretórios de skills reais sob
-`~/.claude/skills`. `codex`/`opencode` não têm mecanismo próprio de
-skills, então recebem uma seção claramente delimitada e substituível de
-forma idempotente no `AGENTS.md` do projeto; `cursor` recebe um arquivo
-`.cursor/rules/<name>.mdc`. Nove skills vêm embutidos no binário: `orch-tdd`,
+`--target claude` escreve diretórios de skills reais em `~/.claude/skills`.
+`codex`/`opencode` não têm mecanismo próprio de skills, então recebem em vez
+disso uma seção claramente delimitada, substituível de forma idempotente, no
+fim do `AGENTS.md` do projeto; `cursor` recebe um arquivo
+`.cursor/rules/<name>.mdc`. Nove skills vêm embutidas no binário: `orch-tdd`,
 como um agente trabalha uma tarefa com os testes primeiro (vermelho, verde,
-limpar); `orch-e2e`, como um agente percorre o app rodando num navegador e
-deixa specs do Playwright; `orch`, o manual de operação para um agente dentro de um projeto, e o pipeline de
-planejamento — `orch-plan` executa `orch-prd` (ideia → `docs/prd/`),
-`orch-arch` (→ `docs/arch/`), `orch-spec` (→ `specs/`, no formato exato
-que `orch atomize` lê) e `orch-tasks` (→ `tasks.json` via
-`orch atomize --apply`), parando para você depois de cada documento e
-antes de aplicar qualquer coisa. Num repositório que já tem código, o
-`orch-plan` executa antes o `orch-discover` (→ `docs/arch/000-discovery.md`):
-o que o código é, cada afirmação citando seu arquivo, com os segredos
-versionados, os efeitos ao subir e as perguntas para o cliente, e depois
-propõe `gate.critical_paths`, `guard.protected_paths`, regras e
-`verify.commands`, aplicando só as que você confirmar. A página Sistema › Skills do dashboard tem
+limpo); `orch-e2e`, como um agente explora um app rodando num navegador e
+deixa specs do Playwright; e `orch`, o manual de operação
+para um agente trabalhando dentro de um projeto, e o pipeline de planejamento —
+`orch-plan` executa `orch-prd` (ideia → `docs/prd/`), `orch-arch`
+(→ `docs/arch/`), `orch-spec` (→ `specs/`, no formato exato que
+`orch atomize` lê) e `orch-tasks` (→ `tasks.json` via
+`orch atomize --apply`), parando para você depois de cada documento e antes
+de aplicar qualquer coisa. Num repositório que já tem código, o `orch-plan`
+executa antes o `orch-discover` (→ `docs/arch/000-discovery.md`): o que o
+código é, cada afirmação citando seu arquivo, com os segredos versionados, os
+efeitos colaterais ao subir e as perguntas para o cliente, e depois propõe
+`gate.critical_paths`, `guard.protected_paths`, regras e `verify.commands`,
+aplicando só as que você confirmar. A página Sistema › Skills do dashboard tem
 uma aba **Como funciona** que percorre esses passos — cada skill, o que lê e o
-que escreve, o comando que a inicia — e marca as que nenhuma CLI tem
-instaladas ainda.
+que escreve, o comando que a inicia — e marca as que nenhuma CLI tem instaladas
+ainda.
 
 ---
 
@@ -780,51 +806,50 @@ Flags:
 orch doctor
 ```
 
-Verifica: CLIs de provedor referenciadas por
-`tasks.json`+`model_router.yaml` efetivamente no `PATH`, completude do
-roteamento, sanidade do preset de budget, worktrees de git órfãos,
-prontidão do VCS (repo/remote/auth), se `.mcp.json` existe, e saúde do
-SQLite. Mesma convenção de exit code que `validate`: `0` limpo, `1`
-apenas warnings, `2` pelo menos um erro.
+Verifica: CLIs de provedor referenciadas por `tasks.json`+`model_router.yaml`
+que estão de fato no `PATH`, completude do roteamento, sanidade do preset de
+orçamento, worktrees de git órfãos, prontidão do VCS (repo/remote/auth), se
+`.mcp.json` existe, e saúde do SQLite. Mesma convenção de exit code que
+`validate`: `0` limpo, `1` só avisos, `2` pelo menos um erro.
 
-Ele também é um **relatório de prontidão**, em cinco seções — Config
-(config, router, tasks.json, modelos), Backends, Tasks, Permissions,
-Environment — e termina com um veredito: ``Ready to `orch run`.`` ou a primeira
-coisa no caminho. Tasks diz quais tarefas o `orch run` despacharia agora e
-lista as tarefas em `backlog` com as dependências concluídas, com
+Ele também é um **relatório de prontidão**, em cinco seções — Config (config,
+router, tasks.json, modelos), Backends, Tasks, Permissions, Environment — e
+termina com um veredito: ``Ready to `orch run`.`` ou a primeira coisa no
+caminho. Tasks diz quais tarefas o `orch run` despacharia agora e lista as
+tarefas em `backlog` com as dependências concluídas, com
 `orch task-status <id> todo` para cada uma. Permissions tem um check
 `<cli>.permissions` por CLI que o projeto usa: se o agente dela consegue
-reportar uma tarefa concluída (as regras do claude e do agy, o `--add-dir` com
-que o codex recebe o diretório de estado). `orch doctor --json` traz a
+reportar uma tarefa como concluída (as regras do claude e do agy, o `--add-dir`
+com que o codex recebe o diretório de estado). `orch doctor --json` traz a
 `section` de cada check e o `verdict`.
 
-### Task bloqueada
+### Tarefa bloqueada
 
 1. `orch logs <task-id> --tail 100` — leia a saída do próprio agente
-2. `orch events <task-id>` — veja o que o orch mesmo registrou (dispatch,
+2. `orch events <task-id>` — veja o que o próprio orch registrou (dispatch,
    fail, retry, budget_pause…)
-3. Conserte o spec ou o código manualmente
-4. `orch task-status <task-id> todo --note "..."` para reenfileirar
-5. `orch run` de novo — só pega tasks em `todo`
+3. Corrija o spec ou o código à mão
+4. `orch task-status <task-id> todo --note "..."` para colocá-la de volta na fila
+5. `orch run` de novo — ele só pega tarefas em `todo`
 
 ### `orch` não inicia — exit 1, erro de layout de projeto
 
 `tasks.json` ou `.orchestrator/config.yaml` está faltando ou ilegível.
-`orch init --force` se de fato é um projeto real, ou verifique as
-entradas `config.parse`/`router.parse` de `orch doctor --json` para o
-próprio erro de parsing.
+`orch init --force` se é para ser um projeto real, ou veja as entradas
+`config.parse`/`router.parse` de `orch doctor --json` para o próprio erro de
+parsing.
 
 ### `orch validate` / `orch doctor` saem com exit 2
 
-Pelo menos um achado de severidade erro — leia a saída humana (ou
-`--json`) para ver qual check falhou e por quê; ambos os comandos
-imprimem todos os checks que rodaram, não só os que falharam.
+Pelo menos um achado de severidade erro — leia a saída para humanos (ou
+`--json`) para ver qual check falhou e por quê; os dois comandos imprimem
+todos os checks que rodaram, não só os que falharam.
 
 ### Uma transição de status ilegal — exit 3
 
 `task-status`/`task set --status` recusam uma transição que a máquina de
-estados não permite (ex.: `done` → `todo` direto). O erro nomeia o
-status atual da task.
+estados não permite (ex.: `done` → `todo` direto). O erro cita o status atual
+da tarefa.
 
 ---
 
@@ -840,21 +865,21 @@ curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/inst
 orch --version
 ```
 
-Atualizar o binário nunca toca no `.orchestrator/config.yaml`,
+Atualizar o binário nunca mexe no `.orchestrator/config.yaml`,
 `model_router.yaml` ou `budgets.yaml` próprios de um projeto — se você
-quer levar um padrão novo para um projeto existente, rode
-`orch init --force` lá e compare antes de fazer commit (ele sobrescreve
-o ajuste próprio do projeto, então não faça isso às cegas).
+quer levar um padrão novo para um projeto existente, rode `orch init --force`
+lá e compare o diff antes de fazer commit (ele sobrescreve os ajustes próprios
+do projeto, então não faça isso às cegas).
 
 ---
 
 ## Python legacy
 
-O `orch` anterior à reescrita — o dashboard em FastAPI,
-`pipx install orch`, todo o histórico de sprints que este binário em Go
-está substituindo feature por feature — está congelado na branch
-`python-legacy`, com a tag **`v0.11.0-py`**. Ele instala e roda
-exatamente como documentado no manual próprio dessa tag:
+O `orch` anterior à reescrita — o dashboard em FastAPI, `pipx install orch`, o
+histórico completo de sprints que este binário em Go está substituindo
+funcionalidade por funcionalidade — está congelado na branch `python-legacy`,
+com a tag **`v0.11.0-py`**. Ele ainda instala e roda exatamente como
+documentado no manual próprio dessa tag:
 
 ```bash
 git checkout v0.11.0-py
@@ -867,26 +892,26 @@ ou
 pipx install git+https://github.com/Guria-Studio/orch.git@v0.11.0-py
 ```
 
-Essa linha não recebe features novas — só o binário em Go avança. Veja
+Essa linha não recebe funcionalidades novas — só o binário em Go avança. Veja
 [`RELEASING.md`](RELEASING.md) para entender por que as duas linhas
-compartilham o mesmo namespace de tags, separadas por um sufixo `-py` em
-vez de um prefixo de branch separado.
+compartilham o mesmo namespace de tags, separadas por um sufixo `-py` em vez
+de um prefixo de branch separado.
 
 ---
 
 ## Referências
 
-- Referência completa de flags do CLI, notas de paridade com Python: [`CLI.md`](CLI.md)
+- Referência completa de flags da CLI, notas de paridade com o Python: [`CLI.md`](CLI.md)
 - Chaves de config: [`CONFIG.md`](CONFIG.md)
-- Formato markdown de specs: [`SPEC-FORMAT.md`](SPEC-FORMAT.md)
-- Servidor / tools de MCP: [`MCP.md`](MCP.md)
+- Formato markdown dos specs: [`SPEC-FORMAT.md`](SPEC-FORMAT.md)
+- Servidor / ferramentas MCP: [`MCP.md`](MCP.md)
 - Modelo de acesso do dashboard: [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md)
-- Compartilhar o dashboard com um cliente: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
+- Compartilhar a página do cliente: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
 - Processo de release / esquema de tags: [`RELEASING.md`](RELEASING.md)
 
 ## Feedback
 
 Este manual é um documento vivo, atualizado no mesmo PR que adiciona um
-subcomando novo. Se você encontrar um caso que não está coberto, abra
-uma issue em <https://github.com/Guria-Studio/orch/issues> ou envie
-um PR com a seção que falta.
+subcomando novo. Se você encontrar um caso que não está coberto, abra uma
+issue em <https://github.com/Guria-Studio/orch/issues> ou envie um PR com a
+seção que falta.
