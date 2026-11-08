@@ -1050,12 +1050,15 @@ watch:
 ```
 
 While `orch run` has attempts running it reads the tail of each one's log
-(`<state>/logs/<task>.log`) every 30 seconds and records two events, which
+(`<state>/logs/<task>.log`) every 30 seconds and records these events, which
 `orch events` and the task page show:
 
 - **`agent_stalled`**: the log has not grown for `stall_after_s`. An agent
   waiting on a prompt it cannot get in a headless run looks like this too.
   It is recorded again only after the log grows and then goes silent again.
+- **`agent_resumed`**: the log of an agent flagged `agent_stalled` grew again.
+  Until it does, the dashboard shows the task as stalled on Now (under
+  attention, with `orch task stop`), on its board card and in the list (#533).
 - **`agent_looping`**: one tool call (the same tool on the same command,
   file or pattern) fills 5 of the attempt's last 20. Recorded once per attempt.
   It reads the CLIs that stream their steps (claude, codex, opencode); gemini

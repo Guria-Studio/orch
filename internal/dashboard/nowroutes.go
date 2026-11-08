@@ -8,6 +8,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -29,9 +30,9 @@ func (s *Server) nowRoutes() []route {
 type nowPayload struct {
 	// Project is tasks.json's meta.project.
 	Project string `json:"project"`
-	// Run is the most recent run, live or finished; null when the project has
-	// never run. A run is "live" as recorded — the dashboard does not probe
-	// its process, so a run that crashed reads live until the next one starts.
+	// Run is the most recent run, live or ended; null when the project has
+	// never run. "live" only while a run holds the run lock or a dispatch's
+	// process is alive: a run that crashed reads "ended" (#533).
 	Run     *nowRun        `json:"run"`
 	Working []nowDispatch  `json:"working"`
 	Slots   nowSlots       `json:"slots"`
@@ -63,6 +64,9 @@ type nowDispatch struct {
 	// MaxAttempts is config.yaml's retry.max_attempts; 0 when unset.
 	MaxAttempts int    `json:"max_attempts"`
 	StartedAt   string `json:"started_at"`
+	// Stalled: the watch saw the agent's log go silent and it has not
+	// written since (#533). The page counts it as needing attention.
+	Stalled bool `json:"stalled"`
 }
 
 // nowSlots is in-flight dispatches against concurrency.global_max as `orch
@@ -107,6 +111,9 @@ func (s *Server) handleNow(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "now", err)
 		return
 	}
+	if out.Run != nil && out.Run.Status == runStatusLive && !runAlive(s.paths.StateDir(), dispatches) {
+		out.Run.Status = runStatusEnded
+	}
 	// A config.yaml that does not load leaves the caps at 0 ("not set"): they
 	// are denominators on a status page, and orch run names the broken file.
 	var limits config.Config
@@ -126,7 +133,7 @@ func (s *Server) handleNow(w http.ResponseWriter, r *http.Request) {
 			TaskID: d.TaskID, Title: titleOr(t), Phase: t.Phase,
 			Provider: d.Backend, Model: t.Model,
 			Attempt: d.Attempt, MaxAttempts: limits.Retry.MaxAttempts,
-			StartedAt: d.StartedAt,
+			StartedAt: d.StartedAt, Stalled: view.Stalled[d.TaskID],
 		})
 	}
 	out.Slots = nowSlots{Used: len(dispatches), Max: limits.Concurrency.GlobalMax}
@@ -155,4 +162,26 @@ func (s *Server) handleNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// The run statuses /api/now answers. A run row says live until the next run
+// rewrites it, so the dashboard checks: live only while the run is (#533).
+const (
+	runStatusLive  = "live"
+	runStatusEnded = "ended"
+)
+
+// runAlive reports whether an `orch run` is acting on the project: one holds
+// the run lock, or (with --task-locks, which takes none) a dispatch's process
+// is alive.
+func runAlive(stateDir string, dispatches []state.Dispatch) bool {
+	if project.RunLockHeld(stateDir) {
+		return true
+	}
+	for _, d := range dispatches {
+		if project.PIDAlive(d.PID) {
+			return true
+		}
+	}
+	return false
 }

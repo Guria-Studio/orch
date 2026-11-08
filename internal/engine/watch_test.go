@@ -67,10 +67,15 @@ func TestWatchFlagsASilentLogOnceUntilItGrows(t *testing.T) {
 		t.Fatalf("events = %v, want one agent_stalled", got)
 	}
 
+	// The log grows again: the agent is back, and the timeline says so — a
+	// stall with nothing after it would read as stuck forever (#533).
 	write(t, log, toolLine("a", "make build")+toolLine("b", "make test"))
 	f.s.WatchAgents(ctx, now.Add(16*time.Minute))
+	if got := f.backend.eventTypes("C-1"); len(got) != 2 || got[1] != EventAgentResumed {
+		t.Fatalf("events = %v, want agent_stalled then agent_resumed", got)
+	}
 	f.s.WatchAgents(ctx, now.Add(26*time.Minute))
-	if got := f.backend.eventTypes("C-1"); len(got) != 2 {
+	if got := f.backend.eventTypes("C-1"); len(got) != 3 || got[2] != EventAgentStalled {
 		t.Fatalf("events = %v, want a second agent_stalled after the log grew and went silent again", got)
 	}
 }

@@ -68,7 +68,7 @@ function base(): Now {
     working: [
       {
         task_id: "F2.T2", title: "POST /items", phase: 2, provider: "claude", model: "claude/sonnet",
-        attempt: 2, max_attempts: 3, started_at: "2026-09-16T11:53:19Z",
+        attempt: 2, max_attempts: 3, started_at: "2026-09-16T11:53:19Z", stalled: false,
       },
     ],
     slots: { used: 1, max: 4 },
@@ -132,6 +132,17 @@ describe("NowPage", () => {
     expect(within(attention).getByText(/Waiting for codex's budget window, resets in 2 hours/)).toBeInTheDocument()
     fireEvent.click(within(attention).getByRole("button", { name: "Unblock" }))
     expect(screen.getByText("orch task set --id F2.T3 --status todo")).toBeInTheDocument()
+  })
+
+  // #533: a stalled agent only coloured a dot on its task's timeline.
+  it("lists a stalled agent under attention, with the command that ends its attempt", () => {
+    const now = base()
+    now.working = [{ ...now.working[0], stalled: true }]
+    state.now = now
+    renderPage()
+    const attention = screen.getByRole("heading", { name: "Needs your attention" }).closest("section")!
+    expect(within(attention).getByText(/Stalled: no output/)).toBeInTheDocument()
+    expect(within(attention).getByText("orch task stop --id F2.T2")).toBeInTheDocument()
   })
 
   it("says the ETA leaves blocked work out, and budget shows weighted and raw tokens", () => {

@@ -21,17 +21,25 @@ describe("status scale", () => {
     expect(statusKey("in_progress")).toBe("in_progress")
   })
 
-  it("falls back to backlog for a status it does not know", () => {
-    expect(statusKey("archived")).toBe("backlog")
+  // #533: a status the UI does not know used to read as backlog, hiding it.
+  // It says it is unknown; only a missing status is backlog.
+  it("shows a status it does not know as unknown, not as backlog", () => {
+    expect(statusKey("archived")).toBe("unknown")
+    expect(t(statusMeta("archived").label)).toBe("Unknown status")
+    expect(statusBadgeVariant("archived")).toBe("danger")
     expect(statusMeta("")).toBe(STATUS.backlog)
-    expect(statusBadgeVariant("archived")).toBe("muted")
   })
 
-  // Blocked waits on something; failed broke. They must never share a color.
-  it("keeps blocked apart from failed", () => {
-    expect(STATUS.blocked.text).not.toBe(STATUS.failed.text)
-    expect(STATUS.blocked.fill).not.toBe(STATUS.failed.fill)
-    expect(statusBadgeVariant("blocked")).not.toBe(statusBadgeVariant("failed"))
+  // #533: the CLI has five statuses and never sends "failed"; the UI offered
+  // it in the list, the task's select and the command palette anyway.
+  it("has no failed status the backend cannot produce", () => {
+    expect(Object.keys(STATUS)).not.toContain("failed")
+    expect(statusKey("failed")).toBe("unknown")
+  })
+
+  // Blocked waits on something; unknown is wrong. They must never share a color.
+  it("keeps blocked apart from unknown", () => {
+    expect(STATUS.blocked.text).not.toBe(STATUS.unknown.text)
     expect(statusBadgeVariant("blocked")).not.toBe("danger")
   })
 

@@ -360,7 +360,7 @@ function Properties({
               onChange={(e) => move(e.target.value)}
               className="h-[30px] min-w-0 flex-1 cursor-pointer rounded-md bg-transparent px-1 text-[13px] focus:outline-none disabled:cursor-default"
             >
-              {running || key === "failed" ? <option value={key}>{t(STATUS[key].label)}</option> : null}
+              {running || key === "unknown" ? <option value={key}>{t(STATUS[key].label)}</option> : null}
               {MOVABLE.map((s) => (
                 <option key={s} value={s}>
                   {t(STATUS[s].label)}

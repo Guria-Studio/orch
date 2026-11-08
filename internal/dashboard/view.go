@@ -56,6 +56,9 @@ type projectView struct {
 	// MergedLocally is the tasks squash-merged into the base here, with no
 	// PR (vcs.provider: local, #455).
 	MergedLocally map[string]bool
+	// Stalled is the running tasks whose last event is agent_stalled: the
+	// watch saw their log go silent and nothing has happened since (#533).
+	Stalled map[string]bool
 }
 
 func (s *Server) loadView(ctx context.Context) (projectView, error) {
@@ -101,6 +104,7 @@ func (s *Server) loadView(ctx context.Context) (projectView, error) {
 			v.MergedLocally[e.TaskID] = true
 		}
 	}
+	v.Stalled = stalledTasks(tasks, events)
 
 	v.Parallelizable = map[string]bool{}
 	for _, t := range graph.Parallelizable(tasks) {
@@ -137,6 +141,9 @@ type taskPayload struct {
 	// MergedLocally: the task's work was squash-merged into the base here,
 	// in place of a PR (vcs.provider: local, #455).
 	MergedLocally bool `json:"merged_locally,omitempty"`
+	// Stalled: running, and its agent has been silent since the watch said so
+	// (#533).
+	Stalled bool `json:"stalled,omitempty"`
 	// Parallelizable is only present on the single-task endpoint, which is
 	// where Python adds it.
 	Parallelizable *bool `json:"parallelizable,omitempty"`
@@ -168,6 +175,7 @@ func (v projectView) task(t model.Task) taskPayload {
 		CIStatus:      v.PRs[t.ID].CIStatus,
 		CIAttempts:    v.PRs[t.ID].CIAttempts,
 		MergedLocally: v.MergedLocally[t.ID],
+		Stalled:       v.Stalled[t.ID],
 	}
 }
 
@@ -316,6 +324,24 @@ func (v projectView) graph() graphPayload {
 		for _, dep := range t.Dependencies {
 			// Direction is dep → task: the edge points at what waits.
 			out.Edges = append(out.Edges, graphEdge{Source: dep, Target: t.ID})
+		}
+	}
+	return out
+}
+
+// stalledTasks is the running tasks whose last event is agent_stalled. The
+// watch records agent_resumed when a stalled log grows again, and any other
+// event (a retry, a stop, a finish) moves the task on, so the last event is
+// the answer. events come in timeline order.
+func stalledTasks(tasks []model.Task, events []state.Event) map[string]bool {
+	last := map[string]string{}
+	for _, e := range events {
+		last[e.TaskID] = e.EventType
+	}
+	out := map[string]bool{}
+	for _, t := range tasks {
+		if t.Status == model.StatusInProgress && last[t.ID] == "agent_stalled" {
+			out[t.ID] = true
 		}
 	}
 	return out

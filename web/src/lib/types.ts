@@ -90,6 +90,8 @@ export interface Task {
   ci_attempts?: number
   /** Squash-merged into the base locally, in place of a PR (vcs.provider: local). */
   merged_locally?: boolean
+  /** Running, and its agent has been silent since the watch flagged it (#533). */
+  stalled?: boolean
   /** The retry policy's cap, only on GET /api/task/{id}: the M of "attempt N of M". */
   max_attempts?: number
 }
