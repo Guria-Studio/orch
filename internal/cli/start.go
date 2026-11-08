@@ -15,7 +15,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/atomize"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/model"
@@ -420,7 +419,13 @@ func readyPlan(ctx context.Context, scoped *projectFlags, paths config.Paths, tf
 		return 0, err
 	}
 	if moved := rerouteToInstalled(&tf, rtr, packaged, router.OnPath, say); moved > 0 {
-		if _, err := atomize.Apply(paths.TasksJSON(), tf, true); err != nil {
+		// Written under the task editor's lock, the same moves applied to
+		// tasks.json as it is now (#531).
+		quiet := func(string, ...any) {}
+		if _, err := project.MutateTasks(paths.StateDir(), paths.TasksJSON(), true, func(f *model.TasksFile) error {
+			rerouteToInstalled(f, rtr, packaged, router.OnPath, quiet)
+			return nil
+		}); err != nil {
 			return 0, err
 		}
 	}
