@@ -93,7 +93,10 @@ func (b *SQLite) Attempts(ctx context.Context) ([]Attempt, error) {
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate attempts: %w", err)
+	}
+	return out, nil
 }
 
 // markLatestAttemptCI records a CI verdict on the task's latest attempt: the

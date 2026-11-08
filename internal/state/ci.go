@@ -125,7 +125,11 @@ func (b *SQLite) SetTaskCIStatus(ctx context.Context, taskID, status string) err
 		if err != nil {
 			return fmt.Errorf("set CI status for %q: %w", taskID, err)
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("set CI status for %q: %w", taskID, err)
+		}
+		if n == 0 {
 			return fmt.Errorf("%q: %w", taskID, ErrTaskNotFound)
 		}
 		return markLatestAttemptCI(ctx, tx, b.projectID, taskID, status)
