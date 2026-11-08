@@ -36,7 +36,7 @@ func newTasksCmd(flags *projectFlags) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tasks",
-		Short: "List every task with status, routing and deps",
+		Short: "List every task with status, routing and deps (filter with --only, --status)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			paths, cfg, err := loadProjectConfig(flags)

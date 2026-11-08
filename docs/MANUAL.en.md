@@ -58,6 +58,9 @@ orch --version
 orch --help
 ```
 
+`orch --help` lists the commands by layer: *Start a project*, *Run tasks*,
+*Follow progress*, *Deliver results*, *Integrations*, *Advanced*.
+
 ### AI CLIs you need
 
 At least **one** of these on your `PATH`, authenticated with a
@@ -529,7 +532,7 @@ steps. `↑`/`↓` (or `j`/`k`) select a task, `f` cycles the status filter,
 
 ```bash
 $ orch status --help
-Project status: tasks, costs, last events, run summary
+The quick check: task counts, costs, last events, run summary (--json for scripts)
 
 Flags:
   -h, --help            help for status
