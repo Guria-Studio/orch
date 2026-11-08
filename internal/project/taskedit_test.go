@@ -166,6 +166,41 @@ func TestConcurrentEditsAreSerialised(t *testing.T) {
 	}
 }
 
+// TestBulkWritersShareTheEditLock (#531): `orch atomize --apply`, `orch sync
+// issues`, `orch start` and the welcome page rewrite tasks.json wholesale.
+// They used to read, change and write it outside the lock the task editor
+// holds, so one landing during a dashboard edit lost the other's write.
+func TestBulkWritersShareTheEditLock(t *testing.T) {
+	ctx := context.Background()
+	e, _ := editor(t)
+	e.Backend = nil
+	var wg sync.WaitGroup
+	for i := range 10 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			if _, err := e.Add(ctx, model.Task{ID: fmt.Sprintf("E%d", i), Title: "e", Model: "claude/sonnet"}); err != nil {
+				t.Error(err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			_, err := MutateTasks(e.StateDir, e.TasksJSON, false, func(tf *model.TasksFile) error {
+				tf.Tasks = append(tf.Tasks, model.Task{ID: fmt.Sprintf("B%d", i), Title: "b", Model: "claude/sonnet",
+					Status: model.StatusTodo, Dependencies: []string{}, Files: []string{}})
+				return nil
+			})
+			if err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if tf := load(t, e); len(tf.Tasks) != 22 {
+		t.Errorf("tasks.json has %d tasks after 10 edits and 10 bulk writes, want 22", len(tf.Tasks))
+	}
+}
+
 // A project that already has errors (here, a model its router lacks) can
 // still be edited: only what the edit itself breaks refuses it.
 func TestAnEditIsJudgedOnWhatItBreaks(t *testing.T) {

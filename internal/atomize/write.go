@@ -1,7 +1,6 @@
 package atomize
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,23 +15,14 @@ func timestamp() string {
 	return time.Now().UTC().Format("20060102-150405")
 }
 
-// Apply serializes tf to path as 2-space indented JSON, backing up any
-// existing file first (tasks.json.bak-<timestamp>, skipped when backup is
-// false or path doesn't exist yet), and writes atomically via a .tmp file
-// plus rename. Returns the backup path written, or "" when none was made.
+// Apply writes tf to path through model.SaveTasksFile (atomic), backing up
+// any existing file first (tasks.json.bak-<timestamp>, skipped when backup is
+// false or path doesn't exist yet). Returns the backup path written, or ""
+// when none was made. Ports write_tasks_json.
 //
-// Ports write_tasks_json. It duplicates model.SaveTasksFile's encoding
-// rather than calling it because the atomizer's contract additionally
-// requires the backup-then-atomic-write behavior above; SaveTasksFile
-// itself makes no such guarantee (it is a plain, non-atomic write used by
-// simple state edits elsewhere).
+// It does not lock: a read-modify-write of tasks.json goes through
+// project.MutateTasks, which holds the task editor's lock around it (#531).
 func Apply(path string, tf model.TasksFile, backup bool) (string, error) {
-	data, err := json.MarshalIndent(tf, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("atomize: marshal tasks file: %w", err)
-	}
-	data = append(data, '\n')
-
 	var backupPath string
 	if backup {
 		// #nosec G304 -- path is a caller-supplied project file path, the
@@ -59,13 +49,8 @@ func Apply(path string, tf model.TasksFile, backup bool) (string, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("atomize: create %s: %w", dir, err)
 	}
-	tmp := path + ".tmp"
-	// #nosec G306 -- see above.
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return "", fmt.Errorf("atomize: write %s: %w", tmp, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return "", fmt.Errorf("atomize: rename %s to %s: %w", tmp, path, err)
+	if err := model.SaveTasksFile(path, tf); err != nil {
+		return "", fmt.Errorf("atomize: %w", err)
 	}
 	return backupPath, nil
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/dashboard"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
@@ -306,12 +307,18 @@ func (f *welcomeFlow) Apply(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	merged, diff, _, err := previewSpecs(paths, cfg)
+	_, diff, _, err := previewSpecs(paths, cfg)
 	if err != nil {
 		return err
 	}
 	if len(diff.NewTasks)+len(diff.Updated) > 0 {
-		if _, err := atomize.Apply(paths.TasksJSON(), merged, true); err != nil {
+		// Merged again under the task editor's lock, onto tasks.json as it
+		// is now (#531).
+		if _, err := project.MutateTasks(paths.StateDir(), paths.TasksJSON(), true, func(tf *model.TasksFile) error {
+			merged, _, _, err := atomize.AtomizeDir(filepath.Join(paths.Root, cfg.SpecRoot), paths.ID, *tf)
+			*tf = merged
+			return err
+		}); err != nil {
 			return err
 		}
 		f.say("✓ tasks.json: %s added, %d updated", plural(len(diff.NewTasks), "task"), len(diff.Updated))

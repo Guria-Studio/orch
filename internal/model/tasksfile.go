@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // Meta is tasks.json's top-level `meta` object. `Template` is only present
@@ -194,18 +195,37 @@ func LoadTasksFile(path string) (TasksFile, error) {
 }
 
 // SaveTasksFile writes f to path as 2-space indented JSON (matching the
-// shipped templates), creating the file if needed.
+// shipped templates), creating the file if needed. It is every writer's one
+// encoding (#531), and atomic: a temp file of its own beside path, then a
+// rename, so a reader — orch run reloading it — never sees half a file, and
+// two writers never share a temp name. Serialising read-modify-write cycles
+// is the caller's job (project.MutateTasks, project.TaskEditor).
 func SaveTasksFile(path string, f TasksFile) error {
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return fmt.Errorf("model: marshal tasks file: %w", err)
 	}
 	data = append(data, '\n')
-	// #nosec G306 -- tasks.json is a plain, git-tracked file meant to be
-	// read and edited directly (see the "note" every template writes into
-	// it), not a secret that wants 0600.
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tasks.json.*.tmp")
+	if err != nil {
 		return fmt.Errorf("model: write %s: %w", path, err)
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }() // a no-op once renamed
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("model: write %s: %w", tmp.Name(), err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("model: write %s: %w", tmp.Name(), err)
+	}
+	// #nosec G302 -- tasks.json is a plain, git-tracked file meant to be
+	// read and edited directly (see the "note" every template writes into
+	// it), not a secret that wants 0600; CreateTemp makes it 0600.
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return fmt.Errorf("model: write %s: %w", tmp.Name(), err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("model: replace %s: %w", path, err)
 	}
 	return nil
 }

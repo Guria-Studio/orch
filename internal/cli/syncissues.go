@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/atomize"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -218,12 +218,15 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 				return nil
 			}
 
-			// atomize.Apply, not model.SaveTasksFile: it writes the
-			// `tasks.json.bak-<ts>` first and then renames into place. This
-			// appends to a file a human maintains by hand, so the backup is
-			// the same promise `orch atomize --apply` already makes.
-			tasksFile.Tasks = append(tasksFile.Tasks, plan.Add...)
-			backupPath, err := atomize.Apply(paths.TasksJSON(), tasksFile, true)
+			// With a backup: this appends to a file a human maintains by
+			// hand, the same promise `orch atomize --apply` makes. Planned
+			// again under the task editor's lock, onto tasks.json as it is
+			// now, so an edit or a task added since is kept (#531).
+			backupPath, err := project.MutateTasks(paths.StateDir(), paths.TasksJSON(), true, func(tf *model.TasksFile) error {
+				plan = planSync(issues, tf.Tasks, modelName)
+				tf.Tasks = append(tf.Tasks, plan.Add...)
+				return nil
+			})
 			if err != nil {
 				// Named here because atomize.Apply's own errors are prefixed
 				// `atomize:`, and nobody running `orch sync issues` typed
