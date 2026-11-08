@@ -664,8 +664,8 @@ func TestTierDefaultsAreStampedIntoTaskMeta(t *testing.T) {
 	res, err := Run(Options{
 		Root: filepath.Join(t.TempDir(), "p"), Template: "python-api", Now: fixedNow,
 		TierDefaults: map[string]string{
-			"premium":  "claude/claude-opus-4-7",
-			"standard": "claude/claude-sonnet-4-6",
+			"premium":  "claude/opus",
+			"standard": "claude/sonnet",
 		},
 	})
 	if err != nil {
@@ -678,10 +678,10 @@ func TestTierDefaultsAreStampedIntoTaskMeta(t *testing.T) {
 	if err := json.Unmarshal([]byte(readFile(t, res, "tasks.json")), &doc); err != nil {
 		t.Fatalf("the stamped tasks.json does not parse: %v", err)
 	}
-	if doc.Meta["default_premium_model"] != "claude/claude-opus-4-7" {
+	if doc.Meta["default_premium_model"] != "claude/opus" {
 		t.Errorf("default_premium_model = %v", doc.Meta["default_premium_model"])
 	}
-	if doc.Meta["default_standard_model"] != "claude/claude-sonnet-4-6" {
+	if doc.Meta["default_standard_model"] != "claude/sonnet" {
 		t.Errorf("default_standard_model = %v", doc.Meta["default_standard_model"])
 	}
 	// A tier nobody picked gets no key, rather than an empty one.
@@ -1022,7 +1022,7 @@ func TestInitWritesReportFindings(t *testing.T) {
 func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
 	res, err := Run(Options{
 		Root: filepath.Join(t.TempDir(), "proj"), Now: fixedNow,
-		TierDefaults: map[string]string{"standard": "codex/gpt-5.4", "cheap": "claude/claude-haiku-4-5"},
+		TierDefaults: map[string]string{"standard": "codex/gpt-5.4", "cheap": "claude/haiku"},
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -1034,7 +1034,7 @@ func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tf.Tasks) != 1 || tf.Tasks[0].Model != "claude/claude-haiku-4-5" {
+	if len(tf.Tasks) != 1 || tf.Tasks[0].Model != "claude/haiku" {
 		t.Fatalf("tasks = %+v, want the sample task on the cheap model", tf.Tasks)
 	}
 	r, err := router.Load(filepath.Join(res.Root, ".orchestrator", "model_router.yaml"))
@@ -1044,7 +1044,7 @@ func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
 	if err := r.Validate(tf.Tasks); err != nil {
 		t.Errorf("the sample task does not route: %v", err)
 	}
-	if e := r["claude/claude-haiku-4-5"]; e.Tier != model.TierCheap || e.CLIModel != "claude-haiku-4-5" {
+	if e := r["claude/haiku"]; e.Tier != model.TierCheap || e.CLIModel != "haiku" {
 		t.Errorf("route = %+v, want orch's own cheap entry", e)
 	}
 	if tf.Meta.Extra["default_cheap_model"] == nil {
@@ -1059,7 +1059,7 @@ func TestBlankProjectGetsARunnableSampleTask(t *testing.T) {
 		t.Errorf("a project with no installed model got sample task %q", none.SampleTask)
 	}
 	tmpl, err := Run(Options{Root: filepath.Join(t.TempDir(), "tmpl"), Template: "python-api", Now: fixedNow,
-		TierDefaults: map[string]string{"cheap": "claude/claude-haiku-4-5"}})
+		TierDefaults: map[string]string{"cheap": "claude/haiku"}})
 	if err != nil {
 		t.Fatal(err)
 	}

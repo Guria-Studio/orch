@@ -95,7 +95,7 @@ const SampleSpec = `# F0 — Foundation
 
 ### F0.1.T1 — Next.js 14 App Router scaffold + Tailwind + shadcn/ui
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 30m
 - **Reason**: Scaffolding — deterministic.
 
@@ -105,14 +105,14 @@ const SampleSpec = `# F0 — Foundation
 
 ### F1.1.T1 — Clerk auth: middleware + sign-in/sign-up routes
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 36m
 - **Reason**: SDK integration — Sonnet handles it.
 - **Dependencies**: F0.1.T1
 
 ### F1.1.T2 — Protected /dashboard route + server-side user lookup
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 30m
 - **Reason**: One route + one Playwright test.
 - **Dependencies**: F1.1.T1
@@ -123,14 +123,14 @@ const SampleSpec = `# F0 — Foundation
 
 ### F2.1.T1 — Supabase Postgres schema + Drizzle client
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 48m
 - **Reason**: SDK glue + schema — deterministic.
 - **Dependencies**: F0.1.T1
 
 ### F2.1.T2 — Clerk webhook syncs users into Supabase
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 1h
 - **Reason**: Webhook + DB write + one integration test.
 - **Dependencies**: F1.1.T1, F2.1.T1
@@ -141,7 +141,7 @@ const SampleSpec = `# F0 — Foundation
 
 ### F3.1.T1 — Vercel deploy config + preview-on-PR
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 36m
 - **Reason**: CI wiring — small.
 - **Dependencies**: F0.1.T1, F2.1.T1

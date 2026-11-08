@@ -75,7 +75,7 @@ func metricsByModel(spends []state.Spend, table pricing.Table) []modelStats {
 			b = &spendBucket{}
 			buckets[model] = b
 		}
-		b.add(s, table.ResolveCost(s.CostUSD, model, s.TokensIn, s.TokensOut))
+		b.add(s, table.ResolveCost(s.CostUSD, model, s.Tokens()))
 	}
 
 	out := make([]modelStats, 0, len(buckets))
@@ -120,7 +120,7 @@ func metricsByDay(spends []state.Spend, table pricing.Table, days int) []dayStat
 			b = &spendBucket{}
 			buckets[day] = b
 		}
-		b.add(s, table.ResolveCost(s.CostUSD, model, s.TokensIn, s.TokensOut))
+		b.add(s, table.ResolveCost(s.CostUSD, model, s.Tokens()))
 	}
 
 	out := make([]dayStats, 0, len(buckets))
@@ -153,7 +153,7 @@ func totalCost(spends []state.Spend, table pricing.Table) float64 {
 			// unified, because unifying it would change one of the two.
 			model = "default"
 		}
-		total += table.ResolveCost(s.CostUSD, model, s.TokensIn, s.TokensOut)
+		total += table.ResolveCost(s.CostUSD, model, s.Tokens())
 	}
 	return round4(total)
 }

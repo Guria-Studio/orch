@@ -20,7 +20,7 @@ nothing else.**
 - The model routes: `.orchestrator/model_router.yaml`. Every `Model` you write
   should be one of its top-level keys, spelled exactly. A project scaffolded
   without a template starts with no routes; then use the `<backend>/<model>`
-  form the router expects (`claude/claude-sonnet-4-6`,
+  form the router expects (`claude/sonnet`,
   `codex/gpt-5.6`, `opencode/...`) and `orch-tasks` adds the routes.
 - The existing task ids: `orch tasks` and every file already in `specs/`.
 - The project id for the frontmatter: the first line of `orch explain`
@@ -73,7 +73,7 @@ validation yet; F1.2 and F1.3 replace those stubs.
 Done when: these tests pass in `src/api/session.test.ts` — the seeded user's
 credentials answer 200 with a session; any other credentials answer 401.
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 3h
 - **Reason**: Wiring across every layer; standard tier is enough.
 - **Dependencies**:
@@ -95,7 +95,7 @@ Done when: these tests pass in `src/auth/types.test.ts` — an empty email is
 rejected; an expired session is rejected; a valid user and session are
 accepted.
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 2h
 - **Reason**: Plain validation; standard tier is enough.
 - **Dependencies**: F1.1.T1
@@ -114,7 +114,7 @@ Done when: these tests pass in `src/api/session.test.ts` — the right password
 answers 200 with a session; a wrong password answers 401; an unknown email
 answers 401 with the same body as a wrong password.
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 4h
 - **Reason**: Auth logic with security edge cases.
 - **Dependencies**: F1.1.T1
@@ -212,7 +212,7 @@ Done when: these tests pass in `tests/e2e/checkout.spec.ts` — a cart shows
 its items and total; paying with a valid card shows the receipt; a declined
 card shows the decline and keeps the cart.
 
-- **Model**: claude/claude-sonnet-4-6
+- **Model**: claude/sonnet
 - **Estimate**: 3h
 - **Reason**: Browser exploration and flaky-free specs need a capable model.
 - **Dependencies**: F2.2.T1, F2.3.T1

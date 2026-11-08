@@ -934,3 +934,34 @@ func TestSetRouteEditsTwoLinesInPlace(t *testing.T) {
 		t.Error("a flow-style entry should be refused, not rewritten")
 	}
 }
+
+// TestPackagedClaudeRoutesFollowTheCLIAliases (#534): the packaged claude
+// routes pinned claude-opus-4-7 and claude-sonnet-4-6 a generation after
+// both were superseded, and every new project inherited them. The claude CLI
+// resolves an alias to the current model of its family, so the defaults name
+// aliases — one per tier — and never go stale.
+func TestPackagedClaudeRoutesFollowTheCLIAliases(t *testing.T) {
+	r, err := Load(filepath.Join("..", "scaffold", "defaults", "model_router.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	tiers := map[model.Tier]string{}
+	for _, key := range r.Keys() {
+		e := r[key]
+		if e.Backend != model.BackendClaude {
+			continue
+		}
+		if !slices.Contains(claudeAliases, e.CLIModel) {
+			t.Errorf("route %s pins cli_model %q; a packaged claude route names an alias (%s)", key, e.CLIModel, claudeAliasesShown)
+		}
+		if prev, dup := tiers[e.Tier]; dup {
+			t.Errorf("routes %s and %s are both claude %s; init's tier default would pick by key order", prev, key, e.Tier)
+		}
+		tiers[e.Tier] = key
+	}
+	for _, tier := range []model.Tier{model.TierPremium, model.TierStandard, model.TierCheap} {
+		if tiers[tier] == "" {
+			t.Errorf("no packaged claude route of tier %s", tier)
+		}
+	}
+}

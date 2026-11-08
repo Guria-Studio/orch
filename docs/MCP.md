@@ -12,7 +12,7 @@ New in the Go port. The Python `orch` has no MCP server.
 Until now the only channel from an agent back to orch was a shell-out:
 
 ```bash
-scripts/task-finish.sh F1.T3 "added the health endpoint" "claude/claude-sonnet-4-6"
+scripts/task-finish.sh F1.T3 "added the health endpoint" "claude/sonnet"
 ```
 
 which runs `orch task-status F1.T3 done --author … --note …`. That works, and
@@ -36,11 +36,11 @@ Since G6.6 the dispatch prompt names both, MCP first:
 ```
 3. Report back once, through ONE of these two channels.
    If you have orch's MCP tools, use them:
-     done:    orch_set_status  task_id "F1.T3", status "done", note "<what you did>", author "claude/claude-sonnet-4-6"
-     blocked: orch_block       task_id "F1.T3", reason "<why>", author "claude/claude-sonnet-4-6"  — then STOP.
+     done:    orch_set_status  task_id "F1.T3", status "done", note "<what you did>", author "claude/sonnet"
+     blocked: orch_block       task_id "F1.T3", reason "<why>", author "claude/sonnet"  — then STOP.
    If you do not have those tools, run the project's scripts instead:
-     done:    scripts/task-finish.sh F1.T3 "<what you did>" "claude/claude-sonnet-4-6"
-     blocked: scripts/task-block.sh F1.T3 "<why>" "claude/claude-sonnet-4-6"  — then STOP.
+     done:    scripts/task-finish.sh F1.T3 "<what you did>" "claude/sonnet"
+     blocked: scripts/task-block.sh F1.T3 "<why>" "claude/sonnet"  — then STOP.
 ```
 
 Both, rather than one chosen from config, because orch cannot know which the

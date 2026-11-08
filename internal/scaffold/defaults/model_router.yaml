@@ -30,7 +30,7 @@
 #   opencode-go/*          → opencode CLI pass-through (legacy cheap routes)
 #
 # Premium tier assigned per spec FR-C-1a:
-#   opus, gpt-5.6, gemini-3.0-pro, deepseek-v4-pro.
+#   claude/opus, gpt-5.6, gemini-3.0-pro, deepseek-v4-pro.
 #
 # Audit 2026-08-20: cleanup pass against the opencode-go accepted-model
 # registry. Renamed stale routes (grok-4.6 → grok-4.5, minimax-m2.5 →
@@ -40,23 +40,26 @@
 
 # ----- Anthropic-family via claude CLI -----
 
-claude/claude-opus-4-7:
+# Aliases, not pinned ids (#534): the claude CLI resolves `opus`, `sonnet`
+# and `haiku` to the current model of each family, so these routes follow
+# Anthropic's releases instead of going stale. Pin a version in your own
+# project's copy (`cli_model: claude-sonnet-5-5`) when a run must not move.
+
+claude/opus:
   backend: claude
-  cli_model: claude-opus-4-7
+  cli_model: opus
   tier: premium
   is_premium: true
-  fallback_cli_model: claude-opus-4-5
 
-claude/claude-sonnet-4-6:
+claude/sonnet:
   backend: claude
-  cli_model: claude-sonnet-4-6
+  cli_model: sonnet
   tier: standard
   is_premium: false
-  fallback_cli_model: claude-sonnet-4-5
 
-claude/claude-haiku-4-5:
+claude/haiku:
   backend: claude
-  cli_model: claude-haiku-4-5
+  cli_model: haiku
   tier: cheap
   is_premium: false
 

@@ -115,9 +115,9 @@ func TestTheOrchSpecExampleAtomizesCleanly(t *testing.T) {
 		files int
 	}
 	wantTasks := map[string]want{
-		"F1.1.T1": {"claude/claude-sonnet-4-6", 3, nil, 5},
-		"F1.2.T1": {"claude/claude-sonnet-4-6", 2, []string{"F1.1.T1"}, 2},
-		"F1.3.T1": {"claude/claude-sonnet-4-6", 4, []string{"F1.1.T1"}, 3},
+		"F1.1.T1": {"claude/sonnet", 3, nil, 5},
+		"F1.2.T1": {"claude/sonnet", 2, []string{"F1.1.T1"}, 2},
+		"F1.3.T1": {"claude/sonnet", 4, []string{"F1.1.T1"}, 3},
 	}
 	if len(res.Tasks) != len(wantTasks) {
 		t.Fatalf("parsed %d tasks, want %d: %+v", len(res.Tasks), len(wantTasks), res.Tasks)

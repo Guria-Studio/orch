@@ -70,9 +70,9 @@ func TestWizardEnterThroughGivesARunnableProject(t *testing.T) {
 		t.Errorf("Root = %q, want the current directory %q", s.opts.Root, cwd)
 	}
 	want := map[string]string{
-		"premium":  "claude/claude-opus-4-7",
-		"standard": "claude/claude-sonnet-4-6",
-		"cheap":    "claude/claude-haiku-4-5",
+		"premium":  "claude/opus",
+		"standard": "claude/sonnet",
+		"cheap":    "claude/haiku",
 	}
 	for tier, m := range want {
 		if s.opts.TierDefaults[tier] != m {
@@ -131,7 +131,7 @@ func TestSummaryShowsEveryChoiceBeforeTheGate(t *testing.T) {
 	summary = summary[:gate]
 
 	for _, want := range []string{
-		"billing-api", "python-api", "file", "aggressive", "docs/specs", "claude/claude-sonnet-4-6",
+		"billing-api", "python-api", "file", "aggressive", "docs/specs", "claude/sonnet",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Errorf("the summary omits %q:\n%s", want, summary)

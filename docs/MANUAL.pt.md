@@ -601,7 +601,7 @@ Três tasks, três CLIs:
 
 ```json
 "tasks": [
-  { "id": "T1", "model": "claude/claude-sonnet-4-6", ... },
+  { "id": "T1", "model": "claude/sonnet", ... },
   { "id": "T2", "model": "codex/gpt-5.4", ... },
   { "id": "T3", "model": "gemini/gemini-2.5-flash", ... }
 ]
@@ -609,9 +609,9 @@ Três tasks, três CLIs:
 
 ```yaml
 # .orchestrator/model_router.yaml — orch init already writes these entries
-claude/claude-sonnet-4-6:
+claude/sonnet:
   backend: claude
-  cli_model: claude-sonnet-4-6
+  cli_model: sonnet
   tier: standard
   is_premium: false
 codex/gpt-5.4:
@@ -641,9 +641,9 @@ eventos e dashboard mostram o backend que realmente rodou. Uma chave que
 não é rota faz `orch validate` falhar.
 
 ```yaml
-claude/claude-sonnet-4-6:
+claude/sonnet:
   backend: claude
-  cli_model: claude-sonnet-4-6
+  cli_model: sonnet
   tier: standard
   failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]
 ```

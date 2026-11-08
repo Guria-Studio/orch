@@ -278,7 +278,7 @@ func (s *Server) todaysCostByProvider(r *http.Request) (map[string]providerCost,
 		case sp.CostUSD > 0:
 			c.recorded += sp.CostUSD
 		case sp.TokensIn+sp.TokensOut > 0:
-			c.estimated += table.EstimateCost(sp.Model, sp.TokensIn, sp.TokensOut)
+			c.estimated += table.EstimateCost(sp.Model, sp.Tokens())
 		}
 		out[sp.Backend] = c
 	}

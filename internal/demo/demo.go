@@ -38,8 +38,8 @@ const (
 )
 
 const (
-	sonnet   = "claude/claude-sonnet-4-6"
-	opus     = "claude/claude-opus-4-7"
+	sonnet   = "claude/sonnet"
+	opus     = "claude/opus"
 	codex    = "codex/gpt-5"
 	opencode = "opencode/opencode/deepseek-v4-pro"
 	gemini   = "gemini/gemini-3.7-flash-medium"

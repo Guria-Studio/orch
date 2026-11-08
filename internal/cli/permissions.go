@@ -56,7 +56,8 @@ func projectBackends(root string) []string {
 }
 
 // routeBackend is the backend a model key routes to — the project's router,
-// else the packaged one — or "" when neither knows it.
+// else the packaged one, else the key's `<backend>/` prefix — or "" when
+// none knows it.
 func routeBackend(rtr router.Router, key string) string {
 	if e, ok := rtr[key]; ok {
 		return string(e.Backend)
@@ -65,6 +66,11 @@ func routeBackend(rtr router.Router, key string) string {
 		if e, ok := packaged[key]; ok {
 			return string(e.Backend)
 		}
+	}
+	// A key the packaged router no longer ships (claude/claude-sonnet-4-6
+	// after #534) still names its backend.
+	if e, err := router.InferEntry(key, ""); err == nil {
+		return string(e.Backend)
 	}
 	return ""
 }

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -280,6 +281,10 @@ var goOnly = map[string]bool{
 // divergedFromPython are files present in both trees that differ on purpose,
 // each with the reason. Editing a template is allowed; editing one without an
 // entry here is the drift TestGoTreeMatchesPython exists to catch.
+// claudeAliasReason: templates pinned claude-sonnet-4-6 a generation late;
+// they name the family and the claude CLI runs its current model (#534).
+const claudeAliasReason = "models are claude/sonnet and claude/opus, not pinned 4.6 ids (#534)"
+
 var divergedFromPython = map[string]string{
 	"specs/README.md": "told users to run `orch --mode auto`; in the Go binary --mode is a flag " +
 		"of `orch run`, so the suggested command failed with an unknown flag",
@@ -295,9 +300,10 @@ var divergedFromPython = map[string]string{
 	"projects/nextjs-saas/config.yaml.tmpl":      tunnelTemplateReason,
 	"projects/python-api/config.yaml.tmpl":       tunnelTemplateReason,
 	"projects/chatbot-whatsapp/tasks.json.tmpl": noTestsReason + "; F0.T1 waits for F0.T2, " +
-		"since before it there is no pyproject.toml for CI's `pip install -e .[dev]`",
-	"projects/data-pipeline/tasks.json.tmpl": noTestsReason,
-	"projects/python-api/tasks.json.tmpl":    noTestsReason,
+		"since before it there is no pyproject.toml for CI's `pip install -e .[dev]`; " + claudeAliasReason,
+	"projects/data-pipeline/tasks.json.tmpl": noTestsReason + "; " + claudeAliasReason,
+	"projects/python-api/tasks.json.tmpl":    noTestsReason + "; " + claudeAliasReason,
+	"projects/nextjs-saas/tasks.json.tmpl":   claudeAliasReason,
 	"gitignore.tmpl": "task worktrees moved out of the checkout to ../<project>.worktrees/ (#249); " +
 		"a comment says `.worktrees/` stays ignored only for what an older orch left inside the project",
 }
@@ -447,4 +453,19 @@ func loadTemplateTasks(t *testing.T, template string) []model.Task {
 		t.Fatalf("%s: the rendered tasks.json does not load: %v", template, err)
 	}
 	return file.Tasks
+}
+
+// TestTemplatesNameClaudeByAlias (#534): templates pinned
+// claude/claude-sonnet-4-6, so a project made today started a generation
+// behind. A template names the family (claude/sonnet, claude/opus); the CLI
+// resolves it to the current model and the packaged router gives it its tier.
+func TestTemplatesNameClaudeByAlias(t *testing.T) {
+	aliases := []string{"claude/opus", "claude/sonnet", "claude/haiku"}
+	for _, name := range canonical {
+		for _, task := range loadTemplateTasks(t, name) {
+			if strings.HasPrefix(task.Model, "claude/") && !slices.Contains(aliases, task.Model) {
+				t.Errorf("%s %s: model %q pins a claude version; use one of %v", name, task.ID, task.Model, aliases)
+			}
+		}
+	}
 }

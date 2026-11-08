@@ -29,7 +29,7 @@ exec git init -q fresh
 cd fresh
 exec orch start --no-run 'a todo app'
 stdout '^✓ claude, codex on PATH · git repository$'
-stdout 'orch project created in .*fresh \(premium claude/claude-opus-4-7 · standard claude/claude-sonnet-4-6 · cheap claude/claude-haiku-4-5\)'
+stdout 'orch project created in .*fresh \(premium claude/opus · standard claude/sonnet · cheap claude/haiku\)'
 # The fake codex prints no model list: its packaged routes stay, and start
 # says so (#397).
 stdout '^· models: codex: could not list its models; its packaged routes are kept$'
@@ -37,13 +37,13 @@ stdout 'Claude agents are refused orch''s own tools'
 stdout '^✓ installed claude skills: .*orch-plan'
 stdout '^→ claude plans it with /orch-plan'
 grep -count=1 '^/orch-plan a todo app$' $HOME/claude-args
-stdout '^↪ T2: opencode/glm-5.2 → claude/claude-sonnet-4-6 \(opencode is not on PATH\)$'
+stdout '^↪ T2: opencode/glm-5.2 → claude/sonnet \(opencode is not on PATH\)$'
 ! stdout 'T1:'
 stdout '^✓ model_router.yaml: added claude/claude-sonnet-4-5 \(tier standard; review it\)$'
 stdout '^✓ tasks.json: 3 tasks, DAG valid, every model routed$'
 stdout '^≈ 3 tasks · '
 stdout '^Next: orch run --max-tasks 2$'
-grep '"model": "claude/claude-sonnet-4-6"' tasks.json
+grep '"model": "claude/sonnet"' tasks.json
 ! grep 'opencode/glm-5.2' tasks.json
 # report_findings is on in a project start scaffolds (#399), and it says so.
 stdout '^report_findings is on: agents may file public issues about orch with your gh login'
@@ -161,20 +161,20 @@ exit 0
 n
 -- plan.json --
 {"meta":{},"phases":[],"tasks":[
-  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
   {"id":"T2","phase":1,"title":"Todo API","model":"opencode/glm-5.2","status":"todo","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""},
   {"id":"T3","phase":1,"title":"Todo docs","model":"claude/claude-sonnet-4-5","status":"todo","dependencies":["T1"],"estimateHours":1.0,"files":[],"specRef":""}
 ]}
 -- run-plan.json --
 {"meta":{},"phases":[],"tasks":[
-  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
-  {"id":"T2","phase":1,"title":"Todo docs","model":"claude/claude-haiku-4-5","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""},
+  {"id":"T2","phase":1,"title":"Todo docs","model":"claude/haiku","status":"todo","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
 ]}
 -- broken-plan.json --
 {"meta":{},"phases":[],"tasks":[
-  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"todo","dependencies":["T9"],"estimateHours":1.0,"files":[],"specRef":""}
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/haiku","status":"todo","dependencies":["T9"],"estimateHours":1.0,"files":[],"specRef":""}
 ]}
 -- backlog-plan.json --
 {"meta":{},"phases":[],"tasks":[
-  {"id":"T1","phase":1,"title":"Todo model","model":"claude/claude-haiku-4-5","status":"backlog","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
+  {"id":"T1","phase":1,"title":"Todo model","model":"claude/haiku","status":"backlog","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}
 ]}

@@ -119,7 +119,7 @@
   "sorted-by-cost": {
     "by_day": [
       {
-        "cost_usd": 18.3,
+        "cost_usd": 8.5,
         "date": "2026-09-01",
         "tasks_total": 3,
         "tokens_in": 3000000,
@@ -128,7 +128,7 @@
     ],
     "by_model": [
       {
-        "cost_usd": 15.0,
+        "cost_usd": 5.0,
         "model": "claude-opus-4-7",
         "tasks_total": 1,
         "tokens_in": 1000000,
@@ -142,14 +142,14 @@
         "tokens_out": 0
       },
       {
-        "cost_usd": 0.8,
+        "cost_usd": 1.0,
         "model": "claude-haiku-4-5",
         "tasks_total": 1,
         "tokens_in": 1000000,
         "tokens_out": 0
       }
     ],
-    "total_cost_usd": 18.3
+    "total_cost_usd": 8.5
   },
   "tie-breaks-on-name": {
     "by_day": [

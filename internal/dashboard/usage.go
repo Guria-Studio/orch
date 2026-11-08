@@ -61,7 +61,7 @@ func metricsByBackendDay(spends []state.Spend, table pricing.Table, days int) []
 		}
 		b.Tokens += s.TokensIn + s.TokensOut
 		b.Dispatches++
-		b.CostUSD += table.ResolveCost(s.CostUSD, modelOrUnknown(s.Model), s.TokensIn, s.TokensOut)
+		b.CostUSD += table.ResolveCost(s.CostUSD, modelOrUnknown(s.Model), s.Tokens())
 	}
 	out := make([]backendDayStats, 0, len(buckets))
 	kept := map[string]bool{}
@@ -113,7 +113,7 @@ func recentSpends(spends []state.Spend, table pricing.Table, n int) []recentSpen
 		out = append(out, recentSpend{
 			TS: s.TS, TaskID: s.TaskID, Backend: s.Backend, Model: s.Model,
 			TokensIn: s.TokensIn, TokensOut: s.TokensOut,
-			CostUSD:   round4(table.ResolveCost(s.CostUSD, modelOrUnknown(s.Model), s.TokensIn, s.TokensOut)),
+			CostUSD:   round4(table.ResolveCost(s.CostUSD, modelOrUnknown(s.Model), s.Tokens())),
 			Estimated: s.Estimated || s.CostUSD <= 0,
 		})
 	}

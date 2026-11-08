@@ -66,8 +66,8 @@ exec orch init sampleproj
 stdout 'Next: watch an agent do the sample task \(F0\.T1\)'
 stdout 'orch run --project-root .*sampleproj'
 stdout 'orch start "<what you want to build>"'
-grep '"model": "claude/claude-haiku-4-5"' sampleproj/tasks.json
-grep '"default_premium_model": "claude/claude-opus-4-7"' sampleproj/tasks.json
+grep '"model": "claude/haiku"' sampleproj/tasks.json
+grep '"default_premium_model": "claude/opus"' sampleproj/tasks.json
 ! grep 'agy/' sampleproj/tasks.json
 exec orch validate --project-root sampleproj --project-id sampleproj
 exec orch router validate --project-root sampleproj --project-id sampleproj
@@ -77,7 +77,7 @@ exec orch router validate --project-root sampleproj --project-id sampleproj
 stdout '"name":"models.defaults_installed","status":"ok"'
 env PATH=$ORCH_BIN_DIR
 ! exec orch doctor --project-root sampleproj --project-id sampleproj --json
-stdout '"name":"models.defaults_installed","status":"warn","detail":"default models need a CLI that is missing: premium claude/claude-opus-4-7 \(claude is not on PATH\)'
+stdout '"name":"models.defaults_installed","status":"warn","detail":"default models need a CLI that is missing: premium claude/opus \(claude is not on PATH\)'
 env PATH=$FULLPATH
 
 # ---- batch: opencode's own model list picks the routes (#397) --------------
@@ -146,7 +146,7 @@ stdin $WORK/enter3.txt
 exec orch init
 stdout 'project id \(fresh-repo\)'
 stdout 'project root     .*fresh-repo$'
-stdout 'premium   model  claude/claude-opus-4-7'
+stdout 'premium   model  claude/opus'
 ! stdout 'agy/'
 ! stdout PUBLIC
 stdout '✓ orch project initialized at .*fresh-repo$'
