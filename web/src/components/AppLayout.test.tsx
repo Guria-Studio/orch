@@ -82,6 +82,7 @@ describe("AppLayout", () => {
       "/work/graph?status=blocked",
       "/work/phases?status=blocked",
       "/work/pace?status=blocked",
+      "/work/plan?status=blocked",
     ])
     expect(within(tabs).getByRole("link", { current: "page" })).toHaveTextContent("Kanban")
   })

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom"
 import { t } from "@/i18n"
 
 /** What Tasks, Kanban and Graph say when the project has no tasks (or none match). */
@@ -12,7 +13,10 @@ export function EmptyTasks({ filtered = false }: { filtered?: boolean }) {
           <>
             {t("tasks.seed_before")} <code className="rounded bg-muted px-1 py-0.5 text-xs">orch atomize</code>{" "}
             {t("tasks.seed_or")} <code className="rounded bg-muted px-1 py-0.5 text-xs">orch init</code>{" "}
-            {t("tasks.seed_after")}
+            {t("tasks.seed_after")}{" "}
+            <Link to="/work/plan" className="font-medium text-foreground underline underline-offset-4">
+              {t("tasks.plan_link")}
+            </Link>
           </>
         )}
       </p>

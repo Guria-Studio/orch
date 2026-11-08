@@ -159,6 +159,11 @@ func TestOnboarding(t *testing.T) {
 	if f := items["first_run"]; f.Done || f.Command != "orch run" {
 		t.Errorf("first_run = %+v", f)
 	}
+	// #548: tasks come from planning, on the Plan page or with `orch start`;
+	// `orch validate` creates none.
+	if tk := items["tasks"]; tk.Link != "/work/plan" || tk.Command != "orch start" {
+		t.Errorf("tasks = %+v", tk)
+	}
 	if !items["vcs"].Optional || !items["tunnel"].Optional || items["tasks"].Optional {
 		t.Errorf("optional flags wrong: %+v", fresh.Items)
 	}

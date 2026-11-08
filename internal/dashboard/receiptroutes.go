@@ -203,7 +203,7 @@ func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Items = append(out.Items, budgetItem)
 
-	tasksItem := onboardingItem{ID: "tasks", Done: viewErr == nil && len(view.Tasks) > 0, Command: "orch validate", Link: "/work/list"}
+	tasksItem := onboardingItem{ID: "tasks", Done: viewErr == nil && len(view.Tasks) > 0, Command: "orch start", Link: "/work/plan"}
 	if viewErr != nil {
 		tasksItem.Detail = viewErr.Error()
 	}

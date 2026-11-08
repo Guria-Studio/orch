@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useTunnelCapabilities } from "@/hooks/useTunnelCapabilities"
 import { useTunnelStatus } from "@/hooks/useTunnelStatus"
-import { startTunnel, stopTunnel } from "@/lib/api"
+import { enableTunnel, startTunnel, stopTunnel } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { t, type MessageKey } from "@/i18n"
 import type { TunnelCapabilities, TunnelProvider, TunnelProviderId, TunnelState, TunnelStatus } from "@/lib/types"
@@ -44,15 +44,7 @@ export function SharePanel() {
   }
   switch (caps.data.reason) {
     case "config_disabled":
-      return (
-        <Notice title={t("tunnel.disabled_title")}>
-          <p>
-            {t("tunnel.disabled_before")} <code className="font-mono text-xs">.orchestrator/config.yaml</code>
-            {t("tunnel.disabled_middle")} <code className="font-mono text-xs">orch dashboard</code>:
-          </p>
-          <CommandBlock command={"tunnel:\n  enabled: true"} />
-        </Notice>
-      )
+      return <TurnOn onDone={() => void caps.refetch()} />
     case "profile_gate":
       return (
         <Notice title={t("tunnel.profile_title")}>
@@ -65,6 +57,35 @@ export function SharePanel() {
     default:
       return <ShareBody caps={caps.data} status={status} checking={caps.isFetching} onCheck={() => void caps.refetch()} />
   }
+}
+
+/** Sharing is off in config.yaml: one press turns it on here and for the next start (#548). */
+function TurnOn({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const turnOn = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await enableTunnel()
+      onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Notice title={t("tunnel.disabled_title")}>
+      <p>
+        {t("share.enable_detail")} <code className="font-mono text-xs">tunnel.enabled: true</code>
+      </p>
+      <Button type="button" size="sm" disabled={busy} onClick={() => void turnOn()} className="bg-brand text-white hover:bg-brand/90">
+        {t("share.enable")}
+      </Button>
+      {error ? <p className="text-status-failed">{error}</p> : null}
+    </Notice>
+  )
 }
 
 function ShareBody({

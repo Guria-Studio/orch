@@ -11,7 +11,9 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/tunnel"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -61,7 +63,9 @@ import (
 // A nil Manager with Enabled true is a wiring bug, not a config state, and
 // `/status` says so with a 500 rather than pretending the tunnel is idle.
 type tunnelDeps struct {
-	Enabled bool
+	// enabled is tunnel.enabled, which the Share panel can turn on while the
+	// dashboard runs (#548), so every read is atomic.
+	enabled atomic.Bool
 	// Command overrides the binary, for tests; empty means cloudflared.
 	Command          string
 	URLParseTimeoutS int
@@ -87,7 +91,26 @@ func (s *Server) tunnelRoutes() []route {
 			handler: s.handleTunnelStart},
 		{pattern: "POST /api/tunnel/stop", name: "api_tunnel_stop",
 			handler: s.handleTunnelStop},
+		{pattern: "POST /api/tunnel/enable", name: "api_tunnel_enable",
+			handler: s.handleTunnelEnable},
 	}
+}
+
+// handleTunnelEnable is the Share panel's "Turn sharing on" (#548): it writes
+// tunnel.enabled: true to config.yaml through config.Set, as `orch config set`
+// would, and turns the tunnel routes on in this dashboard, so Start works
+// without a restart. Gated as every operator write is; it starts nothing.
+func (s *Server) handleTunnelEnable(w http.ResponseWriter, r *http.Request) {
+	var body struct{}
+	if !s.operatorWrite(w, r, s.tunnel.Manager != nil, &body) {
+		return
+	}
+	if err := config.Set(s.paths.ConfigYAML, s.paths.Root, map[string]string{"tunnel.enabled": "true"}); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorPayload{Detail: err.Error()})
+		return
+	}
+	s.tunnel.enabled.Store(true)
+	s.writeTunnelStatus(w, http.StatusOK)
 }
 
 // relayHeaders are set by Cloudflare or any reverse proxy in front of the
@@ -185,7 +208,7 @@ func newLinkToken() (string, error) {
 // ("" for the default, cloudflared) and mints fresh link tokens. The URL
 // arrives asynchronously; TunnelLinks has it once the provider prints it.
 func (s *Server) StartTunnel(provider string) (tunnel.State, error) {
-	if !s.tunnel.Enabled {
+	if !s.tunnel.enabled.Load() {
 		return tunnel.State{}, errTunnelNotConfigured
 	}
 	if s.tunnel.Manager == nil {
@@ -289,12 +312,12 @@ var shortReason = map[string]string{
 // before it has asked anybody for one.
 func (s *Server) handleTunnelCapabilities(w http.ResponseWriter, r *http.Request) {
 	gates := tunnel.Gates{
-		Enabled:         s.tunnel.Enabled,
+		Enabled:         s.tunnel.enabled.Load(),
 		OperatorProfile: s.cfg.Profile == ProfileOperator,
 		LoopbackHost:    isLocalRequest(r),
 	}
-	payload := capabilitiesPayload{Enabled: s.tunnel.Enabled, Reasons: []string{}}
-	if s.tunnel.Enabled {
+	payload := capabilitiesPayload{Enabled: s.tunnel.enabled.Load(), Reasons: []string{}}
+	if s.tunnel.enabled.Load() {
 		p := tunnel.Provider
 		payload.Provider = &p
 	}
@@ -349,7 +372,7 @@ const statusLogTail = 8
 // exist), 403 for a profile or caller who may not ask.
 func (s *Server) controlGate(w http.ResponseWriter, r *http.Request) bool {
 	switch {
-	case !s.tunnel.Enabled:
+	case !s.tunnel.enabled.Load():
 		writeJSON(w, http.StatusNotFound, errorPayload{Detail: "not found"})
 	case s.cfg.Profile != ProfileOperator:
 		writeJSON(w, http.StatusForbidden, errorPayload{Detail: "operator only"})

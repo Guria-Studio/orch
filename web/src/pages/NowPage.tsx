@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Eye } from "lucide-react"
+import { AlertTriangle, Eye, Play } from "lucide-react"
 import { ActivityFeed } from "@/components/ActivityFeed"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CopyCommand } from "@/components/CopyCommand"
@@ -12,6 +13,7 @@ import { FirstRunChecklist } from "@/components/FirstRunChecklist"
 import { RunReceipt } from "@/components/RunReceipt"
 import { useBudgetSummary, type BudgetRow } from "@/hooks/useBudgetSummary"
 import { useFindings } from "@/hooks/useFindings"
+import { flowStep, useFlow } from "@/hooks/useFlow"
 import { useOnboarding, useReceipt } from "@/hooks/useReceipt"
 import { useMilestones } from "@/hooks/useMilestones"
 import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch } from "@/hooks/useNow"
@@ -189,21 +191,63 @@ function BudgetGauge({ row, now }: { row: BudgetRow; now: number }) {
   )
 }
 
-// What the next `orch run` would take, shown while nothing runs (#357).
-function NextRun({ e }: { e: Estimate }) {
+// What the next `orch run` would take, shown while nothing runs (#357), and
+// the Run that starts it once the operator confirms that estimate (#548).
+function NextRun({ e, canRun, onRan }: { e: Estimate; canRun: boolean; onRan: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const line = t("now.next_run", { count: e.tasks.length, cost: fmt.usd(e.cost_usd), time: formatDuration(e.wall_s), slots: e.slots })
+  const run = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await flowStep("run")
+      setConfirming(false)
+      onRan()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <section aria-labelledby="now-next">
       <Heading id="now-next" title={t("now.next_title")} />
-      <div className={cn(panel, "px-3.5 py-3")}>
-        <p className="tabular-nums">
-          {t("now.next_run", { count: e.tasks.length, cost: fmt.usd(e.cost_usd), time: formatDuration(e.wall_s), slots: e.slots })}
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {e.confidence === "none"
-            ? t("now.next_run_rough")
-            : t("now.next_run_basis", { count: e.past_attempts, confidence: t(`now.confidence.${e.confidence}`) })}
-        </p>
+      <div className={cn(panel, "flex flex-wrap items-center gap-3 px-3.5 py-3")}>
+        <div className="min-w-0 flex-1">
+          <p className="tabular-nums">{line}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {e.confidence === "none"
+              ? t("now.next_run_rough")
+              : t("now.next_run_basis", { count: e.past_attempts, confidence: t(`now.confidence.${e.confidence}`) })}
+          </p>
+        </div>
+        {canRun ? (
+          <Button type="button" size="sm" onClick={() => setConfirming(true)} className="bg-brand text-white hover:bg-brand/90">
+            <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            {t("now.run")}
+          </Button>
+        ) : null}
       </div>
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("now.run_confirm_title")}</DialogTitle>
+            <DialogDescription>{t("now.run_confirm_detail")}</DialogDescription>
+          </DialogHeader>
+          <p className="tabular-nums">{line}</p>
+          {error ? <p className="whitespace-pre-wrap text-status-failed">{error}</p> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirming(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => void run()} className="bg-brand text-white hover:bg-brand/90">
+              {t("now.run_confirm", { count: e.tasks.length })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
@@ -218,6 +262,7 @@ export function NowPage() {
   const onboarding = useOnboarding()
   const idle = !!data && data.working.length === 0 && data.run?.status !== "live"
   const { data: estimate } = useEstimate(idle)
+  const { data: flow, refetch: refetchFlow } = useFlow()
 
   if (isLoading) {
     return (
@@ -271,6 +316,20 @@ export function NowPage() {
         </div>
       ) : null}
 
+      {flow?.running && run?.status !== "live" ? (
+        <p className="flex items-center justify-end gap-2 text-xs text-muted-foreground" aria-live="polite">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-running motion-reduce:animate-none" aria-hidden />
+          {t("now.run_starting")}
+        </p>
+      ) : null}
+      {flow?.run_error && !flow.running ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("now.run_failed")}</AlertTitle>
+          <AlertDescription className="font-mono text-xs">{flow.run_error}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <section aria-label={t("now.title")} className="grid gap-3 sm:grid-cols-3">
         <Kpi label={t("now.kpi.done")} value={t("now.tasks_done", { done: summary.done, total: summary.total })}>
           <Meter pct={donePct} tone="bg-brand" label={t("now.kpi.done")} />
@@ -288,6 +347,15 @@ export function NowPage() {
       </section>
 
       <FindingsBanner />
+
+      {summary.total === 0 ? (
+        <p className="text-muted-foreground">
+          {t("now.no_tasks")}{" "}
+          <Link to="/work/plan" className="font-medium text-foreground underline underline-offset-4">
+            {t("now.plan_link")}
+          </Link>
+        </p>
+      ) : null}
 
       {onboarding.data && !onboarding.data.complete ? (
         <FirstRunChecklist onboarding={onboarding.data} onRecheck={() => void onboarding.refetch()} checking={onboarding.isFetching} />
@@ -341,7 +409,9 @@ export function NowPage() {
             )}
           </section>
 
-          {idle && estimate && estimate.tasks.length > 0 ? <NextRun e={estimate} /> : null}
+          {idle && estimate && estimate.tasks.length > 0 ? (
+            <NextRun e={estimate} canRun={!!flow && !flow.running} onRan={() => void refetchFlow()} />
+          ) : null}
         </div>
 
         <aside aria-label={t("now.context")} className="min-w-0 space-y-6">
