@@ -133,6 +133,11 @@ type Backend interface {
 	QueueFinding(ctx context.Context, f QueuedFinding) (int64, error)
 	QueuedFindings(ctx context.Context) ([]QueuedFinding, error)
 	SetFindingStatus(ctx context.Context, id int64, status, url string) error
+
+	// RecordAttempt appends one finished attempt; Attempts lists them, oldest
+	// first — what `orch metrics` reads (#538).
+	RecordAttempt(ctx context.Context, a Attempt) error
+	Attempts(ctx context.Context) ([]Attempt, error)
 }
 
 // Sentinel errors callers act on. Everything else is wrapped context.

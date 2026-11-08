@@ -135,6 +135,9 @@ type StateReader interface {
 	LatestRun(ctx context.Context) (state.Run, error)
 	InFlightDispatches(ctx context.Context) ([]state.Dispatch, error)
 
+	// Attempts is every finished attempt, for /api/agent-metrics (#538).
+	Attempts(ctx context.Context) ([]state.Attempt, error)
+
 	// StakeholderToken is this project's rotated stakeholder token hash, if
 	// any (G8.2/F3.3) — resolved fresh on every gated request (see
 	// expectedTokenHash) rather than once at startup, so

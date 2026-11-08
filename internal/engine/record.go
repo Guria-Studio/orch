@@ -126,6 +126,10 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 		return fmt.Errorf("append outcome event for %s: %w", d.Req.TaskID, err)
 	}
 
+	if err := b.RecordAttempt(ctx, attemptRow(runID, d, o, ts, attempt)); err != nil {
+		return fmt.Errorf("record attempt for %s: %w", d.Req.TaskID, err)
+	}
+
 	if err := b.ClearDispatch(ctx, runID, d.Req.TaskID); err != nil {
 		return fmt.Errorf("clear dispatch for %s: %w", d.Req.TaskID, err)
 	}
@@ -162,6 +166,46 @@ func spendRow(d Dispatch, o Outcome, attempt int) state.Spend {
 		DurationS:           o.Duration.Seconds(),
 		Estimated:           o.Result.Estimated,
 	}
+}
+
+// attemptRow is a finished attempt for `orch metrics` (#538).
+func attemptRow(runID string, d Dispatch, o Outcome, ts string, attempt int) state.Attempt {
+	a := state.Attempt{
+		RunID: runID, TaskID: d.Req.TaskID, Attempt: attempt,
+		Backend: string(d.Req.Route.Backend), Model: d.Req.Route.CLIModel, Tier: string(d.Req.Route.Tier),
+		Result:   "fail",
+		TokensIn: o.Result.TokensIn, TokensOut: o.Result.TokensOut,
+		CostUSD: o.Result.CostUSD, DurationS: o.Duration.Seconds(), FinishedAt: ts,
+	}
+	switch {
+	case o.Stopped:
+		a.Result = "stopped"
+	case o.Result.Success:
+		a.Result = "success"
+	default:
+		if o.TimedOut {
+			a.Result = "timeout"
+		}
+		a.FailureClass, a.Reason = string(o.Failure), truncateReason(o.Result.ErrorMessage)
+	}
+	if v := o.Verify; v != nil {
+		a.Verify = "pass"
+		if v.Failure != "" {
+			a.Verify = "fail"
+		}
+		if v.Reviewer != "" {
+			// The review runs last, only on work the checks passed, so a
+			// failure with a reviewer is the review's.
+			a.Review, a.Reviewer = "pass", v.Reviewer
+			if v.Failure != "" {
+				a.Review = "blocks"
+			}
+		}
+		for _, f := range v.Findings {
+			a.Findings = append(a.Findings, state.AttemptFinding{Severity: f.Severity, File: f.File, Line: f.Line, Title: f.Title})
+		}
+	}
+	return a
 }
 
 // outcomeEvent builds the event for a finished dispatch.
