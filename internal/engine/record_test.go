@@ -601,3 +601,21 @@ func TestRecordFinishKeepsTheAttempt(t *testing.T) {
 		t.Errorf("second attempt = %+v", b)
 	}
 }
+
+// TestRecordFinishMarksAnUnavailableReview (#539): a review that could not
+// run is kept as such on the attempt, not as a pass.
+func TestRecordFinishMarksAnUnavailableReview(t *testing.T) {
+	ctx := context.Background()
+	b := openBackend(t)
+	out := Outcome{Result: providers.Result{Success: true}, StartedAt: time.Now(), Verify: &VerifyResult{ReviewUnavailable: "no other provider"}}
+	if err := RecordFinish(ctx, b, "run-1", recordDispatch("B-020"), out, 1); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.Attempts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Verify != "pass" || got[0].Review != "unavailable" {
+		t.Errorf("attempts = %+v, want verify pass with the review unavailable", got)
+	}
+}
