@@ -375,6 +375,13 @@ retry:
 Classes: `transient`, `timeout`, `rate_limit`, `version_drift`, `ci_failed`.
 Each takes `max_attempts`, `backoff_seconds` and `escalate_model`.
 
+Every retry the reaper queues — a retry, an escalation, a rate-limit
+failover, a timed-out agent that was still working — tells the next attempt
+why the last one failed (#540): its prompt carries the failure class, the
+message, the last 40 lines of the attempt's log and, when the local verify's
+last rejection still stands, its review findings. CI retries and verify
+send-backs already leave theirs in the feedback file.
+
 `conflict` is the one class outside the reaper: a PR the CI poller finds
 conflicting with its base (#438). Only `max_attempts` is read. **A config
 without it is off** (`0`), so upgrading never starts pushing to PRs or paying

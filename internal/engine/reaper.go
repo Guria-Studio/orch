@@ -569,6 +569,8 @@ func (s *Scheduler) queueRetry(ctx context.Context, entry *InFlight, d RetryDeci
 		}
 	}
 
+	s.lastFailure[entry.Task.ID] = s.failureNote(entry, out)
+
 	// Back to todo so the ready set picks it up again. The retry queue is
 	// what actually re-dispatches it, but the status has to move or Ready
 	// would never consider it.

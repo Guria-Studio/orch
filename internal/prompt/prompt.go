@@ -105,6 +105,11 @@ type Options struct {
 	// Empty, the block is not rendered.
 	FeedbackFile string
 
+	// LastFailure is why the previous attempt failed — its class, message,
+	// log tail and standing review findings — for a retry the retry policy
+	// queued (#540). Empty, the block is not rendered.
+	LastFailure string
+
 	// Conflict is the merge of the base a conflict retry stopped on (#438).
 	// Nil, the block is not rendered.
 	Conflict *Conflict
@@ -189,7 +194,7 @@ func Render(task model.Task, completedDeps []model.Task, specRef string, opts Op
 		"deps_block":      renderDepsBlock(completedDeps),
 		"knowledge_block": rulesBlock(opts.Rules) + knowledgeBlock(opts.Knowledge),
 		"notes_block":     renderNotesBlock(opts.OperatorNotes),
-		"feedback_block":  feedbackBlock(opts.FeedbackFile),
+		"feedback_block":  feedbackBlock(opts.FeedbackFile) + lastFailureBlock(opts.LastFailure),
 		"conflict_block":  conflictBlock(opts.Conflict),
 		"model":           task.Model,
 		"working_dir":     workingDir,
@@ -373,6 +378,16 @@ func feedbackBlock(file string) string {
 	return fmt.Sprintf("Your previous attempt at this task was rejected. Its work is already in your\n"+
 		"working dir. READ FIRST %s: it says what failed. Fix that rather than\n"+
 		"starting over.\n", file)
+}
+
+// lastFailureBlock tells a retried agent why its previous attempt failed, or
+// is empty (#540).
+func lastFailureBlock(note string) string {
+	if strings.TrimSpace(note) == "" {
+		return ""
+	}
+	return "Your previous attempt at this task failed. Find out why below and do not repeat it;\n" +
+		"if the cause is outside your reach, block the task and say so.\n\n" + strings.TrimSpace(note) + "\n"
 }
 
 // conflictBlock tells a conflict retry's agent that its kept work is
