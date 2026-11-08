@@ -2,7 +2,6 @@ package project
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -191,24 +190,11 @@ func validationErrors(tasks []model.Task, routes []string) []string {
 	return out
 }
 
-// writeTasksFile writes tf the way model.SaveTasksFile encodes it, through a
-// temp file and a rename, so a reader — orch run reloading it — never sees
-// half a file. No backup: tasks.json is versioned with git, and one per
-// dashboard edit would bury the project in tasks.json.bak-* files.
+// writeTasksFile writes tf atomically through model.SaveTasksFile. No
+// backup: tasks.json is versioned with git, and one per dashboard edit would
+// bury the project in tasks.json.bak-* files.
 func writeTasksFile(path string, tf model.TasksFile) error {
-	data, err := json.MarshalIndent(tf, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encoding tasks.json: %w", err)
-	}
-	tmp := path + ".tmp"
-	// #nosec G306 -- tasks.json is a plain, git-tracked file, as model.SaveTasksFile writes it.
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return fmt.Errorf("writing %s: %w", tmp, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("replacing %s: %w", path, err)
-	}
-	return nil
+	return model.SaveTasksFile(path, tf)
 }
 
 // lockFile takes an exclusive flock on path, creating it, and returns the

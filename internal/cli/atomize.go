@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/pyfmt"
 )
 
@@ -115,7 +117,7 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("load %s: %w", tasksPath, err)
 			}
 
-			merged, diff := atomize.MergeTasks(existing, parse.Tasks)
+			_, diff := atomize.MergeTasks(existing, parse.Tasks)
 			if _, err := fmt.Fprint(out, atomize.RenderDiff(diff, parse)); err != nil {
 				return err
 			}
@@ -128,7 +130,12 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 
-			backupPath, err := atomize.Apply(tasksPath, merged, !noBackup)
+			// Merged again under the task editor's lock, onto tasks.json as it is
+			// now: an edit that landed since the preview is kept (#531).
+			backupPath, err := project.MutateTasks(paths.StateDir(), tasksPath, !noBackup, func(tf *model.TasksFile) error {
+				*tf, _ = atomize.MergeTasks(*tf, parse.Tasks)
+				return nil
+			})
 			if err != nil {
 				return fmt.Errorf("write %s: %w", tasksPath, err)
 			}
