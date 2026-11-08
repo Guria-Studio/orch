@@ -61,6 +61,8 @@ type Server struct {
 	cliLatest doctor.LatestFunc
 	// steer is Options.Steer.
 	steer *project.Steer
+	// findings is Options.Findings.
+	findings *FindingsDesk
 	// editor is Options.Editor.
 	editor *project.TaskEditor
 	// knowledge is Options.Knowledge.
@@ -200,6 +202,9 @@ type Options struct {
 	// asks confirm with its task id; true dispatches it and Curate returns
 	// when that run ends. Nil turns its endpoints off.
 	Curate func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error
+	// Findings is the agents' reports about orch, for the Findings page to
+	// preview and send (#536). Nil shows an empty queue.
+	Findings *FindingsDesk
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -232,6 +237,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		editor:    opts.Editor,
 		knowledge: opts.Knowledge,
 		curate:    opts.Curate,
+		findings:  opts.Findings,
 		tunnel: tunnelDeps{
 			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,

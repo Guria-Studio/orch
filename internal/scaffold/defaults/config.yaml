@@ -75,12 +75,13 @@ typical_dispatch_tokens: 200000
 # Dogfooding — let agents report problems with orch itself.
 # `orch init` and `orch start` write `enabled: true` and say so
 # (`--no-report-findings` writes false). `enabled: true` turns on the MCP tool
-# `orch_report_finding`: an agent files a bug, improvement or feature request
-# as a PUBLIC `auto-reported` issue on Guria-Studio/orch under your own
-# `gh` login, and every dispatch prompt ends with an optional "Feedback about
-# orch itself" block. Agents are told to leave out secrets, project code and
-# project or customer names. Set `enabled: false` to turn it off; a config
-# without this block is off. See docs/DOGFOODING.md.
+# `orch_report_finding`: an agent reports a bug, improvement or feature request
+# about orch itself, and every dispatch prompt ends with an optional "Feedback
+# about orch itself" block. Reports wait in orch.db, secrets redacted; nothing
+# is public until you review one with `orch findings` (or the dashboard's
+# Findings page) and send it as a PUBLIC issue on Guria-Studio/orch under your
+# own `gh` login. Set `enabled: false` to turn it off; a config without this block
+# is off. See docs/DOGFOODING.md.
 report_findings:
   enabled: true
 

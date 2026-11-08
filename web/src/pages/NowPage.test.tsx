@@ -30,6 +30,8 @@ vi.mock("@/hooks/useNow", () => ({
   useTicker: () => NOW,
 }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ status: "open", lastEventAt: null }) }))
+let findingsPending = 0
+vi.mock("@/hooks/useFindings", () => ({ useFindings: () => ({ data: { findings: [], pending: findingsPending, can_send: true, repo: "Guria-Studio/orch" } }) }))
 vi.mock("@/hooks/useMilestones", () => ({
   useMilestones: () => ({
     data: [{ phase: 0, name: "Foundation", status: "active", progress: { total: 3, done: 2, pct: 66 }, in_progress: 1, blocked: 0, eta: null }],
@@ -162,6 +164,16 @@ describe("NowPage", () => {
     expect(screen.getByText(/This project has not run yet/)).toBeInTheDocument()
     expect(screen.getByText(/Nothing is running/)).toBeInTheDocument()
     expect(screen.getByText(/Nothing needs you/)).toBeInTheDocument()
+  })
+
+  // #536: the bugs agents queued about orch wait for the operator, and Now
+  // says how many, linking to where they are reviewed and sent.
+  it("says how many of orch's own bugs wait to be reviewed", () => {
+    findingsPending = 2
+    renderPage()
+    expect(screen.getByText("orch found 2 bugs of its own")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Review and send" })).toHaveAttribute("href", "/system/findings")
+    findingsPending = 0
   })
 
   it("says what the next run would take while nothing runs", () => {

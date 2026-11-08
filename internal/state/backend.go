@@ -127,6 +127,12 @@ type Backend interface {
 	// project; RecordFiledFinding adds one (#441).
 	FiledFindings(ctx context.Context) ([]FiledFinding, error)
 	RecordFiledFinding(ctx context.Context, f FiledFinding) error
+
+	// QueueFinding, QueuedFindings and SetFindingStatus are the review queue
+	// between an agent's report and a public issue (#536).
+	QueueFinding(ctx context.Context, f QueuedFinding) (int64, error)
+	QueuedFindings(ctx context.Context) ([]QueuedFinding, error)
+	SetFindingStatus(ctx context.Context, id int64, status, url string) error
 }
 
 // Sentinel errors callers act on. Everything else is wrapped context.

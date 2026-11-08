@@ -12,6 +12,7 @@ import {
   KanbanSquare,
   LayoutGrid,
   Lightbulb,
+  Bug,
   ListIcon,
   Milestone,
   Radio,
@@ -111,6 +112,7 @@ export const DESTINATIONS: NavDestination[] = [
       { to: "/system/tools", label: "nav.tools", route: "api_tools", operatorOnly: true },
       { to: "/system/skills", label: "nav.skills", route: "api_skills", operatorOnly: true },
       { to: "/system/knowledge", label: "nav.knowledge", route: "api_knowledge", operatorOnly: true },
+      { to: "/system/findings", label: "nav.findings", route: "api_findings", operatorOnly: true },
       // The event log; a stakeholder whose allow-list grants it sees it too.
       { to: "/system/logs", label: "nav.logs", route: "api_events", operatorOnly: true },
       { to: "/system/settings", label: "nav.settings", route: "api_config_effective", operatorOnly: true },
@@ -139,6 +141,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/system/tools": Wrench,
   "/system/skills": BookOpen,
   "/system/knowledge": Lightbulb,
+  "/system/findings": Bug,
   "/system/settings": Settings,
   "/system/logs": ScrollText,
 }

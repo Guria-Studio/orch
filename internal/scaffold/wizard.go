@@ -243,6 +243,25 @@ func (w *WizardIO) readLine() (string, error) {
 	return w.in.Text(), nil
 }
 
+// ConfirmOrYes is Confirm for a question whose default stands when nobody
+// answers: input that has run out (a script, a pipe) is a yes.
+func (w *WizardIO) ConfirmOrYes(question string) (bool, error) {
+	_, _ = fmt.Fprint(w.out, question+" [Y/n] ") // see WizardIO.say
+	line, err := w.readLine()
+	if errors.Is(err, io.EOF) {
+		_, _ = fmt.Fprintln(w.out)
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "", "y", "yes", "s", "si", "sí":
+		return true, nil
+	}
+	return false, nil
+}
+
 // Confirm asks one yes/no question, yes by default — for what `orch init`
 // offers once the project is written. Input that has run out is a no.
 func (w *WizardIO) Confirm(question string) (bool, error) {

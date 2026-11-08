@@ -204,35 +204,38 @@ fetched on demand.
 ### `orch_report_finding`
 
 `{type, title, summary, evidence?, repro?, suggested_fix?, confidence?, confirm_new?}`
-— files a bug, an improvement or a feature request **about orch itself** on
-`Guria-Studio/orch`, labelled
-`auto-reported` (which `orch sync issues` refuses to ingest, so a report never
-loops back as a task). `type` is `bug`, `improvement` or `feature`.
+— **queues** a bug, an improvement or a feature request **about orch itself**
+for the operator (#536). Nothing is public until they send it with
+`orch findings send` or the dashboard's Findings page, which files it on
+`Guria-Studio/orch` labelled `auto-reported` (which `orch sync issues` refuses
+to ingest, so a report never loops back as a task). `type` is `bug`,
+`improvement` or `feature`.
 
 - **On in new projects.** Off unless `.orchestrator/config.yaml` has
   `report_findings.enabled: true`, which `orch init` writes (a config without
   the key is off); the tool is listed either way and, when
-  off, answers with an error telling the agent to tell the operator. It runs
-  the operator's own `gh`, from the MCP server process, so it works even when
-  the agent's own Bash is denied.
-- **Deduplicated.** It first reads the issues this project already filed
-  (`filed_findings` in `orch.db`) and searches `auto-reported` issues (open
-  and closed) by the title's key words. A closed one with the same title
-  (ignoring case and punctuation) returns `duplicate` and files nothing. A
-  likely duplicate among the remembered and the open ones — half the key
-  words shared, or two plus the same quoted command or error string — gets a
-  "seen again in task X at <time>" comment and returns `duplicate`,
-  `commented: true` and its `url` (#441). Other matches return `similar` and
-  file nothing unless the call sets `confirm_new: true`. See
-  [`DOGFOODING.md`](DOGFOODING.md).
-- **Redacted.** The project root becomes `<project>` and the home directory
-  `~` in the title and body. The description asks for no secrets, project
-  code or names; nothing else is filtered.
+  off, answers with an error telling the agent to tell the operator. Its
+  search runs the operator's own `gh`, from the MCP server process; it files
+  and comments nothing.
+- **Deduplicated.** It first reads the reports waiting in this project's queue
+  (`finding_queue`) and the issues it already filed (`filed_findings`), and
+  searches `auto-reported` issues (open and closed) by the title's key words.
+  A closed one with the same title (ignoring case and punctuation) returns
+  `duplicate`. A likely duplicate among the queued, the remembered and the
+  open ones — half the key words shared, or two plus the same quoted command
+  or error string — returns `duplicate` (and the issue's `url`) (#441). Other
+  matches return `similar` and queue nothing unless the call sets
+  `confirm_new: true`. See [`DOGFOODING.md`](DOGFOODING.md).
+- **Redacted before anyone sees it.** The project root becomes `<project>`,
+  the home directory `~`, and token shapes (GitHub, GitLab, OpenAI, Anthropic,
+  AWS, Slack, Google keys, JWTs, bearer values, private key blocks, and
+  `password=`/`api_key:`-style values) `[redacted]`. The operator's preview is
+  the rest of the gate: client names or code can only be caught there.
 - **Asked for.** With the opt-in on, every dispatch prompt ends with an
   optional "Feedback about orch itself" block, after the report-back step,
   inviting the agent to report what orch should do better or does not do.
   Without it the prompt is unchanged.
-- Returns `{filed, url?, duplicate?, commented?, similar?, message}`.
+- Returns `{queued, queue_id?, url?, duplicate?, similar?, message}`.
 
 ### `orch_learn`
 

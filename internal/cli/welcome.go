@@ -188,7 +188,7 @@ func (f *welcomeFlow) Project(ctx context.Context, path string, gitInit bool) er
 	_, tasksErr := os.Stat(filepath.Join(root, "tasks.json"))
 	_, orchErr := os.Stat(filepath.Join(root, ".orchestrator"))
 	if tasksErr != nil && orchErr != nil {
-		if err := scaffoldForStart(ctx, root, f.say); err != nil {
+		if err := scaffoldForStart(ctx, root, nil, f.say); err != nil {
 			return err
 		}
 	} else {

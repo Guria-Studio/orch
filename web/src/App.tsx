@@ -26,6 +26,7 @@ import { LogsPage } from "@/pages/LogsPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { SkillsPage } from "@/pages/SkillsPage"
 import { KnowledgePage } from "@/pages/KnowledgePage"
+import { FindingsPage } from "@/pages/FindingsPage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { UsagePage } from "@/pages/UsagePage"
 import { WelcomePage } from "@/pages/WelcomePage"
@@ -61,6 +62,7 @@ const PAGES: Record<string, ReactNode> = {
   "/system/tools": <ToolsPage />,
   "/system/skills": <SkillsPage />,
   "/system/knowledge": <KnowledgePage />,
+  "/system/findings": <FindingsPage />,
   "/system/settings": <SettingsPage />,
   "/system/logs": <LogsPage />,
 }

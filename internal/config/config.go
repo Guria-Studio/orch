@@ -208,12 +208,15 @@ type Portal struct {
 // and the folder's README is about the folder, not the project.
 var DefaultPortalDocuments = []string{"docs/prd/*.md", "docs/arch/*.md", "specs/f*.md"}
 
-// ReportFindings lets the MCP tool orch_report_finding file GitHub issues
-// about orch itself on Guria-Studio/orch, with the operator's own `gh`.
+// ReportFindings lets agents report bugs in orch itself through the MCP tool
+// orch_report_finding. A report is queued, redacted, for the operator, who
+// previews it and sends it as a Guria-Studio/orch issue with their own `gh`
+// (`orch findings`, or the dashboard's Findings page); nothing is public
+// before that (#536).
 //
-// Off by default: a public issue under someone's account is not something a
-// project should do because an agent decided to. Go only, no Python source —
-// the Python line's `findings:` block was a different, dropped feature.
+// On in new projects: `orch init` and `orch start` ask once, yes by default,
+// and write the answer (#399, #536). Off when the key is absent, so a project
+// from before never starts reporting on an upgrade. Go only, no Python source.
 type ReportFindings struct {
 	Enabled bool `yaml:"enabled"`
 }

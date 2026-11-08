@@ -21,8 +21,8 @@
 //
 // The other five (`orch_list_tasks`, `orch_get_task`, `orch_budget`,
 // `orch_events`, `orch_context`) are read-only and have no script equivalent
-// at all. `orch_report_finding` writes nothing local: it files a GitHub issue
-// about orch itself, and only when the project opted in.
+// at all. `orch_report_finding` queues a report about orch itself for the
+// operator to review and send (#536), and only when the project opted in.
 //
 // # One backend, no second source of truth
 //
@@ -92,7 +92,7 @@ type Options struct {
 	// Version is reported in `initialize`, so an agent can tell which orch
 	// it is talking to.
 	Version string
-	// Findings files orch_report_finding's issues. Nil means
+	// Findings searches for reports that already exist. Nil means
 	// `report_findings.enabled` is off: the tool is still listed, and says so.
 	Findings FindingsReporter
 	// Knowledge is knowledge.enabled: off, orch_learn and orch_knowledge_search
@@ -176,16 +176,17 @@ func NewServer(opts Options) (*mcpsdk.Server, error) {
 
 	mcpsdk.AddTool(srv, &mcpsdk.Tool{
 		Name: "orch_report_finding",
-		Description: "Report something about orch itself as a GitHub issue on " +
-			FindingsRepo + ": a bug (orch did something wrong or got in your way — " +
+		Description: "Report something about orch itself, for the operator to review and " +
+			"send as an issue on " + FindingsRepo + ": a bug (orch did something wrong or got in your way — " +
 			"a wrong status, a refused tool, a confusing message), an improvement " +
 			"(it works but could be clearer, faster or take fewer steps), or a " +
 			"feature (a capability orch lacks — a command or flag you looked for, a " +
 			"step you had to do by hand that orch could do). Only about orch, never " +
 			"the project you are working on: no secrets, no project code, no " +
-			"customer or project names. It searches first: a same-titled issue is " +
-			"returned instead of filed, and similar ones stop the filing until you " +
-			"call again with confirm_new. Report once per finding, then carry on.",
+			"customer or project names. It searches first: a same-titled issue, or one " +
+			"already waiting in the queue, is returned instead of queued, and similar " +
+			"ones stop it until you call again with confirm_new. Nothing is public " +
+			"until the operator sends it. Report once per finding, then carry on.",
 	}, s.reportFinding)
 
 	mcpsdk.AddTool(srv, &mcpsdk.Tool{

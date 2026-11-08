@@ -148,10 +148,11 @@ tool, a message that misled you — or you notice what it should do better or
 does not do at all — a command or flag you looked for, a step you had to do by
 hand that orch could do — report it with
 `orch_report_finding` (`type` bug|improvement|feature, `title`, `summary`,
-optional `evidence`, `repro`, `suggested_fix`, `confidence`). It files an
-`auto-reported` issue on Guria-Studio/orch, so keep it about orch: no
-secrets, no project code or names. It searches first and returns an existing
-report instead of filing a duplicate; if it lists similar issues, read them
+optional `evidence`, `repro`, `suggested_fix`, `confidence`). It queues the
+report for the operator, who reviews it and sends it as an issue on
+Guria-Studio/orch, so keep it about orch: no secrets, no project code or
+names. It searches first and returns an existing or queued report instead of
+queueing a duplicate; if it lists similar issues, read them
 and call again with `confirm_new: true` only if yours is different. It works
 only when the project sets `report_findings.enabled: true` (what `orch init`
 writes; a config without the key is off); when off, tell the operator instead. Then carry on with your task.
