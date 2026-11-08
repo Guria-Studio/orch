@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"testing"
 	"syscall"
+	"testing"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/budget"
@@ -199,37 +199,6 @@ func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
-	}
-}
-
-// TestRunKillsTheWholeGroupOnTimeout (#541): a check that times out takes
-// its children with it — a server verify.app.start left running, a test
-// runner's workers — not only the sh orch started.
-func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
-	dir := t.TempDir()
-	start := time.Now()
-	_, err := run(context.Background(), dir, nil, `sleep 30 & echo $! > child.pid; wait`, 500*time.Millisecond)
-	if err == nil || !strings.Contains(err.Error(), "timed out") {
-		t.Fatalf("run = %v, want a timeout", err)
-	}
-	if took := time.Since(start); took > 4*time.Second {
-		t.Errorf("run took %s: it waited on the orphaned child's output", took)
-	}
-	raw, rerr := os.ReadFile(filepath.Join(dir, "child.pid")) // #nosec G304 -- the test's own temp dir
-	if rerr != nil {
-		t.Fatal(rerr)
-	}
-	pid, perr := strconv.Atoi(strings.TrimSpace(string(raw)))
-	if perr != nil {
-		t.Fatal(perr)
-	}
-	deadline := time.Now().Add(3 * time.Second)
-	for syscall.Kill(pid, 0) == nil {
-		if time.Now().After(deadline) {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
-			t.Fatalf("the check's child %d outlived the timeout", pid)
-		}
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -633,5 +602,36 @@ func TestVerifyReviewCarriesTheRulesForTheChange(t *testing.T) {
 	}
 	if off := (Verifier{}).rules("T-1", dir, []string{"src/app/pay.ts"}); off != nil {
 		t.Errorf("rules with knowledge off = %v", off)
+	}
+}
+
+// TestRunKillsTheWholeGroupOnTimeout (#541): a check that times out takes
+// its children with it — a server verify.app.start left running, a test
+// runner's workers — not only the sh orch started.
+func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Now()
+	_, err := run(context.Background(), dir, nil, `sleep 30 & echo $! > child.pid; wait`, 500*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("run = %v, want a timeout", err)
+	}
+	if took := time.Since(start); took > 4*time.Second {
+		t.Errorf("run took %s: it waited on the orphaned child's output", took)
+	}
+	raw, rerr := os.ReadFile(filepath.Join(dir, "child.pid")) // #nosec G304 -- the test's own temp dir
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	pid, perr := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatalf("the check's child %d outlived the timeout", pid)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
