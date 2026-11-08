@@ -155,7 +155,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 			// expectedTokenHash), so `orch dashboard token rotate` against an
 			// already-running dashboard needs no restart to take effect.
 			if err := resolveTokenHash(ctx, backend, &dashCfg); err != nil {
-				return fmt.Errorf("resolving the stakeholder token: %w", err)
+				return fmt.Errorf("resolving the client token: %w", err)
 			}
 			// The database winning is deliberate, but silent it reads as a
 			// broken flag (#275): the banner says `source: database` and the
@@ -165,7 +165,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 			if dashCfg.TokenSource == "database" && dashCfg.Token != "" &&
 				dashCfg.Profile != dashboard.ProfileOperator {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-					"[warn] %s is ignored: this project has a stakeholder token "+
+					"[warn] %s is ignored: this project has a client token "+
 						"rotated into its database, which wins over --token and "+
 						"dashboard.token. Use the token `orch dashboard token rotate` "+
 						"printed (`orch dashboard token show` says when that was), or run "+

@@ -24,7 +24,7 @@ import (
 func newReportCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "report",
-		Short: "Render reports: the stakeholder PDF, a run's receipt and summary, token usage",
+		Short: "Render reports: the client PDF, a run's receipt and summary, token usage",
 	}
 	cmd.AddCommand(newReportPDFCmd(flags))
 	cmd.AddCommand(newReportReceiptCmd(flags))
@@ -42,10 +42,10 @@ func newReportPDFCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pdf",
 		Short: "Write a one-page A4 progress report",
-		Long: "Render the stakeholder snapshot as a one-page A4 PDF: progress, " +
+		Long: "Render the client page's snapshot as a one-page A4 PDF: progress, " +
 			"milestones, what is blocked and why, and — only if\n" +
 			"`dashboard.show_spend_to_stakeholder` is on — what it has cost.\n\n" +
-			"The page carries the same figures the stakeholder web snapshot " +
+			"The page carries the same figures the client page " +
 			"does, from the same builder, so the two cannot disagree.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -50,7 +50,8 @@ página del cliente.
 12. [Instalar los skills de orch](#12-instalar-los-skills-de-orch)
 13. [Cuando algo falla](#13-cuando-algo-falla)
 14. [Actualizar orch](#14-actualizar-orch)
-15. [Python legacy](#python-legacy)
+15. [Funciones por capa](#15-funciones-por-capa)
+16. [Python legacy](#python-legacy)
 
 ---
 
@@ -880,6 +881,62 @@ Actualizar el binario nunca toca el `.orchestrator/config.yaml`,
 un valor por defecto nuevo a un proyecto existente, corre `orch init --force`
 ahí y revisa el diff antes de hacer commit (sobrescribe los ajustes propios del
 proyecto, así que no lo hagas a ciegas).
+
+---
+
+## 15. Funciones por capa
+
+Cada comando de orch, agrupado por quién lo necesita y para qué. El núcleo es
+el camino que recorre este manual; las otras capas están para cuando las
+necesites, y ninguna hace falta para empezar. [`CLI.md`](CLI.md) tiene todos
+los flags.
+
+**Núcleo — agentes como equipo, una página para tu cliente**
+
+| Comando | Para qué sirve |
+|---|---|
+| `orch start "idea"` | El primer comando: configura el proyecto, planifica la idea con claude, la estima y corre las primeras tareas ([§2](#2-crear-un-proyecto-nuevo)). |
+| `orch run` | Despacha cada tarea lista a su agente en paralelo, cada una en su worktree y su PR, revisada antes del push y con el CI vigilado ([§5](#5-run--despachar-tareas-a-los-agentes-de-ia)). |
+| `orch dashboard` | Tu pantalla: los agentes trabajando, lo que te necesita, el diff de cada tarea para aceptarlo o devolverlo, y el botón Share para un enlace en vivo para el cliente ([§6](#6-abrir-el-dashboard)). |
+| `orch publish` | Escribe la página del cliente como sitio estático, en una carpeta o una rama `gh-pages` (`--watch` la mantiene al día). |
+| La página del cliente | Lo que abre tu cliente: avance por fase, bloqueos en palabras simples, la fecha estimada de entrega. En vivo detrás de un token, o publicada. |
+
+**Agencias — varios clientes a la vez**
+
+| Comando | Para qué sirve |
+|---|---|
+| `orch dashboard --portfolio "~/clients/*"` | Todos los proyectos de tus clientes en un solo dashboard, para ver cuál te necesita sin cambiar de carpeta. |
+| `orch cloud setup` + `orch publish --to cloud` | Aloja la página de cada cliente en un Cloudflare Worker de tu propia cuenta, con un enlace estable que funciona con tu máquina apagada ([`CLOUD.md`](CLOUD.md)). |
+| `orch report pdf` | La página del cliente como un PDF A4 de una página, para adjuntar a un correo o una factura. |
+| `orch notify digest` | El resumen ejecutivo y el avance de cada fase, impreso o enviado a Slack/Discord (`--send`); ponlo en cron para un informe semanal. |
+| `presentation.branding` | El nombre, el logo y el color de tu agencia en la página del cliente y el PDF en lugar de los de orch ([`CONFIG.md`](CONFIG.md)). |
+
+**Integraciones — las herramientas que tu cliente ya usa**
+
+| Comando | Para qué sirve |
+|---|---|
+| `orch sync issues` | Convierte los issues de GitHub etiquetados del cliente en tareas (`gh-<número>`), y en cada corrida agrega solo lo nuevo. |
+| `orch export clickup` | Refleja el plan en una Folder de ClickUp para un cliente que sigue el trabajo ahí; al volver a correrlo, los estados se actualizan. |
+| `orch export multica` | Crea el plan como issues de Multica, un padre por fase. |
+| `orch ci setup` / `ci review` / `ci usage` | Escribe el pipeline de CI que pide el repositorio, corre una revisión con IA de cada PR dentro del CI y suma los minutos de Actions facturados. |
+| `orch mcp` | Deja que un agente compatible con MCP lea y mueva las tareas de orch como herramientas ([§11](#11-mcp--que-un-agente-maneje-orch-directamente)). |
+
+**Avanzado — ajuste y reparación**
+
+| Comando | Para qué sirve |
+|---|---|
+| `orch bench` | Corre el mismo proyecto con cada proveedor y compara tareas terminadas, tiempo y gasto (agentes reales, con tope en `--max-usd`). |
+| `orch router suggest` / `router refresh` | Qué ruta funcionó para qué tipo de tarea, con sugerencias más baratas o más fuertes; rutas para los modelos que ganaron tus CLIs ([§9](#9-el-router-de-modelos)). |
+| `orch knowledge curate` / `knowledge stats` | Une y poda las lecciones que escribieron los agentes, como un PR; mide el éxito al primer intento antes y desde la primera lección. |
+| `orch provider disable` / `enable` | Pausa un proveedor mientras falla; sus tareas esperan en vez de fallar. |
+| `orch budget set` | Cambia el presupuesto de tokens, la ventana o el umbral de un proveedor sin editar YAML. |
+| `orch task salvage` | Acepta el trabajo que un intento anterior commiteó pero nunca publicó, sin volver a correr el agente. |
+| `orch reset` | Encuentra tareas atascadas en progreso tras una caída, y las vuelve a encolar con `--requeue` ([§8](#8-arreglar-cosas-a-mano-task-set-task-status-reset)). |
+| `orch dashboard token` | Rota o inspecciona el token que necesita un enlace de cliente. |
+| `orch config show` / `set` / `unset` | La config efectiva y de dónde sale cada valor; edita claves conservando los comentarios del archivo ([§10](#10-inspeccionar-la-config)). |
+| `orch findings` | La cola de reportes de bugs que los agentes escribieron sobre el propio orch; lee cada uno y envíalo o descártalo. |
+| `orch upgrade` | Instala la última versión sobre este binario, verificada con checksum ([§14](#14-actualizar-orch)). |
+| `orch claude-permissions` / `agy-permissions` | Agrega las reglas que esas CLIs necesitan para que sus agentes puedan reportar una tarea como terminada. |
 
 ---
 

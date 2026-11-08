@@ -198,6 +198,63 @@ line, a prompt, a diff, or a per-model cost breakdown.
 
 ---
 
+## What's in it, by layer
+
+Nothing below is required to start. The core is the story; the other layers
+are there when you need them.
+
+**Core — agents as a team, a page for your client**
+
+| Command | What it is for |
+|---|---|
+| `orch start "idea"` | The first command: sets the project up, plans the idea with claude, estimates it and runs the first tasks. |
+| `orch run` | Dispatches every ready task to its agent in parallel, each in its own worktree and PR, checked before the push, with CI watched. |
+| `orch dashboard` | Your screen: the agents at work, what needs you, each task's diff to accept or send back, and the Share button for a live client link. |
+| `orch publish` | Writes the client page as a static site, to a folder or a `gh-pages` branch (`--watch` keeps it current). |
+| The client page | What your client opens: progress by phase, blockers in plain words, the estimated finish. Live behind a token, or published. |
+
+**Agencies — several clients at once**
+
+| Command | What it is for |
+|---|---|
+| `orch dashboard --portfolio "~/clients/*"` | Every client project in one dashboard, so you see which one needs you without switching folders. |
+| `orch cloud setup` + `orch publish --to cloud` | Hosts each client page on a Cloudflare Worker in your own account, with a stable link that works while your machine is off. |
+| `orch report pdf` | The client page as a one-page A4 PDF, to attach to an email or an invoice. |
+| `orch notify digest` | The executive summary and each phase's progress, printed or sent to Slack/Discord (`--send`); cron it for a weekly update. |
+| `presentation.branding` | Your agency's name, logo and colour on the client page and the PDF instead of orch's. |
+
+**Integrations — the tools your client already uses**
+
+| Command | What it is for |
+|---|---|
+| `orch sync issues` | Turns the client's labelled GitHub issues into tasks (`gh-<number>`), adding only what is new on each run. |
+| `orch export clickup` | Mirrors the plan into a ClickUp Folder for a client who tracks work there; re-run it and statuses follow. |
+| `orch export multica` | Creates the plan as Multica issues, one parent per phase. |
+| `orch ci setup` / `ci review` / `ci usage` | Writes the CI pipeline the repository calls for, runs an AI review of each PR inside CI, and adds up the billed Actions minutes. |
+| `orch mcp` | Lets an MCP-capable agent read and move orch's tasks as tools. |
+
+**Advanced — tuning and repair**
+
+| Command | What it is for |
+|---|---|
+| `orch bench` | Runs the same project on each provider and compares done tasks, time and spend (real agents, capped by `--max-usd`). |
+| `orch router suggest` / `router refresh` | Which route has worked for which kind of task, with cheaper or stronger suggestions; routes for models your CLIs gained. |
+| `orch knowledge curate` / `knowledge stats` | Merges and prunes the lessons agents wrote, as a PR; measures first-try success before and since the first lesson. |
+| `orch provider disable` / `enable` | Pauses a provider while it misbehaves; its tasks wait instead of failing. |
+| `orch budget set` | Changes a provider's token budget, window or threshold without editing YAML. |
+| `orch task salvage` | Accepts work an earlier attempt committed but never published, without running the agent again. |
+| `orch reset` | Finds tasks stuck in progress after a crash, and requeues them with `--requeue`. |
+| `orch dashboard token` | Rotates or inspects the token a client link needs. |
+| `orch config show` / `set` / `unset` | The effective config and where each value came from; edit keys keeping the file's comments. |
+| `orch findings` | The queue of bug reports agents wrote about orch itself; read each, then send or dismiss it. |
+| `orch upgrade` | Installs the latest release over this binary, checksum-verified. |
+| `orch claude-permissions` / `agy-permissions` | Adds the rules those CLIs need before their agents can report a task done. |
+
+[`docs/CLI.md`](docs/CLI.md) has every flag; the [manual](docs/MANUAL.en.md#15-features-by-layer)
+has the same layers.
+
+---
+
 ## Roadmap
 
 **Shipped** — worktrees, a pull request and CI watch per task, the budget window

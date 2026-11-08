@@ -178,6 +178,41 @@ Ready to dispatch: 1
       </figure>
     </section>
 
+    <section class="limits layers wrap" id="layers" aria-labelledby="layers-title">
+      <h2 id="layers-title">Everything orch does, by layer</h2>
+      <p class="layers-lede">The core is the story above. The other layers are there when you need them; none is required to start.</p>
+      <h3>Core — agents as a team, a page for your client</h3>
+      <dl>
+        <div><dt><code>orch start "idea"</code></dt><dd>The first command: sets the project up, plans the idea with claude, estimates it and runs the first tasks.</dd></div>
+        <div><dt><code>orch run</code></dt><dd>Dispatches every ready task to its agent in parallel, each in its own worktree and pull request, checked before the push.</dd></div>
+        <div><dt><code>orch dashboard</code></dt><dd>Your screen: the agents at work, what needs you, each task's diff to accept or send back, and the Share button for a live client link.</dd></div>
+        <div><dt><code>orch publish</code></dt><dd>Writes the client page as a static site, to a folder or a <code>gh-pages</code> branch.</dd></div>
+      </dl>
+      <h3>Agencies — several clients at once</h3>
+      <dl>
+        <div><dt><code>orch dashboard --portfolio</code></dt><dd>Every client project in one dashboard, so you see which one needs you without switching folders.</dd></div>
+        <div><dt><code>orch publish --to cloud</code></dt><dd>Hosts each client page on a Cloudflare Worker in your own account (<code>orch cloud setup</code>), with a link that works while your machine is off.</dd></div>
+        <div><dt><code>orch report pdf</code></dt><dd>The client page as a one-page A4 PDF, to attach to an email or an invoice.</dd></div>
+        <div><dt><code>orch notify digest</code></dt><dd>The executive summary and each phase's progress, sent to Slack or Discord. Cron it for a weekly update.</dd></div>
+      </dl>
+      <h3>Integrations — the tools your client already uses</h3>
+      <dl>
+        <div><dt><code>orch sync issues</code></dt><dd>Turns the client's labelled GitHub issues into tasks, adding only what is new on each run.</dd></div>
+        <div><dt><code>orch export clickup</code> · <code>multica</code></dt><dd>Mirrors the plan into ClickUp, or creates it as Multica issues, for a client who tracks work there.</dd></div>
+        <div><dt><code>orch ci setup</code> · <code>review</code> · <code>usage</code></dt><dd>Writes the CI pipeline the repository calls for, runs an AI review of each pull request in CI, and adds up the billed minutes.</dd></div>
+        <div><dt><code>orch mcp</code></dt><dd>Lets an MCP-capable agent read and move orch's tasks as tools.</dd></div>
+      </dl>
+      <h3>Advanced — tuning and repair</h3>
+      <dl>
+        <div><dt><code>orch bench</code></dt><dd>Runs the same project on each provider and compares done tasks, time and spend.</dd></div>
+        <div><dt><code>orch router suggest</code> · <code>refresh</code></dt><dd>Which route has worked for which kind of task, and routes for the models your CLIs gained.</dd></div>
+        <div><dt><code>orch knowledge curate</code> · <code>stats</code></dt><dd>Prunes the lessons agents wrote, as a pull request, and measures whether they help.</dd></div>
+        <div><dt><code>orch provider</code> · <code>budget set</code></dt><dd>Pause a misbehaving provider, or change its token budget, without editing YAML.</dd></div>
+        <div><dt><code>orch task salvage</code> · <code>reset</code></dt><dd>Keep work an earlier attempt committed; requeue tasks stuck after a crash.</dd></div>
+        <div><dt><code>orch config</code> · <code>dashboard token</code> · <code>findings</code> · <code>upgrade</code></dt><dd>The effective config, the client link's token, the agents' bug reports about orch, and the latest release.</dd></div>
+      </dl>
+    </section>
+
     <section class="limits wrap" aria-labelledby="limits-title">
       <h2 id="limits-title">Where orch stops</h2>
       <dl>
