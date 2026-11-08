@@ -29,6 +29,7 @@ type fakeState struct {
 	spendErr   error
 	done7d     int
 	lastEvents map[string]state.Event
+	attempts   []state.Attempt
 
 	latestErr error
 	sinceErr  error
@@ -194,6 +195,8 @@ func (f *fakeState) ProviderStates(context.Context) ([]state.ProviderState, erro
 }
 
 func (f *fakeState) FiledFindings(context.Context) ([]state.FiledFinding, error) { return nil, nil }
+
+func (f *fakeState) Attempts(context.Context) ([]state.Attempt, error) { return f.attempts, nil }
 
 func (f *fakeState) RecordFiledFinding(context.Context, state.FiledFinding) error { return nil }
 

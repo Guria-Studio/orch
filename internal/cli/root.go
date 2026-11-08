@@ -94,6 +94,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newBudgetCmd(flags))
 	root.AddCommand(newProviderCmd(flags))
 	root.AddCommand(newFindingsCmd(flags))
+	root.AddCommand(newMetricsCmd(flags))
 	root.AddCommand(newInitCmd(flags))
 	root.AddCommand(newStartCmd(flags))
 	root.AddCommand(newConfigCmd(flags))

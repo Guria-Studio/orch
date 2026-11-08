@@ -554,3 +554,50 @@ func TestVerifyEventsAreAcceptedByTheDatabase(t *testing.T) {
 		t.Errorf("findings read back as %v", events[1].Extra["findings"])
 	}
 }
+
+// TestRecordFinishKeepsTheAttempt (#538): every finished attempt leaves a
+// row with its route, outcome, cost and the verify's verdict and findings,
+// and a second attempt does not replace the first.
+func TestRecordFinishKeepsTheAttempt(t *testing.T) {
+	ctx := context.Background()
+	b := openBackend(t)
+	d := recordDispatch("B-020")
+	d.Req.Route.Tier = model.TierCheap
+	start := time.Date(2026, 9, 11, 18, 30, 0, 0, time.UTC)
+	first := Outcome{
+		Result:    providers.Result{Success: true, CostUSD: 0.4, TokensIn: 100, TokensOut: 20},
+		StartedAt: start, Duration: time.Minute,
+		VerifyFailure: "fix it",
+		Verify: &VerifyResult{Failure: "fix it", Reviewer: "codex",
+			Findings: []VerifyFinding{{Severity: "blocking", File: "a.go", Line: 7, Title: "leak", Detail: "x"}}},
+	}
+	second := Outcome{
+		Result:    providers.Result{Success: false, ErrorMessage: "boom", ExitCode: 1},
+		Failure:   providers.FailureTransient,
+		StartedAt: start.Add(time.Hour), Duration: time.Second,
+	}
+	if err := RecordFinish(ctx, b, "run-1", d, first, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordFinish(ctx, b, "run-1", d, second, 2); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.Attempts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("attempts = %d, want 2", len(got))
+	}
+	a := got[0]
+	if a.RunID != "run-1" || a.Attempt != 1 || a.Backend != "claude" || a.Model != "claude-haiku-4-5-20251001" ||
+		a.Tier != "cheap" || a.Result != "success" || a.CostUSD != 0.4 || a.TokensIn != 100 || a.DurationS != 60 ||
+		a.Verify != "fail" || a.Review != "blocks" || a.Reviewer != "codex" ||
+		len(a.Findings) != 1 || a.Findings[0].Title != "leak" || a.FinishedAt != "2026-09-11T18:31:00Z" {
+		t.Errorf("first attempt = %+v", a)
+	}
+	if b := got[1]; b.Attempt != 2 || b.Result != "fail" || b.FailureClass != string(providers.FailureTransient) ||
+		b.Reason != "boom" || b.Verify != "" || b.Review != "" {
+		t.Errorf("second attempt = %+v", b)
+	}
+}
