@@ -1,0 +1,34 @@
+# orch --help groups its commands by layer (#547): starting a project,
+# running it, following it, delivering it, integrations, then the rest.
+# Nothing falls into cobra's catch-all "Additional Commands" group.
+exec orch --help
+stdout '^Start a project:$'
+stdout '^Run tasks:$'
+stdout '^Follow progress:$'
+stdout '^Deliver results:$'
+stdout '^Integrations:$'
+stdout '^Advanced:$'
+! stdout 'Additional Commands'
+stdout '^  start '
+stdout '^  run '
+
+# status, explain, tasks and tui overlap; each Short says when it is the one.
+stdout '^  status .*quick'
+stdout '^  explain .*plain words'
+stdout '^  tasks .*every task'
+stdout '^  tui .*while a run'
+
+# Plumbing the task scripts and the sandbox launcher call is hidden from the
+# list.
+! stdout '^  task-status '
+! stdout '^  sandbox-exec '
+
+# Every other command is still listed.
+stdout '^  claude-permissions '
+stdout '^  agy-permissions '
+stdout '^  findings '
+stdout '^  bench '
+
+# Hidden is not removed: task-status still runs and has its own help.
+exec orch task-status --help
+stdout 'TASK_ID STATUS'

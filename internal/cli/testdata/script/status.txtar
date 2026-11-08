@@ -29,6 +29,9 @@ stdout '"id":"F0\.T1"'
 
 ! exec orch status --project-root nonexistent-dir
 stderr 'missing tasks\.json'
+# Outside a project the error says how to get one (#547).
+stderr 'orch start "<idea>"'
+stderr 'orch dashboard --demo'
 
 # A malformed --only glob (unterminated character class) is a user-input
 # error, not something to swallow and treat as "matches nothing".

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
@@ -137,14 +138,27 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 }
 
 // spendRow is a finished dispatch's cost row.
+//
+// A run whose CLI reported no usage at all (gemini without stream-json, a
+// silent opencode) gets tokens estimated from the size of its prompt and
+// output, still marked Estimated (#543): zero would price it at nothing and
+// let the budget gate weigh it only as a typical dispatch.
 func spendRow(d Dispatch, o Outcome, attempt int) state.Spend {
+	in, out := o.Result.TokensIn, o.Result.TokensOut
+	if o.Result.Estimated && in == 0 && out == 0 {
+		prompt := int64(len(d.Req.PromptText))
+		if fi, err := os.Stat(d.PromptPath); err == nil {
+			prompt = fi.Size()
+		}
+		in, out = estimateTokens(prompt), estimateTokens(int64(len(o.Result.Stdout)))
+	}
 	return state.Spend{
 		TS:                  utcSecond(o.StartedAt.Add(o.Duration)),
 		TaskID:              d.Req.TaskID,
 		Backend:             string(d.Req.Route.Backend),
 		Model:               d.Req.Route.CLIModel,
-		TokensIn:            o.Result.TokensIn,
-		TokensOut:           o.Result.TokensOut,
+		TokensIn:            in,
+		TokensOut:           out,
 		CacheReadTokens:     o.Result.CacheReadTokens,
 		CacheCreationTokens: o.Result.CacheCreationTokens,
 		ReasoningTokens:     o.Result.ReasoningTokens,

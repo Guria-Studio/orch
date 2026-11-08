@@ -176,6 +176,7 @@ vcs:
 func TestCIIsNotAStakeholderRoute(t *testing.T) {
 	s := newGatedServer(t, &fakeState{})
 	req := httptest.NewRequest(http.MethodGet, "/api/ci", nil)
+	req.Host = "127.0.0.1:7420"
 	req.Header.Set("Authorization", "Bearer test-token-stakeholder")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)

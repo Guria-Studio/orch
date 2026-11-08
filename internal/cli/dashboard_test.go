@@ -31,6 +31,8 @@ func TestBannerIsSilentWhenTheListenerNeverOpened(t *testing.T) {
 		Profile: dashboard.ProfileOperator,
 		Host:    "256.256.256.256",
 		Port:    7420,
+		// A host beyond loopback needs a token (#537).
+		TokenHash: dashboard.HashToken("t"),
 	}
 	server, err := dashboard.New(cfg, dashboard.Options{
 		Paths:  config.Paths{Root: t.TempDir(), ID: "demo"},
