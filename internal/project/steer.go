@@ -246,7 +246,7 @@ func (s Steer) runLive(ctx context.Context, taskID string) (bool, error) {
 		return false, fmt.Errorf("reading the running dispatches: %w", err)
 	}
 	for _, d := range rows {
-		if d.TaskID == taskID && PIDAlive(d.PID) {
+		if d.TaskID == taskID && DispatchAlive(d) {
 			return true, nil
 		}
 	}

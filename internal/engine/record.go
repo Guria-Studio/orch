@@ -70,6 +70,7 @@ func RecordStart(ctx context.Context, b state.Backend, runID string, d Dispatch,
 		LogPath:    d.LogPath,
 		OutputPath: d.Req.OutputPath,
 		Attempt:    attempt,
+		ProcStart:  project.ProcStart(sp.PID),
 	}); err != nil {
 		return fmt.Errorf("record dispatch for %s: %w", d.Req.TaskID, err)
 	}

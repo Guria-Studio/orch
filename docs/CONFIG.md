@@ -784,7 +784,9 @@ worktree. **Worktree mode only**: without `dispatch.worktree_mode` orch prints
 a note and verifies nothing.
 
 1. **Commands.** Each runs at the worktree root through `sh -c`, in order,
-   bounded by `timeout_s`. `commands: []` runs what `orch ci setup` detects:
+   bounded by `timeout_s`, in a process group of its own: a timeout kills the
+   whole group (#541), the servers and test workers it started included.
+   `commands: []` runs what `orch ci setup` detects:
    install, lint, typecheck, test and build, per package, where the repository
    has them, only for the packages the task's change touches (#498): each
    changed file belongs to the deepest package that holds it, so an app-only

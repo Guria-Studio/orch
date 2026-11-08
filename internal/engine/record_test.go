@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -98,6 +100,29 @@ func TestRecordStart(t *testing.T) {
 	}
 	if got := ev.Extra["attempt"]; !numericEquals(got, 1) {
 		t.Errorf("extra attempt = %v", got)
+	}
+}
+
+// TestRecordStartKeepsTheProcessStartTime (#541): the in-flight row carries
+// when the process started, next to its PID, for crash recovery to tell a
+// reused PID apart; reading the row back returns it.
+func TestRecordStartKeepsTheProcessStartTime(t *testing.T) {
+	want := project.ProcStart(os.Getpid())
+	if want == "" {
+		t.Skip("this platform cannot tell a process's start time")
+	}
+	ctx := context.Background()
+	b := openBackend(t)
+	sp := &Spawned{PID: os.Getpid(), StartedAt: time.Now()}
+	if err := RecordStart(ctx, b, "run-1", recordDispatch("B-020"), sp, 1); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := b.InFlightDispatches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ProcStart != want {
+		t.Errorf("in-flight rows = %+v, want proc start %q", rows, want)
 	}
 }
 
