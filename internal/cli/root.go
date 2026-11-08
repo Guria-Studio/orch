@@ -80,46 +80,48 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 		SilenceErrors: true, // Run prints the error itself, once
 	}
 	flags := registerProjectFlags(root)
-	root.AddCommand(newStatusCmd(flags))
-	root.AddCommand(newTasksCmd(flags))
-	root.AddCommand(newEventsCmd(flags))
-	root.AddCommand(newLogsCmd(flags))
-	root.AddCommand(newTaskCmd(flags))
-	root.AddCommand(newTaskStatusCmd(flags))
-	root.AddCommand(newResetCmd(flags))
-	root.AddCommand(newValidateCmd(flags))
-	root.AddCommand(newGraphCmd(flags))
-	root.AddCommand(newMigrateCmd(flags))
-	root.AddCommand(newRouterCmd(flags))
-	root.AddCommand(newBudgetCmd(flags))
-	root.AddCommand(newProviderCmd(flags))
-	root.AddCommand(newFindingsCmd(flags))
-	root.AddCommand(newMetricsCmd(flags))
-	root.AddCommand(newInitCmd(flags))
-	root.AddCommand(newStartCmd(flags))
-	root.AddCommand(newConfigCmd(flags))
-	root.AddCommand(newInstallSkillsCmd(flags))
-	root.AddCommand(newClaudePermissionsCmd(flags))
-	root.AddCommand(newAgyPermissionsCmd())
-	root.AddCommand(newAtomizeCmd(flags))
-	root.AddCommand(newRunCmd(flags))
-	root.AddCommand(newEstimateCmd(flags))
-	root.AddCommand(newMCPCmd(flags))
-	root.AddCommand(newKnowledgeCmd(flags))
-	root.AddCommand(newNotifyCmd(flags))
-	root.AddCommand(newDoctorCmd(flags))
-	root.AddCommand(newDashboardCmd(flags))
-	root.AddCommand(newTUICmd(flags))
-	root.AddCommand(newExplainCmd(flags))
-	root.AddCommand(newReportCmd(flags))
-	root.AddCommand(newPublishCmd(flags))
-	root.AddCommand(newCloudCmd(flags))
-	root.AddCommand(newSyncCmd(flags))
-	root.AddCommand(newExportCmd(flags))
-	root.AddCommand(newUpgradeCmd(version))
-	root.AddCommand(newCICmd(flags, version))
-	root.AddCommand(newBenchCmd(version))
-	root.AddCommand(newSandboxExecCmd())
+	// --help lists the commands by layer (#547), each group in the order an
+	// operator meets them, not alphabetical. Every command is in a group;
+	// task-status and sandbox-exec, which only the task scripts and the
+	// dispatch launcher call, are hidden (migrate, deprecated, already was).
+	cobra.EnableCommandSorting = false
+	root.AddGroup(
+		&cobra.Group{ID: "start", Title: "Start a project:"},
+		&cobra.Group{ID: "run", Title: "Run tasks:"},
+		&cobra.Group{ID: "follow", Title: "Follow progress:"},
+		&cobra.Group{ID: "deliver", Title: "Deliver results:"},
+		&cobra.Group{ID: "integrations", Title: "Integrations:"},
+		&cobra.Group{ID: "advanced", Title: "Advanced:"},
+	)
+	group := func(id string, cmds ...*cobra.Command) {
+		for _, c := range cmds {
+			c.GroupID = id
+			root.AddCommand(c)
+		}
+	}
+	group("start",
+		newStartCmd(flags), newInitCmd(flags), newAtomizeCmd(flags),
+		newInstallSkillsCmd(flags), newDoctorCmd(flags))
+	group("run",
+		newRunCmd(flags), newEstimateCmd(flags), newTaskCmd(flags),
+		newResetCmd(flags), newValidateCmd(flags))
+	group("follow",
+		newStatusCmd(flags), newExplainCmd(flags), newTasksCmd(flags), newTUICmd(flags),
+		newDashboardCmd(flags), newEventsCmd(flags), newLogsCmd(flags), newGraphCmd(flags),
+		newFindingsCmd(flags), newMetricsCmd(flags))
+	group("deliver",
+		newReportCmd(flags), newPublishCmd(flags), newCloudCmd(flags),
+		newSyncCmd(flags), newExportCmd(flags))
+	group("integrations",
+		newMCPCmd(flags), newCICmd(flags, version), newNotifyCmd(flags),
+		newClaudePermissionsCmd(flags), newAgyPermissionsCmd())
+	group("advanced",
+		newConfigCmd(flags), newRouterCmd(flags), newProviderCmd(flags),
+		newBudgetCmd(flags), newKnowledgeCmd(flags), newMigrateCmd(flags),
+		newUpgradeCmd(version), newBenchCmd(version),
+		newTaskStatusCmd(flags), newSandboxExecCmd())
+	root.SetHelpCommandGroupID("advanced")
+	root.SetCompletionCommandGroupID("advanced")
 
 	for _, c := range root.Commands() {
 		if gatedCommands[root.Name()+" "+c.Name()] {

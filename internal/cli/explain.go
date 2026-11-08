@@ -26,7 +26,7 @@ func newExplainCmd(flags *projectFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "explain",
-		Short: "Where this project stands, and what is safe to do next",
+		Short: "In plain words: where this project stands, and what is safe to do next",
 		Long: "Print a one-screen summary of the project: task counts, what " +
 			"could be dispatched right now, the budget window, and the " +
 			"read-only commands worth typing next.\n\n" +

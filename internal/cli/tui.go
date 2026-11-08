@@ -359,7 +359,7 @@ func elapsedOf(rt state.TaskRuntime, status model.Status, now time.Time) time.Du
 func newTUICmd(flags *projectFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "tui",
-		Short: "Live terminal view of the run: tasks, phases, spend, the selected task's log",
+		Short: "Watch while a run is going, in the terminal: tasks, phases, spend, the selected task's log",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			inFd, outFd := int(os.Stdin.Fd()), int(os.Stdout.Fd()) // #nosec G115 -- a file descriptor fits in an int

@@ -2,7 +2,8 @@
 #
 # `gh` here is a shell stub that replays a captured payload; the payload
 # itself is the real one internal/vcs/testdata/gh/2.100.0/issue-list.json
-# holds, trimmed to two issues so the expectations below fit on a page. The
+# holds, trimmed to two issues so the expectations below fit on a page, with
+# the `author` object 2.101.0/issue-list.json shows gh returning. The
 # command never writes to GitHub — `sync` is one-directional by design.
 
 exec cp -r proj syncproj
@@ -11,6 +12,7 @@ cp empty-tasks.json syncproj/tasks.json
 exec chmod 755 $WORK/bin/gh
 env PATH=$WORK/bin:$PATH
 env FAKE_ISSUES=$WORK/issues.json
+env FAKE_COLLABORATORS=hectorcanaimero
 
 # ---- --model is required, and the error hands over the names to copy -------
 ! exec orch sync issues --project-root syncproj --project-id syncproj
@@ -95,6 +97,30 @@ env FAKE_GH_EXIT=1
 stderr 'gh issue list'
 env FAKE_GH_EXIT=0
 
+# ---- only collaborators' issues, unless --all-authors (#542) ---------------
+# An issue body reaches the agent's prompt word for word, so by default an
+# issue opened by someone who is not a collaborator of the repo is skipped,
+# and the plan names it.
+cp empty-tasks.json syncproj/tasks.json
+grep 'api repos/\{owner\}/\{repo\}/collaborators/hectorcanaimero' gh.log
+env FAKE_COLLABORATORS=someone-else
+exec orch sync issues --model claude-sonnet-4-6 --dry-run --project-root syncproj --project-id syncproj
+stdout 'No new issues'
+stdout 'Skipping 2 issue\(s\) opened by people who are not collaborators of the repo: gh-88 \(@hectorcanaimero\), gh-86 \(@hectorcanaimero\)'
+stdout '--all-authors'
+exec orch sync issues --model claude-sonnet-4-6 --dry-run --all-authors --project-root syncproj --project-id syncproj
+stdout 'Would add 2 task\(s\)'
+! stdout 'Skipping'
+
+# A check that cannot be made fails the sync rather than skipping everything.
+env FAKE_API_STDERR='gh: Must have push access to view repository collaborators. (HTTP 403)'
+! exec orch sync issues --model claude-sonnet-4-6 --dry-run --project-root syncproj --project-id syncproj
+stderr 'collaborator'
+stderr 'HTTP 403'
+stderr '--all-authors'
+env FAKE_API_STDERR=
+env FAKE_COLLABORATORS=hectorcanaimero
+
 # ---- a project whose router resolves nothing --------------------------------
 # The parity fixture ships `{}` — an operator there is told how to populate
 # it, not handed an empty list to choose from.
@@ -125,6 +151,20 @@ stderr 'accepts 0 arg|unknown command'
 # Fake `gh` for this script: logs its argv and replays a captured payload.
 printf '%s\n' "gh $*" >>"$WORK/gh.log"
 printf 'cwd %s\n' "$(pwd)" >>"$WORK/gh.log"
+if [ "$1" = api ]; then
+  # repos/{owner}/{repo}/collaborators/<login>: 204 for a collaborator, as
+  # captured in internal/vcs/testdata/gh/2.101.0/ for anyone else.
+  if [ -n "$FAKE_API_STDERR" ]; then
+    printf '%s' "$FAKE_API_STDERR" >&2
+    exit 1
+  fi
+  case " $FAKE_COLLABORATORS " in
+    *" ${2##*/} "*) exit 0 ;;
+  esac
+  printf '%s' '{"message":"Not Found","status":"404"}'
+  printf '%s\n' 'gh: Not Found (HTTP 404)' >&2
+  exit 1
+fi
 if [ "${FAKE_GH_EXIT:-0}" != "0" ]; then
   echo "unknown flag" >&2
   exit "$FAKE_GH_EXIT"
@@ -170,6 +210,7 @@ gpt-5-codex:
 -- issues.json --
 [
   {
+    "author": {"id": "MDQ6VXNlcjE1ODkxNg==", "is_bot": false, "login": "hectorcanaimero", "name": "H\u00e9ctor Rodr\u00edguez Vel\u00e1squez"},
     "body": "**Type**: feature\n**About**: orch\n**Confidence**: high\n**Author**: hector via claude\n**Captured at**: 2026-08-29T23:38:34Z\n**Local id**: `021180476ea9427d8576f417a38fc3b1`\n\n## Evidence\n\n## Context\nThe `agy` CLI has a `--agent` flag that selects which agent persona handles\nthe request. Without it, agy uses a default coordinator agent that DELEGATES\nto sub-agents instead of executing directly.",
     "createdAt": "2026-08-29T23:38:42Z",
     "labels": [
@@ -186,6 +227,7 @@ gpt-5-codex:
     "url": "https://github.com/hectorcanaimero/orch/issues/88"
   },
   {
+    "author": {"id": "MDQ6VXNlcjE1ODkxNg==", "is_bot": false, "login": "hectorcanaimero", "name": "H\u00e9ctor Rodr\u00edguez Vel\u00e1squez"},
     "body": "**Type**: bug\n**About**: orch\n**Confidence**: high\n**Author**: hector via claude\n**Captured at**: 2026-08-29T22:47:25Z\n**Local id**: `67b276c0d2774beea81a6a703b6a2d77`\n\n## Evidence",
     "createdAt": "2026-08-29T22:47:36Z",
     "labels": [

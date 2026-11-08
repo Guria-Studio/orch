@@ -123,37 +123,49 @@ func (l ModelLists) Unrouted(r router.Router) map[model.Backend][]string {
 	return out
 }
 
-// DiscoverySummary is what init and start say about the discovery, a line per
-// installed CLI that listed its models or failed to; a CLI with no list says
-// nothing, its routes being the packaged ones as before.
-func DiscoverySummary(installed func(model.Backend) bool, lists ModelLists, failed []model.Backend) []string {
-	packaged, err := PackagedRouter()
-	if err != nil {
-		return nil
-	}
-	var lines []string
+// DiscoverySummary is what init and start say about the discovery (#547):
+// one line, per installed CLI the routes r (the project's router) gives it,
+// how many of the models it lists no route runs, or that its list failed.
+// The models themselves are `orch router refresh`'s to show. Empty when no
+// CLI is installed.
+func DiscoverySummary(installed func(model.Backend) bool, lists ModelLists, failed []model.Backend, r router.Router) string {
+	var parts []string
+	detail := false
 	for _, b := range router.BackendPreference {
 		if !installed(b) {
 			continue
 		}
+		routes := 0
+		for _, e := range r {
+			if e.Backend == b {
+				routes++
+			}
+		}
 		if slices.Contains(failed, b) {
-			lines = append(lines, fmt.Sprintf("%s: could not list its models; its packaged routes are kept", b))
+			parts = append(parts, fmt.Sprintf("%s %s (could not list its models)", b, plural(routes, "packaged route")))
+			detail = true
 			continue
 		}
-		listed, ok := lists[b]
-		if !ok {
-			continue
-		}
-		one := ModelLists{b: listed}
-		_, dropped := one.Available(packaged)
-		line := fmt.Sprintf("%s lists %d models", b, len(listed))
-		if len(dropped) > 0 {
-			line += fmt.Sprintf("; packaged routes left out, not listed: %s", strings.Join(dropped, ", "))
-		}
-		lines = append(lines, line)
-		if un := one.Unrouted(packaged)[b]; len(un) > 0 {
-			lines = append(lines, fmt.Sprintf("  listed but not routed: %s", strings.Join(un, ", ")))
+		unrouted := len(ModelLists{b: lists[b]}.Unrouted(r)[b])
+		switch {
+		case unrouted > 0:
+			parts = append(parts, fmt.Sprintf("%s %s, %s not routed", b, plural(routes, "route"), plural(unrouted, "listed model")))
+			detail = true
+		case routes > 0:
+			// A CLI with no route and nothing listed has nothing to say.
+			parts = append(parts, fmt.Sprintf("%s %s", b, plural(routes, "route")))
 		}
 	}
-	return lines
+	line := strings.Join(parts, " · ")
+	if detail {
+		line += " — see `orch router refresh`"
+	}
+	return line
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

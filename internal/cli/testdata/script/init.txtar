@@ -81,13 +81,15 @@ env PATH=$FULLPATH
 # ---- batch: opencode's own model list picks the routes (#397) --------------
 # opencode lists two of the packaged routes' models and one no route runs:
 # the tier defaults and the sample task come from the listed ones, and init
-# says which packaged routes it left out and which listed models have none.
+# sums the discovery up in one line: routes per CLI, how many listed models
+# have none, and where the detail is (#547).
 chmod 0755 ocbin/opencode
 chmod 0755 ocbin/git
 env PATH=$WORK/ocbin:$ORCH_BIN_DIR
 exec orch init ocproj
-stdout '· models: opencode lists 3 models; packaged routes left out, not listed: .*opencode/deepseek-v4-pro'
-stdout '· models:   listed but not routed: opencode-go/hy3'
+stdout -count=1 '^· models:'
+stdout '^· models: opencode \d+ routes?, \d+ listed models? not routed — see `orch router refresh`$'
+! stdout 'listed but not routed'
 grep '"default_premium_model": "opencode/kimi-k3"' ocproj/tasks.json
 grep '"model": "opencode-go/kimi-k3"' ocproj/tasks.json
 ! grep 'deepseek' ocproj/tasks.json
@@ -98,7 +100,7 @@ chmod 0755 ocfail/opencode
 chmod 0755 ocfail/git
 env PATH=$WORK/ocfail:$ORCH_BIN_DIR
 exec orch init ocfailproj
-stdout '· models: opencode: could not list its models; its packaged routes are kept'
+stdout '^· models: opencode \d+ packaged routes? \(could not list its models\) — see `orch router refresh`$'
 grep '"default_premium_model": "opencode/deepseek-v4-pro"' ocfailproj/tasks.json
 # doctor asks again: the project init made with opencode's list routes only
 # listed models; the one made without it routes its sample task to a model

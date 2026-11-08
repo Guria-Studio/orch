@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -21,6 +22,14 @@ type Issue struct {
 	URL       string       `json:"url"`
 	CreatedAt string       `json:"createdAt"`
 	Labels    []IssueLabel `json:"labels"`
+	Author    IssueAuthor  `json:"author"`
+}
+
+// IssueAuthor is who opened an issue. gh also returns `id`, `name` and
+// `is_bot`; the login is what `orch sync issues` checks against the repo's
+// collaborators (#542).
+type IssueAuthor struct {
+	Login string `json:"login"`
 }
 
 // IssueLabel is one label on an issue. gh returns `id`, `name`, `description`
@@ -61,7 +70,7 @@ type IssueQuery struct {
 // Named as a constant next to the struct it fills, because the two have to
 // agree and bug 27 was exactly the case where they did not — a field asked
 // for that gh does not have makes the whole command a usage error.
-const issueListFields = "number,title,body,state,url,createdAt,labels"
+const issueListFields = "number,title,body,state,url,createdAt,labels,author"
 
 // ListIssues returns the issues carrying a label.
 //
@@ -115,6 +124,33 @@ func (p *GitHubProvider) ListIssues(q IssueQuery) ([]Issue, error) {
 // 500 is well past any backlog someone would hand to one orch project, and
 // `--limit` moves it.
 const defaultIssueLimit = 500
+
+// IsCollaborator reports whether login is a collaborator of the repository gh
+// reads from dir: `gh api repos/{owner}/{repo}/collaborators/<login>` answers
+// 204 (exit 0) for one and 404 for anyone else. Collaborators here include
+// org members with access and owners, which is GitHub's own definition.
+//
+// Any other failure (no push access to ask, no network) is an error, never a
+// quiet "no": `orch sync issues` would otherwise skip every issue and report
+// an up-to-date tracker.
+func (p *GitHubProvider) IsCollaborator(dir, login string) (bool, error) {
+	if login == "" {
+		// The bare endpoint lists every collaborator and exits 0.
+		return false, nil
+	}
+	if err := checkBinary("gh"); err != nil {
+		return false, err
+	}
+	_, err := runIn(dir, "gh", nil, "api", "repos/{owner}/{repo}/collaborators/"+login)
+	if err == nil {
+		return true, nil
+	}
+	var re *runError
+	if errors.As(err, &re) && strings.Contains(re.stderr, "(HTTP 404)") {
+		return false, nil
+	}
+	return false, fmt.Errorf("checking whether %s is a collaborator: %w", login, err)
+}
 
 // SearchIssues returns up to limit issues in repo carrying label whose title
 // matches the words of query, open and closed alike. gh's `--search` is
