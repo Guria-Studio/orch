@@ -1,8 +1,8 @@
-import { CircleCheck, CircleDashed, CircleDot, CirclePause, CircleX, type LucideIcon } from "lucide-react"
+import { CircleCheck, CircleDashed, CircleDot, CircleHelp, CirclePause, type LucideIcon } from "lucide-react"
 import type { Badge } from "@/components/ui/badge"
 import type { MessageKey } from "@/i18n"
 
-export type StatusKey = "backlog" | "todo" | "in_progress" | "blocked" | "failed" | "done"
+export type StatusKey = "backlog" | "todo" | "in_progress" | "blocked" | "unknown" | "done"
 
 export interface StatusMeta {
   key: StatusKey
@@ -20,7 +20,9 @@ export interface StatusMeta {
 /**
  * The one status vocabulary for every view: list, kanban, graph, timeline,
  * modal. Blocked is amber — a task waiting on something, not a failure. Red
- * is reserved for failed. Do not add a second mapping in a page.
+ * is reserved for unknown: a status the backend sent that this page does not
+ * know, shown as such rather than hidden (#533). There is no "failed": the
+ * CLI has five statuses. Do not add a second mapping in a page.
  */
 export const STATUS: Record<StatusKey, StatusMeta> = {
   backlog: {
@@ -55,10 +57,10 @@ export const STATUS: Record<StatusKey, StatusMeta> = {
     fill: "bg-status-blocked",
     soft: "bg-status-blocked/14",
   },
-  failed: {
-    key: "failed",
-    label: "status.failed",
-    icon: CircleX,
+  unknown: {
+    key: "unknown",
+    label: "status.unknown",
+    icon: CircleHelp,
     text: "text-status-failed",
     fill: "bg-status-failed",
     soft: "bg-status-failed/14",
@@ -82,10 +84,12 @@ export function statusKey(status: string): StatusKey {
     case "blocked":
     case "done":
     case "todo":
-    case "failed":
+    case "backlog":
       return status
-    default:
+    case "":
       return "backlog"
+    default:
+      return "unknown"
   }
 }
 
@@ -95,7 +99,7 @@ export function statusMeta(status: string): StatusMeta {
 
 /**
  * Badge variant for a raw status, for callers that render a plain Badge.
- * Same scale as STATUS: blocked is a warning, only failed is danger.
+ * Same scale as STATUS: blocked is a warning, only unknown is danger.
  */
 export function statusBadgeVariant(status: string): Parameters<typeof Badge>[0]["variant"] {
   switch (statusKey(status)) {
@@ -105,7 +109,7 @@ export function statusBadgeVariant(status: string): Parameters<typeof Badge>[0][
       return "info"
     case "blocked":
       return "warning"
-    case "failed":
+    case "unknown":
       return "danger"
     default:
       return "muted"

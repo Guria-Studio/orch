@@ -273,7 +273,7 @@ function Palette({
     if (searching) {
       for (const task of tasks) {
         const key = statusMeta(task.status).key
-        if (key !== "blocked" && key !== "failed") continue
+        if (key !== "blocked") continue
         const unblock = { command: `orch task set --id ${task.id} --status todo` }
         all.push({
           key: `cmd:unblock:${task.id}`,

@@ -23,6 +23,8 @@ export interface NowDispatch {
   /** retry.max_attempts; 0 when config.yaml does not load. */
   max_attempts: number
   started_at: string
+  /** The watch saw the agent's log go silent and it has not written since (#533). */
+  stalled: boolean
 }
 
 export interface Now {

@@ -31,7 +31,7 @@ const STATUS_VAR: Record<StatusKey, string> = {
   todo: "var(--status-queued)",
   in_progress: "var(--status-running)",
   blocked: "var(--status-blocked)",
-  failed: "var(--status-failed)",
+  unknown: "var(--status-failed)",
   done: "var(--status-done)",
 }
 

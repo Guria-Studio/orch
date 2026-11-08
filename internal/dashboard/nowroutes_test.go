@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/demo"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -29,10 +32,12 @@ func TestNowEndpoint(t *testing.T) {
 		},
 	}
 	root := writeProject(t, "spec_root: specs\nconcurrency:\n  global_max: 4\nretry:\n  max_attempts: 3\n", testTasksJSON)
+	paths := config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")}
+	holdRunLock(t, paths.StateDir()) // the live run
 	s, err := New(cfg(ProfileOperator, ""), Options{
 		Static: spaHandler(t),
 		State:  f,
-		Paths:  config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")},
+		Paths:  paths,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -67,6 +72,111 @@ func TestNowEndpoint(t *testing.T) {
 	if got.Summary.Total != 3 || got.Summary.InProgress != 1 {
 		t.Errorf("summary = %+v", got.Summary)
 	}
+}
+
+// TestNowARunIsLiveOnlyWhileItRuns (#533): a run row says live until the
+// next run rewrites it, so a crashed run read as "Run live" on the operator's
+// first screen. Live now means a run holds the run lock, or (with
+// --task-locks, which takes none) a dispatch's process is alive.
+func TestNowARunIsLiveOnlyWhileItRuns(t *testing.T) {
+	tests := []struct {
+		name string
+		lock bool
+		pid  int
+		want string
+	}{
+		{"a run holding the lock is live", true, 0, "live"},
+		{"a dispatch whose process is alive is live", false, os.Getpid(), "live"},
+		{"a recorded live run with neither has ended", false, 0, "ended"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeState{
+				tasks: []state.TaskRuntime{{ID: "T-1", Status: model.StatusInProgress}},
+				runs:  []state.Run{{RunID: "run-1", StartedAt: "2026-09-16T10:00:00Z", Mode: "run", Status: "live"}},
+				inFlight: []state.Dispatch{
+					{RunID: "run-1", TaskID: "T-1", Backend: "claude", PID: tt.pid, StartedAt: "2026-09-16T10:05:00Z", Attempt: 1},
+				},
+			}
+			root := writeProject(t, "spec_root: specs\n", testTasksJSON)
+			paths := config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")}
+			if tt.lock {
+				holdRunLock(t, paths.StateDir())
+			}
+			s, err := New(cfg(ProfileOperator, ""), Options{Static: spaHandler(t), State: f, Paths: paths})
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+
+			var got nowPayload
+			decode(t, get(t, s, "/api/now"), &got)
+			if got.Run == nil || got.Run.Status != tt.want {
+				t.Errorf("run = %+v, want status %q", got.Run, tt.want)
+			}
+		})
+	}
+}
+
+// TestAStalledAgentIsShownWhereTheOperatorLooks (#533): agent_stalled only
+// coloured a dot on the task's timeline, while Now, the board and the list
+// said "In progress". A running task whose last event is agent_stalled is now
+// stalled in the task payload and on Now; an agent_resumed after it clears it.
+func TestAStalledAgentIsShownWhereTheOperatorLooks(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		events []state.Event
+		want   bool
+	}{
+		{"stalled last", []state.Event{event("dispatch", "2026-09-16T10:05:00Z", nil), event("agent_stalled", "2026-09-16T10:20:00Z", nil)}, true},
+		{"resumed after", []state.Event{event("agent_stalled", "2026-09-16T10:20:00Z", nil), event("agent_resumed", "2026-09-16T10:25:00Z", nil)}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := range tt.events {
+				tt.events[i].TaskID = "T-1"
+			}
+			f := &fakeState{
+				tasks:    []state.TaskRuntime{{ID: "T-1", Status: model.StatusInProgress}},
+				events:   tt.events,
+				runs:     []state.Run{{RunID: "run-1", StartedAt: "2026-09-16T10:00:00Z", Mode: "run", Status: "live"}},
+				inFlight: []state.Dispatch{{RunID: "run-1", TaskID: "T-1", Backend: "claude", StartedAt: "2026-09-16T10:05:00Z", Attempt: 1}},
+			}
+			s := newReadServer(t, f)
+
+			var now nowPayload
+			decode(t, get(t, s, "/api/now"), &now)
+			if len(now.Working) != 1 || now.Working[0].Stalled != tt.want {
+				t.Errorf("now working = %+v, want stalled %v", now.Working, tt.want)
+			}
+			var tasks struct {
+				Tasks []taskPayload `json:"tasks"`
+			}
+			decode(t, get(t, s, "/api/tasks"), &tasks)
+			if len(tasks.Tasks) == 0 {
+				t.Fatal("no tasks in /api/tasks")
+			}
+			for _, task := range tasks.Tasks {
+				if task.ID == "T-1" && task.Stalled != tt.want {
+					t.Errorf("task T-1 stalled = %v, want %v", task.Stalled, tt.want)
+				}
+			}
+		})
+	}
+}
+
+// holdRunLock takes the exclusive flock `orch run` holds, for the test.
+func holdRunLock(t *testing.T, stateDir string) {
+	t.Helper()
+	if err := os.MkdirAll(stateDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Create(filepath.Join(stateDir, project.RunLockFile)) // #nosec G304 -- a temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil { // #nosec G115 -- a file descriptor fits in an int
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
 }
 
 // A project that has never run answers null and empty lists — the SPA maps

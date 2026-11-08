@@ -238,26 +238,48 @@ func (s Steer) WaitStopped(ctx context.Context, res StopResult, timeout time.Dur
 // dispatch whose process is alive. An unreadable dispatch table is an error:
 // guessing "no run" would change the status behind a run's back.
 func (s Steer) runLive(ctx context.Context, taskID string) (bool, error) {
-	if f, err := os.Open(filepath.Join(s.StateDir, RunLockFile)); err == nil { // #nosec G304 -- the project's own state dir
-		defer func() { _ = f.Close() }()
-		// A shared, non-blocking flock fails only while a run holds its
-		// exclusive one.
-		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); errors.Is(err, syscall.EWOULDBLOCK) {
-			return true, nil
-		} else if err == nil {
-			_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		}
+	if RunLockHeld(s.StateDir) {
+		return true, nil
 	}
 	rows, err := s.Backend.InFlightDispatches(ctx)
 	if err != nil {
 		return false, fmt.Errorf("reading the running dispatches: %w", err)
 	}
 	for _, d := range rows {
-		if d.TaskID == taskID && d.PID > 0 {
-			if err := syscall.Kill(d.PID, 0); err == nil || errors.Is(err, syscall.EPERM) {
-				return true, nil
-			}
+		if d.TaskID == taskID && PIDAlive(d.PID) {
+			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// RunLockHeld reports whether an `orch run` holds the project's run lock
+// right now. The kernel drops the flock when the run dies however it dies,
+// so this is the run's liveness, which a run row saying "live" is not.
+func RunLockHeld(stateDir string) bool {
+	f, err := os.Open(filepath.Join(stateDir, RunLockFile)) // #nosec G304 -- the project's own state dir
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	// A shared, non-blocking flock fails only while a run holds its
+	// exclusive one.
+	err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB) // #nosec G115 -- a file descriptor fits in an int
+	if errors.Is(err, syscall.EWOULDBLOCK) {
+		return true
+	}
+	if err == nil {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) // #nosec G115 -- as above
+	}
+	return false
+}
+
+// PIDAlive reports whether a process with this pid exists. 0 and below,
+// what a dispatch row holds before its pid is known, are never alive.
+func PIDAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
 }

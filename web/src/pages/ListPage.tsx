@@ -45,7 +45,7 @@ const SORT_OPTIONS = [
 ] as const
 
 // Group order: what is moving first, what is finished last.
-const GROUP_ORDER: StatusKey[] = ["in_progress", "todo", "blocked", "failed", "backlog", "done"]
+const GROUP_ORDER: StatusKey[] = ["unknown", "in_progress", "todo", "blocked", "backlog", "done"]
 
 /**
  * Work › List, as a Linear issue list: tasks grouped by status under
@@ -206,6 +206,9 @@ export function ListPage() {
                               <Route className="h-3.5 w-3.5 shrink-0" aria-label={t("task.on_critical_path")} />
                             ) : null}
                             <span className="truncate">{task.title}</span>
+                            {task.stalled ? (
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-status-blocked" aria-label={t("task.stalled")} />
+                            ) : null}
                             {blocking ? (
                               <Lock className="h-3 w-3 shrink-0 text-status-blocked" aria-label={t("task.deps_pending")} />
                             ) : null}

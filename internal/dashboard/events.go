@@ -37,6 +37,7 @@ var severityByEvent = map[string]string{
 	"verify_passed":     "info",
 	"e2e_report":        "info",
 	"agent_stalled":     "warn",
+	"agent_resumed":     "info",
 	"agent_looping":     "warn",
 	"files_overlap":     "warn",
 	"branch_conflict":   "warn",
@@ -61,6 +62,7 @@ var iconByEvent = map[string]string{
 	"verify_passed":     "VERIFY",
 	"e2e_report":        "E2E",
 	"agent_stalled":     "WATCH",
+	"agent_resumed":     "WATCH",
 	"agent_looping":     "WATCH",
 	"files_overlap":     "RADAR",
 	"branch_conflict":   "RADAR",
@@ -141,7 +143,7 @@ func eventTail(etype string, extra map[string]any) string {
 			tail += fmt.Sprintf(" (attempt %s)", extraRaw(extra, "attempt"))
 		}
 		return tail
-	case "agent_stalled":
+	case "agent_stalled", "agent_resumed":
 		if d := formatDuration(extra["silent_s"]); d != "" {
 			return " (silent " + d + ")"
 		}

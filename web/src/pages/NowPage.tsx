@@ -128,6 +128,24 @@ function BlockedRow({ b, now }: { b: SprintBlocker; now: number }) {
   )
 }
 
+/** A running agent the watch flagged silent, with the command that ends its attempt (#533). */
+function StalledRow({ d }: { d: NowDispatch }) {
+  return (
+    <li className={cn(rowGrid, "grid-cols-1 sm:grid-cols-[4.5rem_minmax(0,1fr)]")}>
+      <Link to={taskPath(d.task_id)} className="hidden font-mono text-xs text-muted-foreground hover:text-foreground sm:block">
+        {d.task_id}
+      </Link>
+      <span className="min-w-0">
+        <span className="block truncate font-medium">{d.title}</span>
+        <span className="block truncate text-xs text-status-blocked">
+          {t("task.stalled")} · {t("now.stalled")}
+        </span>
+        <CopyCommand command={`orch task stop --id ${d.task_id}`} />
+      </span>
+    </li>
+  )
+}
+
 function Meter({ pct, tone, label }: { pct: number; tone: string; label: string }) {
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label={label}>
@@ -208,7 +226,8 @@ export function NowPage() {
 
   const titles = new Map((tasks?.tasks ?? []).map((task) => [task.id, task.title]))
   const { summary, pace, run } = data
-  const attentionCount = data.attention.length + data.waiting_for_budget.length
+  const stalled = data.working.filter((d) => d.stalled)
+  const attentionCount = data.attention.length + stalled.length + data.waiting_for_budget.length
   const donePct = summary.total > 0 ? (summary.done / summary.total) * 100 : 0
   const slots =
     data.slots.max > 0
@@ -277,6 +296,9 @@ export function NowPage() {
             <Heading id="now-attention" title={t("now.attention")} dot="bg-status-blocked" aside={attentionCount > 0 ? attentionCount : undefined} />
             {attentionCount > 0 ? (
               <ul className={cn(panel, "divide-y")}>
+                {stalled.map((d) => (
+                  <StalledRow key={`stalled-${d.task_id}`} d={d} />
+                ))}
                 {data.attention.map((b) => (
                   <BlockedRow key={b.task_id} b={b} now={now} />
                 ))}

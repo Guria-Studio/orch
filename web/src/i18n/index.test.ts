@@ -86,7 +86,7 @@ describe("setLanguage", () => {
 describe("englishLeaks", () => {
   it("finds an English sentence left on a translated page, and nothing in a translated one", () => {
     expect(englishLeaks(`<p>${en["now.all_clear"]}</p>`, "pt")).toContain(
-      "Nothing needs you. No task is blocked or waiting on the budget.",
+      "Nothing needs you. No task is blocked, stalled or waiting on the budget.",
     )
     expect(englishLeaks(`<p>${pt["now.all_clear"]}</p>`, "pt")).toEqual([])
   })

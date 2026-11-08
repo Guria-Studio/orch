@@ -18,6 +18,9 @@ import (
 const (
 	EventAgentStalled = "agent_stalled"
 	EventAgentLooping = "agent_looping"
+	// EventAgentResumed follows an agent_stalled when the log grows again, so
+	// the last event says whether the agent is still stuck (#533).
+	EventAgentResumed = "agent_resumed"
 )
 
 const (
@@ -71,6 +74,9 @@ func (s *Scheduler) WatchAgents(ctx context.Context, now time.Time) {
 			continue
 		}
 		if size != w.size {
+			if w.stalled {
+				s.recordResumed(ctx, e, now.Sub(w.since))
+			}
 			w.size, w.since, w.stalled = size, now, false
 		}
 		stallAfter := time.Duration(cfg.StallAfterS) * time.Second
@@ -149,4 +155,17 @@ func readTail(path string, n int64) ([]byte, int64, error) {
 		return nil, 0, err
 	}
 	return buf, info.Size(), nil
+}
+
+// recordResumed notes that a stalled agent's log grew again. It is not a
+// warning: the stall it closes was the warning.
+func (s *Scheduler) recordResumed(ctx context.Context, e *InFlight, silent time.Duration) {
+	s.logger().Info("the agent is writing again after a silence", "task", e.Task.ID, "silent", silent.Round(time.Second))
+	if s.Backend == nil {
+		return
+	}
+	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventAgentResumed, e.Task.ID, string(e.Route.Backend),
+		map[string]any{"attempt": e.Attempt, "silent_s": int(silent.Seconds())}); err != nil {
+		s.logger().Error("recording the agent watch event failed", "task", e.Task.ID, "err", err)
+	}
 }
