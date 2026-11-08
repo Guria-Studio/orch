@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useEventStream } from "@/hooks/useEventStream"
 import { useMetrics, type MetricsBackendDay, type MetricsResponse, type UsagePeriod } from "@/hooks/useMetrics"
 import { useRouterSuggest, type RouterSuggestResponse } from "@/hooks/useRouterSuggest"
+import { useUsage, type Usage, type UsageTokens } from "@/hooks/useUsage"
+import { KpiCard } from "@/components/charts/KpiCard"
 import { fmt, t, type MessageKey } from "@/i18n"
 import { taskPath } from "@/lib/nav"
 import { formatRelative } from "@/lib/time"
@@ -39,6 +41,7 @@ export function UsagePage() {
   const period: UsagePeriod = requested && PERIODS.includes(requested) ? requested : "7d"
   const { data, isLoading, isError, error } = useMetrics(period)
   const routes = useRouterSuggest(period).data
+  const usage = useUsage().data
   const queryClient = useQueryClient()
   const { lastEventAt } = useEventStream()
 
@@ -85,6 +88,7 @@ export function UsagePage() {
       ) : null}
 
       {isLoading || !data ? <Skeleton className="h-96 w-full" /> : <UsageBody data={data} />}
+      {usage ? <TaskBreakdown data={usage} /> : null}
       {routes ? <RoutesTable data={routes} /> : null}
     </div>
   )
@@ -173,6 +177,68 @@ function UsageBody({ data }: { data: MetricsResponse }) {
         </div>
       </section>
     </>
+  )
+}
+
+/** Every token of a set: fresh, cached and cache-written input, and output. */
+const allTokens = (u: UsageTokens) => u.input + u.cached_input + u.cache_write + u.output
+
+// The heaviest tasks the breakdown lists; `orch report usage` has them all.
+const TOP_TASKS = 10
+
+/**
+ * `/api/usage` (#417, wired in #549): `orch report usage`'s split by task and
+ * attempt, all time — the heaviest tasks and what their retries used, the
+ * figure no period total shows.
+ */
+function TaskBreakdown({ data }: { data: Usage }) {
+  const total = allTokens(data.total)
+  const share = total > 0 ? `${Math.round((data.retry_tokens / total) * 100)}%` : "0%"
+  return (
+    <section aria-labelledby="usage-tasks" className="space-y-2">
+      <h2 id="usage-tasks" className="text-xs font-medium text-muted-foreground">
+        {t("usage.tasks")}
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+        <KpiCard label={t("usage.retry_tokens")} value={fmt.number(data.retry_tokens)} hint={t("usage.retry_share", { pct: share })} />
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[520px]">
+            <thead className="border-b text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3.5 py-2 text-left font-medium">{t("usage.col.task")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.attempts")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.tokens")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.retry_tokens")}</th>
+                <th className="px-3.5 py-2 text-right font-medium">{t("usage.col.cost")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.by_task.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3.5 py-6 text-center text-muted-foreground">
+                    {t("usage.none")}
+                  </td>
+                </tr>
+              ) : (
+                data.by_task.slice(0, TOP_TASKS).map((row) => (
+                  <tr key={row.task_id}>
+                    <td className="px-3.5 py-2 font-mono text-xs">
+                      <Link to={taskPath(row.task_id)} className="hover:underline">
+                        {row.task_id}
+                      </Link>
+                    </td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{row.attempts.length}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{fmt.number(allTokens(row))}</td>
+                    <td className={cn("px-3.5 py-2 text-right tabular-nums", row.retry_tokens > 0 && "text-status-blocked")}>{fmt.number(row.retry_tokens)}</td>
+                    <td className="px-3.5 py-2 text-right tabular-nums">{`${row.estimated ? "~" : ""}${fmt.usd(row.cost_usd)}`}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   )
 }
 

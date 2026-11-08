@@ -9,9 +9,11 @@ const whoami = vi.fn()
 vi.mock("@/hooks/useWhoami", () => ({ useWhoami: () => whoami() }))
 const stopTask = vi.fn()
 const noteTask = vi.fn()
+const moveTask = vi.fn()
 vi.mock("@/lib/api", () => ({
   stopTask: (...a: unknown[]) => stopTask(...a),
   noteTask: (...a: unknown[]) => noteTask(...a),
+  moveTask: (...a: unknown[]) => moveTask(...a),
 }))
 
 const task = { id: "F1.T2", status: "in-progress" } as Task
@@ -31,6 +33,26 @@ beforeEach(() => {
 })
 
 describe("TaskSteer", () => {
+  // #549: the hint promised "until you unblock it" with nothing to press.
+  it("unblocks a held task back to todo, with the note", async () => {
+    moveTask.mockResolvedValue({ message: "F1.T2: blocked → todo" })
+    renderSteer({ id: "F1.T2", status: "blocked" } as Task)
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "go on" } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unblock" }))
+    })
+    expect(moveTask).toHaveBeenCalledWith("F1.T2", "todo", "go on")
+    expect(screen.getByRole("status")).toHaveTextContent("blocked → todo")
+  })
+
+  // #549: no CLI verb is called "redirect"; the button says what it does,
+  // which is `orch task stop --note`.
+  it("names the stop that dispatches again by what it does", () => {
+    renderSteer()
+    expect(screen.getByRole("button", { name: "Stop and retry with the note" })).toBeInTheDocument()
+    expect(screen.getByText(/orch task stop --note/)).toBeInTheDocument()
+  })
+
   it("is not shown to a stakeholder", () => {
     whoami.mockReturnValue({ data: { profile: "stakeholder" } })
     const { container } = renderSteer()

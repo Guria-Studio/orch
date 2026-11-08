@@ -431,7 +431,7 @@ orch report summary
 
 # A link to hand a client, over a Cloudflare quick tunnel (needs
 # `tunnel: enabled: true` in config.yaml and cloudflared on PATH — the
-# Tunnel page shows how to install it). Prints the client-portal link, with
+# Share panel shows how to install it). Prints the client-portal link, with
 # the token every request through the tunnel needs; Ctrl+C revokes it.
 orch dashboard --tunnel
 ```

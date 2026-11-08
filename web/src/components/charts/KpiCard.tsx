@@ -13,7 +13,7 @@ export interface KpiCardProps {
 }
 
 /**
- * The one figure tile (Summary, Metrics). Flat: a border and the number, no
+ * The one figure tile (Usage › By task, #549). Flat: a border and the number, no
  * shadow and no uppercase kicker, so a row of them reads as one instrument.
  */
 export function KpiCard({ label, value, icon: Icon, iconClassName, hint, children }: KpiCardProps) {

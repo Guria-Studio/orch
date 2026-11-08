@@ -41,7 +41,7 @@ export function ToolsPage() {
         {data && missing > 0 ? <span className="text-xs text-status-blocked">{t("tools.missing_used", { count: missing })}</span> : null}
         <Button type="button" size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
           <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} aria-hidden />
-          {isFetching ? t("tunnel.checking") : t("tunnel.check_again")}
+          {isFetching ? t("share.checking") : t("share.check_again")}
         </Button>
       </header>
 

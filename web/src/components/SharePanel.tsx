@@ -37,7 +37,7 @@ export function SharePanel() {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>{t("tunnel.caps_failed")}</AlertTitle>
+        <AlertTitle>{t("share.caps_failed")}</AlertTitle>
         <AlertDescription>{caps.error?.message ?? t("common.unknown_error")}</AlertDescription>
       </Alert>
     )
@@ -47,13 +47,13 @@ export function SharePanel() {
       return <TurnOn onDone={() => void caps.refetch()} />
     case "profile_gate":
       return (
-        <Notice title={t("tunnel.profile_title")}>
-          {t("tunnel.profile_before")} (<code className="font-mono text-xs">orch dashboard</code> {t("tunnel.profile_without")}{" "}
+        <Notice title={t("share.profile_title")}>
+          {t("share.profile_before")} (<code className="font-mono text-xs">orch dashboard</code> {t("share.profile_without")}{" "}
           <code className="font-mono text-xs">--profile</code>).
         </Notice>
       )
     case "host_gate":
-      return <Notice title={t("tunnel.host_title")}>{t("tunnel.host_detail")}</Notice>
+      return <Notice title={t("share.host_title")}>{t("share.host_detail")}</Notice>
     default:
       return <ShareBody caps={caps.data} status={status} checking={caps.isFetching} onCheck={() => void caps.refetch()} />
   }
@@ -76,7 +76,7 @@ function TurnOn({ onDone }: { onDone: () => void }) {
     }
   }
   return (
-    <Notice title={t("tunnel.disabled_title")}>
+    <Notice title={t("share.disabled_title")}>
       <p>
         {t("share.enable_detail")} <code className="font-mono text-xs">tunnel.enabled: true</code>
       </p>
@@ -198,7 +198,7 @@ function ShareBody({
         ) : selected.blocker && !up ? (
           <Alert className="border-status-blocked/40 bg-status-blocked/10 [&>svg]:text-status-blocked">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("tunnel.blocker_title")}</AlertTitle>
+            <AlertTitle>{t("share.blocker_title")}</AlertTitle>
             <AlertDescription className="space-y-2">
               <p>{selected.blocker}</p>
               <CheckAgain checking={checking} onCheck={onCheck} />
@@ -240,7 +240,7 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
   const problem = actionError ?? (state === "error" || status?.last_error ? status?.last_error ?? null : null)
   const stop = (
     <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void act(stopTunnel)} className="border-status-failed/40 text-status-failed hover:text-status-failed">
-      {busy ? t("tunnel.stopping") : t("tunnel.stop")}
+      {busy ? t("share.stopping") : t("share.stop")}
     </Button>
   )
 
@@ -253,20 +253,20 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
             {t("share.live")}
             {status.started_at ? <Uptime since={status.started_at} /> : null}
           </p>
-          <LinkField label={t("share.client_link")} copyLabel={t("tunnel.link.portal_copy")} url={status.portal_url} primary />
-          <LinkField label={t("share.operator_link")} copyLabel={t("tunnel.link.dashboard_copy")} url={status.share_url} />
+          <LinkField label={t("share.client_link")} copyLabel={t("share.link.portal_copy")} url={status.portal_url} primary />
+          <LinkField label={t("share.operator_link")} copyLabel={t("share.link.dashboard_copy")} url={status.share_url} />
           {stop}
         </div>
       ) : up ? (
         <div className="space-y-2">
-          <p className="text-muted-foreground">{status?.url ? t("tunnel.orphan", { url: status.url }) : t("share.waiting")}</p>
+          <p className="text-muted-foreground">{status?.url ? t("share.orphan", { url: status.url }) : t("share.waiting")}</p>
           {stop}
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-3">
           <span className="min-w-0 flex-1">{t("share.idle")}</span>
           <Button type="button" size="sm" disabled={busy || state === "stopping"} onClick={() => void act(() => startTunnel(provider.id))} className="bg-brand text-white hover:bg-brand/90">
-            {busy ? t("tunnel.starting") : t("share.generate")}
+            {busy ? t("share.starting") : t("share.generate")}
           </Button>
         </div>
       )}
@@ -274,7 +274,7 @@ function ShareControl({ provider, status }: { provider: TunnelProvider; status: 
       {problem ? (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>{actionError ? t(up ? "tunnel.did_not_stop" : "tunnel.did_not_start") : t("share.output", { command: provider.command })}</AlertTitle>
+          <AlertTitle>{actionError ? t(up ? "share.did_not_stop" : "share.did_not_start") : t("share.output", { command: provider.command })}</AlertTitle>
           <AlertDescription className="font-mono text-xs">{problem}</AlertDescription>
         </Alert>
       ) : null}
@@ -313,7 +313,7 @@ function CheckAgain({ checking, onCheck }: { checking: boolean; onCheck: () => v
   return (
     <Button type="button" size="sm" variant="outline" onClick={onCheck} disabled={checking}>
       <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", checking && "animate-spin")} aria-hidden />
-      {checking ? t("tunnel.checking") : t("tunnel.check_again")}
+      {checking ? t("share.checking") : t("share.check_again")}
     </Button>
   )
 }
@@ -344,7 +344,7 @@ function CommandBlock({ command }: { command: string }) {
   return (
     <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-2.5 py-1.5">
       <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre font-mono text-xs leading-5">{command}</pre>
-      <CopyButton text={command} label={t("tunnel.copy_command")} />
+      <CopyButton text={command} label={t("share.copy_command")} />
     </div>
   )
 }
@@ -382,14 +382,14 @@ function Uptime({ since }: { since: string }) {
     const id = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(id)
   }, [])
-  return <span className="text-xs text-muted-foreground tabular-nums">{t("tunnel.uptime", { duration: formatUptime(Date.parse(since), now) })}</span>
+  return <span className="text-xs text-muted-foreground tabular-nums">{t("share.uptime", { duration: formatUptime(Date.parse(since), now) })}</span>
 }
 
 /** "< 1 min", "12 min", "1 h 5 min". */
 function formatUptime(startMs: number, nowMs: number): string {
   const minutes = Math.floor(Math.max(0, nowMs - startMs) / 60_000)
-  if (!Number.isFinite(minutes) || minutes < 1) return t("tunnel.under_minute")
+  if (!Number.isFinite(minutes) || minutes < 1) return t("share.under_minute")
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  return h > 0 ? t("tunnel.hours_minutes", { h, m }) : t("tunnel.minutes", { m })
+  return h > 0 ? t("share.hours_minutes", { h, m }) : t("share.minutes", { m })
 }

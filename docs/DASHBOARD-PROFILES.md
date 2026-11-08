@@ -350,14 +350,14 @@ were removed.
 
 ### Prerequisites
 
-- `cloudflared` on PATH. The Tunnel page lists the steps for your system
+- `cloudflared` on PATH. The Share panel lists the steps for your system
   (Homebrew, apt, dnf, or the single binary from GitHub), and
   `orch dashboard --tunnel` prints them when the binary is missing.
 - Outbound HTTPS from the dashboard host.
 - The `operator` profile: the tunnel is started by the person at the machine.
 - No `config.yml` / `config.yaml` in `~/.cloudflared/` (or
   `/etc/cloudflared/`): Cloudflare does not start quick tunnels while one
-  exists. `orch doctor` and the Tunnel page point it out.
+  exists. `orch doctor` and the Share panel point it out.
 
 ### Enabling it
 

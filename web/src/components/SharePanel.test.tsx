@@ -116,7 +116,9 @@ describe("SharePanel", () => {
     api.enableTunnel.mockResolvedValue(idle)
     renderPanel()
     expect(screen.queryByText(/restart/i)).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByRole("button", { name: "Turn sharing on" }))
+    // #549: the UI says Share, never the tunnel underneath.
+    expect(await screen.findByText("Sharing is off for this project")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Turn sharing on" }))
     await waitFor(() => expect(api.enableTunnel).toHaveBeenCalled())
     expect(await screen.findByRole("button", { name: "Generate links" })).toBeInTheDocument()
   })

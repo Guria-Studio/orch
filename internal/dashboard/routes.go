@@ -85,9 +85,12 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 
 // configStatusPayload is `/api/config/status`'s body.
 //
-// The SPA asks one question — does this project still need the setup wizard —
-// and the other fields are there so it can say WHICH part is missing rather
-// than only that something is.
+// It answers one question — is this project set up — and the other fields say
+// WHICH part is missing rather than only that something is. The SPA's setup
+// wizard that asked it is gone (#549): a project with nothing set up gets the
+// welcome page now, and one half set up gets the Now page's first-run
+// checklist (/api/onboarding), which says what to fix. The route stays as a
+// stable read for scripts, and it is the gate tests' plain data route.
 type configStatusPayload struct {
 	IsSetup      bool   `json:"is_setup"`
 	ProjectID    string `json:"project_id"`

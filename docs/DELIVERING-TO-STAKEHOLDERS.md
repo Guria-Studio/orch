@@ -18,7 +18,7 @@ That sentence. That's it. No spreadsheet, no Slack thread, no weekly email.
 
 - `orch` installed (`curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh`, or a binary from the Releases page — see the README)
 - At least one AI CLI on your PATH: `claude`, `codex`, or `opencode`
-- For sharing a link: `cloudflared` (Cloudflare's tunnel client — no Cloudflare account needed). The dashboard's Tunnel page shows the install steps for your system; on macOS it is `brew install cloudflared`.
+- For sharing a link: `cloudflared` (Cloudflare's tunnel client — no Cloudflare account needed). The dashboard's Share panel shows the install steps for your system; on macOS it is `brew install cloudflared`.
 
 ---
 
@@ -91,7 +91,7 @@ orch validate     # check for cycles, unrouted models, schema errors
 orch dashboard --tunnel
 ```
 
-Or start `orch dashboard` and press **Start the tunnel** on the Tunnel page
+Or start `orch dashboard` and press **Generate links** in the Share panel
 (`http://127.0.0.1:7420/tunnel`). If `cloudflared` is missing, the page shows
 the install steps for your system and a **Check again** button.
 
@@ -239,7 +239,7 @@ To make the stakeholder view more meaningful:
 
 **Client gets 401**
 The link is from an earlier start: every start mints new tokens and a new address. Send
-the current client-portal link from the Tunnel page.
+the current client-portal link from the Share panel.
 
 **Client gets 403**
 They opened a page outside the client portal with the portal link's token — expected.
@@ -250,7 +250,7 @@ Quick tunnels get a new random address on every start. For a stable public URL, 
 named Cloudflare Tunnel — full guide in [docs/DASHBOARD-PROFILES.md](DASHBOARD-PROFILES.md).
 
 **The tunnel does not start**
-Check the Tunnel page or `orch doctor`: `cloudflared` must be on PATH, and a
+Check the Share panel or `orch doctor`: `cloudflared` must be on PATH, and a
 `config.yml`/`config.yaml` in `~/.cloudflared/` stops quick tunnels (rename it while sharing).
 
 **Dashboard not updating live**

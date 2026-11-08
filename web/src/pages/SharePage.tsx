@@ -2,7 +2,7 @@ import { SharePanel } from "@/components/SharePanel"
 import { t } from "@/i18n"
 
 /** The Share panel as a page, for links and bookmarks to /delivery/share; the sidebar opens it as a dialog. */
-export function TunnelPage() {
+export function SharePage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
