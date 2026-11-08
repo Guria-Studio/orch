@@ -146,3 +146,16 @@ func truncate(s string, n int) string {
 	}
 	return s[:n]
 }
+
+// noCommits reports whether a PR/MR create refusal says the branch has no
+// commits over its base — the one refusal that means "no changes" (#532).
+// gh says "No commits between main and orch/T-1"; glab's API says "no
+// commits" or that the source branch has nothing new.
+func noCommits(err error) bool {
+	var re *runError
+	if !errors.As(err, &re) {
+		return false
+	}
+	s := strings.ToLower(re.stderr)
+	return strings.Contains(s, "no commits between") || strings.Contains(s, "no commits")
+}

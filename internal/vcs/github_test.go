@@ -31,17 +31,34 @@ func TestGitHubCreatePRReturnsURL(t *testing.T) {
 	}
 }
 
-func TestGitHubCreatePRReturnsEmptyOnOrdinaryFailure(t *testing.T) {
+// A branch with no commits over its base is the one refusal that means "no
+// changes": empty and no error, which the engine reports as such.
+func TestGitHubCreatePRReturnsEmptyWhenTheBranchHasNoCommits(t *testing.T) {
 	withFakeBin(t)
 	t.Setenv("FAKE_GH_CREATE_EXIT", "1")
-	t.Setenv("FAKE_GH_AUTH_EXIT", "0") // authenticated — this is an ordinary failure
+	t.Setenv("FAKE_GH_CREATE_STDERR", "pull request create failed: GraphQL: No commits between main and t1 (createPullRequest)\n")
+	t.Setenv("FAKE_GH_AUTH_EXIT", "0")
 
 	url, err := NewGitHubProvider().CreatePR("t1", "main", "title", "body")
-	if err != nil {
-		t.Fatalf("expected no error for an ordinary (non-auth) failure, got %v", err)
+	if err != nil || url != "" {
+		t.Errorf("url = %q, err = %v; want empty and no error", url, err)
 	}
-	if url != "" {
-		t.Errorf("url = %q, want empty", url)
+}
+
+// TestGitHubCreatePRReturnsARealFailure (#532): any other refusal — a
+// network error, a rate limit, a 5xx — with no open PR on the branch is an
+// error. It used to come back empty, which the engine reported as "no
+// changes to propose?": a rate limit read as an agent that did nothing.
+func TestGitHubCreatePRReturnsARealFailure(t *testing.T) {
+	withFakeBin(t)
+	t.Setenv("FAKE_GH_CREATE_EXIT", "1")
+	t.Setenv("FAKE_GH_CREATE_STDERR", "HTTP 403: API rate limit exceeded\n")
+	t.Setenv("FAKE_GH_AUTH_EXIT", "0")
+	t.Setenv("FAKE_GH_PRLIST_STDOUT", readCapture(t, "2.101.0", "pr-list-none.json"))
+
+	url, err := NewGitHubProvider().CreatePR("t1", "main", "title", "body")
+	if err == nil || !strings.Contains(err.Error(), "rate limit") {
+		t.Errorf("url = %q, err = %v; want the rate-limit error", url, err)
 	}
 }
 
@@ -68,10 +85,10 @@ func TestGitHubCreatePRReturnsTheBranchsOpenPR(t *testing.T) {
 		t.Errorf("gh was not asked for the branch's open PR: %s", got)
 	}
 
-	// No PR on the branch either: still empty, as an ordinary failure was.
+	// No PR on the branch either: the refusal stands (#532).
 	t.Setenv("FAKE_GH_PRLIST_STDOUT", readCapture(t, "2.101.0", "pr-list-none.json"))
-	if url, err := NewGitHubProvider().CreatePR("t1", "main", "title", "body"); err != nil || url != "" {
-		t.Errorf("no PR anywhere: url = %q, err = %v; want empty", url, err)
+	if url, err := NewGitHubProvider().CreatePR("t1", "main", "title", "body"); err == nil {
+		t.Errorf("no PR anywhere: url = %q, err = nil; want the refusal", url)
 	}
 }
 
