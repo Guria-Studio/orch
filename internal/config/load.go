@@ -246,6 +246,9 @@ func validate(cfg *Config) error {
 	if cfg.Dispatch.MinFreeDiskMB < 0 {
 		return fmt.Errorf("dispatch.min_free_disk_mb: %d is negative; 0 never holds a dispatch", cfg.Dispatch.MinFreeDiskMB)
 	}
+	if cfg.Dispatch.UnestimatedTimeoutM < 0 {
+		return fmt.Errorf("dispatch.unestimated_timeout_m: %d is negative; 0 means 60 minutes", cfg.Dispatch.UnestimatedTimeoutM)
+	}
 	switch cfg.Radar = strings.ToLower(strings.TrimSpace(cfg.Radar)); cfg.Radar {
 	case "warn", "serialize", "off":
 	default:
@@ -354,7 +357,8 @@ var knownKeys = map[string]bool{
 	"dispatch.worktree_mode":              true, "dispatch.base_branch": true,
 	"dispatch.worktree_setup": true, "dispatch.isolate_compose": true, "dispatch.tdd": true,
 	"dispatch.sandbox": true, "dispatch.sandbox_allow": true, "dispatch.min_free_disk_mb": true,
-	"vcs.provider": true, "vcs.host": true, "vcs.auto_pr": true,
+	"dispatch.unestimated_timeout_m": true,
+	"vcs.provider":                   true, "vcs.host": true, "vcs.auto_pr": true,
 	"vcs.ci_max_retries": true, "vcs.ci_poll_interval_s": true,
 	"github.test_command": true, "github.auto_merge": true,
 	"notifications.slack_webhook": true, "notifications.discord_webhook": true,

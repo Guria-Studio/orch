@@ -54,6 +54,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 	if timedOut {
 		out.Result.Success = false
 		out.Result.ErrorMessage = reason
+		out.ActiveAtTimeout = logActiveAt(d.LogPath, sp.StartedAt.Add(d.Timeout), d.Timeout)
 	}
 	if !out.Result.Success {
 		if timedOut {
@@ -504,6 +505,20 @@ func (s *Scheduler) handleFailure(ctx context.Context, entry *InFlight, out Outc
 			s.logger().Error("mark done failed", "task", entry.Task.ID, "err", err)
 		}
 		return nil
+	}
+
+	// A timeout is not retried: a hung agent would only hang again. One whose
+	// log was still growing when it was killed was working, not hung, and
+	// gets one more attempt with twice the time — once per task and run.
+	if out.Failure == providers.FailureTimeout && out.ActiveAtTimeout && s.timeoutScale[entry.Task.ID] == 0 {
+		if s.timeoutScale == nil {
+			s.timeoutScale = map[string]float64{}
+		}
+		s.timeoutScale[entry.Task.ID] = 2
+		return s.queueRetry(ctx, entry, RetryDecision{
+			Retry: true, Route: entry.Route, Attempt: entry.Attempt + 1,
+			Reason: reason + "; the agent was still working, so it gets one more attempt with twice the time",
+		}, out)
 	}
 
 	decision := DecideRetry(RetryInput{

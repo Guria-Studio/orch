@@ -135,6 +135,8 @@ func (b *fakeBackend) eventTypes(taskID string) []string {
 type reapFixture struct {
 	s       *Scheduler
 	backend *fakeBackend
+	// fakeDir holds the fake claude's canned files, for a test that adds one.
+	fakeDir string
 }
 
 func newReapFixture(t *testing.T, tasks []model.Task, responses map[string]fakeResponse, opts SchedulerOptions) *reapFixture {
@@ -189,7 +191,7 @@ func newReapFixture(t *testing.T, tasks []model.Task, responses map[string]fakeR
 	b := newFakeBackend()
 	s.Backend = b
 
-	return &reapFixture{s: s, backend: b}
+	return &reapFixture{s: s, backend: b, fakeDir: dir}
 }
 
 type fakeResponse struct {
@@ -607,6 +609,72 @@ func TestCleanExitWithoutASignalNeedsWork(t *testing.T) {
 			}
 			if got := len(f.s.RetryQueue()) == 1; got != tt.wantRetry {
 				t.Errorf("retry queued = %v, want %v", got, tt.wantRetry)
+			}
+		})
+	}
+}
+
+// TestTimeoutForTask (#529): a task with no estimate — every one `orch sync
+// issues` creates — gets dispatch.unestimated_timeout_m, 60 minutes when the
+// key is absent, not the 60-second floor that killed it on its first minute.
+func TestTimeoutForTask(t *testing.T) {
+	tests := []struct {
+		name     string
+		estimate float64
+		cfgM     int
+		want     time.Duration
+	}{
+		{"an estimate drives the timeout", 1, 0, 90 * time.Minute},
+		{"no estimate and no key is an hour", 0, 0, time.Hour},
+		{"no estimate takes the key", 0, 15, 15 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewScheduler(nil, nil, SchedulerOptions{TimeoutMultiplier: 1.5,
+				Cfg: config.Config{Dispatch: config.Dispatch{UnestimatedTimeoutM: tt.cfgM}}})
+			if got := s.timeoutFor(model.Task{EstimateHours: tt.estimate}); got != tt.want {
+				t.Errorf("timeout = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTimeoutRetriesOnceWhileTheAgentWasWorking (#529): a timeout is not
+// retried, because a hung agent would only hang again — unless its log was
+// still growing when it was killed. That agent was working, not hung, and gets
+// one more attempt with twice the time.
+func TestTimeoutRetriesOnceWhileTheAgentWasWorking(t *testing.T) {
+	tests := []struct {
+		name      string
+		script    string // the fake agent's work, run until the timeout kills it
+		wantRetry bool
+	}{
+		{"an agent still writing gets one more attempt", "while true; do echo tick; sleep 0.05; done", true},
+		{"a silent agent is blocked", "sleep 30", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tk := task("C-1", 1, "claude/opus")
+			tk.EstimateHours = 0.0004 // ≈ 2.2s at 1.5×
+			f := newReapFixture(t, []model.Task{tk},
+				map[string]fakeResponse{"C-1": okResponse()}, SchedulerOptions{})
+			first := f.s.timeoutFor(tk)
+			write(t, filepath.Join(f.fakeDir, "C-1.sh"), tt.script)
+
+			f.runOnce(t)
+
+			q := f.s.RetryQueue()
+			if got := len(q) == 1; got != tt.wantRetry {
+				t.Fatalf("retry queued = %v, want %v", got, tt.wantRetry)
+			}
+			if !tt.wantRetry {
+				if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+					t.Errorf("status = %q, want blocked", got)
+				}
+				return
+			}
+			if got := f.s.timeoutFor(q[0].Task); got != 2*first {
+				t.Errorf("retry timeout = %v, want twice %v", got, first)
 			}
 		})
 	}
