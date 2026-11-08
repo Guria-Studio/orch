@@ -7,7 +7,7 @@
 #
 # Subcommand -> variable pair (stdout, exit code):
 #   auth status                          FAKE_GH_AUTH_EXIT
-#   pr create ...                        FAKE_GH_CREATE_STDOUT / _EXIT
+#   pr create ...                        FAKE_GH_CREATE_STDOUT / _EXIT / _STDERR
 #   pr checks ...                        FAKE_GH_CHECKS_STDOUT / _EXIT / _STDERR
 #   pr view ...                          FAKE_GH_VIEW_STDOUT / _EXIT
 #   pr list ...                          FAKE_GH_PRLIST_STDOUT / _EXIT
@@ -30,6 +30,7 @@ case "$1 $2" in
     ;;
   "pr create")
     printf '%s' "${FAKE_GH_CREATE_STDOUT:-}"
+    printf '%s' "${FAKE_GH_CREATE_STDERR:-}" >&2
     exit "${FAKE_GH_CREATE_EXIT:-0}"
     ;;
   "pr checks")

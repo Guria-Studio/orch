@@ -55,7 +55,12 @@ func (p *GitLabProvider) CreatePR(head, base, title, body string) (string, error
 		if authErr := checkAuth("glab", p.env()); authErr != nil {
 			return "", authErr
 		}
-		return "", nil
+		// As on GitHub (#532): only "no commits" means no changes; any other
+		// refusal is an error, not an agent that did nothing.
+		if noCommits(err) {
+			return "", nil
+		}
+		return "", err
 	}
 	url := lastNonEmptyLine(out)
 	if url == "" {

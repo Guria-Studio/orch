@@ -73,7 +73,16 @@ func (p *GitHubProvider) CreatePR(head, base, title, body string) (string, error
 		// gh refuses a branch that already has an open PR. A retry pushes to
 		// the branch its first attempt opened one from, so that PR — now
 		// carrying the retry's commit — is the one to watch (#386).
-		return p.openPRFor(head), nil
+		if url := p.openPRFor(head); url != "" {
+			return url, nil
+		}
+		// A branch with no commits over its base is "no changes": empty, as
+		// before. Anything else — a network error, a rate limit — is the
+		// error it is, not an agent that did nothing (#532).
+		if noCommits(err) {
+			return "", nil
+		}
+		return "", err
 	}
 	url := strings.TrimSpace(out)
 	if url == "" {

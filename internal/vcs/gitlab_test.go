@@ -44,17 +44,21 @@ func TestGitLabCreatePRSetsGitlabHostEnv(t *testing.T) {
 	}
 }
 
-func TestGitLabCreatePRReturnsEmptyOnOrdinaryFailure(t *testing.T) {
+// As on GitHub (#532): "no commits" is the one refusal that means no
+// changes; any other is an error, not an agent that did nothing.
+func TestGitLabCreatePRSeparatesNoCommitsFromARealFailure(t *testing.T) {
 	withFakeBin(t)
 	t.Setenv("FAKE_GLAB_CREATE_EXIT", "1")
 	t.Setenv("FAKE_GLAB_AUTH_EXIT", "0")
 
-	url, err := NewGitLabProvider("gitlab.com").CreatePR("t1", "t", "b", "h")
-	if err != nil {
-		t.Fatalf("expected no error for an ordinary failure, got %v", err)
+	t.Setenv("FAKE_GLAB_CREATE_STDERR", "There are no commits between t and t1\n")
+	if url, err := NewGitLabProvider("gitlab.com").CreatePR("t1", "t", "b", "h"); err != nil || url != "" {
+		t.Errorf("no commits: url = %q, err = %v; want empty and no error", url, err)
 	}
-	if url != "" {
-		t.Errorf("url = %q, want empty", url)
+
+	t.Setenv("FAKE_GLAB_CREATE_STDERR", "500 Internal Server Error\n")
+	if _, err := NewGitLabProvider("gitlab.com").CreatePR("t1", "t", "b", "h"); err == nil {
+		t.Error("a 500: err = nil, want the refusal")
 	}
 }
 
