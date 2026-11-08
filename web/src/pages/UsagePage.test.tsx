@@ -11,7 +11,7 @@ const useMetrics = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/useMetrics", () => ({ useMetrics }))
 const useRouterSuggest = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/useRouterSuggest", () => ({ useRouterSuggest }))
-const useUsage = vi.hoisted(() => vi.fn(() => ({ data: undefined })))
+const useUsage = vi.hoisted(() => vi.fn((): { data?: unknown } => ({ data: undefined })))
 vi.mock("@/hooks/useUsage", () => ({ useUsage }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ lastEventAt: null }) }))
 
