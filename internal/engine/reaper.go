@@ -63,6 +63,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 		}
 	}
 	s.reportedDoneOutcome(d, &out)
+	s.silentExitOutcome(d, &out)
 	s.verifyOutcome(d, attempt, &out)
 	s.guardOutcome(d, &out)
 
@@ -86,6 +87,33 @@ func (s *Scheduler) reportedDoneOutcome(d Dispatch, out *Outcome) {
 	out.Result.Success = true
 	out.Result.ErrorMessage = ""
 	out.Failure = ""
+}
+
+// silentExitOutcome turns a clean exit into a failure when the agent neither
+// reported anything nor changed anything (#528). A clean exit is the done
+// channel of last resort — the prompt offers it to an agent allowed neither
+// the MCP tools nor the scripts — so it counts only when there is work to
+// publish. The task still reading in-progress is "no report": done and
+// blocked are the agent's own words, and a backend that cannot answer is
+// trusted as before. Only worktree mode can tell: it has the task's diff.
+func (s *Scheduler) silentExitOutcome(d Dispatch, out *Outcome) {
+	if !out.Result.Success || s.Worktree == nil || !s.Opts.WorktreeMode {
+		return
+	}
+	ctx := context.Background()
+	if !s.taskStatusIs(ctx, d.Req.TaskID, model.StatusInProgress) {
+		return
+	}
+	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
+	changed, err := s.Worktree.ChangedFiles(ctx, d.Req.TaskID)
+	if err != nil || len(changed) > 0 {
+		return
+	}
+	s.logger().Warn("the agent exited cleanly without reporting done and without changing a file; not done",
+		"task", d.Req.TaskID)
+	out.Result.Success = false
+	out.Result.ErrorMessage = "the agent exited cleanly without reporting done and without changing any file"
+	out.Failure = providers.FailureOther
 }
 
 // Reap handles every child that has finished since the last call, and returns

@@ -91,6 +91,9 @@ exec orch task-status "$1" in-progress
 exec orch task-status "$1" done
 -- fake/claude/_default.out --
 {"type":"result","subtype":"success","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}
+-- fake/claude/_default.sh --
+# The agent's edit: a clean exit counts as done only with work to publish (#528).
+echo done > work.txt
 -- gh-green --
 [{"state":"completed","conclusion":"success"}]
 -- bin/gh --
