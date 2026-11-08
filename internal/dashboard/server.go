@@ -89,10 +89,11 @@ type Server struct {
 
 // StateReader is the slice of the state backend the dashboard reads.
 //
-// Narrow and read-only by construction: a dashboard that could write would be
-// a second writer to a database with one writer, and "read-only by design" is
-// the property the profile guard rests on. CHECKLIST rule 13 says the same
-// thing about the package; this says it in the type.
+// Narrow and read-only by construction: reads never go through a writer, and
+// the profile guard rests on that. The local operator's edits (task edits,
+// steering, review, config, knowledge, findings) are separate routes that go
+// through the same functions as the CLI commands, never through this
+// interface and never by driving the engine (CHECKLIST rule 13).
 type StateReader interface {
 	// Tasks is the live status of every task, which every task-shaped view
 	// overlays on tasks.json. Filtered queries exist on the backend; the

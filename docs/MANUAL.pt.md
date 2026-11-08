@@ -46,7 +46,7 @@ acompanhar e revisar o trabalho, e `orch publish` para a página do cliente.
 9. [O roteador de modelos](#9-o-roteador-de-modelos)
 10. [Inspecionar a config](#10-inspecionar-a-config)
 11. [MCP — deixar um agente controlar o orch diretamente](#11-mcp--deixar-um-agente-controlar-o-orch-diretamente)
-12. [Instalar a skill de Claude Code do orch](#12-instalar-a-skill-de-claude-code-do-orch)
+12. [Instalar as skills do orch](#12-instalar-as-skills-do-orch)
 13. [Quando algo falha](#13-quando-algo-falha)
 14. [Atualizar o orch](#14-atualizar-o-orch)
 15. [Python legacy](#python-legacy)
@@ -81,7 +81,7 @@ orch --help
 ### CLIs de IA que você precisa
 
 Pelo menos **uma** destas no seu `PATH`, autenticada com uma assinatura
-ou API key. O orch despacha para todas, e um mesmo projeto pode
+ou API key. O orch despacha para as seis, e um mesmo projeto pode
 misturá-las — cada tarefa vai para a CLI para a qual o seu modelo é roteado
 ([§9](#9-o-roteador-de-modelos)):
 
@@ -89,7 +89,7 @@ misturá-las — cada tarefa vai para a CLI para a qual o seu modelo é roteado
 - **`codex`** — Codex CLI (OpenAI)
 - **`gemini`** — Gemini CLI (Google)
 - **`opencode`** — OpenCode (qualquer provedor para o qual esteja configurado)
-- **`agy`** — Antigravity (o gateway multi-modelo do Google)
+- **`agy`** — Antigravity CLI (Google; várias famílias de modelos atrás de uma só CLI)
 - **`muse`** — Muse Code (Meta). O orch o roda sem aprovações e sem o seu
   sandbox (`--approval-mode never --disable-sandbox`), para que o agente
   possa reportar sua tarefa como concluída
@@ -132,7 +132,7 @@ Flags:
       --force                 Overwrite an existing project's files
   -h, --help                  help for init
       --no-permissions        Do not allow orch's agent rules in the settings of the CLIs the project uses; orch claude-permissions / orch agy-permissions add them later
-      --no-report-findings    Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)
+      --no-report-findings    Write report_findings.enabled: false (it is on by default: agents queue the bugs they find in orch, and you review each before it is sent)
       --project-name string   Name used in generated files; default = the directory name
       --sdd                   Also scaffold the openspec/ layout
       --template string       Project template (chatbot-whatsapp, data-pipeline, expo-mobile, nextjs-saas, python-api); omit for a blank project
@@ -176,11 +176,14 @@ pasta que não foi marcada como confiável, e cada tarefa roda num worktree novo
 então o orch define `GEMINI_CLI_TRUST_WORKSPACE=true` em cada dispatch do
 gemini; defina como `false` no seu ambiente para manter esse controle.
 
-Um projeto novo vem com `report_findings.enabled: false`. Os agentes podem
-abrir issues **públicas** sobre o próprio orch em Guria-Studio/orch com o seu
-login do `gh` ([`DOGFOODING.md`](DOGFOODING.md)), e isso não é a primeira
-coisa a perguntar: o primeiro `orch run` que termina uma tarefa oferece, uma
-vez. `--no-report-findings` é um não definitivo, e nunca é oferecido.
+Um projeto novo vem com `report_findings.enabled: true`: o wizard e o
+`orch start` perguntam uma vez, com sim por padrão. Os agentes que encontram
+um bug no próprio orch **enfileiram** um relatório; nada é publicado por
+conta própria. Você lê cada um, com o título e o corpo como seriam publicados
+em Guria-Studio/orch com o seu login do `gh`, com `orch findings` ou na página
+System › Findings do dashboard, e envia (`orch findings send ID`) ou descarta.
+O `orch run` e o Now dizem quantos esperam. `--no-report-findings` desliga.
+Veja [`DOGFOODING.md`](DOGFOODING.md).
 
 Um projeto em branco começa com **uma tarefa de exemplo**, `F0.T1` ("Add a
 Getting started section to README.md"), no modelo mais barato de uma CLI
@@ -252,7 +255,7 @@ são ignorados pelo parser (assim um spec de exemplo dentro de
 
 ## 4. Revisar o plano antes de rodar
 
-O comando `run` do binário em Go **ainda não tem flag `--dry-run`** — é uma
+O comando `run` do binário em Go **não tem flag `--dry-run`** — é uma
 lacuna conhecida e documentada em relação ao Python (veja a linha de `run` em
 [`CLI.md`](CLI.md)). Para ver antes o que uma execução faria, use os
 comandos de somente leitura:
@@ -266,6 +269,9 @@ orch tasks --status todo
 
 # O grafo de dependências, como Graphviz DOT
 orch graph | dot -Tpng -o plan.png
+
+# O que a próxima execução despacharia, e quanto custaria e levaria
+orch estimate
 ```
 
 `orch validate` roda os checks do preflight do Python que já têm um
@@ -422,7 +428,10 @@ sempre.
 $ orch dashboard --help
 Serve the operator dashboard on a local HTTP port.
 
-Reads the project's state and shows it; it never writes. The
+Shows the project's state. From this machine the operator can also
+act on it — edit and steer tasks, accept or send back their work,
+change config, budgets and lessons — through the same functions as
+the CLI commands; it never drives orch run. The
 client profile (`stakeholder` in config) gates every data route
 behind a token and an allow-list, so your client sees only the
 client page — see `profile` and `token` under `dashboard:` in
@@ -463,22 +472,25 @@ orch report summary
 
 # Um link para passar a um cliente, por um túnel rápido da Cloudflare (precisa de
 # `tunnel: enabled: true` no config.yaml e do cloudflared no PATH — a página
-# Tunnel mostra como instalar). Imprime o link da página do cliente, com
+# Share mostra como instalar). Imprime o link da página do cliente, com
 # o token que toda requisição pelo túnel exige; Ctrl+C o revoga.
+# A página Share também pode compartilhar pelo Tailscale (serve ou Funnel).
 orch dashboard --tunnel
 ```
 
-O dashboard do operador tem quatro destinos. **Now** é a primeira tela: a
+O dashboard tem quatro destinos, mais o **System** (ferramentas, provedores e
+cota, skills, knowledge, findings, configurações) à parte. **Now** é a primeira tela: a
 execução, cada agente trabalhando com seu relógio correndo, as tarefas
 bloqueadas e as que esperam uma janela de orçamento (com o comando
-`orch task set` que desbloqueia cada uma — o dashboard só lê), as fases e a
+que desbloqueia cada uma e, nesta máquina, os botões que fazem isso), as fases e a
 janela de orçamento; depois que uma execução termina, o recibo dela com a
 execução em palavras simples embaixo — por que cada tarefa bloqueada parou e os
 próximos passos com seus comandos. **Work** reúne List, Kanban, Graph, Phases e
-Pace como abas que compartilham os mesmos filtros na URL; **Cost** reúne Budget
-e Metrics; **Delivery** reúne o resumo para o cliente, CI, Tests (cada execução
+Pace como abas que compartilham os mesmos filtros na URL; **Usage** reúne tokens
+e gasto por modelo, tarefa e tentativa, e o orçamento; **Delivery** reúne a
+página do cliente, o resumo para o cliente, CI, Tests (cada execução
 E2E que o verify local fez, com o que um teste que falhou deixou: erro, passo,
-captura de tela, vídeo, trace) e Share (o túnel). **Logs** abre como um painel
+captura de tela, vídeo, trace) e Share (um túnel rápido da Cloudflare ou o Tailscale). **Logs** abre como um painel
 sobre qualquer página. Os endereços antigos (`/kanban`, `/budget`, `/tunnel`…)
 redirecionam para o novo lugar. **⌘K** (Ctrl+K) busca páginas, tarefas e
 filtros e copia comandos da CLI; `g` e depois `n`/`w`/`c`/`d` troca de destino,
@@ -582,13 +594,12 @@ Flags:
 # Mudar o status de uma tarefa diretamente (transições ilegais saem com exit 3)
 orch task-status F1.1.T5 todo --note "re-queued after manual fix"
 
-# A mesma coisa, pela superfície mais nova `task set` — também é onde vai
-# entrar um futuro override de model/backend quando state.Backend suportar
-# escrevê-los (hoje essas duas flags estão registradas mas retornam um erro
-# claro de "not implemented yet" em vez de não fazer nada em silêncio). Não há
-# flag de milestone: um milestone é uma fase, e a fase de uma tarefa fica no
-# tasks.json
+# A mesma coisa, pela superfície mais nova `task set`. Não há flag de
+# milestone: um milestone é uma fase, e a fase de uma tarefa fica no tasks.json
 orch task set --id F1.1.T5 --status todo
+
+# Rotear uma tarefa para outro modelo: uma chave do model_router.yaml, escrita no tasks.json
+orch task set --id F1.1.T5 --model codex/gpt-5.4
 
 # Ver quais tarefas in-progress parecem travadas, sem mexer em nada
 orch reset
@@ -599,14 +610,13 @@ orch reset --requeue --only 'F1.*'
 
 ```bash
 $ orch task set --help
-Set a task's status (model and backend overrides are not implemented)
+Set a task's status, or its model
 
 Flags:
-      --backend string   Override the backend for this task (not implemented yet)
-  -h, --help             help for set
-      --id string        Task ID, e.g. F1.1.T3
-      --model string     Override the model for this task (not implemented yet)
-      --status string    Set the task status (e.g. done, in-progress, blocked)
+  -h, --help            help for set
+      --id string       Task ID, e.g. F1.1.T3
+      --model string    Set the task's model in tasks.json: a model_router.yaml key, which names the backend
+      --status string   Set the task status (e.g. done, in-progress, blocked)
 ```
 
 `reset` lê o status **real** de runtime a partir do backend de estado, não o
@@ -742,11 +752,11 @@ quem chama é um modelo que pode tentar de novo).
 
 ---
 
-## 12. Instalar a skill de Claude Code do orch
+## 12. Instalar as skills do orch
 
 ```bash
 $ orch install-skills --help
-Install orch's Claude Code skill(s) into one or more agent CLIs
+Install orch's skills (the orch manual, the planning pipeline, TDD, E2E) into claude, codex, opencode or cursor
 
 Flags:
       --all              Install every embedded skill (default when --skill is omitted)

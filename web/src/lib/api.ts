@@ -215,7 +215,7 @@ export interface Curation {
 /** Curate now: the estimate, dispatching nothing; then, confirmed, the curation runs in the background. */
 export const curateEstimate = () => taskWrite<Curation>("post", "/api/knowledge/curate/estimate", {})
 export const startCuration = () => taskWrite<Curation>("post", "/api/knowledge/curate", {})
-/** Moves a task on the board; `blocked` needs a note (the reason). A running task is stopped, not moved. */
+/** Moves a task from its page's status control (Kanban has no drag-and-drop); `blocked` needs a note (the reason). A running task is stopped, not moved. */
 export const moveTask = (id: string, status: string, note = "") =>
   taskWrite<StopResult>("post", `/api/task/${encodeURIComponent(id)}/status`, { status, note })
 

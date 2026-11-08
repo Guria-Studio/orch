@@ -99,7 +99,9 @@ needs Python ≥3.11" is a step where people leave.
 
 **What got thrown away.** Deliberately, not "not yet":
 
-- `orch findings` — an internal dogfooding tool, not part of the product.
+- Python's `orch findings`, an internal dogfooding tool. (A different `orch
+  findings` came back in #536: the review queue for the reports agents write
+  about orch itself, which the operator reads before anything is sent.)
 - The architecture-diagram generator, which depended on an external skill.
 - The file-based state backend. Go only speaks SQLite; `orch migrate` imports an
   old project once.
@@ -111,7 +113,9 @@ needs Python ≥3.11" is a step where people leave.
 - The plan said the tunnel supervisor would support cloudflared. The Python code
   never had cloudflared, only autossh (Pinggy) and bore, so that is what got
   ported. Porting what the plan said instead of what the code did would have
-  been a new feature with nothing real to test it against.
+  been a new feature with nothing real to test it against. (autossh and bore
+  were later replaced: the tunnel is now a Cloudflare quick tunnel, or
+  Tailscale from the dashboard's Share page.)
 
 (Jinja was already gone before the rewrite started; the dashboard had become a
 React app while still in Python.)
@@ -259,7 +263,7 @@ And against itself:
 | Install | `pipx install`, needs Python ≥3.11 | one binary, 19.4–21.0 MB (8.1–8.8 MB download) |
 | Runtime dependencies on the machine | Python + 4 packages | none |
 | Dispatch backends | claude, codex, opencode, gemini, agy | those five + muse (gemini dispatchable since the trust fix) |
-| Command surfaces | 21 | 37 (36 in `orch --help` + hidden `sandbox-exec`; no `findings`, no `stop`) |
+| Command surfaces | 21 | 37 (36 in `orch --help` + hidden `sandbox-exec`; no `findings`, no `stop` — at `v0.30.0`; `findings` is back since #536) |
 | Dashboard | FastAPI + uvicorn + a built SPA on disk | `net/http`, SPA embedded |
 | New in Go | — | MCP server (13 tools), `explain`, `publish`, `report pdf`, `sync issues`, `estimate`, `bench`, verify, sandbox, portfolio |
 | Non-test lines | 21,279 | 66,626 |

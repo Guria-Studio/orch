@@ -47,7 +47,10 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 		Use:   "dashboard",
 		Short: "Serve the operator dashboard",
 		Long: "Serve the operator dashboard on a local HTTP port.\n\n" +
-			"Reads the project's state and shows it; it never writes. The\n" +
+			"Shows the project's state. From this machine the operator can also\n" +
+			"act on it — edit and steer tasks, accept or send back their work,\n" +
+			"change config, budgets and lessons — through the same functions as\n" +
+			"the CLI commands; it never drives orch run. The\n" +
 			"client profile (`stakeholder` in config) gates every data route\n" +
 			"behind a token and an allow-list, so your client sees only the\n" +
 			"client page — see `profile` and `token` under `dashboard:` in\n" +
