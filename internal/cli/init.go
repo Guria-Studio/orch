@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -130,7 +131,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			recordInitTemplate(res.Root, opts.Template)
-			printInitResult(cmd, res, opts, scaffold.DiscoverySummary(router.OnPath, opts.Models, failed))
+			printInitResult(cmd, res, opts, discoveryLine(res.Root, opts.Models, failed))
 			if err := runLocallyWhenNoForge(res.Root, false, func(format string, a ...any) {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), format+"\n", a...)
 			}); err != nil {
@@ -172,7 +173,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 // The router line comes first among the notes because it is the one that
 // changed: `orch init` now routes a template's own models, and saying so is
 // what stops an operator from wondering whether they still need to.
-func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, models []string) {
+func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Options, models string) {
 	out := cmd.OutOrStdout()
 	// A failed write to stdout is not something this command can act on —
 	// the project is already scaffolded and the banner is the last thing it
@@ -194,8 +195,8 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	for _, warning := range res.Warnings {
 		say("! %s", warning)
 	}
-	for _, line := range models {
-		say("· models: %s", line)
+	if models != "" {
+		say("· models: %s", models)
 	}
 
 	say("")
@@ -230,6 +231,14 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 		say("")
 		say(reportFindingsNotice)
 	}
+}
+
+// discoveryLine is init's and start's one line about the models (#547),
+// counted against the router the project was just scaffolded with. A router
+// that does not load counts no routes; `orch router validate` says why.
+func discoveryLine(root string, lists scaffold.ModelLists, failed []model.Backend) string {
+	r, _ := router.Load(filepath.Join(root, ".orchestrator", "model_router.yaml"))
+	return scaffold.DiscoverySummary(router.OnPath, lists, failed, r)
 }
 
 // reportFindingsQuestion is init's and start's consent question (#536).

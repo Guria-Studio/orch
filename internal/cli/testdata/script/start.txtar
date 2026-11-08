@@ -32,7 +32,7 @@ stdout '^✓ claude, codex on PATH · git repository$'
 stdout 'orch project created in .*fresh \(premium claude/opus · standard claude/sonnet · cheap claude/haiku\)'
 # The fake codex prints no model list: its packaged routes stay, and start
 # says so (#397).
-stdout '^· models: codex: could not list its models; its packaged routes are kept$'
+stdout '^· models: claude \d+ routes? · codex \d+ packaged routes? \(could not list its models\) — see `orch router refresh`$'
 stdout 'Claude agents are refused orch''s own tools'
 stdout '^✓ installed claude skills: .*orch-plan'
 stdout '^→ claude plans it with /orch-plan'

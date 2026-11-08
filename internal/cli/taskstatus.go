@@ -20,7 +20,10 @@ func newTaskStatusCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task-status TASK_ID STATUS",
 		Short: "Single-writer helper — updates task status via the active backend",
-		Args:  cobra.ExactArgs(2),
+		// Plumbing (#547): the task scripts call it; `orch task set` is the
+		// operator's way. Hidden from --help, never removed.
+		Hidden: true,
+		Args:   cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID, rawStatus := args[0], args[1]
 			ctx := cmd.Context()

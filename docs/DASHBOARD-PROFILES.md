@@ -70,6 +70,15 @@ Now:
 - `http://127.0.0.1:7420/` — operator dashboard (no auth, full data).
 - `http://127.0.0.1:7420/stakeholder?token=<TOKEN>` — curated view.
 
+Bound beyond loopback (`--host 0.0.0.0`, a LAN address), **every data route
+wants the token from anyone not on this machine**, the operator surface
+included (#537): `http://<lan-ip>:7420/?token=<TOKEN>`. With no token set,
+`orch dashboard` refuses to start rather than serve the operator surface to
+the network. Bound to loopback (the default), a request whose `Host` is not
+`127.0.0.1`, `localhost` or `::1` is refused with 403, so a page on a domain
+that rebinds to 127.0.0.1 cannot read the dashboard through your browser. A
+request through `orch dashboard --tunnel` is judged by the tunnel's own rule.
+
 If you're binding to `0.0.0.0`, you almost certainly want to put the
 process behind a tunnel or reverse proxy. Read on.
 

@@ -106,3 +106,10 @@ the point:
 | `pr-checks-job-not-started.json` | `gh pr checks 1 -R <owner>/billing-api --json name,state,bucket,link` — one `FAILURE`, a job that never ran ("The job was not started because recent account payments have failed…") |
 | `actions-job-not-started.json` | `gh api repos/<owner>/billing-api/actions/jobs/123724387525 --jq '{id,status,conclusion,started_at,completed_at,runner_id,runner_name,steps}'` — that job: `runner_id` 0, `steps` empty |
 | `actions-job-ran.json` | the same for job 123727313209, which ran and failed (`pytest` exit 5, #500), with each step's `name,status,conclusion,number` |
+
+For `orch sync issues` importing only collaborators' issues by default (#542):
+
+| file | what it is |
+|---|---|
+| `issue-list.json` | `gh issue list --repo Guria-Studio/orch --state closed --limit 3 --json number,title,body,state,url,createdAt,labels,author` — three real issues, each with its `author` object (`login`, `is_bot`, …) |
+| `api-collaborator-404.stdout` / `.stderr` | `gh api repos/Guria-Studio/orch/collaborators/torvalds` — someone who is not a collaborator: exit 1, the JSON body on stdout and `gh: Not Found (HTTP 404)` on stderr. A collaborator is exit 0 with no output (HTTP 204) |
