@@ -368,6 +368,19 @@ func (s *Server) gated(r route) http.Handler {
 				req = req.WithContext(context.WithValue(req.Context(), portalViewKey{}, true))
 			}
 		}
+		// The listening address's gate (#537). A tunnelled request was
+		// judged above, by the tunnel's own rule, and carries the tunnel's
+		// Host.
+		if !s.tunnelUp() || isLocalRequest(req) {
+			switch s.bindVerdict(req) {
+			case Unauthorized:
+				writePlain(w, http.StatusUnauthorized, "unauthorized")
+				return
+			case Forbidden:
+				writePlain(w, http.StatusForbidden, "forbidden")
+				return
+			}
+		}
 		var expectedHash string
 		// The operator profile never gates anything (decide's own first
 		// check), so there is nothing to resolve — skipping the database

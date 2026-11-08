@@ -17,6 +17,7 @@ import (
 func getSummary(t *testing.T, s *Server, token string) (*httptest.ResponseRecorder, stakeholderSummaryPayload) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/stakeholder/summary", nil)
+	req.Host = "127.0.0.1:7420"
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -304,6 +305,7 @@ func TestPhasePercentRoundsTheWayPythonRounds(t *testing.T) {
 func TestStakeholderSummaryForOnePhase(t *testing.T) {
 	s := portfolioServer(t, "demo", ProfileOperator, "", summaryState())
 	req := httptest.NewRequest(http.MethodGet, "/stakeholder/summary?phase=1", nil)
+	req.Host = "127.0.0.1:7420"
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	var body stakeholderSummaryPayload
