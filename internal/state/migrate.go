@@ -109,17 +109,35 @@ func applyMigrations(ctx context.Context, db *sql.DB, migrations []migration) (a
 	if err != nil {
 		return 0, err
 	}
+	if len(migrations) == 0 {
+		return 0, nil
+	}
+	maxV := migrations[len(migrations)-1].version
+	// A database a newer orch migrated has columns and tables this binary
+	// knows nothing about; writing its own max back would also lower
+	// user_version, and the next newer binary would re-run migrations that
+	// are already applied (#530).
+	if current > maxV {
+		return 0, fmt.Errorf("orch.db is at schema version %d, newer than this orch knows (%d): "+
+			"upgrade orch (`orch upgrade`) before using this project", current, maxV)
+	}
 	for _, m := range migrations {
 		if m.version <= current {
 			continue
 		}
-		if err := applyOne(ctx, db, m); err != nil {
+		ran, err := applyOne(ctx, db, m)
+		if err != nil {
 			return applied, err
 		}
-		applied++
+		if ran {
+			applied++
+		}
 	}
-	if len(migrations) > 0 {
-		maxV := migrations[len(migrations)-1].version
+	// The defensive set only ever raises the version, for a database whose
+	// files were applied by hand without their pragma.
+	if v, err := schemaVersion(ctx, db); err != nil {
+		return applied, err
+	} else if v < maxV {
 		if _, err := db.ExecContext(ctx,
 			fmt.Sprintf("PRAGMA user_version = %d", maxV)); err != nil {
 			return applied, fmt.Errorf("set user_version: %w", err)
@@ -137,17 +155,31 @@ func applyMigrations(ctx context.Context, db *sql.DB, migrations []migration) (a
 // next open skipped the migration, and re-running it would fail on the
 // duplicate column (SQLite has no ADD COLUMN IF NOT EXISTS). user_version is
 // transactional in SQLite, so the rollback undoes it with the schema.
-func applyOne(ctx context.Context, db *sql.DB, m migration) error {
+//
+// The version is read again inside the transaction, which the writer opens
+// IMMEDIATE (`_txlock=immediate`): a run and a dashboard that both read the
+// old version before either migrated would otherwise both apply the file, and
+// the second would fail on the duplicate column (#530). ran is false when
+// another process got there first.
+func applyOne(ctx context.Context, db *sql.DB, m migration) (ran bool, err error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("apply migration %s: begin: %w", m.name, err)
+		return false, fmt.Errorf("apply migration %s: begin: %w", m.name, err)
+	}
+	current, err := schemaVersion(ctx, tx)
+	if err != nil {
+		_ = tx.Rollback()
+		return false, err
+	}
+	if current >= m.version {
+		return false, tx.Rollback()
 	}
 	if _, err := tx.ExecContext(ctx, m.sql); err != nil {
 		_ = tx.Rollback()
-		return fmt.Errorf("apply migration %s: %w", m.name, err)
+		return false, fmt.Errorf("apply migration %s: %w", m.name, err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("apply migration %s: commit: %w", m.name, err)
+		return false, fmt.Errorf("apply migration %s: commit: %w", m.name, err)
 	}
-	return nil
+	return true, nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -80,6 +81,58 @@ ALTER TABLE spend ADD COLUMN probe_b INTEGER NOT NULL DEFAULT 0;
 	}
 	if !hasColumn(t, db, "spend", "probe_a") || !hasColumn(t, db, "spend", "probe_b") {
 		t.Error("the fixed migration did not add both columns")
+	}
+}
+
+// TestAnOlderBinaryRefusesANewerSchema (#530): an orch that knows fewer
+// migrations than the database has applied used to finish by writing its own
+// max into user_version — lowering it — so the next newer binary re-ran
+// migrations that were already applied and failed on a duplicate column. It
+// now refuses the database and leaves the version alone.
+func TestAnOlderBinaryRefusesANewerSchema(t *testing.T) {
+	ctx := context.Background()
+	db, _, err := Open(ctx, filepath.Join(t.TempDir(), "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	all, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	older := all[:len(all)-1]
+
+	_, err = applyMigrations(ctx, db.write, older)
+	if err == nil || !strings.Contains(err.Error(), "upgrade orch") {
+		t.Errorf("err = %v, want a refusal that says to upgrade orch", err)
+	}
+	if v, _ := db.SchemaVersion(ctx); v != len(all) {
+		t.Errorf("user_version = %d after an older binary opened it, want %d", v, len(all))
+	}
+}
+
+// TestAMigrationAlreadyAppliedByAnotherProcessIsSkipped (#530): two orch
+// processes (a run and a dashboard) can read the same old version and both
+// try to migrate. The second must see, inside its own transaction, that the
+// first already applied the file, rather than re-run an ALTER and fail.
+func TestAMigrationAlreadyAppliedByAnotherProcessIsSkipped(t *testing.T) {
+	ctx := context.Background()
+	db, _, err := Open(ctx, filepath.Join(t.TempDir(), "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	all, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The other process read the version before the last migration landed.
+	ran, err := applyOne(ctx, db.write, all[len(all)-1])
+	if err != nil {
+		t.Fatalf("re-applying an applied migration: %v, want it skipped", err)
+	}
+	if ran {
+		t.Error("an already-applied migration ran again")
 	}
 }
 
