@@ -39,6 +39,8 @@ type fakeBackend struct {
 	status map[string]model.Status
 	// statusErr makes TaskStatus fail, for the conservative path.
 	statusErr error
+	// statusErrCalls makes only the first N TaskStatus calls fail.
+	statusErrCalls int
 	// notes is every Transition's note, "<task>=<status>: <note>".
 	notes []string
 }
@@ -87,6 +89,10 @@ func (b *fakeBackend) AppendEngineEvent(_ context.Context, _, eventType, taskID,
 func (b *fakeBackend) TaskStatus(_ context.Context, taskID string) (model.Status, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.statusErrCalls > 0 {
+		b.statusErrCalls--
+		return "", errors.New("database is locked")
+	}
 	if b.statusErr != nil {
 		return "", b.statusErr
 	}
@@ -495,6 +501,75 @@ func TestSubAgentGuardTrustsTheWrapperOnError(t *testing.T) {
 	if len(f.s.RetryQueue()) != 1 {
 		t.Errorf("want the wrapper's verdict to stand and the retry to be queued")
 	}
+}
+
+// TestSubAgentFinishedDespiteTheWrapperPublishesItsWork (#527): an agent
+// that reported done while its wrapper failed has work that is only in its
+// worktree. Finishing it there released dependents onto a base without it;
+// it has to go through the road a clean exit takes — push and PR, or a local
+// land — before anything depends on it.
+func TestSubAgentFinishedDespiteTheWrapperPublishesItsWork(t *testing.T) {
+	t.Run("worktree mode with a PR", func(t *testing.T) {
+		f := newReapFixture(t,
+			[]model.Task{task("C-1", 1, "claude/opus")},
+			map[string]fakeResponse{"C-1": failResponse("Skill descriptions were shortened")},
+			SchedulerOptions{AutoPR: true, WorktreeMode: true, BaseBranch: "main"})
+		f.backend.status["C-1"] = model.StatusDone
+		wt := &recordingWorktree{dir: t.TempDir()}
+		f.s.Worktree = wt
+		f.s.VCS = &fakeVCS{status: map[string]vcs.CIState{}, createdPR: "https://github.com/o/r/pull/7"}
+		pr := &recordingPR{}
+		f.s.CIRecorder = pr
+
+		f.runOnce(t)
+
+		if got := wt.callList(); !contains(got, "push") {
+			t.Errorf("worktree calls = %v, want the work pushed", got)
+		}
+		if got := pr.get("C-1"); got == "" {
+			t.Errorf("no PR recorded, want one opened for the reported work")
+		}
+		if got, _ := f.s.Queue.Status("C-1"); got != model.StatusInProgress {
+			t.Errorf("queue status = %q, want in-progress while CI runs, not done", got)
+		}
+	})
+	t.Run("local merge", func(t *testing.T) {
+		f := newReapFixture(t,
+			[]model.Task{task("C-1", 1, "claude/opus")},
+			map[string]fakeResponse{"C-1": failResponse("Skill descriptions were shortened")},
+			SchedulerOptions{WorktreeMode: true, LocalMerge: true})
+		f.backend.status["C-1"] = model.StatusDone
+		wt := &recordingWorktree{dir: t.TempDir(), land: worktree.Landing{Commit: "abc123"}}
+		f.s.Worktree = wt
+
+		f.runOnce(t)
+
+		if got := wt.callList(); !contains(got, "land") {
+			t.Errorf("worktree calls = %v, want the work landed on the base", got)
+		}
+		if got, _ := f.s.Queue.Status("C-1"); got != model.StatusDone {
+			t.Errorf("queue status = %q, want done once landed", got)
+		}
+	})
+	t.Run("a done the backend reports only later blocks", func(t *testing.T) {
+		f := newReapFixture(t,
+			[]model.Task{task("C-1", 1, "claude/opus")},
+			map[string]fakeResponse{"C-1": failResponse("Skill descriptions were shortened")},
+			SchedulerOptions{AutoPR: true, WorktreeMode: true, BaseBranch: "main"})
+		f.backend.status["C-1"] = model.StatusDone
+		f.backend.statusErrCalls = 1 // supervise's read fails; finish's answers
+		f.s.Worktree = &recordingWorktree{dir: t.TempDir()}
+		f.s.VCS = &fakeVCS{status: map[string]vcs.CIState{}}
+
+		f.runOnce(t)
+
+		if got, _ := f.s.Queue.Status("C-1"); got != model.StatusBlocked {
+			t.Errorf("queue status = %q, want blocked: its work is on its branch only", got)
+		}
+		if len(f.s.RetryQueue()) != 0 {
+			t.Errorf("a task the agent reported done was queued for retry")
+		}
+	})
 }
 
 // ---- The worktree Caller contract ---------------------------------------
