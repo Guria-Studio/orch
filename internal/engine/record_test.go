@@ -601,3 +601,24 @@ func TestRecordFinishKeepsTheAttempt(t *testing.T) {
 		t.Errorf("second attempt = %+v", b)
 	}
 }
+
+// TestAttemptRowOutcomes (#538): a stopped, a timed-out and a reviewed and
+// approved attempt each keep their own result.
+func TestAttemptRowOutcomes(t *testing.T) {
+	d := recordDispatch("B-020")
+	tests := []struct {
+		name                   string
+		out                    Outcome
+		result, verify, review string
+	}{
+		{"stopped", Outcome{Stopped: true, Result: providers.Result{ErrorMessage: "stopped by the operator"}}, "stopped", "", ""},
+		{"timeout", Outcome{TimedOut: true, Failure: providers.FailureTimeout, Result: providers.Result{ErrorMessage: "orchestrator timeout"}}, "timeout", "", ""},
+		{"approved", Outcome{Result: providers.Result{Success: true}, Verify: &VerifyResult{Reviewer: "codex"}}, "success", "pass", "pass"},
+	}
+	for _, tt := range tests {
+		a := attemptRow("run-1", d, tt.out, "2026-09-11T18:31:00Z", 1)
+		if a.Result != tt.result || a.Verify != tt.verify || a.Review != tt.review {
+			t.Errorf("%s: result %q verify %q review %q, want %q %q %q", tt.name, a.Result, a.Verify, a.Review, tt.result, tt.verify, tt.review)
+		}
+	}
+}
