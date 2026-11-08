@@ -201,6 +201,9 @@ type Scheduler struct {
 	// spentUSD accumulates each task's cost across attempts, for the
 	// escalation budget check (FR-D-8).
 	spentUSD map[string]float64
+	// timeoutScale stretches a task's timeout for the rest of the run: 2 once a
+	// timeout found its agent still working (#529).
+	timeoutScale map[string]float64
 	// ciRetryPR is the PR a CI re-dispatch works on, by task, from the
 	// poller's redispatch to the reap that follows it. The retry pushes to
 	// that PR's branch; asking the forge for a new PR there fails (#276).
@@ -696,7 +699,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		LogPath:    LogPathFor(s.Opts.StateDir, task.ID),
 		Cwd:        workdir,
 		Env:        withEnv(childEnv(os.Environ(), s.Opts.Cwd, s.Opts.ProjectID), s.taskEnv(task.ID)),
-		Timeout:    TimeoutFor(task.EstimateHours, s.Opts.TimeoutMultiplier),
+		Timeout:    s.timeoutFor(task),
 	}
 
 	sr := SpawnRequest{

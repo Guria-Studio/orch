@@ -94,6 +94,7 @@ dispatch:
   sandbox: false         # confine each agent to its worktree (Linux, Landlock)
   sandbox_allow: []      # extra read-write paths for a sandboxed agent
   min_free_disk_mb: 2048 # what `orch init` writes; absent = 0, never hold
+  unestimated_timeout_m: 60 # timeout of a task with no estimateHours; absent = 60
 ```
 
 **`sandbox`** (default `false`, Go only, #481) confines every dispatched task
@@ -183,6 +184,18 @@ warning names it (`low-disk`), and it is dispatched as soon as space is back,
 for instance when finished tasks have their worktrees removed. Running tasks
 are never stopped. `orch init` writes `2048`; a config without the key gets
 `0`, which never holds a dispatch, so an existing project behaves as before.
+
+**`unestimated_timeout_m`** (default `60`, Go only, #529) is the timeout, in
+minutes, of a task with no `estimateHours`: every task `orch sync issues`
+creates, and any task whose estimate is 0. It replaces the 60-second floor such
+a task used to get, which killed it in its first minute. A task with an
+estimate keeps `estimateHours × default_timeout_multiplier`.
+
+A timeout is not retried, since a hung agent would only hang again. The one
+exception: when the agent's log was still growing as the timeout fired (written
+in the last quarter of the timeout, at most the last two minutes), the agent
+was working rather than hung, and the task gets one more attempt with twice the
+time. That happens once per task and run.
 
 **`isolate_compose`** (default `true`, Go only) gives each dispatched task its
 own docker compose project. Parallel tasks run in sibling worktrees of one

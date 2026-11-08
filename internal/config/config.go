@@ -347,6 +347,10 @@ type Dispatch struct {
 	// project's disk has less free space than this (#497). 0, the default
 	// for a config without the key, never holds one. Go only.
 	MinFreeDiskMB int `yaml:"min_free_disk_mb"`
+	// UnestimatedTimeoutM is the timeout, in minutes, of a task with no
+	// estimateHours — every task `orch sync issues` creates (#529). 0, the
+	// default for a config without the key, means 60. Go only.
+	UnestimatedTimeoutM int `yaml:"unestimated_timeout_m"`
 	// SandboxAllow are extra paths a sandboxed agent may read and write, `~/`
 	// meaning $HOME: what a hook or tool of the operator's own needs.
 	SandboxAllow []string `yaml:"sandbox_allow"`

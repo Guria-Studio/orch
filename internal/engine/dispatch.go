@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -68,6 +69,9 @@ type Outcome struct {
 	// TimedOut is true when the engine killed the child rather than the
 	// child exiting on its own.
 	TimedOut bool
+	// ActiveAtTimeout is true when a timed-out child's log was still growing
+	// as the timeout fired: it was working, not hung (#529).
+	ActiveAtTimeout bool
 	// LogPath is where the captured output landed.
 	LogPath string
 	// Stopped is true when the operator stopped the attempt (#356), and
@@ -170,4 +174,39 @@ func (o Outcome) ShouldRetryWithFallback(route model.RouteEntry) bool {
 // the same layout Python's _ensure_logs_dir builds.
 func LogPathFor(stateDir, taskID string) string {
 	return filepath.Join(stateDir, "logs", taskID+".log")
+}
+
+// defaultUnestimatedTimeout is a task's timeout when it has no estimate and
+// dispatch.unestimated_timeout_m is not set (#529).
+const defaultUnestimatedTimeout = time.Hour
+
+// timeoutFor is a task's dispatch timeout. An estimate drives it through
+// TimeoutFor; a task with none — every one `orch sync issues` creates — gets
+// dispatch.unestimated_timeout_m rather than TimeoutFor's 60-second floor,
+// which killed it in its first minute and, a timeout not being retried,
+// blocked it there (#529).
+func (s *Scheduler) timeoutFor(task model.Task) time.Duration {
+	d := defaultUnestimatedTimeout
+	switch m := s.Opts.Cfg.Dispatch.UnestimatedTimeoutM; {
+	case task.EstimateHours > 0:
+		d = TimeoutFor(task.EstimateHours, s.Opts.TimeoutMultiplier)
+	case m > 0:
+		d = time.Duration(m) * time.Minute
+	}
+	if scale := s.timeoutScale[task.ID]; scale > 0 {
+		d = time.Duration(float64(d) * scale)
+	}
+	return d
+}
+
+// logActiveAt reports whether a log was written in the last stretch before
+// deadline — a quarter of the timeout, at most two minutes. Its mtime is the
+// cheapest witness that the agent was still producing output when it was
+// killed.
+func logActiveAt(logPath string, deadline time.Time, timeout time.Duration) bool {
+	fi, err := os.Stat(logPath)
+	if err != nil {
+		return false
+	}
+	return !fi.ModTime().Before(deadline.Add(-min(timeout/4, 2*time.Minute)))
 }
