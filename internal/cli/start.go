@@ -98,7 +98,11 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	_, tasksErr := os.Stat(filepath.Join(root, "tasks.json"))
 	_, orchErr := os.Stat(filepath.Join(root, ".orchestrator"))
 	if tasksErr != nil && orchErr != nil {
-		if err := scaffoldForStart(cmd.Context(), root, say); err != nil {
+		consent := term.ConfirmOrYes
+		if yes {
+			consent = nil
+		}
+		if err := scaffoldForStart(cmd.Context(), root, consent, say); err != nil {
 			return withExitCode(1, err)
 		}
 	}
@@ -376,16 +380,23 @@ func installedCLIs() []string {
 	return installed
 }
 
-// scaffoldForStart creates a project at root with every default and no
-// question: models from the CLIs on PATH, no sample task, and agents in the
+// scaffoldForStart creates a project at root with every default and one
+// question, report_findings (#536; consent nil under --yes keeps the
+// default): models from the CLIs on PATH, no sample task, and agents in the
 // checkout when there is nowhere to open a pull request.
-func scaffoldForStart(ctx context.Context, root string, say func(string, ...any)) error {
+func scaffoldForStart(ctx context.Context, root string, consent func(string) (bool, error), say func(string, ...any)) error {
 	lists, failed := scaffold.DiscoverModels(ctx, router.OnPath)
 	tiers, err := scaffold.InstalledTierDefaults(router.OnPath, lists)
 	if err != nil {
 		return err
 	}
-	res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoSampleTask: true})
+	send := true
+	if consent != nil {
+		if send, err = consent(reportFindingsQuestion); err != nil {
+			return err
+		}
+	}
+	res, err := scaffold.Run(scaffold.Options{Root: root, TierDefaults: tiers, NoSampleTask: true, NoReportFindings: !send})
 	if err != nil {
 		return fmt.Errorf("scaffolding %s: %w", root, err)
 	}
@@ -399,7 +410,9 @@ func scaffoldForStart(ctx context.Context, root string, say func(string, ...any)
 	for _, line := range scaffold.DiscoverySummary(router.OnPath, lists, failed) {
 		say("· models: %s", line)
 	}
-	say("%s", reportFindingsNotice)
+	if send {
+		say("%s", reportFindingsNotice)
+	}
 	return runLocallyWhenNoForge(root, true, say)
 }
 

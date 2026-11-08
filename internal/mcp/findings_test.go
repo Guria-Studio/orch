@@ -1,14 +1,26 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
+
+// queued is what the tool left in the project's review queue.
+func queued(t *testing.T, b state.Backend) []state.QueuedFinding {
+	t.Helper()
+	q, err := b.QueuedFindings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
+}
 
 // fakeFindings records what the tool asked GitHub for.
 type fakeFindings struct {
@@ -40,9 +52,10 @@ func (f *fakeFindings) CommentIssue(repo string, number int, body string) (strin
 }
 
 // orch_report_finding is how an agent in any orch project reports a problem
-// with orch itself. Each case is what the tool did NOT do as much as what it
-// returned: nothing may be filed while it is off, invalid, a duplicate, or
-// unconfirmed next to similar reports.
+// with orch itself. Since #536 it queues the report for the operator and
+// files nothing: each case is what the tool did NOT do as much as what it
+// returned — nothing may be queued while it is off, invalid, a duplicate, or
+// unconfirmed next to similar reports, and nothing is ever filed.
 func TestReportFinding(t *testing.T) {
 	valid := map[string]any{
 		"type": "bug", "title": "orch explain lists backlog tasks as ready",
@@ -66,7 +79,7 @@ func TestReportFinding(t *testing.T) {
 		existing    []vcs.Issue
 		args        map[string]any
 		wantError   bool
-		wantFiled   bool
+		wantQueued  bool
 		wantDup     int
 		wantSimilar int
 		wantMessage string
@@ -80,8 +93,8 @@ func TestReportFinding(t *testing.T) {
 			args:     valid, wantDup: 235, wantMessage: "#235",
 		},
 		{name: "similar, not confirmed", existing: similar, args: valid, wantSimilar: 1, wantMessage: "confirm_new"},
-		{name: "similar, confirmed", existing: similar, args: with(map[string]any{"confirm_new": true}), wantFiled: true, wantSimilar: 1},
-		{name: "nothing like it", args: valid, wantFiled: true},
+		{name: "similar, confirmed", existing: similar, args: with(map[string]any{"confirm_new": true}), wantQueued: true, wantSimilar: 1},
+		{name: "nothing like it", args: valid, wantQueued: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -98,8 +111,11 @@ func TestReportFinding(t *testing.T) {
 			if res.IsError != tt.wantError {
 				t.Errorf("IsError = %v, want %v (%q)", res.IsError, tt.wantError, out.Message)
 			}
-			if out.Filed != tt.wantFiled || (len(fake.created) == 1) != tt.wantFiled {
-				t.Errorf("filed = %v with %d issues created, want %v", out.Filed, len(fake.created), tt.wantFiled)
+			if out.Queued != tt.wantQueued || (len(queued(t, backend)) == 1) != tt.wantQueued {
+				t.Errorf("queued = %v with %d rows, want %v", out.Queued, len(queued(t, backend)), tt.wantQueued)
+			}
+			if len(fake.created) != 0 || len(fake.comments) != 0 {
+				t.Errorf("the tool published: created %d, comments %v", len(fake.created), fake.comments)
 			}
 			if tt.wantError && len(fake.searched) != 0 {
 				t.Errorf("searched GitHub for a refused report: %v", fake.searched)
@@ -117,9 +133,9 @@ func TestReportFinding(t *testing.T) {
 	}
 }
 
-// What reaches GitHub: the right repo and label, the report's sections, and
-// none of the operator's paths.
-func TestReportFindingFilesARedactedIssue(t *testing.T) {
+// What waits for the operator: the report's sections, and none of the
+// operator's paths or secrets — the body sending would file, as is.
+func TestReportFindingQueuesARedactedReport(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{}
 	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Version: "v0.12.0", Findings: fake})
@@ -128,17 +144,18 @@ func TestReportFindingFilesARedactedIssue(t *testing.T) {
 	call(t, cs, "orch_report_finding", map[string]any{
 		"type": "improvement", "title": "doctor should flag an ignored .claude/",
 		"summary":       "agents in " + root + " ran with no allow-list",
-		"evidence":      "log at " + filepath.Join(home, "notes.txt"),
+		"evidence":      "log at " + filepath.Join(home, "notes.txt") + " with GH_TOKEN=ghp_" + strings.Repeat("x", 36),
 		"suggested_fix": "a check in internal/doctor",
 		"confidence":    "medium",
 	}, &reportFindingOut{})
 
-	if len(fake.created) != 1 {
-		t.Fatalf("created %d issues, want 1", len(fake.created))
+	q := queued(t, backend)
+	if len(q) != 1 || len(fake.created) != 0 {
+		t.Fatalf("queued %d, created %d; want 1 queued and nothing filed", len(q), len(fake.created))
 	}
-	got := fake.created[0]
-	if got.repo != FindingsRepo || len(got.labels) != 1 || got.labels[0] != FindingsLabel {
-		t.Errorf("repo %q labels %v, want %s with %s", got.repo, got.labels, FindingsRepo, FindingsLabel)
+	got := struct{ body string }{q[0].Body}
+	if strings.Contains(got.body, "ghp_") {
+		t.Errorf("body leaks a token:\n%s", got.body)
 	}
 	for _, want := range []string{"**Type**: improvement", "**Confidence**: medium", "orch `v0.12.0`",
 		"## Summary", "agents in <project> ran", "## Evidence", "~/notes.txt", "## Suggested fix"} {
@@ -154,11 +171,11 @@ func TestReportFindingFilesARedactedIssue(t *testing.T) {
 	}
 }
 
-// #433, #434 and #435 were one finding — verify ran `tue` — filed three times
-// by agents of one project within a minute, too soon for GitHub's search to
-// see the first (#441). The project remembers what it filed: the first call
-// files, the next two comment on it and answer with its URL.
-func TestReportFindingCommentsOnWhatThisProjectFiled(t *testing.T) {
+// #433, #434 and #435 were one finding — verify ran `tue` — reported three
+// times by agents of one project within a minute, too soon for GitHub's
+// search to see the first (#441). The queue is read first: the first call
+// queues, the next two find it waiting and queue nothing.
+func TestReportFindingDoesNotQueueTwice(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{} // search finds nothing, as it did then
 	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Version: "v0.24.0", Findings: fake})
@@ -174,26 +191,21 @@ func TestReportFindingCommentsOnWhatThisProjectFiled(t *testing.T) {
 		t.Setenv("ORCH_TASK_ID", task)
 		var out reportFindingOut
 		call(t, cs, "orch_report_finding", reports[i], &out)
-		if out.URL != "https://github.com/Guria-Studio/orch/issues/999" {
-			t.Errorf("call %d: url = %q, want the first issue's (%s)", i+1, out.URL, out.Message)
+		if out.Queued != (i == 0) {
+			t.Errorf("call %d: queued = %v (%s)", i+1, out.Queued, out.Message)
 		}
-		if out.Filed != (i == 0) {
-			t.Errorf("call %d: filed = %v", i+1, out.Filed)
+		if i > 0 && (out.Duplicate == nil || out.Duplicate.State != "QUEUED") {
+			t.Errorf("call %d: duplicate = %+v, want the queued report", i+1, out.Duplicate)
 		}
 	}
-	if len(fake.created) != 1 {
-		t.Errorf("created %d issues, want 1", len(fake.created))
-	}
-	if len(fake.comments) != 2 {
-		t.Fatalf("comments = %v, want 2", fake.comments)
-	}
-	if c := fake.comments[1]; !strings.HasPrefix(c, FindingsRepo+"#999: ") || !strings.Contains(c, "Seen again in task F1.T3 at ") {
-		t.Errorf("comment = %q, want one on #999 naming the task", c)
+	if q := queued(t, backend); len(q) != 1 || q[0].TaskID != "F1.T1" {
+		t.Errorf("queue = %+v, want one report from F1.T1", q)
 	}
 }
 
-// An open report GitHub's search finds is commented on too, whoever filed it.
-func TestReportFindingCommentsOnAnOpenDuplicate(t *testing.T) {
+// An open report GitHub's search finds is a duplicate: its URL comes back,
+// nothing is queued, and nothing is commented under the operator's login.
+func TestReportFindingAnswersAnOpenDuplicate(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{existing: []vcs.Issue{{Number: 433, Title: `Local verify ran a nonexistent command "tue"`, State: "OPEN",
 		URL: "https://github.com/Guria-Studio/orch/issues/433"}}}
@@ -201,8 +213,8 @@ func TestReportFindingCommentsOnAnOpenDuplicate(t *testing.T) {
 	var out reportFindingOut
 	call(t, cs, "orch_report_finding", map[string]any{"type": "bug",
 		"title": `Local verify ran a bogus command ("tue") and rejected a task`, "summary": "exit 127"}, &out)
-	if len(fake.created) != 0 || len(fake.comments) != 1 || out.URL != "https://github.com/Guria-Studio/orch/issues/433" {
-		t.Errorf("created %d, comments %v, url %q: want a comment on #433 and its URL", len(fake.created), fake.comments, out.URL)
+	if len(queued(t, backend)) != 0 || len(fake.comments) != 0 || out.URL != "https://github.com/Guria-Studio/orch/issues/433" {
+		t.Errorf("queued %d, comments %v, url %q: want #433's URL and nothing else", len(queued(t, backend)), fake.comments, out.URL)
 	}
 }
 

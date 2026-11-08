@@ -45,8 +45,10 @@ stdout '^≈ 3 tasks · '
 stdout '^Next: orch run --max-tasks 2$'
 grep '"model": "claude/sonnet"' tasks.json
 ! grep 'opencode/glm-5.2' tasks.json
-# report_findings is on in a project start scaffolds (#399), and it says so.
-stdout '^report_findings is on: agents may file public issues about orch with your gh login'
+# report_findings is on in a project start scaffolds (#399): start asks once,
+# no answer keeps the yes (#536), and it says so.
+stdout 'Send orch the bugs your agents find in it\? You review each one before it is sent\. \[Y/n\]'
+stdout '^report_findings is on: your agents queue the bugs they find in orch'
 stdout '^✓ no git remote: agents work in this directory'
 grep '^  worktree_mode: false' .orchestrator/config.yaml
 grep '^  auto_pr: false' .orchestrator/config.yaml

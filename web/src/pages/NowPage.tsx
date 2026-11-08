@@ -11,6 +11,7 @@ import { Explain } from "@/components/Explain"
 import { FirstRunChecklist } from "@/components/FirstRunChecklist"
 import { RunReceipt } from "@/components/RunReceipt"
 import { useBudgetSummary, type BudgetRow } from "@/hooks/useBudgetSummary"
+import { useFindings } from "@/hooks/useFindings"
 import { useOnboarding, useReceipt } from "@/hooks/useReceipt"
 import { useMilestones } from "@/hooks/useMilestones"
 import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch } from "@/hooks/useNow"
@@ -129,6 +130,23 @@ function BlockedRow({ b, now }: { b: SprintBlocker; now: number }) {
 }
 
 /** A running agent the watch flagged silent, with the command that ends its attempt (#533). */
+/** orch's own bugs its agents queued (#536): nothing leaves until the operator sends it. */
+function FindingsBanner() {
+  const { data } = useFindings()
+  if (!data || data.pending === 0) return null
+  return (
+    <Alert>
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>{t("findings.banner", { count: data.pending })}</AlertTitle>
+      <AlertDescription>
+        <Link to="/system/findings" className="underline">
+          {t("findings.banner_link")}
+        </Link>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 function StalledRow({ d }: { d: NowDispatch }) {
   return (
     <li className={cn(rowGrid, "grid-cols-1 sm:grid-cols-[4.5rem_minmax(0,1fr)]")}>
@@ -268,6 +286,8 @@ export function NowPage() {
           sub={pace.eta_date ? (pace.blocked_count > 0 ? t("now.eta_excludes", { count: pace.blocked_count }) : undefined) : t("now.no_eta")}
         />
       </section>
+
+      <FindingsBanner />
 
       {onboarding.data && !onboarding.data.complete ? (
         <FirstRunChecklist onboarding={onboarding.data} onRecheck={() => void onboarding.refetch()} checking={onboarding.isFetching} />

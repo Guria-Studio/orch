@@ -719,13 +719,17 @@ report_findings:
 ```
 
 Turns on the MCP tool `orch_report_finding` (see [`MCP.md`](MCP.md)): an agent
-that hits a bug in orch, or sees an improvement or a missing feature, files it
-as an `auto-reported` issue with your `gh` login. It also adds a closing,
+that hits a bug in orch, or sees an improvement or a missing feature, **queues**
+it for you (#536). Nothing is public until you send it: `orch findings` (or the
+dashboard's System › Findings page) shows each report exactly as it would be
+filed, secrets already redacted, and `orch findings send ID` files it as an
+`auto-reported` issue on Guria-Studio/orch with your `gh` login; `dismiss`
+drops it. `orch run` ends by saying how many wait. It also adds a closing,
 optional "Feedback about orch itself" block to every dispatch prompt, so
 agents are asked for those ideas rather than only reporting what blocked them. **On in new projects,
-off when the key is absent** (#399): `orch init` and `orch start` write `enabled: true` with a comment
-saying the issues are public and under your login, and print a notice saying so and how to turn it off;
-`--no-report-findings` writes `false`. A config without the block — any project from before, or written
+off when the key is absent** (#399): `orch init` (its wizard) and `orch start` ask once — "Send orch
+the bugs your agents find in it? You review each one before it is sent." — yes by default, and write
+the answer; `--yes`, a batch `init` and input that runs out keep the yes; `--no-report-findings` writes `false`. A config without the block — any project from before, or written
 by hand — stays off, so upgrading orch never starts publishing under your account. Not the Python line's `findings:` block, which
 was removed and still warns.
 

@@ -1005,8 +1005,8 @@ func TestInitWritesReportFindings(t *testing.T) {
 			if strings.Count(body, "report_findings:") != 1 {
 				t.Errorf("want exactly one report_findings block:\n%s", body)
 			}
-			if !strings.Contains(body, "PUBLIC") {
-				t.Error("the config does not say the issues are public")
+			if !strings.Contains(body, "PUBLIC") || !strings.Contains(body, "orch findings") {
+				t.Error("the config does not say the issues are public, and reviewed with `orch findings` first (#536)")
 			}
 			_, err = os.Stat(filepath.Join(res.Root, ".orchestrator", FindingsOfferName))
 			if offered := err == nil; offered != tc.wantOffer {

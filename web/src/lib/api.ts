@@ -187,6 +187,10 @@ export const addTask = (task: TaskFields & { id: string; backlog?: boolean }) =>
 /** Turns a provider off or back on, as `orch provider disable|enable` does; its tasks wait while off. */
 export const setProvider = (backend: string, disabled: boolean, reason = "") =>
   taskWrite<{ backend: string; disabled: boolean }>("post", `/api/provider/${encodeURIComponent(backend)}/${disabled ? "disable" : "enable"}`, { reason })
+/** Files a queued finding on orch's repo with the operator's gh, as `orch findings send` does (#536). */
+export const sendFinding = (id: number) => taskWrite<{ id: number; status: string; url: string }>("post", `/api/findings/${id}/send`, {})
+/** Drops a queued finding without sending it, as `orch findings dismiss` does. */
+export const dismissFinding = (id: number) => taskWrite<{ id: number; status: string }>("post", `/api/findings/${id}/dismiss`, {})
 export const editTask = (id: string, fields: TaskFields) =>
   taskWrite<{ message: string }>("patch", `/api/task/${encodeURIComponent(id)}`, fields)
 /** A lesson as the Knowledge page writes it (#453); the server fills id and date. */

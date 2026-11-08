@@ -86,6 +86,12 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 					// "Aborted. Nothing written."
 					return nil
 				}
+				// Asked once, yes by default (#536); batch keeps the default.
+				send, err := term.ConfirmOrYes(reportFindingsQuestion)
+				if err != nil {
+					return err
+				}
+				opts.NoReportFindings = !send
 			}
 			if opts.Root == "" {
 				cwd, err := os.Getwd()
@@ -153,7 +159,7 @@ func newInitCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&sdd, "sdd", false,
 		"Also scaffold the openspec/ layout")
 	cmd.Flags().BoolVar(&noFindings, "no-report-findings", false,
-		"Write report_findings.enabled: false (it is on by default: agents may file public issues about orch with your gh login)")
+		"Write report_findings.enabled: false (it is on by default: agents queue the bugs they find in orch, and you review each before it is sent)")
 	cmd.Flags().BoolVar(&noPerms, "no-permissions", false,
 		"Do not allow orch's agent rules in the settings of the CLIs the project uses; orch claude-permissions / orch agy-permissions add them later")
 	cmd.Flags().BoolVar(&advanced, "advanced", false,
@@ -226,9 +232,13 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	}
 }
 
+// reportFindingsQuestion is init's and start's consent question (#536).
+const reportFindingsQuestion = "Send orch the bugs your agents find in it? You review each one before it is sent."
+
 // reportFindingsNotice is what init and start say about report_findings,
-// which a new project has on (#399).
-const reportFindingsNotice = "report_findings is on: agents may file public issues about orch with your gh login.\n" +
+// which a new project has on (#399): agents queue, the operator sends (#536).
+const reportFindingsNotice = "report_findings is on: your agents queue the bugs they find in orch, and nothing is sent until you " +
+	"review it with `orch findings`.\n" +
 	"  Turn it off with report_findings.enabled: false in .orchestrator/config.yaml."
 
 // planSteps is how init and an empty `orch run` say to plan the work:

@@ -18,6 +18,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/doctor"
 	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/findings"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/notify"
@@ -377,6 +378,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	reportRunSummary(ctx, os.Stderr, backend, paths, cfg, notifier, runID)
 	noteOutgrownCI(os.Stderr, paths.Root)
 	offerReportFindings(ctx, os.Stderr, backend, paths.Root)
+	noteQueuedFindings(ctx, os.Stderr, backend)
 	if code != 0 {
 		// The loop already said what it was doing on its way out;
 		// a second line here would be noise.
@@ -432,6 +434,19 @@ func offerReportFindings(ctx context.Context, w io.Writer, backend state.Backend
 	_, _ = fmt.Fprintln(w, "note: your agents can report problems with orch itself as public GitHub issues, under your gh login, "+
 		"to help fix them — set report_findings.enabled: true in .orchestrator/config.yaml to allow it. Asked once.")
 	_ = os.Remove(marker)
+}
+
+// noteQueuedFindings says, once a run ends, how many reports about orch its
+// agents queued for the operator to review and send (#536).
+func noteQueuedFindings(ctx context.Context, w io.Writer, backend state.Backend) {
+	rows, err := backend.QueuedFindings(ctx)
+	if err != nil {
+		return
+	}
+	if n := findings.Pending(rows); n > 0 {
+		_, _ = fmt.Fprintf(w, "orch found %d bug(s) of its own: review exactly what would be sent, and send or dismiss each, "+
+			"with `orch findings` or on the dashboard's Findings page. Nothing is public until you send it.\n", n)
+	}
 }
 
 // hasGitRemote says whether root's repository has any remote to push to.

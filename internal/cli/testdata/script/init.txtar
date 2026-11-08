@@ -27,7 +27,7 @@ exists batchproj/.orchestrator/budgets.yaml
 # report_findings is on in a new project (#399), init says so and how to turn
 # it off, and there is nothing left to offer later. The value itself is
 # checked through config.Load in internal/scaffold's TestInitWritesReportFindings.
-stdout 'report_findings is on: agents may file public issues about orch with your gh login'
+stdout 'report_findings is on: your agents queue the bugs they find in orch, and nothing is sent until you review it with `orch findings`'
 ! exists batchproj/.orchestrator/report-findings.offer
 
 # The scaffolded project passes its own validator. This is the assertion the
@@ -148,6 +148,10 @@ stdout 'premium   model  claude/opus'
 ! stdout 'agy/'
 ! stdout PUBLIC
 stdout '✓ orch project initialized at .*fresh-repo$'
+# The wizard asks for report_findings once; the input ran out, so its yes
+# stands (#536).
+stdout 'Send orch the bugs your agents find in it\? You review each one before it is sent\. \[Y/n\]'
+grep '^  enabled: true' .orchestrator/config.yaml
 # The project is the current directory, not a fresh-repo/fresh-repo inside it.
 exists tasks.json
 ! exists fresh-repo
@@ -160,6 +164,18 @@ env PATH=$FULLPATH
 stdout 'First: each task branches from trunk, which has no commit yet: git add -A && git commit'
 ! exec orch run --skip-update-check
 stderr 'cannot start: each task branches from trunk, which has no commit yet'
+cd $WORK
+
+# ---- the wizard: no to report_findings ------------------------------------
+exec git init -q -b main quiet-repo
+env PATH=$WORK/bin:$ORCH_BIN_DIR
+cd quiet-repo
+stdin $WORK/enter3-no.txt
+exec orch init
+stdout '✓ orch project initialized at .*quiet-repo$'
+grep '^  enabled: false' .orchestrator/config.yaml
+! stdout 'report_findings is on'
+env PATH=$FULLPATH
 cd $WORK
 
 # ---- the wizard: declining writes nothing ----------------------------------
@@ -201,6 +217,11 @@ PATH=$FULLPATH exec git "$@"
  
  
  
+-- enter3-no.txt --
+ 
+ 
+ 
+n
 -- decline.txt --
 wizardproj
 blank

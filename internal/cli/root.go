@@ -93,6 +93,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root.AddCommand(newRouterCmd(flags))
 	root.AddCommand(newBudgetCmd(flags))
 	root.AddCommand(newProviderCmd(flags))
+	root.AddCommand(newFindingsCmd(flags))
 	root.AddCommand(newInitCmd(flags))
 	root.AddCommand(newStartCmd(flags))
 	root.AddCommand(newConfigCmd(flags))

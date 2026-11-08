@@ -6,29 +6,26 @@ import (
 	"os"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Guria-Studio/orch/internal/findings"
 	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
-// FindingsRepo is where orch_report_finding files. Fixed: the findings are
-// about orch, whichever project the agent happened to be working in.
-const FindingsRepo = "Guria-Studio/orch"
+// FindingsRepo and FindingsLabel are findings.Repo and findings.Label.
+const (
+	FindingsRepo  = findings.Repo
+	FindingsLabel = findings.Label
+)
 
-// FindingsLabel marks an issue an agent filed. `orch sync issues` refuses to
-// ingest it, so a report never loops back into a project as a task.
-const FindingsLabel = "auto-reported"
-
-// FindingsReporter is the slice of *vcs.GitHubProvider the tool needs.
+// FindingsReporter is the slice of *vcs.GitHubProvider the tool needs: a
+// search for reports that already exist. It files nothing (#536).
 type FindingsReporter interface {
 	SearchIssues(repo, label, query string, limit int) ([]vcs.Issue, error)
-	CreateIssue(repo, title, body string, labels []string) (string, error)
-	CommentIssue(repo string, number int, body string) (string, error)
 }
 
 var findingTypes = map[string]bool{"bug": true, "improvement": true, "feature": true}
@@ -52,14 +49,17 @@ type findingIssue struct {
 }
 
 type reportFindingOut struct {
-	// Filed is true when a new issue was created; URL is then its address.
-	Filed bool   `json:"filed"`
-	URL   string `json:"url,omitempty"`
-	// Duplicate is an existing issue with the same title, or an open one
-	// this finding likely repeats: nothing was filed. Commented is true when
-	// the call added a "seen again" comment to it; URL is then its address.
+	// Queued is true when the report was queued for the operator to review
+	// and send (#536); QueueID is its id there. Nothing is public until
+	// they send it.
+	Queued  bool  `json:"queued"`
+	QueueID int64 `json:"queue_id,omitempty"`
+	// URL is the existing issue a duplicate repeats.
+	URL string `json:"url,omitempty"`
+	// Duplicate is an existing issue with the same title, an open one this
+	// finding likely repeats, or a report already waiting in the queue:
+	// nothing was queued.
 	Duplicate *findingIssue `json:"duplicate,omitempty"`
-	Commented bool          `json:"commented,omitempty"`
 	// Similar are existing issues whose titles match loosely. Without
 	// confirm_new they stop the filing, so the caller reads them first.
 	Similar []findingIssue `json:"similar,omitempty"`
@@ -84,11 +84,22 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 		return refuse("title and summary are required")
 	}
 
-	// What this project filed comes first: GitHub's search indexes a new
-	// issue only after a while, and #433-#435 were filed within a minute.
+	// What this project filed or queued comes first: GitHub's search
+	// indexes a new issue only after a while, and #433-#435 were reported
+	// within a minute.
 	filed, err := s.opts.Backend.FiledFindings(ctx)
 	if err != nil {
 		return nil, reportFindingOut{}, fmt.Errorf("reading the findings this project filed: %w", err)
+	}
+	queue, err := s.opts.Backend.QueuedFindings(ctx)
+	if err != nil {
+		return nil, reportFindingOut{}, fmt.Errorf("reading the findings queue: %w", err)
+	}
+	for _, q := range queue {
+		if q.Status == state.FindingQueued && likelyDuplicate(in.Title, in.Title+"\n"+in.Summary, q.Title, q.Title+"\n"+q.Summary) {
+			return nil, reportFindingOut{Duplicate: &findingIssue{Title: q.Title, State: "QUEUED"},
+				Message: fmt.Sprintf("already waiting in the operator's queue as #%d (%q); nothing queued", q.ID, q.Title)}, nil
+		}
 	}
 	existing, err := s.opts.Findings.SearchIssues(FindingsRepo, FindingsLabel, strings.Join(keyTokens(in.Title), " "), 10)
 	if err != nil {
@@ -101,8 +112,8 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 	for _, is := range existing {
 		fi := findingIssue{Number: is.Number, Title: is.Title, State: is.State, URL: is.URL}
 		if normalizeTitle(is.Title) == normalizeTitle(in.Title) && !strings.EqualFold(is.State, "open") {
-			return nil, reportFindingOut{Duplicate: &fi,
-				Message: fmt.Sprintf("already reported as #%d (%s); nothing filed", is.Number, is.State)}, nil
+			return nil, reportFindingOut{Duplicate: &fi, URL: fi.URL,
+				Message: fmt.Sprintf("already reported as #%d (%s); nothing queued", is.Number, is.State)}, nil
 		}
 		if !strings.EqualFold(is.State, "open") {
 			closed[is.Number] = true
@@ -112,8 +123,7 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 		candidates = append(candidates, fi)
 		candidateText[is.Number] = is.Title + "\n" + is.Body
 	}
-	// ponytail: a row is taken as still open unless the search saw it closed;
-	// a closed one the search missed gets a comment instead of a new issue.
+	// ponytail: a row is taken as still open unless the search saw it closed.
 	var mine []findingIssue
 	for _, f := range filed {
 		if closed[f.Number] {
@@ -123,44 +133,30 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 		candidateText[f.Number] = f.Title + "\n" + f.Summary
 	}
 	for _, c := range append(mine, candidates...) {
-		if !likelyDuplicate(in.Title, in.Title+"\n"+in.Summary, c.Title, candidateText[c.Number]) {
-			continue
+		if likelyDuplicate(in.Title, in.Title+"\n"+in.Summary, c.Title, candidateText[c.Number]) {
+			return nil, reportFindingOut{Duplicate: &c, URL: c.URL,
+				Message: fmt.Sprintf("already reported as #%d (%s); nothing queued", c.Number, c.URL)}, nil
 		}
-		task := os.Getenv("ORCH_TASK_ID")
-		if task == "" {
-			task = "an unnamed task"
-		}
-		note := fmt.Sprintf("Seen again in task %s at %s (orch `%s`).\n\n_Reported by an orch agent through `orch_report_finding`._",
-			task, time.Now().UTC().Format(time.RFC3339), versionOr(s.opts.Version))
-		if _, err := s.opts.Findings.CommentIssue(FindingsRepo, c.Number, s.redact(note)); err != nil {
-			return nil, reportFindingOut{}, fmt.Errorf("commenting on %s#%d: %w", FindingsRepo, c.Number, err)
-		}
-		return nil, reportFindingOut{Duplicate: &c, Commented: true, URL: c.URL,
-			Message: fmt.Sprintf("already reported as #%d (%s); added a \"seen again\" comment, nothing filed", c.Number, c.URL)}, nil
 	}
 	similar = append(similar, candidates...)
 	if len(similar) > 0 && !in.ConfirmNew {
 		return nil, reportFindingOut{Similar: similar,
-			Message: "similar issues exist; nothing filed. If none of them is this finding, " +
+			Message: "similar issues exist; nothing queued. If none of them is this finding, " +
 				"call again with confirm_new: true."}, nil
 	}
 
-	title := s.redact(in.Title)
-	body := s.redact(findingBody(in, s.opts.Version, time.Now()))
-	url, err := s.opts.Findings.CreateIssue(FindingsRepo, title, body, []string{FindingsLabel})
+	id, err := s.opts.Backend.QueueFinding(ctx, state.QueuedFinding{
+		Title:    s.redact(in.Title),
+		Body:     s.redact(findingBody(in, s.opts.Version, time.Now())),
+		Summary:  s.redact(in.Summary),
+		TaskID:   os.Getenv("ORCH_TASK_ID"),
+		QueuedAt: time.Now(),
+	})
 	if err != nil {
-		return nil, reportFindingOut{}, fmt.Errorf("filing the finding in %s: %w", FindingsRepo, err)
+		return nil, reportFindingOut{}, fmt.Errorf("queueing the finding: %w", err)
 	}
-	// Remembered so the next call from this project finds it at once; an
-	// issue whose number cannot be read from its URL cannot be commented on.
-	if n, err := strconv.Atoi(url[strings.LastIndex(url, "/")+1:]); err == nil {
-		if err := s.opts.Backend.RecordFiledFinding(ctx, state.FiledFinding{Number: n, URL: url, Title: title,
-			Summary: s.redact(in.Summary), FiledAt: time.Now()}); err != nil {
-			return nil, reportFindingOut{Filed: true, URL: url, Similar: similar,
-				Message: "filed " + url + " (not remembered for de-duplication: " + err.Error() + ")"}, nil
-		}
-	}
-	return nil, reportFindingOut{Filed: true, URL: url, Similar: similar, Message: "filed " + url}, nil
+	return nil, reportFindingOut{Queued: true, QueueID: id, Similar: similar,
+		Message: fmt.Sprintf("queued as #%d for the operator to review; nothing is public until they send it", id)}, nil
 }
 
 var reNonWord = regexp.MustCompile(`[^a-z0-9]+`)
@@ -263,16 +259,7 @@ func versionOr(version string) string {
 	return version
 }
 
-// redact keeps the operator's machine out of a public issue: the project
-// root becomes `<project>` and the home directory `~`. It cannot know what
-// else is private, which is why the tool's description asks for no project
-// data at all.
+// redact is findings.Redact for this project.
 func (s *server) redact(text string) string {
-	if root := s.opts.ProjectRoot; root != "" {
-		text = strings.ReplaceAll(text, root, "<project>")
-	}
-	if home, err := os.UserHomeDir(); err == nil && home != "" && home != "/" {
-		text = strings.ReplaceAll(text, home, "~")
-	}
-	return text
+	return findings.Redact(text, s.opts.ProjectRoot)
 }
