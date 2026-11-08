@@ -48,7 +48,7 @@ stdout 'projects:    none yet'
 [bundle] exec orch publish --project-root proj --project-id proj --to cloud
 [bundle] stdout 'created project proj on orch-cloud'
 [bundle] stdout 'published proj \(version 1\)'
-[bundle] stdout 'stakeholder link: http://127\.0\.0\.1:\d+/v/[0-9a-f]{64}/'
+[bundle] stdout 'client link: http://127\.0\.0\.1:\d+/v/[0-9a-f]{64}/'
 
 # A re-run reuses the stored tokens and never creates the project again. Its
 # version depends on the clock: generated_at has one-second resolution, so a
@@ -61,7 +61,7 @@ stdout 'projects:    none yet'
 
 [bundle] exec orch cloud status --project-root proj --project-id proj
 [bundle] stdout 'proj +publish token stored, view token stored'
-[bundle] stdout 'stakeholder link for proj:'
+[bundle] stdout 'client link for proj:'
 ! stdout 'publish_token'
 
 # ---- rotate asks first, and a decline changes nothing ---------------------
@@ -71,7 +71,7 @@ stdout 'projects:    none yet'
 [bundle] stdout 'Aborted\. No changes made\.'
 
 [bundle] exec orch cloud rotate --project-root proj --project-id proj --yes
-[bundle] stdout 'new stakeholder link for proj:'
+[bundle] stdout 'new client link for proj:'
 
 [bundle] exec orch cloud rotate --publish --project-root proj --project-id proj
 [bundle] stdout 'issued and stored a new publish token for proj'
@@ -79,7 +79,7 @@ stdout 'projects:    none yet'
 # The re-issued publish token is the one the next publish uses: the old one
 # would be a 401 naming `orch cloud rotate --publish`.
 [bundle] exec orch publish --project-root proj --project-id proj --to cloud
-[bundle] stdout 'stakeholder link: http://127\.0\.0\.1:\d+/v/[0-9a-f]{64}/'
+[bundle] stdout 'client link: http://127\.0\.0\.1:\d+/v/[0-9a-f]{64}/'
 [bundle] ! stderr 'rejected'
 
 # ---- logout asks first, then removes the block ----------------------------
