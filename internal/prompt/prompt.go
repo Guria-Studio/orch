@@ -668,7 +668,8 @@ Coordination protocol:
    Both write the same row, so use one, not both. Your note is what the tasks
    depending on {id} are shown, so make it a sentence about what changed.
    If neither done channel is allowed to you, end with a one-sentence summary
-   of what changed and exit: orch records {id} done when you exit cleanly.
+   of what changed and exit: orch records {id} done when you exit cleanly
+   with files changed — a clean exit that changed nothing is not done.
    Never block work you finished — a block keeps it from being published.
    orch_get_task and orch_context (task_id "{id}") read this task and its
    dependencies back if you need them again.

@@ -572,6 +572,46 @@ func TestSubAgentFinishedDespiteTheWrapperPublishesItsWork(t *testing.T) {
 	})
 }
 
+// TestCleanExitWithoutASignalNeedsWork (#528): a clean exit is the done
+// channel of last resort (the prompt says so for an agent with neither MCP
+// nor the scripts), so it only counts when there is work to publish. An agent
+// that exited 0, reported nothing and changed nothing has not done the task.
+func TestCleanExitWithoutASignalNeedsWork(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    model.Status
+		changed   []string
+		wantPush  bool
+		wantRetry bool
+	}{
+		{"no signal and no changes is not done", model.StatusInProgress, nil, false, true},
+		{"no signal with changes still publishes", model.StatusInProgress, []string{"a.go"}, true, false},
+		{"a reported done with no changes stands", model.StatusDone, nil, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newReapFixture(t,
+				[]model.Task{task("C-1", 1, "claude/opus")},
+				map[string]fakeResponse{"C-1": okResponse()},
+				SchedulerOptions{AutoPR: true, WorktreeMode: true, BaseBranch: "main"})
+			f.backend.status["C-1"] = tt.status
+			wt := &recordingWorktree{dir: t.TempDir(), changed: tt.changed}
+			f.s.Worktree = wt
+			f.s.VCS = &fakeVCS{status: map[string]vcs.CIState{}, createdPR: "https://github.com/o/r/pull/7"}
+			f.s.CIRecorder = &recordingPR{}
+
+			f.runOnce(t)
+
+			if got := contains(wt.callList(), "push"); got != tt.wantPush {
+				t.Errorf("pushed = %v, want %v (calls %v)", got, tt.wantPush, wt.callList())
+			}
+			if got := len(f.s.RetryQueue()) == 1; got != tt.wantRetry {
+				t.Errorf("retry queued = %v, want %v", got, tt.wantRetry)
+			}
+		})
+	}
+}
+
 // ---- The worktree Caller contract ---------------------------------------
 
 type recordingWorktree struct {
