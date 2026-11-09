@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 
 	"github.com/Guria-Studio/orch/internal/config"
@@ -29,19 +27,21 @@ func pruneEvidence(w io.Writer, paths config.Paths, cfg config.Config) {
 	if got.Attempts == 1 {
 		noun = "attempt"
 	}
-	_, _ = fmt.Fprintf(w, "evidence: pruned %d old %s (%.1f MiB; evidence.keep_attempts: %d)\n",
-		got.Attempts, noun, float64(got.Bytes)/(1<<20), cfg.Evidence.Keep())
+	if _, err := fmt.Fprintf(w, "evidence: pruned %d old %s (%.1f MiB; evidence.keep_attempts: %d)\n",
+		got.Attempts, noun, float64(got.Bytes)/(1<<20), cfg.Evidence.Keep()); err != nil {
+		slog.Warn("saying what the evidence pruning freed failed", "err", err)
+	}
 }
 
 // publishMediaFor is publishMedia for the snapshot about to be exported.
-func publishMediaFor(cmd *cobra.Command, paths config.Paths, cfg config.Config, snap snapshot.Snapshot) map[string]string {
+func publishMediaFor(paths config.Paths, cfg config.Config, snap snapshot.Snapshot) map[string]string {
 	shown := snapshot.MediaPaths(snap)
 	if len(shown) == 0 {
 		return nil
 	}
 	all, err := evidence.ReadAll(paths.StateDir())
 	if err != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] reading the evidence: %v\n", err)
+		slog.Warn("reading the evidence for the published media", "err", err)
 	}
 	return publishMedia(paths, cfg, all, shown)
 }

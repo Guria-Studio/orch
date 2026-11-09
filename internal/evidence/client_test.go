@@ -19,33 +19,47 @@ func clientManifest() Manifest {
 // media only when the operator opted in (§9.2), the video only under the
 // size limit.
 func TestForClientPicksThePassedWalkthroughAndHonoursTheOptIn(t *testing.T) {
-	m := clientManifest()
-
-	off := ForClient(m, false, 4<<20)
-	if off.Walkthrough == nil || off.Walkthrough.Title != "login › entra" || off.Video != "" || off.Poster != "" {
-		t.Errorf("without the opt-in = %+v, want the steps and no media", off)
-	}
-
-	on := ForClient(m, true, 4<<20)
-	if !strings.HasPrefix(on.Video, "evidence/") || !strings.HasSuffix(on.Video, "/video.webm") ||
-		!strings.HasSuffix(on.Poster, "/poster.png") || on.VideoSrc != "e2e/run-1/F2.T3/attempt-2/t001/video.webm" ||
-		on.PosterSrc != "e2e/run-1/F2.T3/attempt-2/t001/shot.png" {
-		t.Errorf("with the opt-in = %+v", on)
-	}
-	for _, leak := range []string{"F2.T3", "run-1"} {
-		if strings.Contains(on.Video+on.Poster, leak) {
-			t.Errorf("the site path %q names %q", on.Video, leak)
-		}
-	}
-
-	small := ForClient(m, true, 5)
-	if small.Video != "" || small.Poster == "" {
-		t.Errorf("a video over the limit = %+v, want only the poster", small)
-	}
-
-	m.E2E.Walkthroughs = nil
-	if none := ForClient(m, true, 4<<20); none.Walkthrough != nil || none.Video != "" {
-		t.Errorf("no @evidence test = %+v, want nothing", none)
+	const dir = "e2e/run-1/F2.T3/attempt-2/"
+	noTagged := clientManifest()
+	noTagged.E2E.Walkthroughs = nil
+	for _, tc := range []struct {
+		name          string
+		m             Manifest
+		video         bool
+		max           int64
+		walk          string // the walk-through's title, "" for none
+		video_, place string // VideoSrc and PosterSrc, "" for none
+	}{
+		{"no opt-in: steps, no media", clientManifest(), false, 4 << 20, "login › entra", "", ""},
+		{"opted in", clientManifest(), true, 4 << 20, "login › entra", dir + "t001/video.webm", dir + "t001/shot.png"},
+		{"video over the limit: poster only", clientManifest(), true, 5, "login › entra", "", dir + "t001/shot.png"},
+		{"no @evidence test", noTagged, true, 4 << 20, "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ForClient(tc.m, tc.video, tc.max)
+			if title := ""; got.Walkthrough != nil {
+				title = got.Walkthrough.Title
+				if title != tc.walk {
+					t.Errorf("walk-through = %q, want %q", title, tc.walk)
+				}
+			} else if tc.walk != "" {
+				t.Errorf("no walk-through, want %q", tc.walk)
+			}
+			if got.VideoSrc != tc.video_ || got.PosterSrc != tc.place {
+				t.Errorf("sources = %q, %q; want %q, %q", got.VideoSrc, got.PosterSrc, tc.video_, tc.place)
+			}
+			if (got.Video != "") != (tc.video_ != "") || (got.Poster != "") != (tc.place != "") {
+				t.Errorf("site paths = %q, %q", got.Video, got.Poster)
+			}
+			for _, site := range []string{got.Video, got.Poster} {
+				if site == "" {
+					continue
+				}
+				if !strings.HasPrefix(site, "evidence/") || strings.Contains(site, "F2.T3") || strings.Contains(site, "run-1") {
+					t.Errorf("site path %q is not an opaque evidence/<hash>/ path", site)
+				}
+			}
+		})
 	}
 }
 

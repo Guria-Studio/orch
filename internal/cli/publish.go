@@ -119,7 +119,7 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 					return runOneCloudPublish(ctx, cmd, cloud, snapshot.StripEvidenceMedia(snap))
 				}
 				return runOnePublish(ctx, cmd, dir, dest, token, gitBranch, paths, snap,
-					publishMediaFor(cmd, paths, cfg, snap))
+					publishMediaFor(paths, cfg, snap))
 			}
 
 			if !watch {

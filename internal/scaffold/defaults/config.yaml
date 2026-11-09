@@ -155,6 +155,13 @@ verify:
   # e2e: [pnpm exec playwright test]
   # e2e_report: e2e-report.json
 
+# The evidence of what the verify proved about each task (#520): kept under
+# .orchestrator/state/<project>/evidence/<task>/, shown in `orch status
+# --json` and the dashboard, and summarised in one comment on the task's PR.
+# On in a new project; a config without pr_comment does not comment.
+evidence:
+  pr_comment: true
+
 # Project knowledge (#451): lessons under .orch/knowledge/, one markdown file
 # each, versioned with the code. Agents add them with orch_learn, orch drafts
 # them from a verify rejection the next attempt fixed or a resolved conflict,

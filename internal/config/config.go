@@ -184,7 +184,8 @@ type VerifyApp struct {
 // <state>/evidence/<task>/evidence.json and what is shown from it.
 type Evidence struct {
 	// PRComment posts the evidence on the task's PR as one comment, edited
-	// on every push. Nil (absent) means on.
+	// on every push. On in a new project (orch init writes true); absent =
+	// off, so an upgrade never starts writing to a project's PRs.
 	PRComment *bool `yaml:"pr_comment"`
 	// KeepAttempts is how many verified attempts a task keeps, the pushed
 	// one included and never pruned; 0 means 3. Pruned when `orch run`
@@ -242,7 +243,7 @@ func (e Evidence) MaxBytes() int64 {
 }
 
 // CommentsOnPRs reports whether evidence.pr_comment is on.
-func (e Evidence) CommentsOnPRs() bool { return e.PRComment == nil || *e.PRComment }
+func (e Evidence) CommentsOnPRs() bool { return e.PRComment != nil && *e.PRComment }
 
 // VerifyProbe is one GET against the task's app and what its answer must
 // hold.
