@@ -135,6 +135,9 @@ type StateReader interface {
 	LatestRun(ctx context.Context) (state.Run, error)
 	InFlightDispatches(ctx context.Context) ([]state.Dispatch, error)
 
+	// Attempts is every finished attempt, for /api/agent-metrics (#538).
+	Attempts(ctx context.Context) ([]state.Attempt, error)
+
 	// StakeholderToken is this project's rotated stakeholder token hash, if
 	// any (G8.2/F3.3) — resolved fresh on every gated request (see
 	// expectedTokenHash) rather than once at startup, so
@@ -366,6 +369,19 @@ func (s *Server) gated(r route) http.Handler {
 			}
 			if portal {
 				req = req.WithContext(context.WithValue(req.Context(), portalViewKey{}, true))
+			}
+		}
+		// The listening address's gate (#537). A tunnelled request was
+		// judged above, by the tunnel's own rule, and carries the tunnel's
+		// Host.
+		if !s.tunnelUp() || isLocalRequest(req) {
+			switch s.bindVerdict(req) {
+			case Unauthorized:
+				writePlain(w, http.StatusUnauthorized, "unauthorized")
+				return
+			case Forbidden:
+				writePlain(w, http.StatusForbidden, "forbidden")
+				return
 			}
 		}
 		var expectedHash string

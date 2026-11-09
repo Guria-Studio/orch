@@ -129,7 +129,8 @@ type Verify struct {
 	// Review runs the LLM review after the commands pass.
 	Review bool `yaml:"review"`
 	// Reviewer is the backend that reviews. Empty means the first installed
-	// one of claude, gemini, codex, opencode that is not the task's own.
+	// one of claude, gemini, codex, opencode that is not the task's own; a
+	// Reviewer that wrote the task gives way to another (#539).
 	Reviewer    string `yaml:"reviewer"`
 	ReviewModel string `yaml:"review_model"`
 	// Checklist is the review's markdown checklist, relative to the project

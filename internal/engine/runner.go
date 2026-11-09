@@ -12,6 +12,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/pyfmt"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -698,6 +699,10 @@ func (r *Runner) reconcile(ctx context.Context, phase string) error {
 			continue
 		}
 		alive, known := pidAlive(row.PID)
+		reason := "process is gone"
+		if alive && project.PIDReused(row) {
+			alive, reason = false, "the PID belongs to another process now"
+		}
 		if !known || alive {
 			continue
 		}
@@ -720,7 +725,7 @@ func (r *Runner) reconcile(ctx context.Context, phase string) error {
 			if err := s.Backend.AppendEngineEvent(ctx, row.RunID, EventReconciled,
 				row.TaskID, row.Backend, map[string]any{
 					"pid":    row.PID,
-					"reason": "process is gone",
+					"reason": reason,
 				}); err != nil {
 				s.logger().Error("recording the reconciliation failed",
 					"task", row.TaskID, "err", err)

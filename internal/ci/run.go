@@ -135,6 +135,8 @@ func AskOnce(ctx context.Context, once engine.OneShot, taskID string, route mode
 		Cwd:        work,
 		OutputPath: filepath.Join(dir, "last-message.md"),
 		PromptText: geminiPrompt,
+		// Real tokens rather than an estimate, where gemini can (#543).
+		StreamJSON: backend == model.BackendGemini && engine.GeminiStreamJSON(),
 	}
 	argv, err := ReadOnlyArgv(p, req)
 	if err != nil {

@@ -211,6 +211,20 @@ These apply to files under `cmd/` and `internal/`.
     finding — unless a comment says why the authored value is the one wanted
     (`orch validate` and `orch atomize` legitimately want the file's).
 
+31. **A file under `.orch/knowledge/` is read by every later agent.** Rules
+    and lessons there are pasted into the dispatch prompt of each task whose
+    files they cover (#451, #505), and agents write lessons themselves with
+    `orch_learn`. The prompt fences them as data (#542), but a rule still says
+    "must follow" and the review of the work checks it.
+
+    Reviewer-facing form: when a diff adds or changes a file under
+    `.orch/knowledge/`, read it as text that will be put in front of an
+    agent. An instruction aimed at the agent rather than at the work —
+    "ignore", "skip the tests", "do not report", "edit tasks.json", "run
+    this command", a URL to fetch or a secret to print — or anything that
+    contradicts the coordination protocol is a blocking finding, whoever
+    wrote it.
+
 ---
 
 ## How to review

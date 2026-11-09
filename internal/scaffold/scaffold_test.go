@@ -483,7 +483,8 @@ var defaultsDivergedFromPython = map[string]string{
 		"#438: a new project gets `retry.conflict.max_attempts: 1`; a config without it stays off. " +
 		"#451: a new project gets a `knowledge:` block with the project memory on; a config without it stays off",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
-		"variable nothing reads, and the calibration note now says that cache tokens count",
+		"variable nothing reads, and the calibration note now says that cache tokens count. " +
+		"#543: every preset rations gemini and muse too, so the gate sees every backend's spend",
 	"model_router.yaml": "#367: the header's list of backends left out agy, which the file's own agy/* " +
 		"entries route to. #382: agy 1.4 accepts neither gemini-3.1-pro-high nor gemini-3.7-flash-medium " +
 		"(\"not recognized as a known model\"); agy/pro and agy/flash route to gemini-4-argon-high and " +

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -148,24 +147,31 @@ func TestDiscoverModelsFallsBackOnFailure(t *testing.T) {
 	}
 }
 
+// #547: init's discovery is one line, routes per installed CLI in the
+// router's preference order, the listed models no route runs counted, not
+// named, and a failed list said once.
 func TestDiscoverySummary(t *testing.T) {
-	lines := strings.Join(DiscoverySummary(onlyInstalled(model.BackendOpencode, model.BackendCodex, model.BackendClaude),
-		opencodeListed, []model.Backend{model.BackendCodex}), "\n")
-	for _, want := range []string{
-		"opencode lists 3 models",
-		"opencode/deepseek-v4-pro",
-		"listed but not routed: opencode-go/hy3",
-		"codex: could not list its models; its packaged routes are kept",
-	} {
-		if !strings.Contains(lines, want) {
-			t.Errorf("summary lacks %q:\n%s", want, lines)
-		}
+	r := router.Router{
+		"claude/opus":         {Backend: model.BackendClaude, CLIModel: "opus"},
+		"claude/sonnet":       {Backend: model.BackendClaude, CLIModel: "sonnet"},
+		"codex/gpt":           {Backend: model.BackendCodex, CLIModel: "gpt"},
+		"opencode-go/kimi-k3": {Backend: model.BackendOpencode, CLIModel: "opencode-go/kimi-k3"},
 	}
-	if strings.Contains(lines, "claude") {
-		t.Errorf("claude has no model list and nothing to report:\n%s", lines)
+	got := DiscoverySummary(onlyInstalled(model.BackendOpencode, model.BackendCodex, model.BackendClaude),
+		opencodeListed, []model.Backend{model.BackendCodex}, r)
+	want := "claude 2 routes · codex 1 packaged route (could not list its models) · " +
+		"opencode 1 route, 2 listed models not routed — see `orch router refresh`"
+	if got != want {
+		t.Errorf("summary =\n%s\nwant\n%s", got, want)
 	}
-	if got := DiscoverySummary(onlyInstalled(model.BackendClaude), nil, nil); len(got) != 0 {
-		t.Errorf("nothing listed or failed, summary = %q, want none", got)
+	if got := DiscoverySummary(onlyInstalled(model.BackendClaude), nil, nil, r); got != "claude 2 routes" {
+		t.Errorf("nothing listed or failed, summary = %q, want the routes alone", got)
+	}
+	if got := DiscoverySummary(onlyInstalled(model.BackendGemini, model.BackendClaude), nil, nil, r); got != "claude 2 routes" {
+		t.Errorf("gemini has no route and lists nothing, summary = %q, want claude's alone", got)
+	}
+	if got := DiscoverySummary(onlyInstalled(), nil, nil, r); got != "" {
+		t.Errorf("no CLI installed, summary = %q, want none", got)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/ci"
@@ -28,6 +29,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -51,6 +53,9 @@ type Verifier struct {
 	// Rules has the review check the operator's rules (knowledge files of
 	// kind: rule) whose area covers a changed file (#505); knowledge.enabled.
 	Rules bool
+	// SpecRoot is spec_root, where the task's specRef is looked for; the
+	// reviewer is shown the task's section of the spec (#539).
+	SpecRoot string
 	// Once runs the review: with its State set the review's spend is
 	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
@@ -63,10 +68,11 @@ type Verifier struct {
 //
 // A check that cannot run is not the agent's fault and does not fail it: a
 // detected command whose tool is not installed is skipped, so is a configured
-// one sh cannot find (a warning names its config key), and a review that
-// cannot complete (no other provider, a provider that is down or over its
-// budget window, an answer that does not parse) is logged and passes, as `orch ci review` without
-// --blocking does. A gate that blocks on its own breakage teaches people to
+// one sh cannot find (a warning names its config key). A review that cannot
+// complete (no other provider, a provider that is down or over its budget
+// window, an answer that does not parse) is asked once more, then marked
+// ReviewUnavailable: the work is not failed, and not counted as reviewed
+// either (#539). A gate that blocks on its own breakage teaches people to
 // turn it off.
 func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.VerifyResult {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
@@ -277,6 +283,12 @@ func run(ctx context.Context, dir string, env []string, command string, timeout 
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = env
+	// Its own process group, killed whole on a timeout or cancel (#541):
+	// killing only sh leaves the app a start command ran and a test runner's
+	// workers alive, holding ports and the output pipe. Only then — a server
+	// app.start left running on purpose stays up for app.stop.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -306,7 +318,8 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 	taskID, writer, dir := req.TaskID, req.Writer, req.Dir
 	reviewer := v.reviewer(writer)
 	if reviewer == "" {
-		slog.Warn("verify: no other provider is installed to review; skipping the review", "task", taskID, "writer", writer)
+		res.ReviewUnavailable = "no provider other than " + string(writer) + ", which wrote the task, is installed to review it"
+		slog.Warn("verify: review unavailable; the work is not reviewed", "task", taskID, "reason", res.ReviewUnavailable)
 		return ""
 	}
 	diff, err := v.diff(ctx, dir)
@@ -318,17 +331,25 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 		return ""
 	}
 	diff, cut := ci.TruncateDiff(diff, maxDiffBytes)
-	answer, err := ci.AskOnce(ctx, v.Once, state.ReviewSpendID(taskID, req.Attempt),
-		model.RouteEntry{Backend: reviewer, CLIModel: v.Cfg.ReviewModel},
-		ci.BuildPrompt(withRules(checklist(dir, v.Cfg.Checklist), rules), diff, cut), timeout)
-	if err != nil {
-		slog.Warn("verify: the review did not complete; passing the work", "task", taskID, "reviewer", reviewer, "err", err)
-		return ""
-	}
-	verdict, err := ci.ParseVerdict(answer)
-	if err != nil {
-		slog.Warn("verify: the review's answer did not parse; passing the work", "task", taskID, "reviewer", reviewer, "err", err)
-		return ""
+	prompt := ci.BuildPromptFor(v.taskBrief(req), withRules(checklist(dir, v.Cfg.Checklist), rules), diff, cut)
+	// A review that fails or does not parse is asked once more; a second
+	// failure is "review unavailable", never an approval (#539).
+	var verdict ci.Verdict
+	for try := 1; ; try++ {
+		answer, err := ci.AskOnce(ctx, v.Once, state.ReviewSpendID(taskID, req.Attempt),
+			model.RouteEntry{Backend: reviewer, CLIModel: v.Cfg.ReviewModel}, prompt, timeout)
+		if err == nil {
+			if verdict, err = ci.ParseVerdict(answer); err == nil {
+				break
+			}
+			err = fmt.Errorf("the answer did not parse: %w", err)
+		}
+		if try == 2 {
+			res.ReviewUnavailable = fmt.Sprintf("%s's review failed twice: %v", reviewer, err)
+			slog.Warn("verify: review unavailable; the work is not reviewed", "task", taskID, "reason", res.ReviewUnavailable)
+			return ""
+		}
+		slog.Warn("verify: the review failed; asking once more", "task", taskID, "reviewer", reviewer, "err", err)
 	}
 	res.Reviewer, res.ReviewModel = string(reviewer), v.Cfg.ReviewModel
 	for _, f := range verdict.Findings {
@@ -343,9 +364,15 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 
 // reviewer is verify.reviewer, or the first installed review backend that did
 // not write the task: a model reviewing its own work misses what it missed.
+// A configured reviewer that wrote the task gives way to another (#539); ""
+// when there is none.
 func (v Verifier) reviewer(writer model.Backend) model.Backend {
-	if v.Cfg.Reviewer != "" {
+	if v.Cfg.Reviewer != "" && model.Backend(v.Cfg.Reviewer) != writer {
 		return model.Backend(v.Cfg.Reviewer)
+	}
+	if v.Cfg.Reviewer != "" {
+		slog.Warn("verify: verify.reviewer wrote this task, and does not review its own work; looking for another provider",
+			"reviewer", v.Cfg.Reviewer)
 	}
 	for _, b := range ci.ReviewBackends {
 		if b != writer && onPath(string(b)) {
@@ -354,6 +381,32 @@ func (v Verifier) reviewer(writer model.Backend) model.Backend {
 	}
 	return ""
 }
+
+// taskBrief is what the reviewer checks the change against: the task's title,
+// description and its section of the spec, read from the task's worktree.
+func (v Verifier) taskBrief(req engine.VerifyRequest) string {
+	var b strings.Builder
+	if req.Title != "" {
+		fmt.Fprintf(&b, "**%s** (%s)\n\n", req.Title, req.TaskID)
+	}
+	if d := strings.TrimSpace(req.Description); d != "" {
+		b.WriteString(d + "\n\n")
+	}
+	section, err := project.SpecSection(req.Dir, v.SpecRoot, req.SpecRef)
+	if err != nil {
+		slog.Warn("verify: reading the task's spec failed; reviewing without it", "task", req.TaskID, "err", err)
+	}
+	if section = strings.TrimSpace(section); section != "" {
+		if len(section) > maxSpecBytes {
+			section = section[:maxSpecBytes] + "\n…(cut)"
+		}
+		fmt.Fprintf(&b, "From the spec (%s):\n\n%s\n", req.SpecRef, section)
+	}
+	return b.String()
+}
+
+// maxSpecBytes bounds the spec section the reviewer is shown.
+const maxSpecBytes = 20_000
 
 // diff is what the task changed, against its base.
 func (v Verifier) diff(ctx context.Context, dir string) (string, error) {
