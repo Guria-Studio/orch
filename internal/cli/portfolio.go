@@ -153,7 +153,7 @@ func openPortfolioProject(ctx context.Context, root string, static http.Handler,
 	// wins whenever this project has rotated a token (G8.2/F3.3).
 	if err := resolveTokenHash(ctx, backend, &dashCfg); err != nil {
 		closeNow(closeDB, warn, root)
-		return dashboard.PortfolioProject{}, nil, fmt.Sprintf("stakeholder token: %v", err)
+		return dashboard.PortfolioProject{}, nil, fmt.Sprintf("client token: %v", err)
 	}
 	// A stakeholder project with no token is refused by Validate, and that
 	// refusal has to reach the operator as a row rather than as a dead

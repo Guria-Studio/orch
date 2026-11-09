@@ -40,7 +40,7 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "publish",
-		Short: "Export the stakeholder snapshot as a static site",
+		Short: "Export the client page as a static site",
 		Long: "Write the client-facing page — progress, milestones, what is blocked " +
 			"and why, and (only if\n`dashboard.show_spend_to_stakeholder` is on) what it " +
 			"has cost — as a self-contained static site.\n\n" +
@@ -49,7 +49,7 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 			"(gh-pages by default) with them and pushes, which is what\nGitHub " +
 			"Pages serves; `--to cloud` uploads them to your orch-cloud Worker (see `orch cloud`).\n\n" +
 			"Every figure comes from the same builder the PDF and the dashboard's " +
-			"stakeholder route use, so\nthe three cannot disagree.",
+			"client route use, so\nthe three cannot disagree.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -265,10 +265,10 @@ func runOneCloudPublish(ctx context.Context, cmd *cobra.Command, opts publish.Cl
 		return err
 	}
 	if res.ViewerURL != "" {
-		_, err = fmt.Fprintf(out, "stakeholder link: %s\n", res.ViewerURL)
+		_, err = fmt.Fprintf(out, "client link: %s\n", res.ViewerURL)
 		return err
 	}
-	_, err = fmt.Fprintf(out, "stakeholder link: not known here — %s carries no view token; "+
+	_, err = fmt.Fprintf(out, "client link: not known here — %s carries no view token; "+
 		"the operator's `orch cloud status` shows it\n", publish.EnvCloudPublishToken)
 	return err
 }

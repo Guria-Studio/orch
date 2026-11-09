@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // `orch --help` tells the same story as the README and the site (#544):
@@ -35,6 +38,24 @@ func TestInstallSkillsHelpCountsSkillsAndTargets(t *testing.T) {
 	if strings.Contains(cmd.Short, "Claude Code skill") || !strings.Contains(cmd.Short, "cursor") {
 		t.Errorf("install-skills help: %q", cmd.Short)
 	}
+}
+
+// No command's help calls the client a stakeholder (#544, #546). The word
+// survives only as a config key or profile value, written in backticks.
+func TestNoHelpSaysStakeholder(t *testing.T) {
+	root, _ := newRootCmd("test")
+	backticked := regexp.MustCompile("`[^`]*`")
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		text := backticked.ReplaceAllString(c.Short+"\n"+c.Long, "")
+		if strings.Contains(strings.ToLower(text), "stakeholder") {
+			t.Errorf("%q help says stakeholder:\n%s", c.CommandPath(), text)
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(root)
 }
 
 func TestDashboardHelpSaysClient(t *testing.T) {
