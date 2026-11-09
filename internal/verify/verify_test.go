@@ -145,7 +145,7 @@ func TestVerifyTellsTheCommandsWhatChanged(t *testing.T) {
 func TestVerifySendsBackABlockingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure
 	for _, want := range []string{"the review asks for changes", "Tests: new behaviour comes with a test that exercises it"} {
@@ -167,7 +167,7 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 	verdict, _ := json.Marshal(ci.Verdict{Verdict: ci.VerdictRequestChanges, Summary: "twelve problems", Findings: findings})
 	answer, _ := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": string(verdict)})
 	fakeReviewer(t, "0", answer)
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", ReviewModel: "opus", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", ReviewModel: "opus", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if !strings.Contains(res.Failure, "the review asks for changes") {
@@ -184,7 +184,7 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 func TestVerifyPassesAnApprovingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}"}`))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
@@ -195,7 +195,7 @@ func TestVerifyPassesAnApprovingReview(t *testing.T) {
 func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "1", []byte(`{"type":"result","subtype":"error","is_error":true,"terminal_reason":"api_error"}`))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
@@ -244,7 +244,7 @@ func TestVerifyReviewSeesTheTask(t *testing.T) {
 	write(t, filepath.Join(dir, "specs", "f1.md"), "# F1\n\n### F1.1.T1 — Store\n\nDone when: Load reads the saved rows.\n\n### F1.1.T2 — Other\n\nnot this task\n")
 	fakeReviewer(t, "0", []byte(approveAnswer))
 	seen := recordReviews(t, "")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", SpecRoot: "specs"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", SpecRoot: "specs", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir,
 		Title: "Add the store", Description: "Persist the rows between runs", SpecRef: "f1.md#F1.1.T1"})
@@ -272,7 +272,7 @@ func TestVerifyUnparseableReviewIsUnavailableNotApproved(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"looks good to me!"}`))
 	seen := recordReviews(t, "")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if n := len(reviews(t, seen)); n != 2 {
@@ -297,7 +297,7 @@ func TestVerifyRetriesAFailedReview(t *testing.T) {
 	write(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"),
 		readFile(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"))+
 			`echo 0 > "`+filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".exit")+`"`+"\n")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if n := len(reviews(t, seen)); n != 2 {
@@ -320,7 +320,7 @@ func TestConfiguredReviewerNeverReviewsItsOwnWork(t *testing.T) {
 		}
 	}
 	t.Setenv("PATH", bin)
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 	if got := v.reviewer(model.BackendClaude); got != model.BackendGemini {
 		t.Errorf("reviewer of claude's work with verify.reviewer claude = %q, want gemini", got)
 	}

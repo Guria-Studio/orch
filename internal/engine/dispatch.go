@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Guria-Studio/orch/internal/contract"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/providers"
 )
@@ -38,60 +39,10 @@ func TimeoutFor(estimateHours, multiplier float64) time.Duration {
 }
 
 // Dispatch is one task's run: which provider, with what, and for how long.
-type Dispatch struct {
-	// Provider runs the task. Required.
-	Provider providers.Provider
-	// Req is handed to the provider's Argv.
-	Req providers.Request
-	// PromptPath, LogPath and Cwd are as in SpawnRequest.
-	PromptPath string
-	LogPath    string
-	Cwd        string
-	// Timeout is the wall-clock budget, normally from TimeoutFor.
-	Timeout time.Duration
-	// Env, when non-nil, replaces the inherited environment.
-	Env []string
-}
+type Dispatch = contract.Dispatch
 
 // Outcome is everything one completed dispatch produced.
-type Outcome struct {
-	// Result is the provider's verdict, with the engine's own reasons
-	// stamped on top where it owns them (a timeout overrides whatever the
-	// CLI managed to print).
-	Result providers.Result
-	// Failure is the retry-policy class. Empty on success.
-	Failure providers.Failure
-	// PID is the child's pid, which is also its process-group id.
-	PID int
-	// StartedAt and Duration feed the spend row.
-	StartedAt time.Time
-	Duration  time.Duration
-	// TimedOut is true when the engine killed the child rather than the
-	// child exiting on its own.
-	TimedOut bool
-	// ActiveAtTimeout is true when a timed-out child's log was still growing
-	// as the timeout fired: it was working, not hung (#529).
-	ActiveAtTimeout bool
-	// LogPath is where the captured output landed.
-	LogPath string
-	// Stopped is true when the operator stopped the attempt (#356), and
-	// Held when they also held the task. A stopped attempt is cancelled, not
-	// failed: it is neither classified nor retried by the retry policy.
-	Stopped, Held bool
-	// VerifyFailure is what the local verify found wrong with a clean exit's
-	// work (verify.enabled), for the agent's next attempt. Empty when the
-	// work passed or was not verified.
-	VerifyFailure string
-	// E2E is the attempt's E2E run, when the verify collected one.
-	E2E *E2ESummary
-	// Verify is the local verify's whole result, nil when it did not run.
-	Verify *VerifyResult
-	// GuardBlock is why the pre-PR guard (#484) refused the work, and
-	// GuardWarnings what it let through for the PR body to name. Neither
-	// ever holds a matched secret.
-	GuardBlock    string
-	GuardWarnings []string
-}
+type Outcome = contract.Outcome
 
 // Run spawns a dispatch, supervises it, and parses what it produced.
 //
@@ -157,17 +108,6 @@ func Run(ctx context.Context, d Dispatch) (Outcome, error) {
 	}
 
 	return out, nil
-}
-
-// ShouldRetryWithFallback reports whether the reap loop should swap in the
-// route's fallback_cli_model before retrying (FR-D-7). Port of the
-// `should_retry_with_fallback` flag Python sets on a VERSION_DRIFT failure.
-//
-// Derived rather than stored: Python keeps it as a field on DispatchResult,
-// and a field that must agree with Classify is a field that eventually does
-// not.
-func (o Outcome) ShouldRetryWithFallback(route model.RouteEntry) bool {
-	return o.Failure == providers.FailureVersionDrift && route.FallbackCLIModel != nil
 }
 
 // LogPathFor is where a task's captured output goes: `<stateDir>/logs/<id>.log`,

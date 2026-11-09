@@ -100,7 +100,7 @@ func (s *Scheduler) keepRejection(id string, out Outcome) {
 func verifyLesson(id, rejected string, findings []VerifyFinding, taskFiles []string) knowledge.Lesson {
 	var lines, area []string
 	for _, f := range findings {
-		if f.Severity != "blocking" { // internal/ci.SeverityBlocking; ci imports engine
+		if f.Severity != "blocking" { // internal/ci.SeverityBlocking
 			continue
 		}
 		where := f.File

@@ -95,7 +95,7 @@ type Request struct {
 	// StreamJSON asks the CLI for its structured output. Only gemini reads
 	// it (`--output-format stream-json`, #543): a gemini that predates the
 	// flag rejects it, so the engine sets this from a probe of the installed
-	// CLI (engine.GeminiStreamJSON) rather than always.
+	// CLI (GeminiStreamJSON) rather than always.
 	StreamJSON bool
 }
 
