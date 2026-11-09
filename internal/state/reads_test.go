@@ -21,8 +21,8 @@ func pythonBackend(t *testing.T) *SQLite {
 	// 2, not 0: 006 and 007 (Go-only, no Python counterpart) still apply on top
 	// of a v0.11.0 (schema 5) fixture — see migrate_test.go's
 	// TestOpenPythonWrittenDatabaseAppliesOnlyGoOnlyMigrations.
-	if applied != 7 {
-		t.Fatalf("applied %d migrations to a v0.11.0 database, want 7", applied)
+	if applied != 9 {
+		t.Fatalf("applied %d migrations to a v0.11.0 database, want 9", applied)
 	}
 	return NewSQLite(db, "billing-api", "/tmp/billing-api")
 }

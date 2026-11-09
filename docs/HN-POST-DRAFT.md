@@ -31,23 +31,30 @@ open — two of them make the first command in the post fail.
 
 ## Title
 
+> Show HN: Orch – run AI coding agents as a team, and give your client a live page
+
+The title carries the one story the README, the site, the manual and
+`orch --help` tell (#544). Alternatives, in case it reads as a product pitch:
+
 > Show HN: Orch – dispatch a task DAG to Claude, Codex or opencode, as a single binary
-
-Alternatives, in case the first reads as a product pitch:
-
 > Show HN: I rewrote my AI-agent orchestrator from Python to Go as a single binary
 > Show HN: Orch – single-binary orchestrator for AI coding agents, and the 31 bugs porting found
 
-The phrase to keep is **single binary**: it is what changed for someone
-installing this, and it is checkable in one command.
+The phrases to keep are **agents as a team** and **a page for your client**,
+which are what the tool is for, and **single binary** in the first comment: it
+is what changed for someone installing this, and it is checkable in one command.
 
 ---
 
 ## The post
 
-I built orch to stop babysitting AI coding agents.
+I built orch to run AI coding agents as a team and stop writing status
+updates for clients: the agents do the work, and the client opens a live page
+instead of asking me how it is going.
 
-You write a spec, it becomes a `tasks.json` DAG, and orch walks the graph: it
+You describe the idea (`orch start` plans it with you through a PRD, an
+architecture and specs) or write the specs yourself, they become a
+`tasks.json` DAG, and orch walks the graph: it
 works out which tasks are ready, dispatches each one to whichever CLI you routed
 it to (`claude`, `codex`, `opencode`, `gemini`, `agy`, `muse`), isolates it in its own
 git worktree, opens a PR, waits for CI, and retries or blocks on the result.
@@ -61,7 +68,7 @@ process to keep alive.
 
 ```
 curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
-orch init my-project --template python-api
+cd my-project && orch start "what you want to build"
 ```
 
 Most of the code — Python and Go — was written by AI agents (Claude sessions,
@@ -92,19 +99,23 @@ needs Python ≥3.11" is a step where people leave.
 
 **What got thrown away.** Deliberately, not "not yet":
 
-- `orch findings` — an internal dogfooding tool, not part of the product.
+- Python's `orch findings`, an internal dogfooding tool. (A different `orch
+  findings` came back in #536: the review queue for the reports agents write
+  about orch itself, which the operator reads before anything is sent.)
 - The architecture-diagram generator, which depended on an external skill.
 - The file-based state backend. Go only speaks SQLite; `orch migrate` imports an
   old project once.
 - Three dashboard pages (Architecture, Documents, Doctor — the last one is
   `orch doctor` now) and the web setup wizard. The operator JS bundle went from
   680 kB to 483 kB at that trim. (It has grown back to 990 kB since, with the
-  backoffice redesign — that is what new pages cost.)
+  dashboard redesign — that is what new pages cost.)
 - `orch stop`. Ctrl+C drains and exits; a second one kills the agents.
 - The plan said the tunnel supervisor would support cloudflared. The Python code
   never had cloudflared, only autossh (Pinggy) and bore, so that is what got
   ported. Porting what the plan said instead of what the code did would have
-  been a new feature with nothing real to test it against.
+  been a new feature with nothing real to test it against. (autossh and bore
+  were later replaced: the tunnel is now a Cloudflare quick tunnel, or
+  Tailscale from the dashboard's Share page.)
 
 (Jinja was already gone before the rewrite started; the dashboard had become a
 React app while still in Python.)
@@ -231,7 +242,7 @@ against the GitHub API and each project's README; re-check on posting day.
 | Mobile app | ✅ iOS (build from source) | ❌ | ❌ | ❌ | ❌ |
 | Cloud-hosted option | ✅ multica.ai | ❌ (Bloop's cloud shut down; self-host guide) | ❌ | ❌ | ❌ |
 | Single binary | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Read-only stakeholder view | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Read-only client page | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Per-provider budget guardrail (blocks dispatch) | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Spec → tasks pipeline | ❌ | ❌ | ❌ (agent pipelines, not spec → DAG) | ❌ | ✅ |
 | Static export of the client page | ❌ | ❌ | ❌ | ❌ | ✅ (`orch publish`) |
@@ -252,7 +263,7 @@ And against itself:
 | Install | `pipx install`, needs Python ≥3.11 | one binary, 19.4–21.0 MB (8.1–8.8 MB download) |
 | Runtime dependencies on the machine | Python + 4 packages | none |
 | Dispatch backends | claude, codex, opencode, gemini, agy | those five + muse (gemini dispatchable since the trust fix) |
-| Command surfaces | 21 | 37 (36 in `orch --help` + hidden `sandbox-exec`; no `findings`, no `stop`) |
+| Command surfaces | 21 | 37 (36 in `orch --help` + hidden `sandbox-exec`; no `findings`, no `stop` — at `v0.30.0`; `findings` is back since #536) |
 | Dashboard | FastAPI + uvicorn + a built SPA on disk | `net/http`, SPA embedded |
 | New in Go | — | MCP server (13 tools), `explain`, `publish`, `report pdf`, `sync issues`, `estimate`, `bench`, verify, sandbox, portfolio |
 | Non-test lines | 21,279 | 66,626 |

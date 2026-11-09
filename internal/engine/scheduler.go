@@ -62,6 +62,9 @@ type InFlight struct {
 	Conflict *prompt.Conflict
 	// GuardWarnings is what the pre-PR guard warned about, for the PR body.
 	GuardWarnings []string
+	// ReviewUnavailable is why the local review did not run, for the PR body
+	// (#539).
+	ReviewUnavailable string
 }
 
 // SchedulerOptions configures one run.
@@ -229,6 +232,9 @@ type Scheduler struct {
 	// verifyFindings are the blocking and minor findings of that rejection,
 	// for a draft lesson built from them rather than the reason (#475).
 	verifyFindings map[string][]VerifyFinding
+	// lastFailure is why a task's last attempt failed, for its retry's prompt
+	// (#540): written by queueRetry, read and cleared at the next dispatch.
+	lastFailure map[string]string
 	// landConflicts counts each task's local-merge conflict retries.
 	landConflicts map[string]int
 	// exhausted is each provider out of quota, until its reset (#439).
@@ -325,6 +331,7 @@ func NewScheduler(q *TaskQueue, routes map[string]model.RouteEntry, opts Schedul
 		verifyAttempts: make(map[string]int),
 		verifyRejected: make(map[string]string),
 		verifyFindings: make(map[string][]VerifyFinding),
+		lastFailure:    make(map[string]string),
 		landConflicts:  make(map[string]int),
 		exhausted:      make(map[model.Backend]time.Time),
 		stopping:       make(map[int]bool),
@@ -664,6 +671,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		OperatorNotes:  s.operatorNotes(ctx, task.ID),
 		TDD:            s.Opts.Cfg.Dispatch.TDD,
 		FeedbackFile:   feedbackFileIn(workdir),
+		LastFailure:    s.lastFailure[task.ID],
 		Conflict:       s.conflictRetry[task.ID],
 		Knowledge:      lessons,
 		Rules:          rules,
@@ -671,6 +679,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	})
 	conflict := s.conflictRetry[task.ID]
 	delete(s.conflictRetry, task.ID)
+	delete(s.lastFailure, task.ID)
 	if err != nil {
 		release()
 		s.logger().Error("rendering the prompt failed", "task", task.ID, "err", err)
@@ -755,7 +764,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	delete(s.radarSeen, task.ID)
 
 	// One supervisor per child, posting to the reaper when it finishes.
-	go s.supervise(sp.PID, d, sp, attempt)
+	go s.supervise(sp.PID, task, d, sp, attempt)
 
 	if s.Backend != nil {
 		if err := s.Backend.RecordDispatchAndEvent(ctx, s.Opts.RunID, d, sp, attempt); err != nil {

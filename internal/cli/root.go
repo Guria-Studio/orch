@@ -74,51 +74,64 @@ func registerProjectFlags(root *cobra.Command) *projectFlags {
 func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root := &cobra.Command{
 		Use:           "orch",
-		Short:         "Task orchestrator that walks a tasks.json DAG and dispatches to CLI coding agents",
+		Short:         "Run AI agents as a team and give your client a live page",
+		Long: "Run AI agents as a team. Show your client a live page, not a status thread.\n\n" +
+			"orch splits the work into a graph of tasks and runs each one on the coding\n" +
+			"agent CLI you route it to (claude, codex, opencode, gemini, agy, muse), in\n" +
+			"parallel, each in its own git worktree and pull request. Your client gets a\n" +
+			"page with progress by phase, blockers in plain words and the estimated finish.\n\n" +
+			"Start here, in a git repository:\n\n" +
+			"  orch start \"what you want to build\"\n\n" +
+			"It sets the project up, plans the idea with you, estimates it and runs the\n" +
+			"first tasks with the dashboard open. Then orch run carries on, orch dashboard\n" +
+			"shows the work and orch publish writes the client page.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true, // Run prints the error itself, once
 	}
 	flags := registerProjectFlags(root)
-	root.AddCommand(newStatusCmd(flags))
-	root.AddCommand(newTasksCmd(flags))
-	root.AddCommand(newEventsCmd(flags))
-	root.AddCommand(newLogsCmd(flags))
-	root.AddCommand(newTaskCmd(flags))
-	root.AddCommand(newTaskStatusCmd(flags))
-	root.AddCommand(newResetCmd(flags))
-	root.AddCommand(newValidateCmd(flags))
-	root.AddCommand(newGraphCmd(flags))
-	root.AddCommand(newMigrateCmd(flags))
-	root.AddCommand(newRouterCmd(flags))
-	root.AddCommand(newBudgetCmd(flags))
-	root.AddCommand(newProviderCmd(flags))
-	root.AddCommand(newFindingsCmd(flags))
-	root.AddCommand(newInitCmd(flags))
-	root.AddCommand(newStartCmd(flags))
-	root.AddCommand(newConfigCmd(flags))
-	root.AddCommand(newInstallSkillsCmd(flags))
-	root.AddCommand(newClaudePermissionsCmd(flags))
-	root.AddCommand(newAgyPermissionsCmd())
-	root.AddCommand(newAtomizeCmd(flags))
-	root.AddCommand(newRunCmd(flags))
-	root.AddCommand(newEstimateCmd(flags))
-	root.AddCommand(newMCPCmd(flags))
-	root.AddCommand(newKnowledgeCmd(flags))
-	root.AddCommand(newNotifyCmd(flags))
-	root.AddCommand(newDoctorCmd(flags))
-	root.AddCommand(newDashboardCmd(flags))
-	root.AddCommand(newTUICmd(flags))
-	root.AddCommand(newExplainCmd(flags))
-	root.AddCommand(newReportCmd(flags))
-	root.AddCommand(newPublishCmd(flags))
-	root.AddCommand(newCloudCmd(flags))
-	root.AddCommand(newSyncCmd(flags))
-	root.AddCommand(newExportCmd(flags))
-	root.AddCommand(newUpgradeCmd(version))
-	root.AddCommand(newCICmd(flags, version))
-	root.AddCommand(newBenchCmd(version))
-	root.AddCommand(newSandboxExecCmd())
+	// --help lists the commands by layer (#547), each group in the order an
+	// operator meets them, not alphabetical. Every command is in a group;
+	// task-status and sandbox-exec, which only the task scripts and the
+	// dispatch launcher call, are hidden (migrate, deprecated, already was).
+	cobra.EnableCommandSorting = false
+	root.AddGroup(
+		&cobra.Group{ID: "start", Title: "Start a project:"},
+		&cobra.Group{ID: "run", Title: "Run tasks:"},
+		&cobra.Group{ID: "follow", Title: "Follow progress:"},
+		&cobra.Group{ID: "deliver", Title: "Deliver results:"},
+		&cobra.Group{ID: "integrations", Title: "Integrations:"},
+		&cobra.Group{ID: "advanced", Title: "Advanced:"},
+	)
+	group := func(id string, cmds ...*cobra.Command) {
+		for _, c := range cmds {
+			c.GroupID = id
+			root.AddCommand(c)
+		}
+	}
+	group("start",
+		newStartCmd(flags), newInitCmd(flags), newAtomizeCmd(flags),
+		newInstallSkillsCmd(flags), newDoctorCmd(flags))
+	group("run",
+		newRunCmd(flags), newEstimateCmd(flags), newTaskCmd(flags),
+		newResetCmd(flags), newValidateCmd(flags))
+	group("follow",
+		newStatusCmd(flags), newExplainCmd(flags), newTasksCmd(flags), newTUICmd(flags),
+		newDashboardCmd(flags), newEventsCmd(flags), newLogsCmd(flags), newGraphCmd(flags),
+		newFindingsCmd(flags), newMetricsCmd(flags))
+	group("deliver",
+		newReportCmd(flags), newPublishCmd(flags), newCloudCmd(flags),
+		newSyncCmd(flags), newExportCmd(flags))
+	group("integrations",
+		newMCPCmd(flags), newCICmd(flags, version), newNotifyCmd(flags),
+		newClaudePermissionsCmd(flags), newAgyPermissionsCmd())
+	group("advanced",
+		newConfigCmd(flags), newRouterCmd(flags), newProviderCmd(flags),
+		newBudgetCmd(flags), newKnowledgeCmd(flags), newMigrateCmd(flags),
+		newUpgradeCmd(version), newBenchCmd(version),
+		newTaskStatusCmd(flags), newSandboxExecCmd())
+	root.SetHelpCommandGroupID("advanced")
+	root.SetCompletionCommandGroupID("advanced")
 
 	for _, c := range root.Commands() {
 		if gatedCommands[root.Name()+" "+c.Name()] {

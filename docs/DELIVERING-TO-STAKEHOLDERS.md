@@ -58,7 +58,7 @@ tunnel:
 
 That is all. The dashboard stays the operator's:
 - **You** hit `http://127.0.0.1:7420` and see everything (no token needed locally)
-- **Your client** gets a link with a token that reaches only the client portal —
+- **Your client** gets a link with a token that reaches only the client page —
   they cannot turn it into your view by editing the address
 
 ---
@@ -97,7 +97,7 @@ the install steps for your system and a **Check again** button.
 
 Once Cloudflare assigns the address (a few seconds) you get two links:
 
-- **Client portal** — `https://<words>.trycloudflare.com/stakeholder/?token=…` — send this one.
+- **Client page** — `https://<words>.trycloudflare.com/stakeholder/?token=…` — send this one.
 - **Full dashboard** — for you or your team only.
 
 ---
@@ -109,7 +109,7 @@ Hi María,
 
 Your project is live. You can follow progress here:
 
-  <client portal link>
+  <client page link>
 
 What you'll see:
 - Phase completion (% done per phase, tasks done / in-progress / blocked)
@@ -217,13 +217,13 @@ every request. Restart it anytime without losing data.
 
 ---
 
-## Customizing the stakeholder view
+## Customizing the client page
 
 The curated summary endpoint (`/stakeholder/summary`) is computed server-side from
 your project state. You don't configure it per-project today — what your client sees
 is determined by the structure of your `tasks.json` (phases, estimates, status).
 
-To make the stakeholder view more meaningful:
+To make the client page more meaningful:
 
 - **Use descriptive phase names** in `tasks.json` — they appear verbatim in the UI
   (`"F0 — Foundation"` → shows as "F0 — Foundation")
@@ -242,7 +242,7 @@ The link is from an earlier start: every start mints new tokens and a new addres
 the current client-portal link from the Share panel.
 
 **Client gets 403**
-They opened a page outside the client portal with the portal link's token — expected.
+They opened a page outside the client page with the portal link's token — expected.
 Send the client-portal link, not the full-dashboard one.
 
 **Tunnel URL changes on restart**

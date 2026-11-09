@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { StakeholderSummaryShapeError } from "@/hooks/useStakeholderSummary"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
 
-// The page links to Delivery › Client view, so it renders inside a router.
+// The page links to Delivery › Client page, so it renders inside a router.
 const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 // Bug 26's own review (PR #205, opus-2's finding): fixing the login wall

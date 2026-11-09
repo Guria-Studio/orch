@@ -26,7 +26,7 @@ func newCloudCmd(flags *projectFlags) *cobra.Command {
 		Use:   "cloud",
 		Short: "Connect to your orch-cloud Worker and manage its tokens",
 		Long: "orch-cloud is a Cloudflare Worker you deploy to your own account; it serves the\n" +
-			"stakeholder page at https://<worker>/v/<view token>/. These commands store its URL and\n" +
+			"client page at https://<worker>/v/<view token>/. These commands store its URL and\n" +
 			"tokens in ~/.orch/credentials (mode 0600). `orch publish --to cloud` uploads the page.\n\n" +
 			"`orch cloud setup` deploys the Worker and logs in, in one step; see docs/CLOUD.md.",
 	}
@@ -182,7 +182,7 @@ func newCloudRotateCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rotate",
 		Short: "Issue a new viewer link for this project (or, with --publish, a new publish token)",
-		Long: "Without flags: issues a new view token. The stakeholder link changes and the old one\n" +
+		Long: "Without flags: issues a new view token. The client link changes and the old one\n" +
 			"stops working immediately; the new link is printed.\n\n" +
 			"With --publish: re-issues this project's publish token using the admin token and stores\n" +
 			"it — for a CI token that leaked, or a machine that lost its credentials file. The\n" +
@@ -211,7 +211,7 @@ func newCloudRotateCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			if !yes {
-				if _, err := fmt.Fprintf(out, "This replaces the stakeholder link for %s — anyone using the "+
+				if _, err := fmt.Fprintf(out, "This replaces the client link for %s — anyone using the "+
 					"current link loses access immediately. Continue? [y/N] ", id); err != nil {
 					return err
 				}
@@ -231,7 +231,7 @@ func newCloudRotateCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(out, "new stakeholder link for %s:\n\n  %s\n", id, viewer)
+			_, err = fmt.Fprintf(out, "new client link for %s:\n\n  %s\n", id, viewer)
 			return err
 		},
 	}
@@ -295,7 +295,7 @@ func newCloudStatusCmd(flags *projectFlags) *cobra.Command {
 		Long: "Prints the stored Worker URL, whether it is reachable and which contract version it\n" +
 			"speaks, whether an admin token is stored, and for each project whether a publish and a\n" +
 			"view token are stored. Tokens are never printed; the one exception is the current\n" +
-			"project's stakeholder link, which is the thing you share.",
+			"project's client link, which is the thing you share.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
@@ -357,7 +357,7 @@ func newCloudStatusCmd(flags *projectFlags) *cobra.Command {
 			// The current project is optional: status is useful outside one.
 			if id, err := cloudProjectIDFromFlags(flags); err == nil {
 				if p := cf.Cloud.Projects[id]; p.ViewToken != "" {
-					_, err = fmt.Fprintf(out, "\nstakeholder link for %s:\n  %s\n", id, client.ViewerURL(p.ViewToken))
+					_, err = fmt.Fprintf(out, "\nclient link for %s:\n  %s\n", id, client.ViewerURL(p.ViewToken))
 					return err
 				}
 			}

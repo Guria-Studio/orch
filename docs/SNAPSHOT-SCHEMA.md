@@ -99,7 +99,7 @@ done, or none with recorded human hours).
 One row per phase — this is Python's `phases_timeline`/`milestones_from_
 phases` reshaped into one object, not two. The aggregate comes first; the
 optional `packages[]` breaks it down into deliverables by **title** — never by
-task id, file or spec path — which is what the client portal's roadmap reads.
+task id, file or spec path — which is what the client page's roadmap reads.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -196,7 +196,7 @@ where it can't be bypassed by reading the JSON directly.
 | Field | Type | Notes |
 |---|---|---|
 | `text` | string | A deterministic, no-LLM progress sentence — see below. |
-| `language` | string | `"en"`, `"es"` or `"pt"` (config.yaml's `dashboard.language`). The client portal and the PDF render their own labels in it; a portal handed any other value shows English and warns in the console. |
+| `language` | string | `"en"`, `"es"` or `"pt"` (config.yaml's `dashboard.language`). The client page and the PDF render their own labels in it; a portal handed any other value shows English and warns in the console. |
 
 Ports `executive_summary` (`orchestrator/dashboard/metrics.py`), trimmed to
 the one call shape `_stakeholder_payload` actually uses: it always passes an

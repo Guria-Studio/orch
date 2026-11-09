@@ -222,6 +222,9 @@ p { margin: 0; }
 .limits dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px clamp(32px, 5vw, 72px); }
 .limits dt { font-weight: 600; font-size: 1.125rem; }
 .limits dd { margin: 8px 0 0; color: var(--soft); max-width: 46ch; }
+.layers-lede { color: var(--soft); max-width: var(--measure); }
+.layers h3 { margin: 48px 0 24px; font-size: 1.25rem; }
+.layers dt code { overflow-wrap: anywhere; }
 
 .install-note { color: var(--soft); max-width: var(--measure); margin-bottom: 32px; }
 .install-note strong { color: var(--text); font-weight: 600; }

@@ -112,8 +112,8 @@ func newNotifyDigestCmd(flags *projectFlags) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "digest",
-		Short: "Print (or send) the stakeholder digest",
-		Long: "Print the stakeholder digest: the executive summary the " +
+		Short: "Print (or send) the client digest",
+		Long: "Print the client digest: the executive summary the " +
 			"dashboard shows, followed by each milestone's progress and ETA.\n\n" +
 			"Prints and exits — orch has no daemon, so scheduling it is yours:\n" +
 			"  0 9 * * MON  orch notify digest --send",

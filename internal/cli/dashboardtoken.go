@@ -17,7 +17,7 @@ import (
 func newDashboardTokenCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
-		Short: "Manage this project's stakeholder token",
+		Short: "Manage this project's client token",
 	}
 	cmd.AddCommand(newDashboardTokenRotateCmd(flags))
 	cmd.AddCommand(newDashboardTokenShowCmd(flags))
@@ -28,7 +28,7 @@ func newDashboardTokenRotateCmd(flags *projectFlags) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "rotate",
-		Short: "Generate a new stakeholder token and store its hash in the database",
+		Short: "Generate a new client token and store its hash in the database",
 		Long: "Generates a random token, stores only its SHA-256 hash in the\n" +
 			"project's database, and prints the token once — it is not recoverable\n" +
 			"afterward. Any URL or client using the previous token stops working\n" +
@@ -44,7 +44,7 @@ func newDashboardTokenRotateCmd(flags *projectFlags) *cobra.Command {
 
 			if !yes {
 				if _, err := fmt.Fprint(cmd.OutOrStdout(),
-					"This invalidates the current stakeholder token — anyone using a "+
+					"This invalidates the current client token — anyone using a "+
 						"shared URL loses access immediately. Continue? [y/N] "); err != nil {
 					return err
 				}
@@ -87,7 +87,7 @@ func newDashboardTokenRotateCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if _, err := fmt.Fprintf(out, "\nNew stakeholder token (shown once — store it now):\n\n  %s\n\n", token); err != nil {
+			if _, err := fmt.Fprintf(out, "\nNew client token (shown once — store it now):\n\n  %s\n\n", token); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(out, "The database now has this project's token — `orch dashboard "+
@@ -103,8 +103,8 @@ func newDashboardTokenRotateCmd(flags *projectFlags) *cobra.Command {
 func newDashboardTokenShowCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show",
-		Short: "Show where this project's stakeholder token comes from, never the token itself",
-		Long: "Reports whether a stakeholder token is configured, its source\n" +
+		Short: "Show where this project's client token comes from, never the token itself",
+		Long: "Reports whether a client token is configured, its source\n" +
 			"(database or config.yaml/--token) and, for a database-sourced one, when\n" +
 			"it was last rotated. Never prints the token — only its hash is ever\n" +
 			"stored, so there is nothing to print even if this command wanted to.",
@@ -135,7 +135,7 @@ func newDashboardTokenShowCmd(flags *projectFlags) *cobra.Command {
 				_, err = fmt.Fprintln(out, "source: config.yaml\nrotated_at: n/a (not managed by `orch dashboard token rotate`)")
 				return err
 			}
-			_, err = fmt.Fprintln(out, "source: none — no stakeholder token is configured")
+			_, err = fmt.Fprintln(out, "source: none — no client token is configured")
 			return err
 		},
 	}

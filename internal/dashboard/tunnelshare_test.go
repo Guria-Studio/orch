@@ -115,8 +115,17 @@ func TestTunnelCapabilitiesDescribeTheShareToTheLocalOperatorOnly(t *testing.T) 
 		}
 	}
 
+	// A caller through a running tunnel, with the share link's token: the
+	// only way a non-loopback Host reaches the route (#537).
+	up := startedTunnel(t)
+	link, _ := waitForLinks(t, up)
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var remote map[string]json.RawMessage
-	decodeBody(t, getWithHost(t, s, "/api/tunnel/capabilities", tunnelHost), &remote)
+	decodeBody(t, request(t, up, http.MethodGet, "/api/tunnel/capabilities", tunnelHost,
+		http.Header{"Authorization": {"Bearer " + u.Query().Get("token")}, "Cf-Connecting-Ip": {"203.0.113.9"}}), &remote)
 	for _, key := range []string{"providers", "repo", "local_url"} {
 		if _, ok := remote[key]; ok {
 			t.Errorf("a caller at %s was told %q", tunnelHost, key)

@@ -1,0 +1,17 @@
+Ripgrep is not available. Falling back to GrepTool.
+Skill conflict detected: "media-use" from "/home/USER/.agents/skills/media-use/SKILL.md" is overriding the same skill from "/home/USER/.gemini/skills/media-use/SKILL.md".
+Skill conflict detected: "hyperframes-registry" from "/home/USER/.agents/skills/hyperframes-registry/SKILL.md" is overriding the same skill from "/home/USER/.gemini/skills/hyperframes-registry/SKILL.md".
+Skill conflict detected: "hyperframes-cli" from "/home/USER/.agents/skills/hyperframes-cli/SKILL.md" is overriding the same skill from "/home/USER/.gemini/skills/hyperframes-cli/SKILL.md".
+Skill conflict detected: "hyperframes" from "/home/USER/.agents/skills/hyperframes/SKILL.md" is overriding the same skill from "/home/USER/.gemini/skills/hyperframes/SKILL.md".
+Skill conflict detected: "browser-use" from "/home/USER/.agents/skills/browser-use/SKILL.md" is overriding the same skill from "/home/USER/.gemini/skills/browser-use/SKILL.md".
+{"type":"init","timestamp":"2026-11-08T14:54:13.573Z","session_id":"bca7433d-0eb3-48fb-8def-d78efebc1aaa","model":"gemini-2.5-flash"}
+{"type":"message","timestamp":"2026-11-08T14:54:13.574Z","role":"user","content":"Count from 1 to 60, one number per line, nothing else."}
+{"type":"message","timestamp":"2026-11-08T14:54:16.586Z","role":"assistant","content":"1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:16.677Z","role":"assistant","content":"\n12\n13\n14\n15\n16\n17\n18\n19","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:16.755Z","role":"assistant","content":"\n20\n21\n22\n23\n24\n25\n26\n27","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:16.826Z","role":"assistant","content":"\n28\n29\n30\n31\n32\n33\n34\n35","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:16.907Z","role":"assistant","content":"\n36\n37\n38\n39\n40\n41\n42\n43","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:17.005Z","role":"assistant","content":"\n44\n45\n46\n47\n48\n49\n50\n51","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:17.093Z","role":"assistant","content":"\n52\n53\n54\n55\n56\n57\n58\n59","delta":true}
+{"type":"message","timestamp":"2026-11-08T14:54:17.113Z","role":"assistant","content":"\n60","delta":true}
+{"type":"result","timestamp":"2026-11-08T14:54:17.184Z","status":"success","stats":{"total_tokens":14244,"input_tokens":13844,"output_tokens":170,"cached":11773,"input":2071,"duration_ms":3611,"tool_calls":0,"models":{"gemini-3.6-flash":{"total_tokens":14244,"input_tokens":13844,"output_tokens":170,"cached":11773,"input":2071}}}}

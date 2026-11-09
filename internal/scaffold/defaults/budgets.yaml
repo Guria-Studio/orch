@@ -31,6 +31,11 @@
 # window_hours is the rolling window Anthropic/OpenAI/opencode enforce for
 # THEIR rate limits — not something you tune. Values below match public docs
 # as of 2026-08.
+#
+# gemini and muse are rationed like opencode and agy (#543): a daily window and
+# the same guessed budget, to calibrate the same way. A gemini without
+# stream-json reports no usage, so its rows are estimated from the size of the
+# prompt and output.
 
 presets:
   conservative:
@@ -47,6 +52,14 @@ presets:
       token_budget: 2000000
       threshold_pct: 70
     agy:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 70
+    gemini:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 70
+    muse:
       window_hours: 24
       token_budget: 2000000
       threshold_pct: 70
@@ -68,6 +81,14 @@ presets:
       window_hours: 24
       token_budget: 2000000
       threshold_pct: 95
+    gemini:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 95
+    muse:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 95
 
   shared:
     claude:
@@ -83,6 +104,14 @@ presets:
       token_budget: 2000000
       threshold_pct: 60
     agy:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 60
+    gemini:
+      window_hours: 24
+      token_budget: 2000000
+      threshold_pct: 60
+    muse:
       window_hours: 24
       token_budget: 2000000
       threshold_pct: 60

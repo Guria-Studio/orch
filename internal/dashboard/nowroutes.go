@@ -18,8 +18,11 @@ import (
 // budget waits are /api/budget/summary's — gathered into one read so the page
 // that answers "is anything wrong right now" does not need five.
 //
-// Read-only like the rest of the package (CHECKLIST rule 13): the attention
-// list names what to do and the page shows the command, it does not do it.
+// This route only reads (CHECKLIST rule 13: the dashboard never drives the
+// engine): the attention list names what to do and the page shows the
+// command, it does not do it. The package's writes — task edits, steering,
+// review, config, budgets, knowledge, findings, the tunnel — are separate
+// routes for the local operator, through the functions the CLI uses.
 
 func (s *Server) nowRoutes() []route {
 	return []route{
@@ -179,7 +182,7 @@ func runAlive(stateDir string, dispatches []state.Dispatch) bool {
 		return true
 	}
 	for _, d := range dispatches {
-		if project.PIDAlive(d.PID) {
+		if project.DispatchAlive(d) {
 			return true
 		}
 	}

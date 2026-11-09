@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -611,6 +612,36 @@ func TestReconcileLeavesLiveProcessesAlone(t *testing.T) {
 	}
 	if got := d.clearedIDs(); len(got) != 0 {
 		t.Errorf("cleared %v — a live process was reaped", got)
+	}
+}
+
+// TestReconcileSeesAReusedPID (#541): a live process under the row's PID that
+// started at another time is not the dispatch — the PID was reused after a
+// crash — and the task is freed. The same PID with the same start time is
+// left alone.
+func TestReconcileSeesAReusedPID(t *testing.T) {
+	self := project.ProcStart(os.Getpid())
+	if self == "" {
+		t.Skip("this platform cannot tell a process's start time")
+	}
+	f := newRunnerFixture(t,
+		[]model.Task{task("C-1", 1, "claude/opus")},
+		map[string]fakeResponse{"C-1": okResponse()},
+		SchedulerOptions{})
+	if err := f.s.Queue.MarkInFlight("C-1"); err != nil {
+		t.Fatal(err)
+	}
+	d := &stubDispatches{rows: []state.Dispatch{
+		{RunID: "old-run", TaskID: "C-1", PID: os.Getpid(), ProcStart: self + "1", Backend: "claude"},
+		{RunID: "other-run", TaskID: "SOMEONE-ELSES", PID: os.Getpid(), ProcStart: self, Backend: "claude"},
+	}}
+	f.r.Dispatches = d
+
+	if code := f.runWithin(t, 30*time.Second); code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got := d.clearedIDs(); !equalStrings(got, []string{"C-1"}) {
+		t.Errorf("cleared = %v, want only C-1, whose PID was reused", got)
 	}
 }
 
