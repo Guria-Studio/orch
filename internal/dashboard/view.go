@@ -11,7 +11,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // projectView is what every task-shaped endpoint starts from: the DAG as
@@ -52,7 +51,7 @@ type projectView struct {
 	LastUpdated      map[string]string
 	// PRs is each task's pull request and CI state, by id, for the tasks
 	// that have one.
-	PRs map[string]state.TaskRuntime
+	PRs map[string]project.TaskRuntime
 	// MergedLocally is the tasks squash-merged into the base here, with no
 	// PR (vcs.provider: local, #455).
 	MergedLocally map[string]bool
@@ -78,11 +77,11 @@ func (s *Server) loadView(ctx context.Context) (projectView, error) {
 	if err != nil {
 		return v, err
 	}
-	rows, err := s.state.Tasks(ctx, state.TaskFilter{})
+	rows, err := project.Runtime(ctx, s.state)
 	if err != nil {
 		return v, fmt.Errorf("reading the tasks' PR and CI state: %w", err)
 	}
-	v.PRs = map[string]state.TaskRuntime{}
+	v.PRs = map[string]project.TaskRuntime{}
 	for _, r := range rows {
 		if r.PRURL != "" {
 			v.PRs[r.ID] = r
@@ -351,8 +350,8 @@ type waitingPayload struct {
 // the log grows again, and any other event (a retry, a stop, a finish) moves
 // the task on, so the last event is the answer. events come in timeline
 // order.
-func agentWatchStates(tasks []model.Task, events []state.Event) (map[string]bool, map[string]*waitingPayload) {
-	last := map[string]state.Event{}
+func agentWatchStates(tasks []model.Task, events []project.Event) (map[string]bool, map[string]*waitingPayload) {
+	last := map[string]project.Event{}
 	for _, e := range events {
 		last[e.TaskID] = e
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/mcp"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
@@ -55,7 +56,7 @@ func newMCPCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			opts := mcp.Options{
-				Backend:     backend,
+				Project:     project.New(paths, cfg, backend),
 				TasksJSON:   paths.TasksJSON(),
 				ProjectID:   paths.ID,
 				ProjectRoot: paths.Root,

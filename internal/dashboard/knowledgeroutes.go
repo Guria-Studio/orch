@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/knowledge"
-	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // The Knowledge page (#453): the project's lessons, how each one did, and the
@@ -64,7 +63,7 @@ func (s *Server) handleKnowledge(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "knowledge", err)
 		return
 	}
-	done, err := s.state.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
+	done, err := project.DoneRuntime(ctx, s.state)
 	if err != nil {
 		s.failRead(w, "knowledge", err)
 		return

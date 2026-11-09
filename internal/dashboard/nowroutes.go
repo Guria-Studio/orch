@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // /api/now is the operator's first screen: what is running this minute, what
@@ -102,13 +100,12 @@ func (s *Server) handleNow(w http.ResponseWriter, r *http.Request) {
 		WaitingForBudget: []budget.Waiting{},
 	}
 
-	run, err := s.state.LatestRun(ctx)
+	run, ran, err := project.LatestRun(ctx, s.state)
 	switch {
-	case errors.Is(err, state.ErrNoRuns):
 	case err != nil:
 		s.failRead(w, "now", err)
 		return
-	default:
+	case ran:
 		out.Run = &nowRun{RunID: run.RunID, StartedAt: run.StartedAt, UpdatedAt: run.UpdatedAt, Mode: run.Mode, Status: run.Status}
 	}
 
@@ -180,7 +177,7 @@ const (
 // runAlive reports whether an `orch run` is acting on the project: one holds
 // the run lock, or (with --task-locks, which takes none) a dispatch's process
 // is alive.
-func runAlive(stateDir string, dispatches []state.Dispatch) bool {
+func runAlive(stateDir string, dispatches []project.Dispatch) bool {
 	if project.RunLockHeld(stateDir) {
 		return true
 	}

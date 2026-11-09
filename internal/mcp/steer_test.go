@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/prompt"
@@ -38,7 +39,7 @@ func TestTaskNoteReachesThePromptNotes(t *testing.T) {
 func TestTaskStopWithoutARunIsAStatusChange(t *testing.T) {
 	root, backend := newTestProject(t)
 	stateDir := filepath.Join(root, "state")
-	cs := connect(t, Options{Backend: backend, TasksJSON: filepath.Join(root, "tasks.json"), StateDir: stateDir})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), TasksJSON: filepath.Join(root, "tasks.json"), StateDir: stateDir})
 	ctx := context.Background()
 	if err := backend.Transition(ctx, "F0.T1", model.StatusInProgress, state.Note{}); err != nil {
 		t.Fatal(err)

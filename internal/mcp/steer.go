@@ -14,7 +14,7 @@ import (
 // the same path as `orch task note|stop` and the dashboard.
 
 func (s *server) steer() project.Steer {
-	return project.Steer{Backend: s.opts.Backend, StateDir: s.opts.StateDir, Source: "mcp"}
+	return project.Steer{Backend: s.opts.Project.Backend, StateDir: s.opts.StateDir, Source: "mcp"}
 }
 
 type taskNoteIn struct {
