@@ -139,6 +139,9 @@ type CIPoller struct {
 	// ponytail: in memory, so a restarted run grants retry.conflict again;
 	// a tasks_runtime column if that ever matters.
 	conflictAttempts map[string]int
+	// semanticWarned is the tasks whose warn-mode semantic collisions were
+	// recorded at the merge already, so a merge retry does not repeat them.
+	semanticWarned map[string]bool
 }
 
 // Poll asks CI about every task waiting on it, if enough time has passed.
@@ -320,6 +323,7 @@ func (p *CIPoller) maxRetries() int {
 // the task anyway, as before, with the PR open and the reason recorded.
 func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.TaskRuntime) bool {
 	if !p.AutoMerge {
+		p.semanticBlocked(ctx, s, row) // records only: a person merges
 		p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
 		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
 		return true
@@ -328,6 +332,10 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 	m := p.mergeRetryFor(row.ID)
 	if now.Before(m.nextAt) {
 		return false
+	}
+	if p.semanticBlocked(ctx, s, row) {
+		delete(p.merges, row.ID)
+		return true
 	}
 	err := p.Provider.MergePR(row.PRURL, p.Squash, p.MergeWhenPassing)
 	if err == nil {

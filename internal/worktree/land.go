@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/Guria-Studio/orch/internal/collide"
 )
 
 // Landing is what LandLocally did: the squash commit now at the tip of the
@@ -107,6 +109,28 @@ func (m *Manager) LandLocally(taskID, baseBranch, message string) (Landing, erro
 func (m *Manager) BranchConflicts(taskID, otherID string) ([]string, error) {
 	_, conflicts, err := m.mergeTree(taskID, m.BranchName(otherID), m.BranchName(taskID))
 	return conflicts, err
+}
+
+// Collisions runs the semantic collision rules (#522) over what taskID's
+// branch adds, against the base — origin's, freshly fetched, with push
+// enabled — and against what each of others' branches adds. Another task
+// whose branch is not in this repository is skipped.
+func (m *Manager) Collisions(ctx context.Context, taskID, baseBranch string, rules []collide.Rule, others []string) ([]collide.Collision, error) {
+	ref := "refs/heads/" + baseBranch
+	if m.pushEnabled {
+		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
+			return nil, fmt.Errorf("worktree: fetching %s: %w", baseBranch, err)
+		}
+		ref = "refs/remotes/origin/" + baseBranch
+	}
+	var branches []collide.Branch
+	for _, id := range others {
+		b := m.BranchName(id)
+		if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+b); err == nil {
+			branches = append(branches, collide.Branch{Label: id, Ref: "refs/heads/" + b})
+		}
+	}
+	return collide.Check(ctx, m.root, rules, collide.Branch{Label: baseBranch, Ref: ref}, "refs/heads/"+m.BranchName(taskID), branches)
 }
 
 // mergeTree merges branch into base without a checkout, returning the merged

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Guria-Studio/orch/internal/collide"
 	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
@@ -110,4 +111,8 @@ func (a managerAdapter) Diff(_ context.Context, taskID string) (string, error) {
 
 func (a managerAdapter) BranchConflicts(_ context.Context, taskID, otherID string) ([]string, error) {
 	return a.m.BranchConflicts(taskID, otherID)
+}
+
+func (a managerAdapter) Collisions(ctx context.Context, taskID, baseBranch string, rules []collide.Rule, others []string) ([]collide.Collision, error) {
+	return a.m.Collisions(ctx, taskID, baseBranch, rules, others)
 }

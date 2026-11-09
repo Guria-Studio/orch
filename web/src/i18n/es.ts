@@ -311,6 +311,7 @@ export const es = {
   "task.ev.verify_passed": "pasó",
   "task.ev.files_overlap": "avisa que esta tarea comparte archivos con otra en curso",
   "task.ev.branch_conflict": "avisa que este PR choca con otro abierto",
+  "task.ev.semantic_collision": "avisa una colisión semántica (p. ej. un número de migración ya usado)",
   "task.ev.agent_stalled": "avisa que el agente parece trabado: su log no avanza",
   "task.ev.agent_looping": "avisa que el agente parece trabado: repite la misma llamada",
   "task.ev.model_mismatch": "corrió algo distinto de lo que pedía su ruta",

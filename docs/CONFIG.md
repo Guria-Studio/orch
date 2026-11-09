@@ -1190,6 +1190,49 @@ before the merge does.
 
 `off` turns both off. The events show in `orch events` and on the task page.
 
+### `semantic_checks` — new (#522)
+
+```yaml
+semantic_checks:                # default: none
+  - name: migrations
+    kind: sequence              # the only kind so far
+    paths: ["db/migrations/*.sql"]   # globs, repo-relative; ** crosses directories
+    key: '^(\d+)_'             # regex over the file NAME; group 1 is the identity
+    contiguous: true            # new numbers must follow the base's highest, no gap
+    mode: block                 # block | warn (default) | off
+```
+
+Collisions git cannot see: two tasks that each add migration `005` under
+different file names merge cleanly and break the database after both are in.
+A `sequence` rule reads an identity from the name of every file a branch
+**adds** under `paths` (relative to where it left the base; files the base
+already has at the same path are not the branch's), and reports one that the
+base already uses, one another open branch also adds, and — with
+`contiguous` — a number that does not follow the base's highest. Files that
+were already there never fire a rule.
+
+Where it runs:
+
+- **When a PR opens**: against the base and the branches of the other task PRs
+  waiting on CI. Always a warning: a `semantic_collision` event naming the
+  rule, the key, both files and the other task's PR (`at: pr_open`).
+- **Before orch auto-merges a green PR** (`github.auto_merge`): against the base
+  as it is now. A `block` rule keeps the PR open and sends the task back to
+  its agent — the base merged into its kept work, the collisions in its
+  feedback file — as a `retry.conflict` attempt; past `max_attempts` the task
+  is blocked naming the collision. `warn` records the event (once) and merges.
+  Without auto-merge every collision is a warning: a person merges.
+- **Before a local land** (`vcs.provider: local`): against the base; `block`
+  blocks the task with the reason, its work kept on `orch/<task-id>` (renumber,
+  then `orch task-status <id> todo`).
+
+A rule that is unusable (no name, an unknown kind or mode, no `paths`, a `key`
+that does not compile or has no group) is refused when the config loads. A
+check that cannot run (a branch missing, git failing) is logged and finds
+nothing. `unique_key` (endpoints, config keys), `command`, and the default
+`migrations` rule `orch init` will write for known stacks are later phases of
+#522.
+
 ### Misc
 
 ```yaml
