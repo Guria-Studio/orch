@@ -285,7 +285,11 @@ func TestStatusJSONCarriesEachTasksEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	backend := state.NewSQLite(db, "p", root)
 	paths := config.Paths{Root: root, ID: "p"}
 	tasks := []model.Task{

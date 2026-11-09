@@ -1012,7 +1012,7 @@ Without the block, or with `enabled: false`, a clean exit is pushed as before.
 
 ```yaml
 evidence:
-  pr_comment: true          # default; false = no comment on the PR
+  pr_comment: true          # what `orch init` writes; absent = false (no comment)
   keep_attempts: 3          # default; verified attempts kept per task
   max_bytes_per_task: 0     # 0 = 200 MiB of E2E files per task; < 0 = no cap
 ```

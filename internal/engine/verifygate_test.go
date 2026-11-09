@@ -425,19 +425,23 @@ func (v *commentingVCS) UpsertPRComment(prURL, marker, body string) error {
 }
 
 // TestPushedWorkCommentsItsEvidenceOnThePR is #520's phase 3: the PR a
-// verified task opens gets the evidence comment, under its marker; off with
-// evidence.pr_comment: false, and absent without a verify to show.
+// verified task opens gets the evidence comment, under its marker, with
+// evidence.pr_comment on (orch init writes it); none without the key or
+// without a verify to show.
 func TestPushedWorkCommentsItsEvidenceOnThePR(t *testing.T) {
-	off := false
+	on, off := true, false
 	for _, tc := range []struct {
 		name     string
 		verifier Verifier
 		setting  *bool
 		want     int
 	}{
-		{"verified", &scriptedVerifier{answers: []string{""}}, nil, 1},
+		{"verified", &scriptedVerifier{answers: []string{""}}, &on, 1},
 		{"turned off", &scriptedVerifier{answers: []string{""}}, &off, 0},
-		{"no verify", nil, nil, 0},
+		// A config from before #520 has no key: an upgrade does not start
+		// writing to its PRs (checklist rule 2).
+		{"key absent", &scriptedVerifier{answers: []string{""}}, nil, 0},
+		{"no verify", nil, &on, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, _, v, _ := prFixture(t)
