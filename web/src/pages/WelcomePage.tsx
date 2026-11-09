@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react"
-import { StepRow } from "@/components/ActivityFeed"
+import { PlanIdea } from "@/components/PlanIdea"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ActivityStep } from "@/hooks/useTaskActivity"
@@ -25,8 +25,6 @@ export interface WelcomeState {
   ready: number
   dashboard_url?: string
 }
-
-const CLAUDE_INSTALL = "https://docs.anthropic.com/en/docs/claude-code"
 
 async function welcomeStep(step: string, body?: object): Promise<WelcomeState> {
   try {
@@ -66,7 +64,6 @@ export function WelcomePage() {
   // null until edited: the field shows the chosen folder, else the working directory.
   const [edited, setPath] = useState<string | null>(null)
   const [create, setCreate] = useState(true)
-  const [idea, setIdea] = useState("")
   useEffect(() => {
     if (s?.dashboard_url) window.location.href = s.dashboard_url
   }, [s?.dashboard_url])
@@ -88,7 +85,6 @@ export function WelcomePage() {
 
   const path = edited ?? (s.root || s.cwd)
   const anyCLI = s.clis.some((c) => c.installed)
-  const claude = s.clis.find((c) => c.name === "claude")?.installed ?? false
   const hasProject = s.root !== ""
   const hasTasks = s.tasks.length > 0
   const busy = step.isPending || s.planning
@@ -110,12 +106,6 @@ export function WelcomePage() {
             </li>
           ))}
         </ul>
-        {!claude ? (
-          <p className="mt-3 text-muted-foreground">
-            {t("welcome.need_claude")}{" "}
-            <a href={CLAUDE_INSTALL} target="_blank" rel="noreferrer" className="text-brand underline">{t("welcome.install_claude")}</a>
-          </p>
-        ) : null}
       </Section>
 
       <Section n={2} title={t("welcome.folder")} done={hasProject} active={anyCLI}>
@@ -139,36 +129,7 @@ export function WelcomePage() {
       </Section>
 
       <Section n={3} title={t("welcome.plan")} done={hasTasks} active={hasProject}>
-        <textarea
-          rows={3}
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
-          placeholder={t("welcome.idea_placeholder")}
-          aria-label={t("welcome.plan")}
-          disabled={!hasProject || busy}
-          className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <Button className="mt-3" variant={hasTasks ? "outline" : "default"} disabled={!hasProject || !claude || busy} onClick={() => step.mutate({ name: "plan", body: { idea } })}>
-          {s.planning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-          {s.planning ? t("welcome.planning") : hasTasks ? t("welcome.replan") : t("welcome.plan_button")}
-        </Button>
-        {s.steps.length > 0 ? (
-          <ol aria-label={t("activity.title")} aria-live="polite" className="mt-3 max-h-64 space-y-1 overflow-auto font-mono text-[11px] leading-relaxed">
-            {s.steps.map((st, i) => <StepRow key={i} step={st} wrap={false} />)}
-          </ol>
-        ) : null}
-        {s.plan_error ? <p role="alert" className="mt-3 whitespace-pre-wrap text-status-failed">{s.plan_error}</p> : null}
-        {hasTasks && !s.planning ? (
-          <ul className="mt-3 divide-y rounded-md border" aria-label={t("welcome.tasks")}>
-            {s.tasks.map((task) => (
-              <li key={task.id} className="flex items-baseline gap-3 px-3 py-1.5">
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">{task.id}</span>
-                <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{task.model}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <PlanIdea s={s} disabled={!hasProject} busy={busy} onPlan={(idea) => step.mutate({ name: "plan", body: { idea } })} />
       </Section>
 
       <Section n={4} title={t("welcome.run")} done={!!s.dashboard_url} active={hasTasks && !s.planning}>

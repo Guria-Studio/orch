@@ -16,6 +16,7 @@ import { LoginPage } from "@/pages/LoginPage"
 import { MilestonesPage } from "@/pages/MilestonesPage"
 import { NowPage } from "@/pages/NowPage"
 import { PacePage } from "@/pages/PacePage"
+import { PlanPage } from "@/pages/PlanPage"
 import { PortfolioPage } from "@/pages/PortfolioPage"
 import { ReleasesPage } from "@/pages/ReleasesPage"
 import { StakeholderSummaryPage } from "@/pages/StakeholderSummaryPage"
@@ -47,6 +48,7 @@ const PAGES: Record<string, ReactNode> = {
   "/now/portfolio": <PortfolioPage />,
   "/now/releases": <ReleasesPage />,
   "/work/list": <ListPage />,
+  "/work/plan": <PlanPage />,
   "/work/kanban": <KanbanPage />,
   "/work/graph": <GraphPage />,
   "/work/phases": <MilestonesPage />,

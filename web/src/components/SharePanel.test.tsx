@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   getTunnelStatus: vi.fn(),
   startTunnel: vi.fn(),
   stopTunnel: vi.fn(),
+  enableTunnel: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -105,5 +106,18 @@ describe("SharePanel", () => {
     expect(screen.getByRole("radio", { name: /Tailscale/ })).toBeChecked()
     expect(screen.getByRole("radio", { name: "Only my tailnet" })).toHaveAttribute("aria-checked", "true")
     expect(screen.getByRole("radio", { name: /Cloudflare/ })).toBeDisabled()
+  })
+
+  // #548: sharing used to need config.yaml edited and the dashboard restarted.
+  it("turns sharing on from the panel, with no restart", async () => {
+    api.getTunnelCapabilities.mockResolvedValueOnce({ ...caps([]), enabled: false, can_control: false, reason: "config_disabled", reasons: ["disabled"] })
+    api.getTunnelCapabilities.mockResolvedValue(caps([provider("cloudflared", true)]))
+    api.getTunnelStatus.mockResolvedValue(idle)
+    api.enableTunnel.mockResolvedValue(idle)
+    renderPanel()
+    expect(screen.queryByText(/restart/i)).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Turn sharing on" }))
+    await waitFor(() => expect(api.enableTunnel).toHaveBeenCalled())
+    expect(await screen.findByRole("button", { name: "Generate links" })).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Estimate, Now } from "@/hooks/useNow"
@@ -28,6 +28,11 @@ vi.mock("@/hooks/useNow", () => ({
   useNow: () => ({ data: state.now, isLoading: false, isError: false }),
   useEstimate: (enabled: boolean) => ({ data: enabled ? estimate : undefined }),
   useTicker: () => NOW,
+}))
+const flow = vi.hoisted(() => ({ state: undefined as { running: boolean; run_error?: string } | undefined, step: vi.fn() }))
+vi.mock("@/hooks/useFlow", () => ({
+  useFlow: () => ({ data: flow.state, refetch: vi.fn() }),
+  flowStep: (...a: unknown[]) => flow.step(...a),
 }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ status: "open", lastEventAt: null }) }))
 let findingsPending = 0
@@ -190,6 +195,44 @@ describe("NowPage", () => {
     renderPage()
     expect(screen.getAllByText(/Next run/)).toHaveLength(1)
     estimate = undefined
+  })
+
+  // #548: the Now page runs the plan, after showing what it would take.
+  it("runs the next run once its estimate is confirmed", async () => {
+    estimate = {
+      tasks: ["A", "B", "C"], cost_usd: 3.2, cost_by_backend: { claude: 3.2 }, wall_s: 7800, critical_path_s: 5400,
+      slots: 4, past_attempts: 37, attempts_per_task: 1.3, confidence: "medium",
+    }
+    flow.state = { running: false }
+    flow.step.mockResolvedValue({ running: true })
+    state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [] }
+    renderPage()
+    fireEvent.click(screen.getByRole("button", { name: "Run" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText("Next run: ≈ 3 tasks · ≈ $3.20 · ≈ 2h 10m with 4 slots")).toBeInTheDocument()
+    expect(flow.step).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Run 3 tasks" }))
+    await waitFor(() => expect(flow.step).toHaveBeenCalledWith("run"))
+    estimate = undefined
+    flow.state = undefined
+  })
+
+  it("says a run it started is starting, and how one that failed ended", () => {
+    state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [] }
+    flow.state = { running: true }
+    renderPage()
+    expect(screen.getByText("Starting the run…")).toBeInTheDocument()
+    cleanup()
+    flow.state = { running: false, run_error: "orch run: exit status 1" }
+    renderPage()
+    expect(screen.getByRole("alert")).toHaveTextContent("orch run: exit status 1")
+    flow.state = undefined
+  })
+
+  it("sends a project with no tasks to the Plan page", () => {
+    state.now = { ...base(), run: null, working: [], attention: [], waiting_for_budget: [], summary: { total: 0, done: 0, in_progress: 0, blocked: 0, backlog: 0 } }
+    renderPage()
+    expect(screen.getByRole("link", { name: "Plan the work" })).toHaveAttribute("href", "/work/plan")
   })
 
   it("shows the last finished run's receipt, with costs labelled by where they come from", () => {

@@ -376,7 +376,11 @@ tunnel:
   enabled: true
 ```
 
-That is the whole configuration. A config that still sets `provider`,
+That is the whole configuration, and the Share panel writes it for you: with
+the tunnel off it offers **Turn sharing on**, which saves `tunnel.enabled: true`
+through `orch config set`'s own function and enables the tunnel routes in the
+running dashboard — no restart (`POST /api/tunnel/enable`, #548; local operator
+only, gated like every other dashboard write). A config that still sets `provider`,
 `command`, `args` or `url_regex` is refused at load, with the fix.
 
 ### Starting it
@@ -387,8 +391,8 @@ That is the whole configuration. A config that still sets `provider`,
 address, lets you share through **Cloudflare** or **Tailscale** (tailnet or
 public; see [`CONFIG.md`](CONFIG.md#tunnel)), and shows one of:
 
-- **The tunnel is off** — `tunnel.enabled` is not set; it shows the two lines
-  to add.
+- **The tunnel is off** — `tunnel.enabled` is not set; **Turn sharing on**
+  sets it and the panel moves on, with no restart.
 - **Install cloudflared / tailscale** — step-by-step commands for this
   machine, each with a copy button, and **Check again** (no restart needed).
 - **Sharing** — **Generate links** / **Stop sharing**, the state and uptime,
@@ -468,7 +472,7 @@ with the binary's path and version otherwise.
 ### Rollback
 
 Set `tunnel.enabled: false`. On the next dashboard restart the tunnel routes
-answer 404, the page shows how to enable it, and nothing is spawned.
+answer 404, the page offers to turn it back on, and nothing is spawned.
 
 ---
 

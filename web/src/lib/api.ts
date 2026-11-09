@@ -84,7 +84,7 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
   return data
 }
 
-async function tunnelAction(action: "start" | "stop", body?: object): Promise<TunnelStatus> {
+async function tunnelAction(action: "start" | "stop" | "enable", body?: object): Promise<TunnelStatus> {
   try {
     const { data } = await apiClient.post<TunnelStatus>(`/api/tunnel/${action}`, body)
     return data
@@ -96,6 +96,8 @@ async function tunnelAction(action: "start" | "stop", body?: object): Promise<Tu
 
 export const startTunnel = (provider: TunnelProviderId) => tunnelAction("start", { provider })
 export const stopTunnel = () => tunnelAction("stop")
+/** Writes tunnel.enabled: true to config.yaml and turns sharing on in this dashboard, no restart (#548). */
+export const enableTunnel = () => tunnelAction("enable")
 
 /** What `POST /api/task/{id}/stop` did (project.StopResult). */
 export interface StopResult {

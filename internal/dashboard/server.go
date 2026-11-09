@@ -63,6 +63,7 @@ type Server struct {
 	steer *project.Steer
 	// findings is Options.Findings.
 	findings *FindingsDesk
+	flow     ProjectFlow
 	// editor is Options.Editor.
 	editor *project.TaskEditor
 	// knowledge is Options.Knowledge.
@@ -209,6 +210,10 @@ type Options struct {
 	// Findings is the agents' reports about orch, for the Findings page to
 	// preview and send (#536). Nil shows an empty queue.
 	Findings *FindingsDesk
+	// Flow is the welcome page's plan and apply steps for this project, and
+	// a run of it (#548) — internal/cli's, the same ones `orch start` takes.
+	// Nil turns /api/flow off.
+	Flow ProjectFlow
 }
 
 // New builds a server. It does not listen; Serve does.
@@ -242,8 +247,8 @@ func New(cfg Config, opts Options) (*Server, error) {
 		knowledge: opts.Knowledge,
 		curate:    opts.Curate,
 		findings:  opts.Findings,
+		flow:      opts.Flow,
 		tunnel: tunnelDeps{
-			Enabled:          opts.Tunnel.Enabled,
 			Command:          opts.Tunnel.Command,
 			URLParseTimeoutS: opts.Tunnel.URLParseTimeoutS,
 			Manager:          opts.Tunnel.Manager,
@@ -251,6 +256,7 @@ func New(cfg Config, opts Options) (*Server, error) {
 		fallbackTokenHash: HashToken(cfg.Token),
 		ready:             make(chan struct{}),
 	}
+	s.tunnel.enabled.Store(opts.Tunnel.Enabled)
 	s.registerRoutes()
 	s.http = &http.Server{
 		Addr:    cfg.Addr(),
