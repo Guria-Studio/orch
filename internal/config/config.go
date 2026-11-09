@@ -53,6 +53,7 @@ type Config struct {
 	ReportFindings       ReportFindings `yaml:"report_findings"`
 	Portal               Portal         `yaml:"portal"`
 	Verify               Verify         `yaml:"verify"`
+	Evidence             Evidence       `yaml:"evidence"`
 	Update               Update         `yaml:"update"`
 	Knowledge            Knowledge      `yaml:"knowledge"`
 	Guard                Guard          `yaml:"guard"`
@@ -178,6 +179,17 @@ type VerifyApp struct {
 	// (#520): a page that answers 200 with "not built" is not ready.
 	Probes []VerifyProbe `yaml:"probes"`
 }
+
+// Evidence is the per-task evidence bundle the local verify leaves (#520):
+// <state>/evidence/<task>/evidence.json and what is shown from it.
+type Evidence struct {
+	// PRComment posts the evidence on the task's PR as one comment, edited
+	// on every push. Nil (absent) means on.
+	PRComment *bool `yaml:"pr_comment"`
+}
+
+// CommentsOnPRs reports whether evidence.pr_comment is on.
+func (e Evidence) CommentsOnPRs() bool { return e.PRComment == nil || *e.PRComment }
 
 // VerifyProbe is one GET against the task's app and what its answer must
 // hold.

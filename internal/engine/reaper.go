@@ -374,6 +374,7 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 			"task", task.ID, "pr", prURL, "err", err)
 		return "a PR was opened but recording it failed (" + prURL + "): " + err.Error()
 	}
+	s.commentEvidence(entry, prURL)
 	if !created {
 		s.logger().Info("the CI retry pushed to its PR; waiting on CI again", "task", task.ID, "pr", prURL)
 		return ""

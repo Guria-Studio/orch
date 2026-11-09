@@ -182,3 +182,23 @@ func TestCommentIssuePostsANewComment(t *testing.T) {
 		t.Errorf("calls = %q url = %q", *calls, url)
 	}
 }
+
+// UpsertPRComment is UpsertComment on the PR a URL names (#520): the
+// engine has the PR's URL, not its repository and number.
+func TestUpsertPRCommentReadsThePRsURL(t *testing.T) {
+	list := realComments(t)
+	calls := stubGHAPI(t, list, nil, firstComment(t, list), nil)
+
+	if err := NewGitHubProvider().UpsertPRComment("https://github.com/o/r/pull/7", "<!-- orch:evidence -->", "body"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 2 || !slices.Contains((*calls)[0], "repos/o/r/issues/7/comments") {
+		t.Errorf("gh api calls = %v, want o/r#7's comments", *calls)
+	}
+
+	for _, bad := range []string{"https://github.com/o/r/issues/7", "https://github.com/o/pull/7", "not a url", "https://github.com/o/r/pull/x"} {
+		if err := NewGitHubProvider().UpsertPRComment(bad, "m", "b"); err == nil {
+			t.Errorf("UpsertPRComment(%q) = nil, want an error", bad)
+		}
+	}
+}

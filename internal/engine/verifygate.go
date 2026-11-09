@@ -12,6 +12,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/contract"
 	bundle "github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
 // EventVerifyFailed records a local verify that failed an attempt: the
@@ -142,6 +143,28 @@ func (s *Scheduler) promoteEvidence(entry *InFlight) {
 	}
 	if err := bundle.Promote(s.Opts.StateDir, *entry.Evidence); err != nil {
 		s.logger().Error("writing the task's evidence failed", "task", entry.Task.ID, "err", err)
+	}
+}
+
+// evidenceCommenter is a forge that keeps one marked comment on a PR;
+// *vcs.GitHubProvider is one.
+type evidenceCommenter interface {
+	UpsertPRComment(prURL, marker, body string) error
+}
+
+var _ evidenceCommenter = (*vcs.GitHubProvider)(nil)
+
+// commentEvidence posts the pushed attempt's evidence on its PR (#520
+// §3.2): one comment, edited in place on every later push, so a CI retry
+// does not add another. A forge that cannot comment, and a comment that
+// fails, cost the summary, not the task.
+func (s *Scheduler) commentEvidence(entry *InFlight, prURL string) {
+	c, ok := s.VCS.(evidenceCommenter)
+	if !ok || entry.Evidence == nil || !s.Opts.Cfg.Evidence.CommentsOnPRs() {
+		return
+	}
+	if err := c.UpsertPRComment(prURL, bundle.CommentMarker, bundle.Comment(*entry.Evidence, s.Opts.Cwd)); err != nil {
+		s.logger().Warn("posting the evidence comment on the PR failed", "task", entry.Task.ID, "pr", prURL, "err", err)
 	}
 }
 

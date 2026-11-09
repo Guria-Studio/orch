@@ -990,6 +990,27 @@ manifest under `evidence`. `orch status --json` shows each task's
 the walk-through's video.
 Without the block, or with `enabled: false`, a clean exit is pushed as before.
 
+### `evidence` — new (#520)
+
+```yaml
+evidence:
+  pr_comment: true   # default; false = no comment on the PR
+```
+
+What the local verify proved about a task is kept as its evidence manifest
+(see *Evidence* under `verify`).
+
+**On the PR.** When the pushed attempt opens its PR, and on every
+later verified attempt pushed to it (an agent's CI or conflict retry), orch keeps one
+comment on it, marked `<!-- orch:evidence -->` and edited in place: a row
+per kind of check with their count and time, the app probes, the E2E counts,
+the review's verdict, the diff in numbers and the commit, the `@evidence`
+walk-throughs with their steps, and the review's minor findings folded
+under *Review notes*. Videos and screenshots stay on your machine (the
+comment says so). Every text in it goes through the same redaction as
+`orch findings` (project path, home directory, token shapes); a text where
+the pre-PR guard sees a secret is left out whole. GitHub only for now.
+
 ### `update` — new (#448)
 
 ```yaml
