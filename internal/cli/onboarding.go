@@ -11,7 +11,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/doctor"
 	"github.com/Guria-Studio/orch/internal/engine"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/telemetry"
 )
 
@@ -79,14 +79,10 @@ func readOnboarding(ctx context.Context, paths config.Paths, cfg config.Config) 
 		return o, err
 	}
 	defer func() { _ = closeDB() }()
-	db, ok := backend.(*state.SQLite)
-	if !ok {
-		return o, nil
-	}
-	if o.DispatchBackend, o.Dispatched, err = db.FirstEventBackend(ctx, engine.EventDispatch); err != nil {
+	if o.DispatchBackend, o.Dispatched, err = project.FirstEventBackend(ctx, backend, engine.EventDispatch); err != nil {
 		return o, err
 	}
-	_, o.FinishedTask, err = db.FirstEventBackend(ctx, engine.EventSuccess)
+	_, o.FinishedTask, err = project.FirstEventBackend(ctx, backend, engine.EventSuccess)
 	return o, err
 }
 

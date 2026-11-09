@@ -21,7 +21,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // curateLogMax caps the commit list a curation prompt carries.
@@ -62,7 +61,7 @@ type curateRequest struct {
 	Out io.Writer
 	// State, when set, is the database the curation writes through; the
 	// caller closes it. The dashboard passes its own (CHECKLIST rule 17).
-	State state.Backend
+	State project.Backend
 	// NoPush is `orch run --no-push`'s.
 	NoPush bool
 }
@@ -123,7 +122,7 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 	stem := knowledge.CurateTaskPrefix + time.Now().UTC().Format("20060102-150405")
 	task.ID = stem
 	for n := 2; ; n++ {
-		rows, err := backend.Tasks(ctx, state.TaskFilter{IDs: []string{task.ID}})
+		rows, err := project.RuntimeOf(ctx, backend, task.ID)
 		if err != nil {
 			return withExitCode(1, err)
 		}
@@ -177,8 +176,8 @@ func curateRoute(rtr router.Router, backend string, installed func(model.Backend
 
 // lastCurations reads the curation tasks in the database: when the last one
 // finished (zero for none), and when the last one of any status started.
-func lastCurations(ctx context.Context, backend state.Backend) (done, started time.Time, err error) {
-	rows, err := backend.Tasks(ctx, state.TaskFilter{})
+func lastCurations(ctx context.Context, backend project.Backend) (done, started time.Time, err error) {
+	rows, err := project.Runtime(ctx, backend)
 	if err != nil {
 		return done, started, fmt.Errorf("reading the tasks: %w", err)
 	}
@@ -186,11 +185,11 @@ func lastCurations(ctx context.Context, backend state.Backend) (done, started ti
 		if !strings.HasPrefix(r.ID, knowledge.CurateTaskPrefix) {
 			continue
 		}
-		if t, ok := state.ParseTS(r.FinishedAt); ok && r.Status == model.StatusDone && t.After(done) {
+		if t, ok := project.ParseTS(r.FinishedAt); ok && r.Status == model.StatusDone && t.After(done) {
 			done = t
 		}
 		for _, ts := range []string{r.StartedAt, r.UpdatedAt} {
-			if t, ok := state.ParseTS(ts); ok && t.After(started) {
+			if t, ok := project.ParseTS(ts); ok && t.After(started) {
 				started = t
 			}
 		}

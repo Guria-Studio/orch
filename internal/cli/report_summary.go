@@ -13,9 +13,9 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/receipt"
 	"github.com/Guria-Studio/orch/internal/router"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // summaryAITimeout bounds the --ai dispatch: one short answer, no tools.
@@ -110,7 +110,7 @@ func explainSummary(cmd *cobra.Command, paths config.Paths, once engine.OneShot,
 		"what stopped and why. Then list the next steps, keeping each command exactly as given. " +
 		"Use only the facts below; do not invent tasks, figures or commands, and do not use tools.\n\n" +
 		"## Summary\n\n" + s.Text() + "\n## Receipt (JSON)\n\n" + string(facts) + "\n"
-	return ci.AskOnce(cmd.Context(), once, state.SummarySpendID(rec.RunID), route, prompt, summaryAITimeout)
+	return ci.AskOnce(cmd.Context(), once, project.SummarySpendID(rec.RunID), route, prompt, summaryAITimeout)
 }
 
 // summaryRoute is the project router's cheapest route on a backend --ai can
