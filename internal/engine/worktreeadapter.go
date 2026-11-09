@@ -111,3 +111,7 @@ func (a managerAdapter) Diff(_ context.Context, taskID string) (string, error) {
 func (a managerAdapter) BranchConflicts(_ context.Context, taskID, otherID string) ([]string, error) {
 	return a.m.BranchConflicts(taskID, otherID)
 }
+
+func (a managerAdapter) BehindBase(_ context.Context, taskID, baseBranch string) (bool, []string, error) {
+	return a.m.BehindBase(taskID, baseBranch)
+}

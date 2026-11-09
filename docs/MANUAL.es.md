@@ -361,7 +361,10 @@ reintento con los logs del fallo adjuntos y después pasa a `blocked`. Un rojo
 causado por GitHub al no arrancar nunca el job (billing de Actions, el límite
 de gasto) se bloquea de inmediato con esa razón, sin gastar el reintento. Un PR
 que choca con su base se pone al día sobre el trabajo guardado de la tarea:
-orch fusiona la base y hace push si la fusión es limpia, sin agente; si no, el
+orch fusiona la base y hace push si la fusión es limpia, sin agente —
+con `verify.enabled`, después de volver a correr los checks del verify local
+sobre la fusión, así una fusión limpia que rompe un test vuelve al agente en
+vez de llegar al PR; si no, el
 agente recibe los archivos en conflicto y los commits de la base que los
 causaron para resolverlos, `retry.conflict` veces (1 en un proyecto nuevo; una
 config sin la clave sigue bloqueando como antes) antes de que la tarea se
@@ -436,7 +439,10 @@ dependiente solo se despacha cuando sus dependencias ya están en la base, así
 que parte de su trabajo. No se hace push y `gh` nunca se ejecuta. Una tarea
 cuyo trabajo choca con la base recibe la base fusionada en su worktree y vuelve
 a su agente para resolver el conflicto, `retry.conflict` veces; después se
-bloquea nombrando los archivos (su trabajo queda en `orch/<task-id>`). Si la
+bloquea nombrando los archivos (su trabajo queda en `orch/<task-id>`). Con el
+verify local activo, una base que avanzó mientras la tarea trabajaba se
+fusiona en su worktree antes del verify (y otra vez, repitiendo los checks, si
+avanza durante él): lo que entra es lo que se verificó. Si la
 rama base está en checkout con cambios sin commit en los mismos archivos, la
 fusión se rechaza y la tarea se bloquea: haz commit o stash y luego
 `orch task-status <id> todo`.

@@ -194,3 +194,69 @@ func TestConflictRetryOffPushesNothing(t *testing.T) {
 		t.Errorf("pushed the base with conflict retries off: other.txt = %q", out)
 	}
 }
+
+// TestCleanConflictRetryVerifiesBeforeThePush (#522): the base merged
+// cleanly into the PR's branch, git-wise, but the combination fails the
+// task's checks. It used to be pushed with no verify and left to CI — or to
+// main, when the repo's CI is thinner than the local verify; now the merge is
+// verified first, without the LLM review, and a failure goes to the agent
+// with the failure in its feedback file. A pass is pushed as before.
+func TestCleanConflictRetryVerifiesBeforeThePush(t *testing.T) {
+	tests := []struct {
+		name       string
+		cmd        string
+		attempts   int
+		wantPushed bool
+		wantStatus model.Status
+		wantRetry  bool
+	}{
+		{"a passing verify pushes", "true", 0, true, model.StatusTodo, false},
+		{"a failing verify goes to the agent", "test ! -f other.txt", 0, false, model.StatusTodo, true},
+		{"a failing verify with the retries spent blocks", "test ! -f other.txt", 1, false, model.StatusBlocked, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, wm, remote := conflictFixture(t, false)
+			v := &cmdVerifier{cmd: tt.cmd}
+			f.s.Verifier = v
+			f.poller.spawn = func(run func()) { run() }
+			f.poller.conflictAttempts = map[string]int{"C-2": tt.attempts}
+			ctx := context.Background()
+
+			if _, err := f.poller.Poll(ctx, f.s); err != nil {
+				t.Fatalf("Poll: %v", err)
+			}
+
+			reqs := v.requests()
+			if len(reqs) != 1 || !reqs[0].SkipReview {
+				t.Errorf("verify requests = %+v, want one re-verify without the review", reqs)
+			}
+			// #nosec G204 -- fixed git subcommand on a temp repo this test made.
+			_, err := exec.Command("git", "-C", remote, "cat-file", "-e", wm.BranchName("C-2")+":other.txt").CombinedOutput()
+			if pushed := err == nil; pushed != tt.wantPushed {
+				t.Errorf("pushed the merged base = %v, want %v", pushed, tt.wantPushed)
+			}
+			if got, _ := f.s.Queue.Status("C-2"); got != tt.wantStatus {
+				t.Errorf("status = %q, want %q", got, tt.wantStatus)
+			}
+			if got := len(f.s.retryQueueIDs()) == 1; got != tt.wantRetry {
+				t.Errorf("queued for the agent = %v, want %v", got, tt.wantRetry)
+			}
+			if tt.wantRetry {
+				feedback, err := os.ReadFile(filepath.Join(worktree.Dir(f.s.Opts.Cwd), "C-2", CIFeedbackFile)) // #nosec G304 -- a temp dir this test made
+				if err != nil || !strings.Contains(string(feedback), "test ! -f other.txt") {
+					t.Errorf("feedback = %q, %v; want the failing check", feedback, err)
+				}
+				if extra := f.backend.eventExtra("C-2", EventCIConflictRetry); extra == nil || extra["agent"] != true || extra["verify_failed"] != true {
+					t.Errorf("%s extra = %v, want the agent sent the verify failure", EventCIConflictRetry, extra)
+				}
+			}
+			if tt.wantStatus == model.StatusBlocked {
+				reason, _ := f.backend.eventExtra("C-2", EventCIBlocked)["reason"].(string)
+				if !strings.Contains(reason, "local verify") {
+					t.Errorf("block reason = %q, want the verify named", reason)
+				}
+			}
+		})
+	}
+}

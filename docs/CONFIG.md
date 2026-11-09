@@ -326,7 +326,12 @@ verify is squash-merged into `dispatch.base_branch` in the repository itself,
 one at a time, and its branch deleted — nothing is pushed, no PR is opened,
 `auto_pr`, `host` and the `ci_*` keys are ignored. A task whose work conflicts
 with the base goes back to its agent with the base merged in
-(`retry.conflict`), then blocks naming the files. `orch init` writes `local`
+(`retry.conflict`), then blocks naming the files. With `verify.enabled`, a base
+that moved cleanly while the task worked is merged into its worktree before
+the verify, and one that moves during the verify (another task landed) is
+merged in and the checks run again, without the LLM review, before anything
+lands (#522): what lands is what was verified. A failure there is a normal
+verify send-back, its `verify_failed` event marked `base_moved`. `orch init` writes `local`
 when the repository has no remote or `gh` is not on PATH; a project without
 the key keeps `github`. Moving to GitHub later: push the base branch, set
 `provider: github`. See the manual's "Starting without GitHub".
@@ -404,7 +409,13 @@ retry:
 On a conflict orch rebuilds the task's worktree from its PR branch (its work
 kept) and merges the freshly fetched `dispatch.base_branch` into it — a merge,
 not a rebase, since orch squash-merges PRs. A clean merge is pushed and CI is
-polled again, with no agent and without spending an attempt. A merge that stops
+polled again, with no agent and without spending an attempt. With
+`verify.enabled` the clean merge is verified first (#522): the checks and the
+E2E run on the merged worktree, off the run loop and without the LLM review,
+which already read the agent's diff; a pass is pushed, a failure goes to the
+agent with the failure in its feedback file — an attempt of this budget, the
+`ci_conflict_retry` event carrying `verify_failed: true` — and past
+`max_attempts` blocks the task naming the failing check. A merge that stops
 on conflicts dispatches the agent in that worktree, its prompt listing the
 conflicting files and the base commits that touched them; local verify runs as
 usual before the push to the same PR. Past `max_attempts` the task is blocked
