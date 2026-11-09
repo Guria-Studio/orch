@@ -28,15 +28,18 @@ var frontEnds = []string{"cli", "dashboard", "mcp"}
 const statePkg = "github.com/Guria-Studio/orch/internal/state"
 const modelPkg = "github.com/Guria-Studio/orch/internal/model"
 
-// stateImportAllowed: files that still import internal/state directly.
+// stateImportAllowed: files that still import internal/state directly, each
+// with the reason it owns the database rather than going through project.
+// Everything else — opening, filtering, the rows, the sentinels — has a
+// project name since #587; a new entry needs a reason as strong as these.
 var stateImportAllowed = map[string]string{
-	"cli/knowledge.go":       "uses state.Backend, state.ParseTS, state.TaskFilter, ...",
-	"cli/knowledgecurate.go": "uses state.Backend, state.ParseTS, state.TaskFilter",
-	"cli/migrate.go":         "imports Python-era databases: state.Open, state.NewSQLite, state.Event, ...",
-	"cli/onboarding.go":      "uses state.SQLite",
-	"cli/project.go":         "opens the backend: state.Open, state.NewSQLite",
-	"cli/report_summary.go":  "uses state.SummarySpendID",
-	"cli/tui.go":             "uses state.Backend, state.ErrNoRuns, state.ParseTS, ...",
+	// `orch migrate` imports a Python-era project: it reaches MigratedAt and
+	// MarkMigrated, which are deliberately not on state.Backend (only the
+	// importer may call them), and replays the old JSONL logs as raw
+	// state.Event / state.Spend rows with their original timestamps,
+	// skipping on state.ErrUnknownEventType. That is a schema-level import,
+	// not a front end reading a project.
+	"cli/migrate.go": "imports Python-era databases: needs *state.SQLite (MigratedAt, MarkMigrated), raw Event/Spend rows, ErrUnknownEventType",
 }
 
 // tasksLoadAllowed: files that still read tasks.json themselves — through

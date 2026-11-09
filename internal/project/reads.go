@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -64,4 +65,26 @@ func RuntimeOf(ctx context.Context, r StatusReader, ids ...string) ([]TaskRuntim
 // DoneRuntime is the runtime rows of every task that is done.
 func DoneRuntime(ctx context.Context, r StatusReader) ([]TaskRuntime, error) {
 	return r.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
+}
+
+// ParseTS reads a timestamp out of the database (state.ParseTS): the one
+// parser that knows every spelling an orch.db holds, so a front end never
+// writes a second one.
+func ParseTS(ts string) (time.Time, bool) { return state.ParseTS(ts) }
+
+// SummarySpendID is the synthetic task id the AI summary of run runID writes
+// its spend under (`orch report summary --ai`, #461).
+func SummarySpendID(runID string) string { return state.SummarySpendID(runID) }
+
+// FirstEventBackend reports whether the project has any event of eventType
+// and the backend of the earliest one — the onboarding milestones (#378). ok
+// is false, with no error, for a backend that cannot answer it.
+func FirstEventBackend(ctx context.Context, b Backend, eventType string) (backend string, ok bool, err error) {
+	r, can := b.(interface {
+		FirstEventBackend(ctx context.Context, eventType string) (string, bool, error)
+	})
+	if !can {
+		return "", false, nil
+	}
+	return r.FirstEventBackend(ctx, eventType)
 }

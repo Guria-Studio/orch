@@ -20,8 +20,8 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/dashboard"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // `orch tui` is `orch status` that keeps watching: the task table, the phase
@@ -281,7 +281,7 @@ func fmtTokens(n int) string {
 // loadTUIView reads one frame's data. It skips the Bootstrap `status` runs
 // first: that writes the task definitions, and a view polling every second
 // beside `orch run` has no business writing anything.
-func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend, now time.Time) (tuiView, error) {
+func loadTUIView(ctx context.Context, paths config.Paths, backend project.Backend, now time.Time) (tuiView, error) {
 	v := tuiView{Project: paths.ID}
 	spend, err := backend.AllSpend(ctx, time.Time{})
 	if err != nil {
@@ -310,11 +310,11 @@ func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend,
 	if err != nil {
 		return v, fmt.Errorf("read task rows: %w", err)
 	}
-	runtime, err := backend.Tasks(ctx, state.TaskFilter{})
+	runtime, err := project.Runtime(ctx, backend)
 	if err != nil {
 		return v, fmt.Errorf("read task timings: %w", err)
 	}
-	byID := make(map[string]state.TaskRuntime, len(runtime))
+	byID := make(map[string]project.TaskRuntime, len(runtime))
 	for _, r := range runtime {
 		byID[r.ID] = r
 	}
@@ -325,20 +325,20 @@ func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend,
 		})
 	}
 
-	run, err := backend.LatestRun(ctx)
+	run, ran, err := project.LatestRun(ctx, backend)
 	switch {
-	case err == nil:
-		v.RunStatus = run.Status
-	case !errors.Is(err, state.ErrNoRuns):
+	case err != nil:
 		return v, fmt.Errorf("read latest run: %w", err)
+	case ran:
+		v.RunStatus = run.Status
 	}
 	return v, nil
 }
 
 // elapsedOf is how long a task has been at it: from its first start to now
 // while it runs, to when it finished once done, to its last change otherwise.
-func elapsedOf(rt state.TaskRuntime, status model.Status, now time.Time) time.Duration {
-	start, ok := state.ParseTS(rt.StartedAt)
+func elapsedOf(rt project.TaskRuntime, status model.Status, now time.Time) time.Duration {
+	start, ok := project.ParseTS(rt.StartedAt)
 	if !ok {
 		return 0
 	}
@@ -348,7 +348,7 @@ func elapsedOf(rt state.TaskRuntime, status model.Status, now time.Time) time.Du
 		if at == "" {
 			at = rt.UpdatedAt
 		}
-		if end, ok = state.ParseTS(at); !ok {
+		if end, ok = project.ParseTS(at); !ok {
 			return 0
 		}
 	}
@@ -399,7 +399,7 @@ func newTUICmd(flags *projectFlags) *cobra.Command {
 // tuiLoop redraws on every key and every tuiPoll until `q`, Ctrl+C or a
 // signal. A failed refresh keeps the last frame and says why; it does not end
 // the view, since `orch run` holding the database for a moment is normal.
-func tuiLoop(ctx context.Context, out io.Writer, in io.Reader, outFd int, paths config.Paths, backend state.Backend) error {
+func tuiLoop(ctx context.Context, out io.Writer, in io.Reader, outFd int, paths config.Paths, backend project.Backend) error {
 	keys := make(chan byte)
 	// ponytail: this reader stays blocked on stdin after the view closes;
 	// the process exits right after, so it is never collected. A cancelable
