@@ -47,10 +47,38 @@ import (
 // WindowHours is not a knob to tune: it is the window the provider itself
 // enforces for rate limiting, so it mirrors their published numbers.
 // TokenBudget and ThresholdPct are the parts an operator calibrates.
+//
+// The token window counts this project's own dispatches, weighted (cache
+// reads at 10%, writes at 125%): it is orch's guardrail, not the account's
+// quota, which other projects and interactive use share. Source "provider"
+// makes the gate decide by the account's windows instead, as the CLI last
+// reported them (claude's rate_limit_event, codex's session rollout; #577),
+// with ThresholdPct applied to their used percentage, and falls back to the
+// token window while no report is fresh. "" is the token window.
 type ProviderBudget struct {
 	WindowHours  float64
 	TokenBudget  int
 	ThresholdPct float64
+	Source       string
+}
+
+// SourceProvider is budgets.yaml's `source: provider`; SourceTokens, the
+// default, is written `tokens` and kept as "".
+const (
+	SourceProvider = "provider"
+	SourceTokens   = "tokens"
+)
+
+// normalizeSource maps budgets.yaml's spelling to ProviderBudget.Source; ok
+// is false for a value that is neither.
+func normalizeSource(s string) (string, bool) {
+	switch s {
+	case "", SourceTokens:
+		return "", true
+	case SourceProvider:
+		return SourceProvider, true
+	}
+	return "", false
 }
 
 // Cap is the token count at which dispatching stops: the budget scaled by the
@@ -218,6 +246,8 @@ type rawProvider struct {
 	WindowHours  *float64 `yaml:"window_hours"`
 	TokenBudget  *float64 `yaml:"token_budget"`
 	ThresholdPct *float64 `yaml:"threshold_pct"`
+	// Source is optional: absent is the token window.
+	Source *string `yaml:"source"`
 }
 
 func (r rawProvider) resolve(provider, preset, path string) (ProviderBudget, error) {
@@ -234,7 +264,16 @@ func (r rawProvider) resolve(provider, preset, path string) (ProviderBudget, err
 	if r.ThresholdPct == nil {
 		return ProviderBudget{}, missing("threshold_pct")
 	}
+	var source string
+	if r.Source != nil {
+		var ok bool
+		if source, ok = normalizeSource(*r.Source); !ok {
+			return ProviderBudget{}, fmt.Errorf("%s: preset %s provider %s has source %s; want tokens or provider",
+				path, pyfmt.Quote(preset), pyfmt.Quote(provider), pyfmt.Quote(*r.Source))
+		}
+	}
 	return ProviderBudget{
+		Source:      source,
 		WindowHours: *r.WindowHours,
 		// Read as a float and truncated, matching Python's
 		// `int(spec["token_budget"])`, so a budget written `2.0e6` means the

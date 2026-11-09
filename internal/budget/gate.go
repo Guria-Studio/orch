@@ -3,6 +3,7 @@ package budget
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/pyfmt"
@@ -28,15 +29,30 @@ type SpendReader interface {
 type Gate struct {
 	cfg   *Config
 	spend SpendReader
+	// quota is where a `source: provider` budget reads the account's
+	// windows from; nil when the spend reader cannot report them.
+	quota QuotaReader
 
 	// now is the clock, swapped in tests. See the package doc.
 	now func() time.Time
 }
 
+// QuotaReader is the slice of `state.SQLite` a `source: provider` budget
+// needs: the newest subscription windows a backend's CLI reported.
+type QuotaReader interface {
+	LatestQuota(ctx context.Context, backend string) (state.ProviderQuota, bool, error)
+}
+
 // NewGate builds a gate. A nil config, or one naming no providers, disables
 // it: every call then answers "yes" without touching the database.
+//
+// When spend can also report quotas (the SQLite backend does), a provider
+// budgeted with `source: provider` decides by them; otherwise it keeps to
+// its token window.
 func NewGate(spend SpendReader, cfg *Config) *Gate {
-	return &Gate{cfg: cfg, spend: spend, now: time.Now}
+	g := &Gate{cfg: cfg, spend: spend, now: time.Now}
+	g.quota, _ = spend.(QuotaReader)
+	return g
 }
 
 // Disabled reports whether the gate will ever block anything.
@@ -215,8 +231,76 @@ func weightedCacheDelta(r state.Spend) float64 {
 		float64(r.CacheCreationTokens)*(cacheCreationWeight-1)
 }
 
+// reported is a provider's account windows as its CLI last reported them,
+// the ones that have not reset since (fresh); the rest say nothing about now.
+type reported struct {
+	windows []ProviderWindow
+	// usedPct is the fullest fresh window's percentage, worst its name.
+	usedPct float64
+	worst   string
+	capped  bool
+	// resetAt is when the last window at or over threshold resets: until
+	// then at least one still is.
+	resetAt time.Time
+	seenAt  time.Time
+}
+
+// providerReport reads a `source: provider` budget's windows. ok is false
+// when there is nothing fresh to decide by: no reader, no report, or every
+// window reset since it was reported.
+func (g *Gate) providerReport(ctx context.Context, provider string, pb ProviderBudget, now time.Time) (reported, bool, error) {
+	if g.quota == nil {
+		return reported{}, false, nil
+	}
+	q, ok, err := g.quota.LatestQuota(ctx, provider)
+	if err != nil {
+		return reported{}, false, fmt.Errorf("budget quota for %s: %w", provider, err)
+	}
+	if !ok {
+		return reported{}, false, nil
+	}
+	r := reported{seenAt: q.SeenAt}
+	for _, w := range q.Windows {
+		if w.ResetsAt <= now.Unix() {
+			continue
+		}
+		// Two decimals: 0.93 is 93.00000000000001 in floating point.
+		pct := math.Round(w.Utilization*100*100) / 100
+		reset := time.Unix(w.ResetsAt, 0).UTC()
+		r.windows = append(r.windows, ProviderWindow{Window: w.Window, UsedPct: pct, ResetsAt: reset.Format(resetLayout)})
+		if len(r.windows) == 1 || pct > r.usedPct {
+			r.usedPct, r.worst = pct, w.Window
+		}
+		if pct >= pb.ThresholdPct {
+			r.capped = true
+			if reset.After(r.resetAt) {
+				r.resetAt = reset
+			}
+		}
+	}
+	return r, len(r.windows) > 0, nil
+}
+
 // decide turns a window into an answer.
 func (g *Gate) decide(ctx context.Context, provider string, pb ProviderBudget, now time.Time) (Decision, error) {
+	if pb.Source == SourceProvider {
+		r, ok, err := g.providerReport(ctx, provider, pb, now)
+		if err != nil {
+			return Decision{}, err
+		}
+		if ok && !r.capped {
+			return Decision{OK: true}, nil
+		}
+		if ok {
+			return Decision{
+				OK: false,
+				Reason: fmt.Sprintf("%s over threshold: the provider reports %s %g%% used, pause at %g%% (account quota, seen %s)",
+					provider, r.worst, r.usedPct, pb.ThresholdPct, state.FormatTS(r.seenAt)),
+				ResetAt: r.resetAt,
+			}, nil
+		}
+	}
+
 	w, err := g.usage(ctx, provider, pb, now)
 	if err != nil {
 		return Decision{}, err

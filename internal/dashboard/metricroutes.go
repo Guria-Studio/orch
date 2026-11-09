@@ -193,6 +193,12 @@ type budgetSummaryRow struct {
 	// "none" when nothing ran today.
 	CostSource       string  `json:"cost_source"`
 	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
+	// Source is what the gate decides by (#577): "tokens", this project's
+	// own weighted window above, or "provider", the account's windows as
+	// the CLI last reported them (ProviderWindows, those not reset since;
+	// none means the gate is on the token window until a fresh report).
+	Source          string                  `json:"source"`
+	ProviderWindows []budget.ProviderWindow `json:"provider_windows"`
 }
 
 func (s *Server) handleBudgetSummary(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +237,16 @@ func (s *Server) handleBudgetSummary(w http.ResponseWriter, r *http.Request) {
 			pct = int(float64(used) / float64(pb.TokenBudget) * 100)
 		}
 		c := today[provider]
+		source, over := budget.SourceTokens, pb.TokenBudget > 0 && float64(pct) >= pb.ThresholdPct
+		windows := snap.ProviderWindows
+		if snap.Source != "" {
+			source = snap.Source
+		}
+		if len(windows) > 0 {
+			over = snap.Capped
+		} else {
+			windows = []budget.ProviderWindow{}
+		}
 		out.Rows = append(out.Rows, budgetSummaryRow{
 			Provider:         provider,
 			TokenBudget:      pb.TokenBudget,
@@ -238,12 +254,14 @@ func (s *Server) handleBudgetSummary(w http.ResponseWriter, r *http.Request) {
 			RawTokensUsed:    snap.RawTokensUsed,
 			Pct:              pct,
 			ThresholdPct:     pb.ThresholdPct,
-			OverThreshold:    pb.TokenBudget > 0 && float64(pct) >= pb.ThresholdPct,
+			OverThreshold:    over,
 			WindowHours:      pb.WindowHours,
 			ResetAt:          snap.ResetAt,
 			CostUSD:          round4(c.Reported),
 			CostSource:       c.Source(),
 			EstimatedCostUSD: round4(c.Estimated),
+			Source:           source,
+			ProviderWindows:  windows,
 		})
 	}
 	out.Available = true

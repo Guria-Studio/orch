@@ -14,8 +14,14 @@ type Attempt struct {
 	RunID   string
 	TaskID  string
 	Attempt int
-	// Backend, Model and Tier are the route it ran on.
+	// Backend, Model and Tier are the route it ran on; Effort and
+	// ServiceTier the reasoning effort and codex service tier the route
+	// asked for ("" when it set none).
 	Backend, Model, Tier string
+	Effort, ServiceTier  string
+	// EffectiveModel, EffectiveEffort and EffectiveServiceTier are what the
+	// CLI reported running (#580); "" when it reported nothing.
+	EffectiveModel, EffectiveEffort, EffectiveServiceTier string
 	// Result is the dispatch's outcome: success, fail, timeout or stopped.
 	Result       string
 	FailureClass string
@@ -32,6 +38,28 @@ type Attempt struct {
 	// failure.
 	CI         string
 	FinishedAt string
+}
+
+// Mismatch names what the CLI ran differently from what the route asked for:
+// "model", "effort", "service_tier", in that order. A field counts only when
+// both sides are known, so an unknown never reads as a difference (#580).
+func (a Attempt) Mismatch() []string {
+	var out []string
+	for _, f := range [][3]string{
+		{"model", a.Model, a.EffectiveModel},
+		{"effort", a.Effort, a.EffectiveEffort},
+		{"service_tier", a.ServiceTier, a.EffectiveServiceTier},
+	} {
+		if f[1] != "" && f[2] != "" && f[1] != f[2] {
+			out = append(out, f[0])
+		}
+	}
+	return out
+}
+
+// Reported is whether the CLI said anything about what it ran.
+func (a Attempt) Reported() bool {
+	return a.EffectiveModel != "" || a.EffectiveEffort != "" || a.EffectiveServiceTier != ""
 }
 
 // AttemptFinding is one review finding, as engine.VerifyFinding has it minus
@@ -57,11 +85,13 @@ func (b *SQLite) RecordAttempt(ctx context.Context, a Attempt) error {
 		`INSERT INTO attempts
 		   (project_id, run_id, task_id, attempt, backend, model, tier, result,
 		    failure_class, reason, tokens_in, tokens_out, cost_usd, duration_s,
-		    verify, review, reviewer, findings_json, finished_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		    verify, review, reviewer, findings_json, finished_at,
+		    effort, service_tier, effective_model, effective_effort, effective_service_tier)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.projectID, a.RunID, a.TaskID, a.Attempt, a.Backend, a.Model, a.Tier, a.Result,
 		a.FailureClass, a.Reason, a.TokensIn, a.TokensOut, a.CostUSD, a.DurationS,
-		a.Verify, a.Review, a.Reviewer, string(fj), canonicalTS(a.FinishedAt))
+		a.Verify, a.Review, a.Reviewer, string(fj), canonicalTS(a.FinishedAt),
+		a.Effort, a.ServiceTier, a.EffectiveModel, a.EffectiveEffort, a.EffectiveServiceTier)
 	if err != nil {
 		return fmt.Errorf("record attempt of %q: %w", a.TaskID, err)
 	}
@@ -73,7 +103,8 @@ func (b *SQLite) Attempts(ctx context.Context) ([]Attempt, error) {
 	rows, err := b.db.read.QueryContext(ctx,
 		`SELECT id, run_id, task_id, attempt, backend, model, tier, result,
 		        failure_class, reason, tokens_in, tokens_out, cost_usd, duration_s,
-		        verify, review, reviewer, findings_json, ci, finished_at
+		        verify, review, reviewer, findings_json, ci, finished_at,
+		        effort, service_tier, effective_model, effective_effort, effective_service_tier
 		   FROM attempts WHERE project_id = ? ORDER BY id`, b.projectID)
 	if err != nil {
 		return nil, fmt.Errorf("query attempts for %q: %w", b.projectID, err)
@@ -85,7 +116,8 @@ func (b *SQLite) Attempts(ctx context.Context) ([]Attempt, error) {
 		var fj string
 		if err := rows.Scan(&a.ID, &a.RunID, &a.TaskID, &a.Attempt, &a.Backend, &a.Model, &a.Tier, &a.Result,
 			&a.FailureClass, &a.Reason, &a.TokensIn, &a.TokensOut, &a.CostUSD, &a.DurationS,
-			&a.Verify, &a.Review, &a.Reviewer, &fj, &a.CI, &a.FinishedAt); err != nil {
+			&a.Verify, &a.Review, &a.Reviewer, &fj, &a.CI, &a.FinishedAt,
+			&a.Effort, &a.ServiceTier, &a.EffectiveModel, &a.EffectiveEffort, &a.EffectiveServiceTier); err != nil {
 			return nil, fmt.Errorf("scan attempt: %w", err)
 		}
 		if err := json.Unmarshal([]byte(fj), &a.Findings); err != nil {

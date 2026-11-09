@@ -1,7 +1,10 @@
 package usage
 
 import (
+	"context"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -46,5 +49,27 @@ func TestBuildOnNoSpendIsEmptyNotNull(t *testing.T) {
 	u := Build(nil)
 	if u.ByModel == nil || u.ByTask == nil || u.Total.Dispatches != 0 {
 		t.Errorf("Build(nil) = %+v", u)
+	}
+}
+
+type fakeQuota map[string]state.ProviderQuota
+
+func (f fakeQuota) LatestQuota(_ context.Context, backend string) (state.ProviderQuota, bool, error) {
+	q, ok := f[backend]
+	return q, ok, nil
+}
+
+// AddQuota asks once per backend that spent, keeps the ones that reported,
+// sorted by backend (#577).
+func TestAddQuotaReadsEachBackendThatSpent(t *testing.T) {
+	u := Build([]state.Spend{{Backend: "codex", Model: "m", TokensIn: 1}, {Backend: "claude", Model: "h", TokensIn: 1}, {Backend: "codex", Model: "n", TokensIn: 1}})
+	seen := time.Date(2026, 10, 23, 0, 3, 2, 0, time.UTC)
+	r := fakeQuota{"codex": {SeenAt: seen, Windows: []state.QuotaWindow{{Window: "five_hour", Utilization: 0.2, ResetsAt: 1}}}}
+	if err := AddQuota(context.Background(), &u, r); err != nil {
+		t.Fatal(err)
+	}
+	want := []PlanQuota{{Backend: "codex", SeenAt: "2026-10-23T00:03:02Z", Windows: []state.QuotaWindow{{Window: "five_hour", Utilization: 0.2, ResetsAt: 1}}}}
+	if !reflect.DeepEqual(u.Quota, want) {
+		t.Errorf("Quota = %+v, want %+v", u.Quota, want)
 	}
 }

@@ -94,6 +94,8 @@ func TestEventTypesMatchPython(t *testing.T) {
 // reason next to it.
 var goOnlyEventTypes = map[string]bool{
 	"sprint_done": true,
+	// An attempt that ran another model, effort or tier than its route (#580).
+	"model_mismatch": true,
 	// A PR that conflicted with its base brought up to date (#438).
 	"ci_conflict_retry": true,
 	// A finished task squash-merged into the base locally (#455).

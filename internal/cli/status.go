@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -282,8 +283,13 @@ func renderStatusTable(cmd *cobra.Command, snap statusSnapshot) error {
 		total.Rows += r.cost.Rows
 		total.Reported += r.cost.Reported
 		total.Estimated += r.cost.Estimated
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s/%s\t%s\t%s\t%d\n",
-			r.ID, r.Status, r.Backend, r.CLIModel, lastEvent, costCell(r.cost), r.Phase); err != nil {
+		route := r.Backend + "/" + r.CLIModel
+		// The model its latest attempt actually ran, when that differs (#580).
+		if e := r.Effective; e != nil && slices.Contains(e.Mismatch, "model") {
+			route += " (ran " + e.Model + ")"
+		}
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\n",
+			r.ID, r.Status, route, lastEvent, costCell(r.cost), r.Phase); err != nil {
 			return err
 		}
 	}

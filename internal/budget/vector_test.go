@@ -43,6 +43,9 @@ type vectorProvider struct {
 	WindowHours  float64 `json:"window_hours"`
 	TokenBudget  int     `json:"token_budget"`
 	ThresholdPct float64 `json:"threshold_pct"`
+	// Source is Go-only (#577): the vector has none, which is the token
+	// window Python computed.
+	Source string `json:"source,omitempty"`
 }
 
 // fixtureBackend opens the Python-written database the state package keeps.
@@ -76,8 +79,8 @@ func fixtureBackend(t *testing.T) *state.SQLite {
 	// v0.11.0 fixture. See
 	// internal/state/migrate_test.go's
 	// TestOpenPythonWrittenDatabaseAppliesOnlyGoOnlyMigrations.
-	if applied != 10 {
-		t.Fatalf("fixture needed %d migrations, want 10 (006 to 015)", applied)
+	if applied != 11 {
+		t.Fatalf("fixture needed %d migrations, want 11 (006 to 016)", applied)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return state.NewSQLite(db, "billing-api", "/tmp/billing-api")

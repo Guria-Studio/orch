@@ -22,6 +22,14 @@ export interface BudgetRow {
   cost_source: CostSource
   /** Today's cost priced from pricing.yaml, for rows the CLI did not price. */
   estimated_cost_usd: number
+  /**
+   * What the gate decides by: "tokens", this project's own weighted window
+   * above, or "provider", the account's windows the CLI last reported
+   * (budgets.yaml `source: provider`, #577).
+   */
+  source?: "tokens" | "provider"
+  /** The account's windows not reset since their report; empty without one. */
+  provider_windows?: { window: string; used_pct: number; resets_at: string }[]
 }
 
 export interface BudgetWaiting {

@@ -16,6 +16,15 @@
 #   Tokens are every input token a dispatch processed — cache reads and cache
 #   writes included, which is most of a claude or opencode dispatch — plus
 #   output. The dashboard's Budget page shows the window as orch counts it.
+#   The window counts THIS project's dispatches only: it is not your plan's
+#   quota, which your other projects and your terminal share.
+#
+# GATING ON THE PLAN'S OWN QUOTA (source: provider):
+#   claude and codex report the plan's real 5-hour and weekly windows after
+#   each dispatch. Add `source: provider` under a provider to pause at
+#   threshold_pct of those windows instead of the token window; until a fresh
+#   report exists the token window decides. `orch budget show` says which one
+#   is deciding, per provider.
 #
 # HOW TO PICK A PRESET:
 #   - conservative → default. Safe, may leave capacity unused.

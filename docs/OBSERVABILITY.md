@@ -14,6 +14,8 @@ leaving the terminal. All of them respect `--project-root` /
 | `orch logs <ID>` | Raw log tail from `<state_dir>/logs/<ID>.log`. Default: last 200 lines. Exits 2 if the file is missing. |
 | `orch --dry-run --json` | Machine-readable plan (`{plan: [...], count}`). `--json` alone is an error. |
 | `orch graph --out plan.html` | Self-contained HTML/SVG snapshot. No external deps, works offline. |
+| `orch budget show` | Each provider's budget window and what decides it: this project's weighted tokens, or (`source: provider`) the plan's 5-hour and weekly windows as claude and codex last reported them, with resets. The token window is per project, not the account's quota (#577). |
+| `orch report usage` | Tokens by kind, model, task and attempt, then the plan quota each CLI last reported. |
 
 All human commands render with `rich` when available and fall back to
 plain text. Every command also accepts `--json` where it makes sense.

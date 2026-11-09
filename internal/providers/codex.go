@@ -121,6 +121,10 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 	if !success {
 		errMsg = codexFailureMessage(events, exitCode)
 	}
+	var tier string
+	if codexDroppedTier(events) {
+		tier = "default"
+	}
 
 	return Result{
 		ExitCode:            exitCode,
@@ -134,6 +138,9 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 		Stdout:              text,
 		Text:                codexText(events),
 		ErrorMessage:        errMsg,
+		SessionID:           codexSessionID(events),
+		// A dropped tier is the one tier fact the log states (#580).
+		EffectiveServiceTier: tier,
 	}
 }
 

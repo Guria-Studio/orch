@@ -15,9 +15,9 @@ import (
 func newBudgetCmd(flags *projectFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "budget",
-		Short: "Change the rolling-window limits in budgets.yaml",
+		Short: "Show or change the rolling-window limits in budgets.yaml",
 	}
-	cmd.AddCommand(newBudgetSetCmd(flags))
+	cmd.AddCommand(newBudgetSetCmd(flags), newBudgetShowCmd(flags))
 	return cmd
 }
 
@@ -27,6 +27,7 @@ func newBudgetCmd(flags *projectFlags) *cobra.Command {
 func newBudgetSetCmd(flags *projectFlags) *cobra.Command {
 	var tokens int
 	var window, threshold float64
+	var source string
 	cmd := &cobra.Command{
 		Use:   "set <provider>",
 		Short: "Set a provider's token budget, window or threshold in the active preset",
@@ -54,18 +55,26 @@ func newBudgetSetCmd(flags *projectFlags) *cobra.Command {
 			if cmd.Flags().Changed("threshold") {
 				l.ThresholdPct = &threshold
 			}
+			if cmd.Flags().Changed("source") {
+				l.Source = &source
+			}
 			pb, err := budget.SetLimits(path, res.Config.BudgetsPreset, args[0], l)
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: %d tokens per %sh window, pauses at %s%% (%s, preset %s)\n",
-				args[0], pb.TokenBudget, trimFloat(pb.WindowHours), trimFloat(pb.ThresholdPct), path, res.Config.BudgetsPreset)
+			on := "this project's tokens"
+			if pb.Source == budget.SourceProvider {
+				on = "the provider's reported quota, else this project's tokens"
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: %d tokens per %sh window, pauses at %s%% of %s (%s, preset %s)\n",
+				args[0], pb.TokenBudget, trimFloat(pb.WindowHours), trimFloat(pb.ThresholdPct), on, path, res.Config.BudgetsPreset)
 			return err
 		},
 	}
 	cmd.Flags().IntVar(&tokens, "tokens", 0, "token_budget: tokens the window allows")
 	cmd.Flags().Float64Var(&window, "window-hours", 0, "window_hours: the provider's rolling window")
 	cmd.Flags().Float64Var(&threshold, "threshold", 0, "threshold_pct: the share of the budget at which dispatching pauses (0-100]")
+	cmd.Flags().StringVar(&source, "source", "", "source: tokens (this project's weighted token window) or provider (the plan's windows the CLI reports, claude and codex)")
 	return cmd
 }
 

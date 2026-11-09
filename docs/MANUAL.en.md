@@ -383,6 +383,26 @@ only the containers inside the task's compose project, not a database the
 **Concurrency, budgets, retries** are all config-driven, not flags — see
 [`CONFIG.md`](CONFIG.md).
 
+**The budget window is per project.** `budgets.yaml` counts this project's own
+dispatches, weighted (cache reads at 10%, cache writes at 125%), against a
+`token_budget` you calibrate; it is not your plan's quota, which other projects
+and your own terminal share. claude and codex do report the plan's real
+5-hour and weekly windows — claude in its stream, codex in its session rollout
+under `~/.codex/sessions/` (`$CODEX_HOME`), which orch reads after each codex
+dispatch — and the dashboard's Providers and quota page and `orch report usage`
+show them. Write `source: provider` under a provider in `budgets.yaml` (or
+`orch budget set codex --source provider`) to pause at `threshold_pct` of
+those windows instead; until a fresh report exists the token window decides.
+`orch budget show` says, per provider, which one is deciding.
+
+**Which model actually ran.** `codex exec` does not say; its session rollout
+does. orch records, per attempt, the model and effort codex ran (and
+`default` when codex dropped a service tier the model does not offer) beside
+the route's: `orch status --json` shows it as `effective`, the table adds
+`(ran <model>)`, `orch metrics` counts the attempts that ran something else,
+and each such attempt writes one `model_mismatch` event (`orch events <task>`).
+Nothing reported stays unknown.
+
 ### Starting without GitHub
 
 A repository with no remote yet — or a machine without `gh` — does not need
@@ -935,7 +955,8 @@ none of them is required to start. [`CLI.md`](CLI.md) has every flag.
 | `orch router suggest` / `router refresh` | Which route has worked for which kind of task, with cheaper or stronger suggestions; routes for models your CLIs gained ([§9](#9-the-model-router)). |
 | `orch knowledge curate` / `knowledge stats` | Merges and prunes the lessons agents wrote, as a PR; measures first-try success before and since the first lesson. |
 | `orch provider disable` / `enable` | Pauses a provider while it misbehaves; its tasks wait instead of failing. |
-| `orch budget set` | Changes a provider's token budget, window or threshold without editing YAML. |
+| `orch budget set` | Changes a provider's token budget, window, threshold or source (`tokens` / `provider`) without editing YAML. |
+| `orch budget show` | Each provider's window, what decides it (this project's tokens or the plan's reported quota) and when it resets. |
 | `orch task salvage` | Accepts work an earlier attempt committed but never published, without running the agent again. |
 | `orch reset` | Finds tasks stuck in progress after a crash, and requeues them with `--requeue` ([§8](#8-fix-things-by-hand-task-set-task-status-reset)). |
 | `orch dashboard token` | Rotates or inspects the token a client link needs. |

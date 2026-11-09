@@ -22,6 +22,8 @@ type Limits struct {
 	TokenBudget  *int     `json:"token_budget,omitempty"`
 	WindowHours  *float64 `json:"window_hours,omitempty"`
 	ThresholdPct *float64 `json:"threshold_pct,omitempty"`
+	// Source is "tokens" or "provider" (see ProviderBudget).
+	Source *string `json:"source,omitempty"`
 }
 
 var providerName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
@@ -82,6 +84,9 @@ func SetLimits(path, preset, provider string, l Limits) (ProviderBudget, error) 
 	if l.ThresholdPct != nil {
 		setScalar(entry, "threshold_pct", strconv.FormatFloat(*l.ThresholdPct, 'f', -1, 64))
 	}
+	if l.Source != nil {
+		setScalar(entry, "source", *l.Source)
+	}
 
 	var out bytes.Buffer
 	enc := yaml.NewEncoder(&out)
@@ -127,8 +132,13 @@ func (l Limits) validate(provider string) error {
 	if !providerName.MatchString(provider) {
 		problems = append(problems, fmt.Sprintf("%q is not a provider name", provider))
 	}
-	if l.TokenBudget == nil && l.WindowHours == nil && l.ThresholdPct == nil {
-		problems = append(problems, "nothing to change: give a token budget, a window or a threshold")
+	if l.TokenBudget == nil && l.WindowHours == nil && l.ThresholdPct == nil && l.Source == nil {
+		problems = append(problems, "nothing to change: give a token budget, a window, a threshold or a source")
+	}
+	if l.Source != nil {
+		if _, ok := normalizeSource(*l.Source); !ok || *l.Source == "" {
+			problems = append(problems, fmt.Sprintf("source must be tokens or provider, not %q", *l.Source))
+		}
 	}
 	if l.TokenBudget != nil && *l.TokenBudget <= 0 {
 		problems = append(problems, "token_budget must be more than 0")

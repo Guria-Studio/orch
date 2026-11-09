@@ -23,7 +23,8 @@ const SOURCE_TONE: Record<Source, string> = {
 /**
  * System › Providers and quota: one card per provider with how close it is
  * to a limit — the subscription windows the provider itself reported
- * (claude's 5-hour and weekly, from its latest dispatch; "reported"), or
+ * (claude's 5-hour and weekly, codex's from its session rollout, from the
+ * latest dispatch; "reported"), or
  * orch's own budget window from budgets.yaml ("estimated"), which pauses
  * dispatches at its threshold.
  */
@@ -142,8 +143,15 @@ function ProviderCard({ name, quota, budget }: { name: string; quota?: ProviderQ
   // A provider listed only because it is turned off carries no report.
   const report = quota && quota.windows.length > 0 ? quota : undefined
   const source: Source = report ? "reported" : budget ? "estimated" : "none"
+  // Which number pauses dispatching, when a budget covers this provider: the
+  // reported windows above (source: provider) or this project's own tokens.
+  const gate = budget
+    ? budget.source === "provider"
+      ? t("quota.note.gate_provider", { pct: budget.threshold_pct })
+      : t("quota.note.gate_tokens", { hours: budget.window_hours, pct: budget.threshold_pct })
+    : ""
   const note = report
-    ? t("quota.note.reported", { time: formatRelative(report.seen_at, now) })
+    ? [t("quota.note.reported", { time: formatRelative(report.seen_at, now) }), gate].filter(Boolean).join(" ")
     : budget
       ? t("quota.note.estimated", { pct: budget.threshold_pct })
       : t("quota.note.none")
