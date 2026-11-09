@@ -16,7 +16,7 @@ func technicalEvidence() evidence.Manifest {
 		Version: evidence.Version, TaskID: "F0.1.T1", Title: "Setup monorepo", RunID: "run-20261109-abc", Attempt: 2,
 		HeadSHA: "deadbeefcafe", Verdict: evidence.VerdictPassed,
 		Checks: []evidence.Check{
-			{Command: "go test ./internal/secretpkg/...", Kind: "tests"},
+			{Command: "go test ./internal/billingpkg/...", Kind: "tests"},
 			{Command: "golangci-lint run", Kind: "lint"},
 			{Command: "pnpm install", Kind: "install"},
 			{Command: "pnpm exec playwright test", Kind: "e2e"},
@@ -88,7 +88,7 @@ func TestEvidenceKeepsOperatorFactsOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	walkKeys(t, doc, "$")
-	for _, leak := range []string{"F0.1.T1", "run-20261109-abc", "gemini", "secretpkg", "golangci", "playwright",
+	for _, leak := range []string{"F0.1.T1", "run-20261109-abc", "gemini", "billingpkg", "golangci", "playwright",
 		"rename the handler", "internal/x.go", "deadbeef", "t001", "e2e/"} {
 		if strings.Contains(string(raw), leak) {
 			t.Errorf("the snapshot carries %q", leak)
