@@ -481,7 +481,9 @@ var defaultsDivergedFromPython = map[string]string{
 		"feat/verify-default: a new project gets a `verify:` block with the local verify on (#398); " +
 		"a config without the block stays off. " +
 		"#438: a new project gets `retry.conflict.max_attempts: 1`; a config without it stays off. " +
-		"#451: a new project gets a `knowledge:` block with the project memory on; a config without it stays off",
+		"#451: a new project gets a `knowledge:` block with the project memory on; a config without it stays off. " +
+		"#550: the `dashboard.kanban` block is gone — the Go loader drops it, so every load of a new project " +
+		"warned about the file init had just written (TestScaffoldConfigMatchesDefaults)",
 	"budgets.yaml": "fix/budget-accounting: the header's selection order named a CLI flag and an environment " +
 		"variable nothing reads, and the calibration note now says that cache tokens count. " +
 		"#543: every preset rations gemini and muse too, so the gate sees every backend's spend",

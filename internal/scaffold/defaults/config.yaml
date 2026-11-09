@@ -87,8 +87,7 @@ report_findings:
 
 # Sprint E-2 / E-3 — dashboard client (SPA + FastAPI) knobs. All optional.
 # `profile` / `token` gate the middleware (operator|stakeholder|both — see
-# orchestrator/dashboard/dashboard_config.py). Sprint H-2's `kanban`
-# defaults live in this same block — a second top-level
+# orchestrator/dashboard/dashboard_config.py). A second top-level
 # `dashboard:` key used to follow further down (bug 4, see
 # docs/brainstorm/go-migration-notes.md): PyYAML silently keeps only the
 # LAST block on a duplicate top-level key, so that second definition had
@@ -99,11 +98,6 @@ dashboard:
   # token: ""                                                             # required when profile != operator
   show_spend_to_stakeholder: false                                        # G-5: expose the Budget/spend view to stakeholders (off by default — spend is sensitive)
   language: es                                                            # what the client reads (executive summary, portal, PDF) — en | es | pt; formerly summary_language
-  kanban:
-    wip_default: null          # integer or null. null = no WIP badge unless ?wip=N.
-    sort_default: null         # "impact" | null (default = phase asc + id asc).
-    group_default: null        # "phase" | null.
-    refresh_interval_s: 10     # HTMX polling cadence for the board.
 
 # Dashboard tunnel — share the dashboard over a Cloudflare quick tunnel
 # (https://<random>.trycloudflare.com; no Cloudflare account needed). Needs
