@@ -36,6 +36,19 @@ type (
 	Attempt = state.Attempt
 	// ProviderState is whether the operator turned a provider off.
 	ProviderState = state.ProviderState
+	// QueuedFinding is an agent's report about orch waiting in the review
+	// queue (#536).
+	QueuedFinding = state.QueuedFinding
+	// Backend is the type of Project.Backend, for a helper handed an opened
+	// project's database rather than the whole project.
+	Backend = state.Backend
+)
+
+// A queued finding's status.
+const (
+	FindingQueued    = state.FindingQueued
+	FindingSent      = state.FindingSent
+	FindingDismissed = state.FindingDismissed
 )
 
 // RuntimeOf is the runtime rows of the given task ids — fewer when the
