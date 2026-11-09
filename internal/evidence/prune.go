@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -124,7 +125,10 @@ func pruneTask(stateDir, task string, keep int, maxBytes int64, out *Pruned) err
 		keepDirs[a.e2e] = true // counted already, whatever the orphan walk finds
 	}
 	// The task's E2E directories no manifest names.
-	orphans, _ := filepath.Glob(filepath.Join(globQuote(stateDir), "e2e", "*", globQuote(task), "attempt-*"))
+	orphans, err := filepath.Glob(filepath.Join(globQuote(stateDir), "e2e", "*", globQuote(task), "attempt-*"))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("evidence: listing %s's E2E directories: %w", task, err))
+	}
 	for _, dir := range orphans {
 		rel, err := filepath.Rel(stateDir, dir)
 		if err != nil || keepDirs[filepath.ToSlash(rel)] {
@@ -154,10 +158,15 @@ func history(stateDir, task string) ([]attemptRef, error) {
 		path := filepath.Join(dir, e.Name())
 		b, err := os.ReadFile(path) // #nosec G304 -- a manifest under orch's state dir
 		if err != nil {
+			slog.Warn("evidence: a history manifest could not be read; leaving it", "path", path, "err", err)
 			continue
 		}
 		var m Manifest
-		if json.Unmarshal(b, &m) != nil || m.RunID == "" || m.Attempt < 1 || strings.ContainsAny(m.RunID, `/\`) || m.RunID == ".." {
+		if err := json.Unmarshal(b, &m); err != nil {
+			slog.Warn("evidence: a history manifest is not JSON; leaving it", "path", path, "err", err)
+			continue
+		}
+		if m.RunID == "" || m.Attempt < 1 || strings.ContainsAny(m.RunID, `/\`) || m.RunID == ".." {
 			continue // not one of ours: leave it
 		}
 		out = append(out, attemptRef{
@@ -171,16 +180,25 @@ func history(stateDir, task string) ([]attemptRef, error) {
 	return out, nil
 }
 
+// dirSize is how many bytes the regular files under dir hold. What cannot
+// be read counts as nothing: the size decides what to prune, and a file
+// that cannot be read will not be freed by counting it.
 func dirSize(dir string) int64 {
 	var n int64
-	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
-		if err == nil && d.Type().IsRegular() {
+	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // see above: unreadable counts as nothing, keep walking
+		}
+		if d.Type().IsRegular() {
 			if info, err := d.Info(); err == nil {
 				n += info.Size()
 			}
 		}
 		return nil
 	})
+	if err != nil {
+		slog.Debug("evidence: sizing a directory failed", "dir", dir, "err", err)
+	}
 	return n
 }
 
