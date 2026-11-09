@@ -374,12 +374,25 @@ func WalkSpecFiles(root string) ([]string, error) {
 // file's definition and records a warning; ordering paths lexicographically
 // makes "last" mean "alphabetically last", matching parse_specs.
 func ParseFiles(paths []string, docsRoot, expectedProjectID string) (ParseResult, error) {
+	return ParseFilesWith(paths, nil, docsRoot, expectedProjectID)
+}
+
+// ParseFilesWith is ParseFiles where a path in overrides is parsed from
+// that text instead of from disk (the file need not exist): the preview of
+// an import, whose specs are not written yet, diffs exactly what --apply
+// would.
+func ParseFilesWith(paths []string, overrides map[string]string, docsRoot, expectedProjectID string) (ParseResult, error) {
 	agg := ParseResult{}
 	seen := map[string]string{} // task id -> source file that currently owns it
 	for _, p := range paths {
-		r, err := ParseFile(p, docsRoot, expectedProjectID)
-		if err != nil {
-			return ParseResult{}, err
+		var r ParseResult
+		if text, ok := overrides[p]; ok {
+			r = ParseText(text, p, docsRoot, expectedProjectID)
+		} else {
+			var err error
+			if r, err = ParseFile(p, docsRoot, expectedProjectID); err != nil {
+				return ParseResult{}, err
+			}
 		}
 		agg.FilesScanned = append(agg.FilesScanned, p)
 		agg.Warnings = append(agg.Warnings, r.Warnings...)

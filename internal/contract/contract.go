@@ -62,6 +62,10 @@ type Outcome struct {
 	E2E *E2ESummary
 	// Verify is the local verify's whole result, nil when it did not run.
 	Verify *VerifyResult
+	// VerifyBaseMoved says the base had moved and was merged into the
+	// worktree before that verify ran (#522), so a failure may be the
+	// combination rather than the agent's work alone.
+	VerifyBaseMoved bool
 	// GuardBlock is why the pre-PR guard (#484) refused the work, and
 	// GuardWarnings what it let through for the PR body to name. Neither
 	// ever holds a matched secret.
@@ -177,4 +181,8 @@ type VerifyRequest struct {
 	// ArtifactsDir is where this attempt's E2E report and the files its
 	// tests left are kept, under the state directory.
 	ArtifactsDir string
+	// SkipReview runs the checks and the E2E without the LLM review: a
+	// re-verify after the base moved (#522) re-checks the combination, and
+	// the agent's diff it would read is the one already reviewed.
+	SkipReview bool
 }
