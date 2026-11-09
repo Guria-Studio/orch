@@ -450,7 +450,10 @@ function PhaseRow({ m, state, lang, last }: { m: StakeholderMilestone; state: Ph
                 {p.deliverables.map((d, j) => (
                   <li key={`${d.title}-${j}`} className="flex items-start gap-2.5">
                     <StatusIcon status={d.status} lang={lang} />
-                    <span className={d.status === "done" ? "text-[var(--portal-muted)]" : ""}>{d.title}</span>
+                    <span className={d.status === "done" ? "text-[var(--portal-muted)]" : ""}>
+                      {d.title}
+                      {d.waiting ? <span className="block text-sm text-[var(--portal-muted)]">{d.waiting}</span> : null}
+                    </span>
                     {d.issue_url ? (
                       <a
                         href={d.issue_url}

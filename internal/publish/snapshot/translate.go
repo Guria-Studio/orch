@@ -3,6 +3,7 @@ package snapshot
 import (
 	"time"
 
+	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -139,4 +140,55 @@ func translateReason(lang string, sig blockSignal, hasSignal bool) string {
 		return phrase
 	}
 	return reasonPhrases[lang][providers.FailureOther]
+}
+
+// waitingPhrases say what a silent but working agent is doing (the engine's
+// agent_waiting event, #524), by its activity. A closed vocabulary like the
+// reasons above: the event's own evidence line never reaches a client.
+var waitingPhrases = map[string]map[string]string{
+	"es": {
+		"download": "esperando: descargando datos",
+		"write":    "esperando: generando datos",
+		"read":     "esperando: recibiendo datos",
+		"compute":  "esperando: procesando",
+		"edit":     "esperando: trabajando en los archivos",
+	},
+	"en": {
+		"download": "waiting: downloading data",
+		"write":    "waiting: generating data",
+		"read":     "waiting: receiving data",
+		"compute":  "waiting: processing",
+		"edit":     "waiting: working on the files",
+	},
+	"pt": {
+		"download": "aguardando: baixando dados",
+		"write":    "aguardando: gerando dados",
+		"read":     "aguardando: recebendo dados",
+		"compute":  "aguardando: processando",
+		"edit":     "aguardando: trabalhando nos arquivos",
+	},
+}
+
+// waitingByTask is the running tasks whose last event is agent_waiting, with
+// their phrase in lang. Any later event (agent_resumed, a stall, a finish)
+// ends the wait. events come in timeline order.
+func waitingByTask(tasks []model.Task, events []state.Event, lang string) map[string]string {
+	last := map[string]state.Event{}
+	for _, e := range events {
+		last[e.TaskID] = e
+	}
+	out := map[string]string{}
+	for _, t := range tasks {
+		e, ok := last[t.ID]
+		if !ok || t.Status != model.StatusInProgress || e.EventType != "agent_waiting" {
+			continue
+		}
+		activity, _ := e.Extra["activity"].(string)
+		phrase, ok := waitingPhrases[lang][activity]
+		if !ok {
+			phrase = waitingPhrases[lang]["edit"]
+		}
+		out[t.ID] = phrase
+	}
+	return out
 }

@@ -345,3 +345,62 @@ func TestExecutiveSummaryMentionsBlockedCountNotRawText(t *testing.T) {
 		t.Errorf("executive summary leaked raw technical text: %q", snap.ExecutiveSummary.Text)
 	}
 }
+
+// TestASilentButWorkingDeliverableSaysWhatItIsWaitingOn (#524): the client
+// reads "esperando: descargando datos" on a running deliverable whose agent
+// is downloading, in a closed vocabulary — the event's evidence line, with
+// its paths and figures, never reaches the page — and nothing once the agent
+// writes again.
+func TestASilentButWorkingDeliverableSaysWhatItIsWaitingOn(t *testing.T) {
+	waiting := state.Event{EventType: "agent_waiting", TaskID: "T", TS: "2026-11-09T12:00:00Z",
+		Extra: map[string]any{"activity": "download", "reason": "downloading data: +163 MB in 1h0m0s"}}
+	cases := []struct {
+		name   string
+		status model.Status
+		events []state.Event
+		lang   string
+		want   string
+	}{
+		{"waiting", model.StatusInProgress, []state.Event{waiting}, "es", "esperando: descargando datos"},
+		{"in English", model.StatusInProgress, []state.Event{waiting}, "en", "waiting: downloading data"},
+		{"resumed", model.StatusInProgress, []state.Event{waiting, {EventType: "agent_resumed", TaskID: "T", TS: "2026-11-09T12:05:00Z"}}, "es", ""},
+		{"finished since", model.StatusDone, []state.Event{waiting}, "es", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := Build(Input{
+				Tasks:    []model.Task{{ID: "F7.7", Phase: 7, Title: "Backtest data", Status: tc.status}},
+				Events:   rename(tc.events, "F7.7"),
+				Language: tc.lang,
+				Now:      time.Now(),
+			})
+			var got []string
+			for _, m := range snap.Milestones {
+				for _, p := range m.Packages {
+					for _, d := range p.Deliverables {
+						got = append(got, d.Waiting)
+					}
+				}
+			}
+			if len(got) != 1 || got[0] != tc.want {
+				t.Fatalf("waiting = %q, want [%q]", got, tc.want)
+			}
+			raw, err := json.Marshal(snap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(raw), "163 MB") {
+				t.Errorf("the evidence line leaked to the client: %s", raw)
+			}
+		})
+	}
+}
+
+func rename(events []state.Event, taskID string) []state.Event {
+	out := make([]state.Event, len(events))
+	for i, e := range events {
+		e.TaskID = taskID
+		out[i] = e
+	}
+	return out
+}

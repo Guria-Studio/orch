@@ -25,6 +25,20 @@ export interface NowDispatch {
   started_at: string
   /** The watch saw the agent's log go silent and it has not written since (#533). */
   stalled: boolean
+  /** Silent, but its processes or files show work: what, with the figures (#524). */
+  waiting?: NowWaiting
+}
+
+/** The watch's agent_waiting evidence (#524). Not attention: the agent is working. */
+export interface NowWaiting {
+  activity: "download" | "write" | "read" | "compute" | "edit"
+  files_bytes: number
+  read_bytes: number
+  cpu_s: number
+  window_s: number
+  /** The same evidence as one English line, as `orch events` prints it. */
+  evidence: string
+  since: string
 }
 
 export interface Now {

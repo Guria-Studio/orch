@@ -1087,18 +1087,45 @@ the task's `files` list are already named in the PR body for every task.
 watch:
   enabled: true        # default
   stall_after_s: 600   # default; 0 leaves stalls unreported
+  liveness: true       # default; false judges by the log alone (#524)
+  min_cpu_pct: 2       # default; % of one core that counts as working
+  data_dirs: []        # default; more dirs whose growth counts as work
 ```
 
 While `orch run` has attempts running it reads the tail of each one's log
-(`<state>/logs/<task>.log`) every 30 seconds and records these events, which
-`orch events` and the task page show:
+(`<state>/logs/<task>.log`) every 30 seconds. A silent log is not enough to
+call an agent stuck: one downloading data or running a long build writes
+nothing for an hour. So with `liveness` on (#524), while the log is silent the
+watch also looks at:
 
-- **`agent_stalled`**: the log has not grown for `stall_after_s`. An agent
-  waiting on a prompt it cannot get in a headless run looks like this too.
-  It is recorded again only after the log grows and then goes silent again.
-- **`agent_resumed`**: the log of an agent flagged `agent_stalled` grew again.
-  Until it does, the dashboard shows the task as stalled on Now (under
-  attention, with `orch task stop`), on its board card and in the list (#533).
+- **the agent's processes**: its process group (the CLI and everything it
+  started) using more than `min_cpu_pct` of one core, or moving more than
+  1 MB per 30 s through reads and writes, sockets included. Linux reads
+  `/proc`; macOS asks `ps`, which gives CPU but not I/O.
+- **its files**: anything in the task's worktree (or the project, without
+  worktrees) growing or changing, `.git` and orch's state left out, and the
+  same in each `data_dirs` entry (relative to the project root, or absolute)
+  — for a download cache outside the repo.
+
+It records these events, which `orch events` and the task page show:
+
+- **`agent_waiting`**: the log has been silent for `stall_after_s` but the
+  agent showed work within the last `stall_after_s`. The event carries the
+  evidence, as in `downloading data: +163 MB in 1h0m0s` (or `writing files`,
+  `receiving data`, `computing: 4m10s of CPU`), and is refreshed every
+  `stall_after_s` while the wait lasts. The dashboard shows it on Now, under
+  the running agent ("waiting: downloading data"), and the client page shows
+  it on the deliverable. It is not an alert. The words are a reading of the
+  figures, not of the agent's intent: "downloading" is files growing while
+  its processes read as much, which a large local copy also does.
+- **`agent_stalled`**: no output and no sign of life for `stall_after_s`. An
+  agent waiting on a prompt it cannot get in a headless run looks like this.
+  It is recorded again only after the agent shows work and then stops again.
+  With `liveness: false` it is the log alone, as before #524.
+- **`agent_resumed`**: the log of an agent flagged `agent_stalled` or
+  `agent_waiting` grew again. Until it does, the dashboard shows a stalled
+  task as stalled on Now (under attention, with `orch task stop`), on its
+  board card and in the list (#533).
 - **`agent_looping`**: one tool call (the same tool on the same command,
   file or pattern) fills 5 of the attempt's last 20. Recorded once per attempt.
   It reads the CLIs that stream their steps (claude, codex, opencode); gemini

@@ -163,6 +163,26 @@ describe("NowPage", () => {
     expect(within(attention).getByText("orch task stop --id F2.T2")).toBeInTheDocument()
   })
 
+  // #524: tradex F7.7 was flagged stalled while it downloaded 163 MB in silence.
+  it("shows a silent but working agent as waiting, with the evidence, and not under attention", () => {
+    const now = base()
+    now.working = [
+      {
+        ...now.working[0],
+        waiting: {
+          activity: "download", files_bytes: 163_000_000, read_bytes: 170_000_000, cpu_s: 40, window_s: 3600,
+          evidence: "downloading data: +163 MB in 1h0m0s", since: "2026-09-16T12:53:19Z",
+        },
+      },
+    ]
+    state.now = now
+    renderPage()
+    const working = screen.getByRole("heading", { name: "Working now" }).closest("section")!
+    expect(within(working).getByText("Waiting: downloading data, +163 MB in 1h 0m")).toBeInTheDocument()
+    const attention = screen.getByRole("heading", { name: "Needs your attention" }).closest("section")!
+    expect(within(attention).queryByText(/F2.T2|POST \/items/)).not.toBeInTheDocument()
+  })
+
   it("says the ETA leaves blocked work out, and budget shows weighted and raw tokens", () => {
     renderPage()
     // The finish date is its own figure, with what it leaves out beneath it.

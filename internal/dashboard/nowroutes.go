@@ -70,6 +70,9 @@ type nowDispatch struct {
 	// Stalled: the watch saw the agent's log go silent and it has not
 	// written since (#533). The page counts it as needing attention.
 	Stalled bool `json:"stalled"`
+	// Waiting: the agent is silent but its processes or files show work, and
+	// what (#524). Absent otherwise. Not attention: it is working.
+	Waiting *waitingPayload `json:"waiting,omitempty"`
 }
 
 // nowSlots is in-flight dispatches against concurrency.global_max as `orch
@@ -136,7 +139,7 @@ func (s *Server) handleNow(w http.ResponseWriter, r *http.Request) {
 			TaskID: d.TaskID, Title: titleOr(t), Phase: t.Phase,
 			Provider: d.Backend, Model: t.Model,
 			Attempt: d.Attempt, MaxAttempts: limits.Retry.MaxAttempts,
-			StartedAt: d.StartedAt, Stalled: view.Stalled[d.TaskID],
+			StartedAt: d.StartedAt, Stalled: view.Stalled[d.TaskID], Waiting: view.Waiting[d.TaskID],
 		})
 	}
 	out.Slots = nowSlots{Used: len(dispatches), Max: limits.Concurrency.GlobalMax}

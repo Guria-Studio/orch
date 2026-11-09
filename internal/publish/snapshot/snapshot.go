@@ -162,6 +162,10 @@ type Deliverable struct {
 	// one state to a client: not started).
 	Status     string `json:"status"`
 	FinishedAt string `json:"finished_at,omitempty"`
+	// Waiting is what a running deliverable whose agent is silent but
+	// working is doing, in the snapshot's language ("esperando: descargando
+	// datos", #524). Omitted otherwise.
+	Waiting string `json:"waiting,omitempty"`
 	// IssueURL is the GitHub issue the deliverable was imported from
 	// (`orch atomize --from-issues`, #525), so the client can follow it back
 	// to what they asked for. Absent for every other task.
@@ -253,7 +257,7 @@ func Build(in Input) Snapshot {
 	projection := graph.ProjectCompletion(remainingTasks(in.Tasks), in.DoneInVelocityWindow, VelocityWindowDays, in.Now)
 
 	milestones := PhaseMilestones(in.Tasks, in.Phases, in.PhaseTitles)
-	addPackages(milestones, in.Tasks, in.PackageTitles, in.FinishedAt)
+	addPackages(milestones, in.Tasks, in.PackageTitles, in.FinishedAt, waitingByTask(in.Tasks, in.Events, lang))
 	blockers := buildBlockers(in.Tasks, in.Events, lang)
 
 	var spendUSD *float64
@@ -329,7 +333,7 @@ func projectionConfidence(p *graph.Projection) string {
 }
 
 // addPackages groups each phase's tasks into packages, in task-id order.
-func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]string, finishedAt map[string]string) {
+func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]string, finishedAt map[string]string, waiting map[string]string) {
 	byPhase := map[int][]model.Task{}
 	for _, t := range tasks {
 		byPhase[t.Phase] = append(byPhase[t.Phase], t)
@@ -354,7 +358,7 @@ func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]s
 				index[name] = pi
 				packages = append(packages, Package{Name: name})
 			}
-			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), IssueURL: t.SourceIssue}
+			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), Waiting: waiting[t.ID], IssueURL: t.SourceIssue}
 			if t.Status == model.StatusDone {
 				d.FinishedAt = finishedAt[t.ID]
 				packages[pi].Done++

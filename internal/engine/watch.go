@@ -35,20 +35,37 @@ const (
 
 // agentWatch is what the watch remembers about one running attempt.
 type agentWatch struct {
-	size    int64
-	since   time.Time // when size last changed
-	stalled bool      // reported since the log last grew
-	looped  bool      // reported for this attempt
+	size  int64
+	since time.Time // when size last changed
+	// lastActive is when the agent last showed work: its log grew, or its
+	// processes or files moved (#524).
+	lastActive time.Time
+	// base is the liveness sample when the log went quiet, the start of the
+	// evidence; prev the last one, which the next is compared with.
+	base, prev *liveSample
+	stalled    bool      // reported since the agent last showed work
+	waitingAt  time.Time // when agent_waiting was last recorded; zero when not waiting
+	looped     bool      // reported for this attempt
 }
 
 // WatchAgents reads every running attempt's log, at most every watchInterval,
-// and records agent_stalled when it has been silent for watch.stall_after_s
-// and agent_looping when the agent keeps making the same tool call. Each is
-// recorded once: a stall again only after the log grew, a loop once per
-// attempt. Called from the run loop, which owns inFlight.
+// and records agent_looping when the agent keeps making the same tool call
+// (once per attempt) and, when the log has been silent for
+// watch.stall_after_s, one of:
 //
-// ponytail: a 64 KiB tail read per attempt every 30 s, no inotify; at a few
-// parallel tasks that is nothing. Watch the files if runs get much wider.
+//   - agent_waiting: with watch.liveness on, its process group still uses CPU
+//     or moves data, or files grow in its worktree or watch.data_dirs. The
+//     event carries the evidence ("downloading data: +163 MB in 1h0m0s") and
+//     is refreshed every stall_after_s while the wait lasts.
+//   - agent_stalled: no sign of life for stall_after_s. Recorded once, again
+//     only after the agent showed work and then stopped.
+//
+// agent_resumed closes either when the log grows again. Called from the run
+// loop, which owns inFlight.
+//
+// ponytail: a 64 KiB tail read per attempt every 30 s, and for a silent one a
+// /proc scan and a walk of its worktree; at a few parallel tasks that is
+// nothing. Watch the files if runs get much wider.
 func (s *Scheduler) WatchAgents(ctx context.Context, now time.Time) {
 	cfg := s.Opts.Cfg.Watch
 	if !cfg.Enabled || (!s.lastWatch.IsZero() && now.Sub(s.lastWatch) < watchInterval) {
@@ -63,10 +80,11 @@ func (s *Scheduler) WatchAgents(ctx context.Context, now time.Time) {
 			delete(s.watches, pid)
 		}
 	}
+	stallAfter := time.Duration(cfg.StallAfterS) * time.Second
 	for pid, e := range s.inFlight {
 		w := s.watches[pid]
 		if w == nil {
-			w = &agentWatch{since: now}
+			w = &agentWatch{since: now, lastActive: now}
 			s.watches[pid] = w
 		}
 		tail, size, err := readTail(e.Dispatch.LogPath, watchTail)
@@ -74,17 +92,22 @@ func (s *Scheduler) WatchAgents(ctx context.Context, now time.Time) {
 			continue
 		}
 		if size != w.size {
-			if w.stalled {
+			if w.stalled || !w.waitingAt.IsZero() {
 				s.recordResumed(ctx, e, now.Sub(w.since))
 			}
-			w.size, w.since, w.stalled = size, now, false
+			w.size, w.since, w.lastActive = size, now, now
+			w.stalled, w.waitingAt, w.base, w.prev = false, time.Time{}, nil, nil
+		} else if cfg.Liveness && cfg.StallAfterS > 0 {
+			cur := s.sampleLiveness(pid, e, now)
+			if w.base == nil {
+				w.base = &cur
+			} else if active(*w.prev, cur, cfg.MinCPUPct) {
+				w.lastActive = now
+			}
+			w.prev = &cur
 		}
-		stallAfter := time.Duration(cfg.StallAfterS) * time.Second
-		if silent := now.Sub(w.since); cfg.StallAfterS > 0 && !w.stalled && silent >= stallAfter {
-			w.stalled = true
-			s.recordWatch(ctx, e, EventAgentStalled,
-				fmt.Sprintf("its log has been silent for %s", silent.Round(time.Second)),
-				map[string]any{"silent_s": int(silent.Seconds())})
+		if silent := now.Sub(w.since); cfg.StallAfterS > 0 && silent >= stallAfter {
+			s.judgeSilence(ctx, e, w, now, silent, stallAfter)
 		}
 		if call, n := repeatedCall(tail); !w.looped && n >= loopRepeats {
 			w.looped = true
@@ -92,6 +115,37 @@ func (s *Scheduler) WatchAgents(ctx context.Context, now time.Time) {
 				fmt.Sprintf("it made the same call %d times in its last %d: %s", n, loopWindow, call),
 				map[string]any{"call": call, "repeats": n})
 		}
+	}
+}
+
+// judgeSilence decides what a log silent for stallAfter or more means: the
+// agent is waiting on work that shows (#524), or it is stuck.
+func (s *Scheduler) judgeSilence(ctx context.Context, e *InFlight, w *agentWatch, now time.Time, silent, stallAfter time.Duration) {
+	if idle := now.Sub(w.lastActive); idle >= stallAfter {
+		if w.stalled {
+			return
+		}
+		w.stalled, w.waitingAt = true, time.Time{}
+		what := fmt.Sprintf("its log has been silent for %s", silent.Round(time.Second))
+		if s.Opts.Cfg.Watch.Liveness {
+			what += fmt.Sprintf(", and its processes and files for %s", idle.Round(time.Second))
+		}
+		s.recordWatch(ctx, e, EventAgentStalled, what, map[string]any{"silent_s": int(silent.Seconds())})
+		return
+	}
+	if !w.waitingAt.IsZero() && now.Sub(w.waitingAt) < stallAfter {
+		return
+	}
+	w.stalled, w.waitingAt = false, now
+	ev := evidence(*w.base, *w.prev)
+	s.logger().Info("the agent is silent but working: "+ev.String(), "task", e.Task.ID)
+	if s.Backend == nil {
+		return
+	}
+	extra := ev.extra()
+	extra["attempt"], extra["reason"], extra["silent_s"] = e.Attempt, ev.String(), int(silent.Seconds())
+	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventAgentWaiting, e.Task.ID, string(e.Route.Backend), extra); err != nil {
+		s.logger().Error("recording the agent watch event failed", "task", e.Task.ID, "err", err)
 	}
 }
 
