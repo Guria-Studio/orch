@@ -343,6 +343,15 @@ issue text reaches it only inside the prompt (never through `${{ }}` in a
 `run:` block) and is marked untrusted, and a malformed answer labels nothing
 and fails the run. An empty answer is retried once.
 
+An issue **opened with both a `type:*` and a `priority:*` label** keeps them:
+triage adds and removes nothing, and its comment says which labels were kept
+and what Gemini would have proposed. A milestone set at creation is never
+replaced either. A
+re-triage (`workflow_dispatch`) replaces the previous proposal, removing only
+the `type:`/`priority:` labels that differ from the new one. The rules live in
+`.github/review/triage-labels.sh`, tested by `triage-labels.test.sh` at the
+start of every run (#588).
+
 It is a **proposal**. Change the labels or the milestone when you disagree:
 the workflow does not run again on its own.
 

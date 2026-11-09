@@ -48,8 +48,10 @@ jobs:
           # Tags, for the milestone the next patch or minor release gets.
           fetch-depth: 0
 
-      - name: Self-test the output parser
-        run: bash .github/review/parse-triage.test.sh
+      - name: Self-test the output parser and the label rules
+        run: |
+          bash .github/review/parse-triage.test.sh
+          bash .github/review/triage-labels.test.sh
 
       - name: Is the API key configured?
         id: key
@@ -70,7 +72,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh issue view "$ISSUE" --repo "$REPO" --json title,body,labels,author > issue.json
+          gh issue view "$ISSUE" --repo "$REPO" --json title,body,labels,author,milestone > issue.json
           # The body is capped: a prompt travels as one environment string,
           # which Linux limits to 128 KiB (see review.yml).
           jq -r '(.body // "")[0:60000]' issue.json > body.txt
@@ -226,6 +228,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MILESTONE: ${{ steps.parse.outputs.milestone || steps.parse_retry.outputs.milestone }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           priority=$(jq -r .priority triage.json)
@@ -239,17 +242,43 @@ jobs:
           gh label create type:improvement --repo "$REPO" --force --color A2EEEF --description "orch works, could work better"
           gh label create type:feature --repo "$REPO" --force --color 5319E7 --description "orch lacks a capability"
 
-          if ! gh api "repos/$REPO/milestones?state=all&per_page=100" --paginate --jq '.[].title' | grep -qxF "$MILESTONE"; then
-            gh api "repos/$REPO/milestones" -f title="$MILESTONE" >/dev/null
+          # Which labels to add and remove: triage-labels.sh documents the
+          # rules (#588). In short, labels the author set at creation win,
+          # and a re-triage removes only the labels that differ from the
+          # new proposal.
+          jq '[.labels[].name]' issue.json > labels.json
+          has_ms=$(jq -r 'if .milestone then "true" else "false" end' issue.json)
+          decision=$(bash .github/review/triage-labels.sh --labels labels.json --event "$EVENT" \
+            --priority "$priority" --type "$type" --has-milestone "$has_ms")
+          echo "$decision"
+          get() { printf '%s\n' "$decision" | sed -n "s/^$1=//p"; }
+          keep=$(get keep); add=$(get add); remove=$(get remove)
+          set_ms=$(get milestone); differs=$(get differs)
+
+          args=()
+          if [ -n "$add" ]; then args+=(--add-label "$add"); fi
+          if [ -n "$remove" ]; then args+=(--remove-label "$remove"); fi
+          if [ "$set_ms" = true ]; then
+            if ! gh api "repos/$REPO/milestones?state=all&per_page=100" --paginate --jq '.[].title' | grep -qxF "$MILESTONE"; then
+              gh api "repos/$REPO/milestones" -f title="$MILESTONE" >/dev/null
+            fi
+            args+=(--milestone "$MILESTONE")
+          fi
+          if [ "${#args[@]}" -gt 0 ]; then
+            gh issue edit "$ISSUE" --repo "$REPO" "${args[@]}"
           fi
 
-          # A re-triage replaces the previous proposal instead of adding to it.
-          stale=$(jq -r '[.labels[].name | select(startswith("priority:") or startswith("type:"))] | join(",")' issue.json)
-          args=(--add-label "priority:$priority,type:$type" --milestone "$MILESTONE")
-          if [ -n "$stale" ]; then
-            args+=(--remove-label "$stale")
+          if [ "$keep" = true ]; then
+            own=$(jq -r '[.[] | select(startswith("priority:") or startswith("type:")) | "`\(.)`"] | join(", ")' labels.json)
+            {
+              echo
+              if [ -n "$differs" ]; then
+                echo "> **Labels kept.** This issue was opened with $own, so triage did not change them. Gemini would have proposed \`priority:$priority\`, \`type:$type\`."
+              else
+                echo "> **Labels kept.** This issue was opened with $own, which match Gemini's proposal."
+              fi
+            } >> comment.md
           fi
-          gh issue edit "$ISSUE" --repo "$REPO" "${args[@]}"
 
           MARKER='<!-- orch:gemini-triage -->'
           EXISTING=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
@@ -259,7 +288,7 @@ jobs:
           else
             gh api "repos/$REPO/issues/$ISSUE/comments" -X POST -F body=@comment.md >/dev/null
           fi
-          echo "triaged #$ISSUE: priority:$priority type:$type milestone $MILESTONE"
+          echo "triaged #$ISSUE: proposed priority:$priority type:$type milestone $MILESTONE (labels kept: $keep, milestone set: $set_ms)"
 
       - name: Say so when the triage failed
         if: steps.key.outputs.present == 'true' && steps.parse.outcome != 'success' && steps.parse_retry.outcome != 'success'
