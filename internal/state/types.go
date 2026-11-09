@@ -93,6 +93,10 @@ type Dispatch struct {
 	LogPath    string
 	OutputPath string
 	Attempt    int
+	// ProcStart is when the process started, as the OS reports it (#541):
+	// crash recovery compares it to tell a reused PID from the dispatch.
+	// Opaque; "" when it could not be read.
+	ProcStart string
 }
 
 // Spend is one completed dispatch's cost.

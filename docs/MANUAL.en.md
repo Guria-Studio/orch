@@ -77,6 +77,9 @@ orch --version
 orch --help
 ```
 
+`orch --help` lists the commands by layer: *Start a project*, *Run tasks*,
+*Follow progress*, *Deliver results*, *Integrations*, *Advanced*.
+
 ### AI CLIs you need
 
 At least **one** of these on your `PATH`, authenticated with a
@@ -429,7 +432,7 @@ Usage:
 
 Flags:
   -h, --help             help for dashboard
-      --host string      Address to bind; 0.0.0.0 exposes it beyond localhost (default "127.0.0.1")
+      --host string      Address to bind; beyond localhost (0.0.0.0) every remote request needs the token (default "127.0.0.1")
       --port int         Port to listen on; 0 picks any free one (default 7420)
       --profile string   Access profile: operator, stakeholder or both (default: config.yaml)
       --token string     Shared token a client session must present (default: config.yaml)
@@ -561,7 +564,7 @@ steps. `↑`/`↓` (or `j`/`k`) select a task, `f` cycles the status filter,
 
 ```bash
 $ orch status --help
-Project status: tasks, costs, last events, run summary
+The quick check: task counts, costs, last events, run summary (--json for scripts)
 
 Flags:
   -h, --help            help for status

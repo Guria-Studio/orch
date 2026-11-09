@@ -64,9 +64,18 @@ func newTestServer(t *testing.T, c Config, projectRoot string) *Server {
 	return s
 }
 
+// localRequest is a GET as the default bind sees one from this machine: a
+// loopback Host, which the bind gate wants (#537).
+func localRequest(path string) *http.Request {
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Host = "127.0.0.1:7420"
+	return req
+}
+
 func get(t *testing.T, s *Server, path string) *http.Response {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Host = "127.0.0.1:7420" // the default bind: a foreign Host is refused (#537)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	return rec.Result()
@@ -150,6 +159,7 @@ func TestWhoamiIsReachableByAStakeholder(t *testing.T) {
 	s := newTestServer(t, cfg(ProfileStakeholder, "test-token-stakeholder"), t.TempDir())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/whoami", nil)
+	req.Host = "127.0.0.1:7420"
 	req.Header.Set("Authorization", "Bearer test-token-stakeholder")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
@@ -159,6 +169,7 @@ func TestWhoamiIsReachableByAStakeholder(t *testing.T) {
 
 	// config/status is not on the list: authenticated, still forbidden.
 	req = httptest.NewRequest(http.MethodGet, "/api/config/status?token=test-token-stakeholder", nil)
+	req.Host = "127.0.0.1:7420"
 	rec = httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {

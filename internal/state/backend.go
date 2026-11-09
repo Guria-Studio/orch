@@ -133,6 +133,11 @@ type Backend interface {
 	QueueFinding(ctx context.Context, f QueuedFinding) (int64, error)
 	QueuedFindings(ctx context.Context) ([]QueuedFinding, error)
 	SetFindingStatus(ctx context.Context, id int64, status, url string) error
+
+	// RecordAttempt appends one finished attempt; Attempts lists them, oldest
+	// first — what `orch metrics` reads (#538).
+	RecordAttempt(ctx context.Context, a Attempt) error
+	Attempts(ctx context.Context) ([]Attempt, error)
 }
 
 // Sentinel errors callers act on. Everything else is wrapped context.
@@ -570,10 +575,10 @@ func (b *SQLite) RecordDispatch(ctx context.Context, d Dispatch) error {
 	_, err := b.db.write.ExecContext(ctx,
 		`INSERT OR REPLACE INTO dispatches
 		   (run_id, task_id, project_id, backend, pid, session_id,
-		    started_at, prompt_path, log_path, output_path, attempt, status)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')`,
+		    started_at, prompt_path, log_path, output_path, attempt, status, proc_start)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight', ?)`,
 		d.RunID, d.TaskID, b.projectID, d.Backend, d.PID, d.SessionID,
-		d.StartedAt, d.PromptPath, d.LogPath, d.OutputPath, d.Attempt)
+		d.StartedAt, d.PromptPath, d.LogPath, d.OutputPath, d.Attempt, d.ProcStart)
 	if err != nil {
 		return fmt.Errorf("record dispatch of %q: %w", d.TaskID, err)
 	}

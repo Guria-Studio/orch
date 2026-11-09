@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -135,6 +136,43 @@ func TestCheckSyncModel(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "gpt-9-imaginary") {
 		t.Errorf("error does not name the model that failed: %v", err)
+	}
+}
+
+// By default only collaborators' issues become tasks (#542): an issue body
+// goes into an agent's prompt word for word, so anyone who can open an issue
+// could otherwise write instructions to the agents.
+func TestCollaboratorIssuesOnly(t *testing.T) {
+	issues := capturedIssues(t) // 88, 87, 86
+	for i := range issues {
+		issues[i].Author.Login = "owner"
+	}
+	issues[1].Author.Login = "stranger"
+	issues = append(issues, vcs.Issue{Number: 90, Author: vcs.IssueAuthor{Login: "stranger"}})
+	asked := map[string]int{}
+	isCollab := func(login string) (bool, error) {
+		asked[login]++
+		return login != "stranger", nil
+	}
+
+	kept, skipped, err := collaboratorIssues(issues, isCollab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kept) != 2 || kept[0].Number != 88 || kept[1].Number != 86 {
+		t.Errorf("kept %v, want #88 and #86", kept)
+	}
+	if strings.Join(skipped, ",") != "gh-87 (@stranger),gh-90 (@stranger)" {
+		t.Errorf("skipped = %v", skipped)
+	}
+	if asked["stranger"] != 1 || asked["owner"] != 1 {
+		t.Errorf("asked %v, want once per login", asked)
+	}
+
+	if _, _, err := collaboratorIssues(issues, func(string) (bool, error) {
+		return false, errors.New("HTTP 403")
+	}); err == nil {
+		t.Error("a failed check skipped the issues instead of failing the sync")
 	}
 }
 

@@ -330,7 +330,7 @@ func (b *SQLite) InFlightDispatches(ctx context.Context) ([]Dispatch, error) {
 		`SELECT run_id, task_id, backend, COALESCE(pid, 0),
 		        COALESCE(session_id, ''), COALESCE(started_at, ''),
 		        COALESCE(prompt_path, ''), COALESCE(log_path, ''),
-		        COALESCE(output_path, ''), COALESCE(attempt, 1)
+		        COALESCE(output_path, ''), COALESCE(attempt, 1), proc_start
 		   FROM dispatches
 		  WHERE project_id = ? AND status = 'in_flight'`, b.projectID)
 	if err != nil {
@@ -343,7 +343,7 @@ func (b *SQLite) InFlightDispatches(ctx context.Context) ([]Dispatch, error) {
 		var d Dispatch
 		if err := rows.Scan(&d.RunID, &d.TaskID, &d.Backend, &d.PID,
 			&d.SessionID, &d.StartedAt, &d.PromptPath, &d.LogPath,
-			&d.OutputPath, &d.Attempt); err != nil {
+			&d.OutputPath, &d.Attempt, &d.ProcStart); err != nil {
 			return nil, fmt.Errorf("scan dispatch row: %w", err)
 		}
 		out = append(out, d)

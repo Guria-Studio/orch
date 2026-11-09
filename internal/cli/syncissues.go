@@ -74,6 +74,36 @@ func taskFromIssue(issue vcs.Issue, modelName string) model.Task {
 	}
 }
 
+// collaboratorIssues keeps the issues whose author is a collaborator of the
+// repository, and names the rest ("gh-87 (@login)") for the plan (#542).
+//
+// The default, because an issue body goes into an agent's prompt word for
+// word: on a public repository anyone could otherwise write instructions to
+// the agents by opening an issue and waiting for someone to label it. Asked
+// once per login; a check that fails fails the sync rather than skipping.
+func collaboratorIssues(issues []vcs.Issue, isCollab func(login string) (bool, error)) ([]vcs.Issue, []string, error) {
+	known := map[string]bool{}
+	var kept []vcs.Issue
+	var skipped []string
+	for _, issue := range issues {
+		login := issue.Author.Login
+		ok, seen := known[login]
+		if !seen {
+			var err error
+			if ok, err = isCollab(login); err != nil {
+				return nil, nil, err
+			}
+			known[login] = ok
+		}
+		if ok {
+			kept = append(kept, issue)
+		} else {
+			skipped = append(skipped, fmt.Sprintf("%s (@%s)", issueTaskID(issue.Number), login))
+		}
+	}
+	return kept, skipped, nil
+}
+
 // syncPlan is what a sync would do, worked out before anything is written.
 //
 // Computed in full first so `--dry-run` and a real run print the same thing,
@@ -147,7 +177,8 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 		modelName string
 		state     string
 		limit     int
-		dryRun    bool
+		dryRun     bool
+		allAuthors bool
 	)
 
 	cmd := &cobra.Command{
@@ -156,6 +187,8 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 		Long: "Append a task per labelled GitHub issue to tasks.json.\n\n" +
 			"Idempotent: a task id is `gh-<issue number>`, so a second run adds\n" +
 			"only what is new and never overwrites a task you have edited.\n\n" +
+			"Only issues opened by the repo's collaborators are imported unless\n" +
+			"--all-authors is passed: an issue body reaches the agent's prompt.\n\n" +
 			"Never writes to GitHub.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -212,8 +245,24 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("listing issues for project %s: %w", paths.ID, err)
 			}
 
+			var strangers []string
+			if !allAuthors {
+				gh := vcs.NewGitHubProvider()
+				issues, strangers, err = collaboratorIssues(issues, func(login string) (bool, error) {
+					return gh.IsCollaborator(paths.Root, login)
+				})
+				if err != nil {
+					return fmt.Errorf("%w (--all-authors imports every author's issues without asking)", err)
+				}
+			}
+
 			plan := planSync(issues, tasksFile.Tasks, modelName)
 			printSyncPlan(cmd, plan, label, dryRun)
+			if len(strangers) > 0 {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+					"Skipping %d issue(s) opened by people who are not collaborators of the repo: %s (--all-authors imports them)\n",
+					len(strangers), strings.Join(strangers, ", "))
+			}
 			if dryRun || plan.empty() {
 				return nil
 			}
@@ -257,6 +306,8 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 		"Maximum issues to read (default 500)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
 		"Print what would be written and write nothing")
+	cmd.Flags().BoolVar(&allAuthors, "all-authors", false,
+		"Import issues by anyone, not only the repo's collaborators (an issue body reaches the agent's prompt)")
 	return cmd
 }
 

@@ -139,18 +139,43 @@ func head(t *testing.T, body string) string {
 // The `TASK_ID=` marker feeds the id-spoofing check (AS-10) and the five lines
 // under it are what an agent reads to know what it is building, so a diff in
 // any byte of them is a failure, not a formatting nit.
+//
+// One divergence is declared: the description. Python printed it on a
+// `Description:` line as written; Go fences it as data under a header (#542),
+// because after `orch sync issues` it is an issue body anyone could type. The
+// rest of the head is compared byte for byte, and the description's TEXT is
+// still compared with Python's, inside its fence.
 func TestHeadStillMatchesThePythonGoldens(t *testing.T) {
 	cases := loadCases(t)
 	for i, c := range cases.Cases {
 		t.Run(c.Golden, func(t *testing.T) {
-			want := head(t, readGolden(t, c.Golden))
-			got := head(t, renderCase(cases, i))
-			if got != want {
+			wantRest, wantDesc := splitDescription(t, head(t, readGolden(t, c.Golden)))
+			gotRest, gotDesc := splitDescription(t, head(t, renderCase(cases, i)))
+			if gotRest != wantRest {
 				t.Errorf("the prompt's head differs from Python's.\n--- go ---\n%s\n--- python ---\n%s",
-					got, want)
+					gotRest, wantRest)
+			}
+			pyText := strings.TrimPrefix(wantDesc, "\nDescription: ")
+			goText := gotDesc[strings.Index(gotDesc, "<description>\n")+len("<description>\n"):]
+			goText = strings.TrimSuffix(goText, "\n</description>")
+			if goText != pyText {
+				t.Errorf("the description text differs from Python's.\n--- go ---\n%s\n--- python ---\n%s", goText, pyText)
 			}
 		})
 	}
+}
+
+// splitDescription cuts the description section (from its `Description`
+// line up to the `Files you may write:` line) out of a head, returning the
+// head without it and the section.
+func splitDescription(t *testing.T, h string) (rest, desc string) {
+	t.Helper()
+	i := strings.Index(h, "\nDescription")
+	j := strings.Index(h, "\nFiles you may write:")
+	if i < 0 || j < i {
+		t.Fatalf("no description section in:\n%s", h)
+	}
+	return h[:i] + h[j:], h[i:j]
 }
 
 // TestRenderMatchesTheGoGoldens pins the whole body, divergent blocks included.
@@ -262,7 +287,7 @@ func TestGoldensCoverWhatTheyAreFor(t *testing.T) {
 		case strings.Contains(body, "Files you may write: ['"):
 			sawPopulatedFiles = true
 		}
-		if strings.Contains(body, "Completed dependencies (context):") {
+		if strings.Contains(body, "Completed dependencies (context") {
 			sawDeps = true
 		} else {
 			sawNoDeps = true

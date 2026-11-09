@@ -110,10 +110,30 @@ func (b *SQLite) SetTaskCIStatus(ctx context.Context, taskID, status string) err
 		return fmt.Errorf("set CI status for %q: %q is not one of %s",
 			taskID, status, ciStatusNames())
 	}
-	return b.updateTaskRow(ctx, taskID, "set CI status",
-		`UPDATE tasks_runtime SET ci_status = ?, updated_at = ?
-		  WHERE project_id = ? AND task_id = ?`,
-		status, b.ts(time.Time{}), b.projectID, taskID)
+	if status != "success" && status != "failure" {
+		return b.updateTaskRow(ctx, taskID, "set CI status",
+			`UPDATE tasks_runtime SET ci_status = ?, updated_at = ?
+			  WHERE project_id = ? AND task_id = ?`,
+			status, b.ts(time.Time{}), b.projectID, taskID)
+	}
+	// A verdict is also the verdict on the attempt that pushed (#538).
+	return b.inTx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE tasks_runtime SET ci_status = ?, updated_at = ?
+			  WHERE project_id = ? AND task_id = ?`,
+			status, b.ts(time.Time{}), b.projectID, taskID)
+		if err != nil {
+			return fmt.Errorf("set CI status for %q: %w", taskID, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("set CI status for %q: %w", taskID, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%q: %w", taskID, ErrTaskNotFound)
+		}
+		return markLatestAttemptCI(ctx, tx, b.projectID, taskID, status)
+	})
 }
 
 // IncrementCIAttempts bumps the retry counter and returns its new value.
@@ -146,6 +166,10 @@ func (b *SQLite) IncrementCIAttempts(ctx context.Context, taskID string) (int, e
 		}
 		if n == 0 {
 			return fmt.Errorf("%q: %w", taskID, ErrTaskNotFound)
+		}
+		// A CI retry is a CI failure of the attempt that pushed (#538).
+		if err := markLatestAttemptCI(ctx, tx, b.projectID, taskID, "failure"); err != nil {
+			return err
 		}
 		return tx.QueryRowContext(ctx,
 			`SELECT COALESCE(ci_attempts, 0) FROM tasks_runtime

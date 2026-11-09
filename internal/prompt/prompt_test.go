@@ -309,7 +309,7 @@ func TestSubstitutionDoesNotRescanItsOutput(t *testing.T) {
 		t.Error("a placeholder inside the title was substituted")
 	}
 	if !strings.Contains(body,
-		"Description: the placeholder {model} must survive, and so must {deps_block}") {
+		"<description>\nthe placeholder {model} must survive, and so must {deps_block}\n</description>") {
 		t.Error("a placeholder inside the description was substituted")
 	}
 	// The real substitutions still happened.

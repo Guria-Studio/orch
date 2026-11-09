@@ -39,7 +39,7 @@ type completion struct {
 // own children, so a `wait4(-1)` sweep like Python's would race it. The
 // channel is buffered to the concurrency ceiling so a supervisor never blocks
 // on a reaper that is busy.
-func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
+func (s *Scheduler) supervise(pid int, task model.Task, d Dispatch, sp *Spawned, attempt int) {
 	exitCode, reason, timedOut := sp.Wait(d.Timeout)
 	duration := time.Since(sp.StartedAt)
 
@@ -65,7 +65,7 @@ func (s *Scheduler) supervise(pid int, d Dispatch, sp *Spawned, attempt int) {
 	}
 	s.reportedDoneOutcome(d, &out)
 	s.silentExitOutcome(d, &out)
-	s.verifyOutcome(d, attempt, &out)
+	s.verifyOutcome(task, d, attempt, &out)
 	s.guardOutcome(d, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
@@ -189,6 +189,9 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	// agent already committed stays in the branch's history.
 	guardBlocked := !stopped && !agentBlocked && !verifyFailed && out.Result.Success && out.GuardBlock != ""
 	entry.GuardWarnings = out.GuardWarnings
+	if out.Verify != nil {
+		entry.ReviewUnavailable = out.Verify.ReviewUnavailable
+	}
 	if !stopped && !agentBlocked && out.Result.Success {
 		s.recordVerify(ctx, entry, out.Verify, sendBack)
 	}
@@ -334,7 +337,7 @@ func (s *Scheduler) prExpected() bool {
 func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string) string {
 	task := entry.Task
 	title, body := s.prText(ctx, task)
-	body += guardSection(entry.GuardWarnings)
+	body += guardSection(entry.GuardWarnings) + reviewUnavailableSection(entry.ReviewUnavailable)
 
 	prURL, created := existing, existing == ""
 	var err error
@@ -568,6 +571,8 @@ func (s *Scheduler) queueRetry(ctx context.Context, entry *InFlight, d RetryDeci
 			s.logger().Error("recording the retry failed", "task", entry.Task.ID, "err", err)
 		}
 	}
+
+	s.lastFailure[entry.Task.ID] = s.failureNote(entry, out)
 
 	// Back to todo so the ready set picks it up again. The retry queue is
 	// what actually re-dispatches it, but the status has to move or Ready
