@@ -319,6 +319,8 @@ export const es = {
   "task.ev.task_added": "agregó la tarea",
   "task.ev.task_edited": "editó la tarea",
   "task.ev.salvage_accepted": "aceptó el trabajo del intento anterior",
+  "task.ev.issue_closed": "cerró el issue de GitHub",
+  "task.ev.issue_close_failed": "no pudo cerrar el issue de GitHub",
   "task.hide_properties": "Ocultar las propiedades",
   "task.show_properties": "Mostrar las propiedades",
   "task.properties": "Propiedades",

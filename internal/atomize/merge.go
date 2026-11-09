@@ -12,7 +12,7 @@ import (
 // built in. Ports _DECLARATIVE_FIELDS.
 var declarativeFields = []string{
 	"title", "description", "model", "reason", "dependencies",
-	"estimateHours", "specRef", "phase",
+	"estimateHours", "specRef", "phase", "sourceIssue",
 }
 
 // UpdatedTask is one entry in MergeDiff.Updated: the merged row, the row it
@@ -57,6 +57,7 @@ func toCandidate(pt ParsedTask) model.Task {
 		EstimateHours: pt.EstimateHours,
 		Files:         files,
 		SpecRef:       pt.SpecRef,
+		SourceIssue:   pt.SourceIssue,
 		Comments:      []json.RawMessage{},
 	}
 }
@@ -78,6 +79,13 @@ func mergeRow(old model.Task, pt ParsedTask) (model.Task, []string) {
 		"estimateHours": old.EstimateHours != cand.EstimateHours,
 		"specRef":       old.SpecRef != cand.SpecRef,
 		"phase":         old.Phase != cand.Phase,
+		// A spec that names no issue leaves the one a task has alone: the
+		// link is evidence of where the work came from, not spec content.
+		"sourceIssue": cand.SourceIssue != "" && old.SourceIssue != cand.SourceIssue,
+	}
+	sourceIssue := old.SourceIssue
+	if cand.SourceIssue != "" {
+		sourceIssue = cand.SourceIssue
 	}
 
 	var changedList []string
@@ -97,6 +105,7 @@ func mergeRow(old model.Task, pt ParsedTask) (model.Task, []string) {
 		Dependencies:  cand.Dependencies,
 		EstimateHours: cand.EstimateHours,
 		SpecRef:       cand.SpecRef,
+		SourceIssue:   sourceIssue,
 		Status:        old.Status,
 		Files:         old.Files,
 		Comments:      old.Comments,

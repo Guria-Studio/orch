@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,6 +43,8 @@ import (
 func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 	var specsDir, file, tasksJSONPath string
 	var listMode, apply, noBackup bool
+	var fromIssues, issuesModel string
+	var allAuthors bool
 	cmd := &cobra.Command{
 		Use:   "atomize",
 		Short: "Parse markdown specs and merge them into tasks.json (read-only unless --apply)",
@@ -64,6 +67,20 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("resolve --tasks-json: %w", err)
 				}
+			}
+
+			if fromIssues != "" {
+				if file != "" {
+					return withExitCode(2, errFromIssuesWithFile)
+				}
+				return runAtomizeFromIssues(cmd, flags, atomizeIssuesOpts{
+					query: fromIssues, model: issuesModel, allAuthors: allAuthors,
+					specsRoot: specsRoot, tasksPath: tasksPath,
+					apply: apply, noBackup: noBackup, list: listMode,
+				})
+			}
+			if issuesModel != "" || allAuthors {
+				return withExitCode(2, errors.New("--model and --all-authors only apply with --from-issues"))
 			}
 
 			var specFiles []string
@@ -171,6 +188,12 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 		"Escribí tasks.json (con backup). Sin este flag es read-only.")
 	cmd.Flags().BoolVar(&noBackup, "no-backup", false,
 		"No crear backup .bak-<ts> al escribir (default: sí crea)")
+	cmd.Flags().StringVar(&fromIssues, "from-issues", "",
+		"GitHub issue search (e.g. label:orch): each open issue becomes specs/issue-<n>-<slug>.md, then tasks")
+	cmd.Flags().StringVar(&issuesModel, "model", "",
+		"With --from-issues: model for the imported tasks; must be one model_router.yaml resolves (required)")
+	cmd.Flags().BoolVar(&allAuthors, "all-authors", false,
+		"With --from-issues: import issues by anyone, not only the repo's collaborators")
 	return cmd
 }
 

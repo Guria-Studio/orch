@@ -108,6 +108,10 @@ var goOnlyEventTypes = map[string]bool{
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,
+	// A source issue closed after a local landing, or the close that failed
+	// (#525).
+	"issue_closed":       true,
+	"issue_close_failed": true,
 	// A PR finished with no CI check ever reported (#233).
 	"ci_no_checks": true,
 	// A PR merged outside orch while its CI was watched (#255).

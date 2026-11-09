@@ -451,6 +451,16 @@ function PhaseRow({ m, state, lang, last }: { m: StakeholderMilestone; state: Ph
                   <li key={`${d.title}-${j}`} className="flex items-start gap-2.5">
                     <StatusIcon status={d.status} lang={lang} />
                     <span className={d.status === "done" ? "text-[var(--portal-muted)]" : ""}>{d.title}</span>
+                    {d.issue_url ? (
+                      <a
+                        href={d.issue_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-sm text-[var(--portal-muted)] underline"
+                      >
+                        {t.openIssue}
+                      </a>
+                    ) : null}
                   </li>
                 ))}
               </ul>

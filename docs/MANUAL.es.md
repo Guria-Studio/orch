@@ -944,6 +944,7 @@ los flags.
 | Comando | Para qué sirve |
 |---|---|
 | `orch sync issues` | Convierte los issues de GitHub etiquetados del cliente en tareas (`gh-<número>`), y en cada corrida agrega solo lo nuevo. |
+| `orch atomize --from-issues label:orch --model M` | Convierte cada issue abierto de GitHub que coincide con la búsqueda en un spec (`specs/issue-<n>-<slug>.md`) y sus tareas; muestra la vista previa y con `--apply` escribe. Una segunda corrida no importa nada dos veces. El PR de la tarea cierra el issue al mergear (`Closes`); con `vcs.provider: local` orch lo cierra con un comentario cuando aterriza su última tarea. |
 | `orch export clickup` | Refleja el plan en una Folder de ClickUp para un cliente que sigue el trabajo ahí; al volver a correrlo, los estados se actualizan. |
 | `orch export multica` | Crea el plan como issues de Multica, un padre por fase. |
 | `orch ci setup` / `ci review` / `ci usage` | Escribe el pipeline de CI que pide el repositorio, corre una revisión con IA de cada PR dentro del CI y suma los minutos de Actions facturados. |

@@ -921,6 +921,7 @@ none of them is required to start. [`CLI.md`](CLI.md) has every flag.
 | Command | What it is for |
 |---|---|
 | `orch sync issues` | Turns the client's labelled GitHub issues into tasks (`gh-<number>`), adding only what is new on each run. |
+| `orch atomize --from-issues label:orch --model M` | Turns each open GitHub issue the search matches into a spec (`specs/issue-<n>-<slug>.md`) and its tasks; preview by default, `--apply` writes. A re-run imports nothing twice. The task's PR closes the issue on merge (`Closes`); with `vcs.provider: local` orch closes it with a comment once its last task lands. |
 | `orch export clickup` | Mirrors the plan into a ClickUp Folder for a client who tracks work there; re-run it and statuses follow. |
 | `orch export multica` | Creates the plan as Multica issues, one parent per phase. |
 | `orch ci setup` / `ci review` / `ci usage` | Writes the CI pipeline the repository calls for, runs an AI review of each PR inside CI, and adds up the billed Actions minutes. |
