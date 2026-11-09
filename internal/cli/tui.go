@@ -287,10 +287,8 @@ func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend,
 	if err != nil {
 		return v, fmt.Errorf("read spend: %w", err)
 	}
-	costByTask := map[string]float64{}
 	byBackend := map[string]*tuiUsage{}
 	for _, s := range spend {
-		costByTask[s.TaskID] += s.CostUSD
 		u := byBackend[s.Backend]
 		if u == nil {
 			u = &tuiUsage{Backend: s.Backend}
@@ -306,8 +304,9 @@ func loadTUIView(ctx context.Context, paths config.Paths, backend state.Backend,
 	sort.Slice(v.Usage, func(i, j int) bool { return v.Usage[i].Backend < v.Usage[j].Backend })
 
 	// buildStatusRows hydrates through project.Hydrate: statuses come from the
-	// database, not tasks.json.
-	rows, err := buildStatusRows(ctx, backend, paths.ID, loadDAG(paths), loadRouterTolerant(paths), costByTask)
+	// database, not tasks.json. The board shows no per-task cost, so none is
+	// summed for it.
+	rows, err := buildStatusRows(ctx, backend, paths.ID, loadDAG(paths), loadRouterTolerant(paths), nil)
 	if err != nil {
 		return v, fmt.Errorf("read task rows: %w", err)
 	}

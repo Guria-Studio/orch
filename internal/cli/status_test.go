@@ -1,13 +1,22 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -86,20 +95,20 @@ func TestCostForMatchesPythonsSumTypeQuirk(t *testing.T) {
 	// is int 0 again. See the costJSON doc comment in status.go.
 	cases := []struct {
 		name          string
-		costByTask    map[string]float64
+		costByTask    map[string]pricing.Sum
 		filteredSum   float64
 		filteredCount int
 		wantProject   string
 		wantFiltered  string
 	}{
 		{"no spend at all", nil, 0, 0, "0", "0"},
-		{"spend exists but filtered set is empty", map[string]float64{"F0.T1": 0.42}, 0, 0, "0.42", "0"},
-		{"single zero-cost task still filtered in", map[string]float64{"F0.T1": 0}, 0, 1, "0.0", "0.0"},
-		{"real spend, all filtered in", map[string]float64{"F0.T1": 0.42, "F1.T1": 1.0}, 1.42, 5, "1.42", "1.42"},
+		{"spend exists but filtered set is empty", map[string]pricing.Sum{"F0.T1": {Rows: 1, Reported: 0.42}}, 0, 0, "0.42", "0"},
+		{"single zero-cost task still filtered in", map[string]pricing.Sum{"F0.T1": {Rows: 1}}, 0, 1, "0.0", "0.0"},
+		{"real spend, all filtered in", map[string]pricing.Sum{"F0.T1": {Rows: 1, Reported: 0.42}, "F1.T1": {Rows: 1, Reported: 1.0}}, 1.42, 5, "1.42", "1.42"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := costFor(tc.costByTask, tc.filteredSum, tc.filteredCount)
+			got := costFor(tc.costByTask, pricing.Sum{Reported: tc.filteredSum}, tc.filteredCount)
 			if string(got.ProjectTotalUSD) != tc.wantProject {
 				t.Errorf("ProjectTotalUSD = %s, want %s", got.ProjectTotalUSD, tc.wantProject)
 			}
@@ -107,5 +116,101 @@ func TestCostForMatchesPythonsSumTypeQuirk(t *testing.T) {
 				t.Errorf("FilteredTotalUSD = %s, want %s", got.FilteredTotalUSD, tc.wantFiltered)
 			}
 		})
+	}
+}
+
+// A codex task on a subscription records cost_usd 0 with real tokens, and
+// `orch status` printed `$0.0` for it — a measured-looking zero next to an
+// `orch run` estimate in dollars (#578). The column now says where the number
+// comes from: billed as is, priced from pricing.yaml with a `~`, `N/A` when a
+// run left nothing to price, `—` when the task never ran. The estimate is the
+// dashboard's (pricing.Table), not a second price list.
+func TestStatusMarksUnbilledCostAsEstimateOrNA(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db, _, err := state.Open(ctx, filepath.Join(root, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	backend := state.NewSQLite(db, "p", root)
+
+	tasks := []model.Task{
+		{ID: "BILLED", Title: "claude billed", Status: model.StatusDone, Model: "claude/sonnet"},
+		{ID: "SUB", Title: "codex subscription", Status: model.StatusDone, Model: "codex/gpt-5"},
+		{ID: "MIXED", Title: "billed then unbilled", Status: model.StatusDone, Model: "codex/gpt-5"},
+		{ID: "SILENT", Title: "no tokens, no dollars", Status: model.StatusDone, Model: "codex/gpt-5"},
+		{ID: "NEVER", Title: "never ran", Status: model.StatusTodo, Model: "codex/gpt-5"},
+	}
+	if err := backend.Bootstrap(ctx, tasks); err != nil {
+		t.Fatal(err)
+	}
+	ts := "2026-11-08T10:00:0%dZ"
+	for i, sp := range []state.Spend{
+		{TaskID: "BILLED", Backend: "claude", Model: "claude-sonnet-4-6", TokensIn: 1000, TokensOut: 100, CostUSD: 0.42},
+		{TaskID: "SUB", Backend: "codex", Model: "gpt-5", TokensIn: 100_000, TokensOut: 10_000},
+		{TaskID: "MIXED", Backend: "claude", Model: "claude-sonnet-4-6", TokensIn: 1000, TokensOut: 100, CostUSD: 0.5},
+		{TaskID: "MIXED", Backend: "codex", Model: "gpt-5", TokensIn: 100_000, TokensOut: 10_000},
+		{TaskID: "SILENT", Backend: "codex", Model: "gpt-5"},
+	} {
+		sp.TS = fmt.Sprintf(ts, i)
+		if err := backend.RecordSpend(ctx, sp); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snap, err := buildSnapshot(ctx, config.Paths{Root: root, ID: "p"}, backend, tasks, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// gpt-5 at 2.50/10.00 per million: 100k in + 10k out = $0.35.
+	if want := pricing.Load(root).EstimateCost("gpt-5", pricing.Tokens{In: 100_000, Out: 10_000}); want != 0.35 {
+		t.Fatalf("fixture assumes gpt-5 prices 100k/10k at $0.35, pricing.yaml says %v", want)
+	}
+
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+	if err := renderStatusTable(cmd, snap); err != nil {
+		t.Fatal(err)
+	}
+	table := out.String()
+	for id, want := range map[string]string{
+		"BILLED": `\$0\.42`,
+		"SUB":    `~\$0\.35`,
+		"MIXED":  `~\$0\.85`,
+		"SILENT": `N/A`,
+		"NEVER":  `—`,
+	} {
+		re := regexp.MustCompile(`(?m)^` + id + `\s.*\s` + want + `\s+\d+\s*$`)
+		if !re.MatchString(table) {
+			t.Errorf("%s: want COST %s in\n%s", id, want, table)
+		}
+	}
+	// The total under the table says how much of it is an estimate.
+	if want := "Cost: ~$1.62 ($0.92 billed + ~$0.7 estimated from pricing.yaml"; !strings.Contains(table, want) {
+		t.Errorf("want total line %q in\n%s", want, table)
+	}
+	if strings.Contains(table, "$0.0 ") {
+		t.Errorf("no row ran for free, yet the table shows $0.0:\n%s", table)
+	}
+
+	body, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(body)
+	for _, want := range []string{
+		// cost_usd stays what the CLI billed: scripts reading it keep working.
+		`"id":"BILLED"[^}]*"cost_usd":0.42,"cost_source":"reported","estimated_cost_usd":0.0`,
+		`"id":"SUB"[^}]*"cost_usd":0.0,"cost_source":"estimated","estimated_cost_usd":0.35`,
+		`"id":"MIXED"[^}]*"cost_usd":0.5,"cost_source":"reported","estimated_cost_usd":0.35`,
+		`"id":"SILENT"[^}]*"cost_usd":0.0,"cost_source":"no_data","estimated_cost_usd":0.0`,
+		`"id":"NEVER"[^}]*"cost_usd":0.0,"cost_source":"none","estimated_cost_usd":0.0`,
+		`"cost":\{"project_total_usd":0.92,"filtered_total_usd":0.92,"project_estimated_usd":0.7,"filtered_estimated_usd":0.7\}`,
+	} {
+		if !regexp.MustCompile(want).MatchString(js) {
+			t.Errorf("status --json: want %s in\n%s", want, js)
+		}
 	}
 }

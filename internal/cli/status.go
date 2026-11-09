@@ -14,6 +14,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -36,25 +37,37 @@ type projectJSON struct {
 // exactly when there is nothing to sum (no spend at all / an empty
 // filtered set), and a real decimal otherwise — never "0" once there is
 // at least one dollar amount behind it, even a $0.00 one.
+//
+// The two *_estimated_usd fields (#578) follow the same shape rule and are
+// never part of the totals beside them: they are what pricing.yaml puts on
+// the rows no CLI billed (a codex or opencode subscription), the figure the
+// dashboard's Usage page adds in.
 type costJSON struct {
-	ProjectTotalUSD  json.RawMessage `json:"project_total_usd"`
-	FilteredTotalUSD json.RawMessage `json:"filtered_total_usd"`
+	ProjectTotalUSD      json.RawMessage `json:"project_total_usd"`
+	FilteredTotalUSD     json.RawMessage `json:"filtered_total_usd"`
+	ProjectEstimatedUSD  json.RawMessage `json:"project_estimated_usd"`
+	FilteredEstimatedUSD json.RawMessage `json:"filtered_estimated_usd"`
 }
 
-func costFor(costByTask map[string]float64, filteredSum float64, filteredCount int) costJSON {
-	project := json.RawMessage("0")
+func costFor(costByTask map[string]pricing.Sum, filtered pricing.Sum, filteredCount int) costJSON {
+	out := costJSON{
+		ProjectTotalUSD: json.RawMessage("0"), FilteredTotalUSD: json.RawMessage("0"),
+		ProjectEstimatedUSD: json.RawMessage("0"), FilteredEstimatedUSD: json.RawMessage("0"),
+	}
 	if len(costByTask) > 0 {
-		total := 0.0
+		var project pricing.Sum
 		for _, v := range costByTask {
-			total += v
+			project.Reported += v.Reported
+			project.Estimated += v.Estimated
 		}
-		project = formatPyFloat(round4(total))
+		out.ProjectTotalUSD = formatPyFloat(round4(project.Reported))
+		out.ProjectEstimatedUSD = formatPyFloat(round4(project.Estimated))
 	}
-	filtered := json.RawMessage("0")
 	if filteredCount > 0 {
-		filtered = formatPyFloat(round4(filteredSum))
+		out.FilteredTotalUSD = formatPyFloat(round4(filtered.Reported))
+		out.FilteredEstimatedUSD = formatPyFloat(round4(filtered.Estimated))
 	}
-	return costJSON{ProjectTotalUSD: project, FilteredTotalUSD: filtered}
+	return out
 }
 
 // runJSON is `status --json`'s `latest_run` object.
@@ -116,7 +129,7 @@ func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backen
 	}
 
 	rtr := loadRouterTolerant(paths)
-	costByTask, err := computeCostByTask(ctx, backend)
+	costByTask, err := computeCostByTask(ctx, backend, pricing.Load(paths.Root))
 	if err != nil {
 		return statusSnapshot{}, err
 	}
@@ -133,7 +146,7 @@ func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backen
 	totals.Add("_total", len(all))
 
 	filtered := make([]statusRow, 0, len(all))
-	filteredSum := 0.0
+	var filteredSum pricing.Sum
 	for _, r := range all {
 		if only != "" {
 			ok, err := path.Match(only, r.ID)
@@ -148,7 +161,9 @@ func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backen
 			continue
 		}
 		filtered = append(filtered, r)
-		filteredSum += r.costUSDValue
+		filteredSum.Rows += r.cost.Rows
+		filteredSum.Reported += r.cost.Reported
+		filteredSum.Estimated += r.cost.Estimated
 	}
 
 	var latestRun any
@@ -258,15 +273,63 @@ func renderStatusTable(cmd *cobra.Command, snap statusSnapshot) error {
 	if _, err := fmt.Fprintln(w, "ID\tSTATUS\tBACKEND/MODEL\tLAST EVENT\tCOST\tPHASE"); err != nil {
 		return err
 	}
+	var total pricing.Sum
 	for _, r := range snap.Tasks {
 		lastEvent := "—"
 		if r.LastEventHuman != nil {
 			lastEvent = *r.LastEventHuman
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s/%s\t%s\t$%s\t%d\n",
-			r.ID, r.Status, r.Backend, r.CLIModel, lastEvent, r.CostUSD, r.Phase); err != nil {
+		total.Rows += r.cost.Rows
+		total.Reported += r.cost.Reported
+		total.Estimated += r.cost.Estimated
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s/%s\t%s\t%s\t%d\n",
+			r.ID, r.Status, r.Backend, r.CLIModel, lastEvent, costCell(r.cost), r.Phase); err != nil {
 			return err
 		}
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	if line := costTotalLine(total); line != "" {
+		if _, err := fmt.Fprintln(out, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// costCell is a task's COST: what the CLIs billed, `~$` when part or all of
+// it is pricing.yaml's price for tokens nobody billed (a codex or opencode
+// subscription records $0), `N/A` when it ran and left nothing to price, `—`
+// when it never ran. A bare `$0.0` read as a measured zero (#578).
+func costCell(c pricing.Sum) string {
+	switch {
+	case c.Rows == 0:
+		return "—"
+	case c.Estimated > 0:
+		return "~$" + string(formatPyFloat(round4(c.Total())))
+	case c.Reported > 0:
+		return "$" + string(formatPyFloat(round4(c.Reported)))
+	default:
+		return "N/A"
+	}
+}
+
+// costTotalLine sums the rows shown, saying how much of it is an estimate;
+// empty when none of them ran.
+func costTotalLine(c pricing.Sum) string {
+	switch {
+	case c.Rows == 0:
+		return ""
+	case c.Estimated > 0 && c.Reported > 0:
+		return fmt.Sprintf("Cost: ~$%s ($%s billed + ~$%s estimated from pricing.yaml for runs the CLI did not bill)",
+			formatPyFloat(round4(c.Total())), formatPyFloat(round4(c.Reported)), formatPyFloat(round4(c.Estimated)))
+	case c.Estimated > 0:
+		return fmt.Sprintf("Cost: ~$%s, estimated from pricing.yaml (the CLIs billed nothing)",
+			formatPyFloat(round4(c.Estimated)))
+	case c.Reported > 0:
+		return fmt.Sprintf("Cost: $%s billed", formatPyFloat(round4(c.Reported)))
+	default:
+		return "Cost: N/A (the runs reported neither dollars nor tokens)"
+	}
 }
