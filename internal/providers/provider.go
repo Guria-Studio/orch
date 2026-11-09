@@ -175,6 +175,14 @@ type Result struct {
 	// file the engine reads the quota from afterwards (#577). "" when the
 	// output carries none.
 	SessionID string
+
+	// EffectiveModel, EffectiveEffort and EffectiveServiceTier are what the
+	// CLI says it actually ran, which may differ from the route orch asked
+	// for (#580): codex's session rollout names the model and the effort
+	// (the engine fills those in), and its exec log says when it dropped a
+	// service tier the model does not offer ("default" then). "" is
+	// unknown, never the declared value copied over.
+	EffectiveModel, EffectiveEffort, EffectiveServiceTier string
 }
 
 // QuotaWindow is one usage window of a provider's subscription, as the

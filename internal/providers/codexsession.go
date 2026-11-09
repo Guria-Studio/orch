@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // codex's session rollout (#577, #580).
@@ -25,6 +26,11 @@ type CodexSession struct {
 	// (primary) and weekly (secondary) windows, which count every use of the
 	// account, not only orch's. nil when the rollout reported none.
 	Quota []QuotaWindow
+	// Model and Effort are what the last turn ran with, from its
+	// turn_context: the model codex resolved and the reasoning effort,
+	// "" when codex recorded none (no effort was set). exec --json names
+	// neither (#580).
+	Model, Effort string
 }
 
 // ParseCodexRollout reads a rollout's JSONL. Lines that do not parse are
@@ -35,6 +41,9 @@ func ParseCodexRollout(b []byte) CodexSession {
 		payload, ok := asObject(ev.obj["payload"])
 		if !ok {
 			continue
+		}
+		if ev.eventType() == "turn_context" {
+			s.Model, s.Effort = asString(payload["model"]), asString(payload["effort"])
 		}
 		if ev.eventType() == "event_msg" && asString(payload["type"]) == "token_count" {
 			if q := codexQuota(payload["rate_limits"]); q != nil {
@@ -103,6 +112,21 @@ func CodexSessionsDir(getenv func(string) string) string {
 		return filepath.Join(h, ".codex", "sessions")
 	}
 	return ""
+}
+
+// codexDroppedTier reports whether codex said it would omit the configured
+// service tier, after which the run is on the default tier (#416, #580).
+func codexDroppedTier(events []event) bool {
+	for _, ev := range events {
+		msg := pyStr(ev.obj["message"])
+		if item, ok := asObject(ev.obj["item"]); ok {
+			msg = pyStr(item["message"])
+		}
+		if strings.Contains(msg, codexTierNotAdvertised) {
+			return true
+		}
+	}
+	return false
 }
 
 // codexSessionID is the thread id thread.started names; "" when the log has

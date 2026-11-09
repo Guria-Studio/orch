@@ -79,8 +79,8 @@ func fixtureBackend(t *testing.T) *state.SQLite {
 	// v0.11.0 fixture. See
 	// internal/state/migrate_test.go's
 	// TestOpenPythonWrittenDatabaseAppliesOnlyGoOnlyMigrations.
-	if applied != 10 {
-		t.Fatalf("fixture needed %d migrations, want 10 (006 to 015)", applied)
+	if applied != 11 {
+		t.Fatalf("fixture needed %d migrations, want 11 (006 to 016)", applied)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return state.NewSQLite(db, "billing-api", "/tmp/billing-api")

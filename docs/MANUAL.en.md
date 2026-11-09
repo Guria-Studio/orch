@@ -388,6 +388,14 @@ show them. Write `source: provider` under a provider in `budgets.yaml` (or
 those windows instead; until a fresh report exists the token window decides.
 `orch budget show` says, per provider, which one is deciding.
 
+**Which model actually ran.** `codex exec` does not say; its session rollout
+does. orch records, per attempt, the model and effort codex ran (and
+`default` when codex dropped a service tier the model does not offer) beside
+the route's: `orch status --json` shows it as `effective`, the table adds
+`(ran <model>)`, `orch metrics` counts the attempts that ran something else,
+and each such attempt writes one `model_mismatch` event (`orch events <task>`).
+Nothing reported stays unknown.
+
 ### Starting without GitHub
 
 A repository with no remote yet — or a machine without `gh` — does not need

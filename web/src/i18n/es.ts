@@ -307,6 +307,7 @@ export const es = {
   "task.ev.branch_conflict": "avisa que este PR choca con otro abierto",
   "task.ev.agent_stalled": "avisa que el agente parece trabado: su log no avanza",
   "task.ev.agent_looping": "avisa que el agente parece trabado: repite la misma llamada",
+  "task.ev.model_mismatch": "corrió algo distinto de lo que pedía su ruta",
   "task.ev.operator_stop": "detuvo el intento",
   "task.ev.pr_created": "abrió el pull request",
   "task.ev.ci_success": "pasó",

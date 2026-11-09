@@ -48,6 +48,9 @@ type MetricsRow struct {
 	CIAfterVerify       int     `json:"ci_after_verify"`
 	CIFailedAfterVerify int     `json:"ci_failed_after_verify"`
 	CIFailRate          float64 `json:"ci_fail_rate"`
+	// ModelMismatches are attempts whose CLI reported running another
+	// model, effort or service tier than their route asked for (#580).
+	ModelMismatches int `json:"model_mismatches"`
 
 	retries int
 	cost    float64
@@ -113,6 +116,9 @@ func ComputeMetrics(attempts []state.Attempt, tasks []state.TaskRuntime) Metrics
 				}
 				r.FindingsFixed += fixed
 				r.FindingsIgnored += ignored
+				if len(a.Mismatch()) > 0 {
+					r.ModelMismatches++
+				}
 			}
 		}
 	}

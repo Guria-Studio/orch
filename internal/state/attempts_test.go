@@ -87,3 +87,32 @@ func TestCIVerdictLandsOnTheLatestAttempt(t *testing.T) {
 		}
 	}
 }
+
+// TestAttemptsKeepTheEffectiveRoute (#580): an attempt keeps the effort and
+// service tier it asked for beside what the CLI says it ran; unknown stays
+// empty.
+func TestAttemptsKeepTheEffectiveRoute(t *testing.T) {
+	ctx := context.Background()
+	b := seeded(t, "T1")
+	want := Attempt{RunID: "r1", TaskID: "T1", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", Tier: "cheap",
+		Effort: "high", ServiceTier: "flex",
+		EffectiveModel: "gpt-6-astra", EffectiveEffort: "high", EffectiveServiceTier: "default",
+		Result: "success", FinishedAt: "2026-11-08T10:00:00Z"}
+	if err := b.RecordAttempt(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.RecordAttempt(ctx, Attempt{RunID: "r1", TaskID: "T1", Attempt: 2, Backend: "claude", Model: "sonnet", Result: "fail"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.Attempts(ctx)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("attempts = %+v, %v", got, err)
+	}
+	g := got[0]
+	if g.Effort != "high" || g.ServiceTier != "flex" || g.EffectiveModel != "gpt-6-astra" || g.EffectiveEffort != "high" || g.EffectiveServiceTier != "default" {
+		t.Errorf("first = %+v", g)
+	}
+	if g := got[1]; g.EffectiveModel != "" || g.EffectiveEffort != "" || g.EffectiveServiceTier != "" {
+		t.Errorf("unknown must stay empty: %+v", g)
+	}
+}

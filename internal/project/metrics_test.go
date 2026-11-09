@@ -60,3 +60,25 @@ func TestComputeMetrics(t *testing.T) {
 		t.Errorf("tiers = %+v", m.ByTier)
 	}
 }
+
+// TestComputeMetricsCountsModelMismatches (#580): an attempt whose CLI ran
+// another model, effort or tier than its route counts in its route's row;
+// one that reported nothing does not.
+func TestComputeMetricsCountsModelMismatches(t *testing.T) {
+	attempts := []state.Attempt{
+		{TaskID: "T1", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", Result: "success", EffectiveModel: "gpt-6-astra"},
+		{TaskID: "T2", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", ServiceTier: "flex", Result: "success", EffectiveModel: "gpt-6-luna", EffectiveServiceTier: "default"},
+		{TaskID: "T3", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", Result: "success", EffectiveModel: "gpt-6-luna"},
+		{TaskID: "T4", Attempt: 1, Backend: "claude", Model: "sonnet", Result: "success"},
+	}
+	m := ComputeMetrics(attempts, nil)
+	if m.Total.ModelMismatches != 2 {
+		t.Errorf("total mismatches = %d, want 2", m.Total.ModelMismatches)
+	}
+	for _, r := range m.ByRoute {
+		want := map[string]int{"codex/gpt-6-luna": 2, "claude/sonnet": 0}[r.Key]
+		if r.ModelMismatches != want {
+			t.Errorf("%s mismatches = %d, want %d", r.Key, r.ModelMismatches, want)
+		}
+	}
+}

@@ -400,6 +400,14 @@ dispatch ao codex — e a página Providers and quota do dashboard e
 `threshold_pct` dessas janelas; enquanto não houver um relatório vigente, decide
 a janela de tokens. `orch budget show` diz, por provedor, qual está decidindo.
 
+**Qual modelo rodou de fato.** `codex exec` não diz; o rollout da sua sessão
+diz. O orch registra, por tentativa, o modelo e o esforço com que o codex rodou
+(e `default` quando o codex descartou um service tier que o modelo não oferece)
+ao lado dos da rota: `orch status --json` mostra isso como `effective`, a
+tabela acrescenta `(ran <modelo>)`, `orch metrics` conta as tentativas que
+rodaram outra coisa e cada uma grava um evento `model_mismatch`
+(`orch events <tarefa>`). O que não foi reportado fica desconhecido.
+
 ### Começar sem GitHub
 
 Um repositório ainda sem remote — ou uma máquina sem `gh` — não precisa de pull

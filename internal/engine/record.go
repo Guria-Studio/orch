@@ -52,6 +52,11 @@ const (
 	// Python declares no such type, which internal/state's
 	// goOnlyEventTypes explains.
 	EventSprintDone = "sprint_done"
+
+	// EventModelMismatch warns that an attempt's CLI ran another model,
+	// effort or service tier than its route asked for (#580): which fields,
+	// both sides, and a one-line detail. Go only.
+	EventModelMismatch = "model_mismatch"
 )
 
 // RecordStart writes the `dispatch` event and the in-flight row, in that
@@ -127,6 +132,12 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 		return fmt.Errorf("append outcome event for %s: %w", d.Req.TaskID, err)
 	}
 
+	if ev := mismatchEvent(runID, d, o, ts, attempt); ev != nil {
+		if err := b.AppendEvent(ctx, runID, *ev); err != nil {
+			return fmt.Errorf("append model_mismatch event for %s: %w", d.Req.TaskID, err)
+		}
+	}
+
 	if err := b.RecordAttempt(ctx, attemptRow(runID, d, o, ts, attempt)); err != nil {
 		return fmt.Errorf("record attempt for %s: %w", d.Req.TaskID, err)
 	}
@@ -174,9 +185,17 @@ func attemptRow(runID string, d Dispatch, o Outcome, ts string, attempt int) sta
 	a := state.Attempt{
 		RunID: runID, TaskID: d.Req.TaskID, Attempt: attempt,
 		Backend: string(d.Req.Route.Backend), Model: d.Req.Route.CLIModel, Tier: string(d.Req.Route.Tier),
-		Result:   "fail",
-		TokensIn: o.Result.TokensIn, TokensOut: o.Result.TokensOut,
+		EffectiveModel: o.Result.EffectiveModel, EffectiveEffort: o.Result.EffectiveEffort,
+		EffectiveServiceTier: o.Result.EffectiveServiceTier,
+		Result:               "fail",
+		TokensIn:             o.Result.TokensIn, TokensOut: o.Result.TokensOut,
 		CostUSD: o.Result.CostUSD, DurationS: o.Duration.Seconds(), FinishedAt: ts,
+	}
+	if e := d.Req.Route.Effort; e != nil {
+		a.Effort = *e
+	}
+	if t := d.Req.Route.ServiceTier; t != nil {
+		a.ServiceTier = *t
 	}
 	switch {
 	case o.Stopped:
@@ -237,6 +256,17 @@ func outcomeEvent(runID string, d Dispatch, o Outcome, ts string, attempt int) s
 	// without a table of its own.
 	if len(o.Result.Quota) > 0 {
 		ev.Extra["quota"] = o.Result.Quota
+	}
+	// What the CLI says it ran, beside the dispatch event's cli_model,
+	// effort and service_tier (#580); absent when it said nothing.
+	for k, v := range map[string]string{
+		"effective_model":        o.Result.EffectiveModel,
+		"effective_effort":       o.Result.EffectiveEffort,
+		"effective_service_tier": o.Result.EffectiveServiceTier,
+	} {
+		if v != "" {
+			ev.Extra[k] = v
+		}
 	}
 	if o.Stopped {
 		// The run's answer to the operator's request, and the attempt's

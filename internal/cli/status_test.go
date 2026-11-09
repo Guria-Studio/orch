@@ -214,3 +214,62 @@ func TestStatusMarksUnbilledCostAsEstimateOrNA(t *testing.T) {
 		}
 	}
 }
+
+// `status --json` shows, per task, what its latest attempt's CLI said it ran
+// beside the declared cli_model, and whether that differs (#580). A task
+// whose attempts reported nothing has no `effective` at all: unknown is not
+// the declared value.
+func TestStatusShowsTheEffectiveRoute(t *testing.T) {
+	ctx := context.Background()
+	db, _, err := state.Open(ctx, filepath.Join(t.TempDir(), "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	backend := state.NewSQLite(db, "p", t.TempDir())
+	tasks := []model.Task{
+		{ID: "A", Title: "aliased", Status: model.StatusDone, Model: "codex/luna"},
+		{ID: "B", Title: "silent", Status: model.StatusDone, Model: "codex/luna"},
+	}
+	if err := backend.Bootstrap(ctx, tasks); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []state.Attempt{
+		{RunID: "r", TaskID: "A", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", Result: "fail", EffectiveModel: "gpt-6-luna"},
+		{RunID: "r", TaskID: "A", Attempt: 2, Backend: "codex", Model: "gpt-6-luna", ServiceTier: "flex", Result: "success",
+			EffectiveModel: "gpt-6-astra", EffectiveEffort: "high", EffectiveServiceTier: "default"},
+		{RunID: "r", TaskID: "B", Attempt: 1, Backend: "codex", Model: "gpt-6-luna", Result: "success"},
+	} {
+		if err := backend.RecordAttempt(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, err := buildStatusRows(ctx, backend, "p", tasks, router.Router{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(rows[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `"effective":{"attempt":2,"model":"gpt-6-astra","effort":"high","service_tier":"default","mismatch":["model","service_tier"]}`
+	if !strings.Contains(string(body), want) {
+		t.Errorf("A = %s\nwant it to contain %s", body, want)
+	}
+	if rows[1].Effective != nil {
+		t.Errorf("B effective = %+v, want none", rows[1].Effective)
+	}
+
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+	if err := renderStatusTable(cmd, statusSnapshot{Totals: newOrderedCount(), Tasks: rows}); err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?m)^A\s+done\s+\?/codex/luna \(ran gpt-6-astra\)\s`).MatchString(out.String()) {
+		t.Errorf("table:\n%s", out.String())
+	}
+	if !regexp.MustCompile(`(?m)^B\s+done\s+\?/codex/luna\s`).MatchString(out.String()) {
+		t.Errorf("B shows a ran-model it never reported:\n%s", out.String())
+	}
+}

@@ -53,11 +53,11 @@ func writeMetrics(w io.Writer, m project.Metrics) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "GROUP\tATTEMPTS\tDONE\tFIRST-TRY\tRETRIES/DONE\tCOST/DONE\tSEND-BACK\tFINDINGS FIXED/IGNORED\tCI FAILED AFTER VERIFY")
+	_, _ = fmt.Fprintln(tw, "GROUP\tATTEMPTS\tDONE\tFIRST-TRY\tRETRIES/DONE\tCOST/DONE\tSEND-BACK\tFINDINGS FIXED/IGNORED\tCI FAILED AFTER VERIFY\tRAN OTHER MODEL")
 	row := func(name string, r project.MetricsRow) {
-		_, _ = fmt.Fprintf(tw, "%s\t%d\t%d/%d\t%s\t%.2f\t$%.2f\t%s\t%d/%d\t%s\n", name, r.Attempts, r.DoneTasks, r.Tasks,
+		_, _ = fmt.Fprintf(tw, "%s\t%d\t%d/%d\t%s\t%.2f\t$%.2f\t%s\t%d/%d\t%s\t%d\n", name, r.Attempts, r.DoneTasks, r.Tasks,
 			pct(r.FirstAttemptRate, r.DoneTasks), r.RetriesPerDone, r.CostPerDone,
-			pct(r.SendBackRate, r.Verified), r.FindingsFixed, r.FindingsIgnored, pct(r.CIFailRate, r.CIAfterVerify))
+			pct(r.SendBackRate, r.Verified), r.FindingsFixed, r.FindingsIgnored, pct(r.CIFailRate, r.CIAfterVerify), r.ModelMismatches)
 	}
 	row("total", m.Total)
 	for _, r := range m.ByRoute {

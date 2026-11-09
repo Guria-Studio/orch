@@ -71,6 +71,7 @@ const DOT: Record<string, string> = {
   budget_pause: "bg-status-blocked",
   agent_stalled: "bg-status-blocked",
   agent_looping: "bg-status-blocked",
+  model_mismatch: "bg-status-blocked",
   files_overlap: "bg-status-blocked",
   branch_conflict: "bg-status-blocked",
 }

@@ -398,6 +398,14 @@ proveedor en `budgets.yaml` (o `orch budget set codex --source provider`) para
 pausar al `threshold_pct` de esas ventanas; mientras no haya un reporte vigente
 decide la ventana de tokens. `orch budget show` dice, por proveedor, cuál decide.
 
+**Qué modelo corrió de verdad.** `codex exec` no lo dice; el rollout de su
+sesión sí. orch guarda, por intento, el modelo y el esfuerzo con que corrió
+codex (y `default` cuando codex descartó un service tier que el modelo no
+ofrece) junto a los de la ruta: `orch status --json` lo muestra como
+`effective`, la tabla agrega `(ran <modelo>)`, `orch metrics` cuenta los
+intentos que corrieron otra cosa y cada uno escribe un evento `model_mismatch`
+(`orch events <tarea>`). Lo que no se reportó queda desconocido.
+
 ### Empezar sin GitHub
 
 Un repositorio que todavía no tiene remote, o una máquina sin `gh`, no necesita

@@ -193,6 +193,7 @@ type statusRow struct {
 	LastEvent        *eventJSON      `json:"last_event"`
 	LastEventHuman   *string         `json:"last_event_human"`
 	DeferReason      *string         `json:"defer_reason"`
+	Effective        *effectiveJSON  `json:"effective,omitempty"`
 
 	// cost is the sum behind CostUSD/CostSource/EstimatedCostUSD, kept for
 	// buildSnapshot's filtered totals and the table's COST column —
@@ -213,6 +214,11 @@ func buildStatusRows(ctx context.Context, backend state.Backend, projectID strin
 	// near-duplicate that drifts. A task with no row keeps tasks.json's own
 	// status, which is what the per-task form did with ErrTaskNotFound.
 	hydrated, err := project.Hydrate(ctx, backend, tasks)
+	if err != nil {
+		return nil, err
+	}
+
+	effective, err := latestEffective(ctx, backend)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +266,7 @@ func buildStatusRows(ctx context.Context, backend state.Backend, projectID strin
 			LastEvent:        lastEvent,
 			LastEventHuman:   lastEventHuman,
 			DeferReason:      deferReason,
+			Effective:        effective[t.ID],
 			cost:             cost,
 		})
 	}
@@ -271,4 +278,38 @@ func nonNilStrings(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// effectiveJSON is what a task's latest attempt's CLI said it ran (#580),
+// beside the row's declared cli_model: "" for what it did not say. Mismatch
+// names the fields that differ from what the attempt's route asked for.
+type effectiveJSON struct {
+	Attempt     int      `json:"attempt"`
+	Model       string   `json:"model"`
+	Effort      string   `json:"effort"`
+	ServiceTier string   `json:"service_tier"`
+	Mismatch    []string `json:"mismatch"`
+}
+
+// latestEffective is what each task's latest attempt reported running; a
+// task whose latest attempt reported nothing has no entry.
+func latestEffective(ctx context.Context, backend state.Backend) (map[string]*effectiveJSON, error) {
+	attempts, err := backend.Attempts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read attempts: %w", err)
+	}
+	out := map[string]*effectiveJSON{}
+	for _, a := range attempts { // oldest first: the last one wins
+		if !a.Reported() {
+			delete(out, a.TaskID)
+			continue
+		}
+		mismatch := a.Mismatch()
+		if mismatch == nil {
+			mismatch = []string{}
+		}
+		out[a.TaskID] = &effectiveJSON{Attempt: a.Attempt, Model: a.EffectiveModel, Effort: a.EffectiveEffort,
+			ServiceTier: a.EffectiveServiceTier, Mismatch: mismatch}
+	}
+	return out, nil
 }

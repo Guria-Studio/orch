@@ -113,3 +113,44 @@ func TestCodexSessionsDir(t *testing.T) {
 		t.Errorf("neither: %q, want empty", got)
 	}
 }
+
+// codex exec --json never says which model ran; the rollout's turn_context
+// does, with the reasoning effort when one was set (#580). An effort codex
+// did not record stays unknown — not the declared one copied over.
+func TestCodexRolloutReadsTheTurnContext(t *testing.T) {
+	cases := []struct {
+		day, file     string
+		model, effort string
+	}{
+		{"2026/10/22", reasoningRollout, "gpt-6-astra", "high"},
+		{"2026/10/22", tierRollout, "gpt-6-astra", ""},
+		{"2026/09/12", successRollout, "gpt-6-astra", ""},
+	}
+	for _, c := range cases {
+		s := ParseCodexRollout(codexRollout(t, c.day, c.file))
+		if s.Model != c.model || s.Effort != c.effort {
+			t.Errorf("%s: model %q effort %q, want %q %q", c.file, s.Model, s.Effort, c.model, c.effort)
+		}
+	}
+	// The last turn wins: a session may change model between turns.
+	two := []byte(`{"type":"turn_context","payload":{"model":"a","effort":"low"}}
+{"type":"turn_context","payload":{"model":"b"}}
+`)
+	if s := ParseCodexRollout(two); s.Model != "b" || s.Effort != "" {
+		t.Errorf("two turns: %+v, want the last one's model and no effort", s)
+	}
+}
+
+// codex says when it drops a service tier the model does not offer, and
+// then runs on the default one; nothing else in its output names a tier,
+// so a run without that warning leaves the effective tier unknown (#580).
+func TestCodexParseNotesADroppedServiceTier(t *testing.T) {
+	if got := (CodexProvider{}).Parse(0, readFixture(t, "codex", "0.154.0", "tier-not-advertised.jsonl")).EffectiveServiceTier; got != "default" {
+		t.Errorf("tier-not-advertised: EffectiveServiceTier = %q, want default", got)
+	}
+	for _, f := range []string{"success.jsonl", "reasoning.jsonl", "tool-errors.jsonl"} {
+		if got := (CodexProvider{}).Parse(0, readFixture(t, "codex", "0.154.0", f)).EffectiveServiceTier; got != "" {
+			t.Errorf("%s: EffectiveServiceTier = %q, want unknown", f, got)
+		}
+	}
+}
