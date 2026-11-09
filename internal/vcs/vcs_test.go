@@ -142,10 +142,24 @@ func isCLIError(err error) bool {
 
 // ---- runIDFromURL / isAllDigits edge cases -------------------------------
 
+// The run ID, not the job ID that ends gh's real URLs: `gh run view` takes a
+// run (#598).
 func TestRunIDFromURLWithJobSuffix(t *testing.T) {
-	got := runIDFromURL("https://github.com/org/repo/actions/runs/99999/jobs/123")
-	if got != "123" {
-		t.Errorf("got %q, want the rightmost numeric segment (123)", got)
+	for _, url := range []string{
+		"https://github.com/org/repo/actions/runs/99999/jobs/123",
+		"https://github.com/org/repo/actions/runs/99999/job/123",
+		"https://github.com/org/repo/actions/runs/99999",
+	} {
+		if got := runIDFromURL(url); got != "99999" {
+			t.Errorf("runIDFromURL(%q) = %q, want the run ID 99999", url, got)
+		}
+	}
+}
+
+// A commit check run (".../runs/<id>", no "actions") is not an Actions run.
+func TestRunIDFromURLIgnoresACheckRunURL(t *testing.T) {
+	if got := runIDFromURL("https://github.com/org/repo/runs/129359122086"); got != "" {
+		t.Errorf("got %q, want empty", got)
 	}
 }
 
