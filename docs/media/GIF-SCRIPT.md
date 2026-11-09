@@ -25,7 +25,7 @@ them in:
 2. **It dispatches real work.** Tasks go out to a real CLI, in parallel, in
    isolated git worktrees.
 3. **The work lands as a PR.** Green CI, not a diff pasted in a terminal.
-4. **The client sees progress without asking.** The stakeholder view moves
+4. **The client sees progress without asking.** The client page moves
    from one percentage to the next, with an ETA.
 
 Anything that does not serve one of those four claims is cut.
@@ -176,7 +176,7 @@ orch dashboard --profile stakeholder --token demo-token
 Open `http://127.0.0.1:7420/stakeholder`, paste the token once (that beat is
 edited out), and land on the summary.
 
-**On screen:** the stakeholder view — see [`stakeholder.png`](stakeholder.png)
+**On screen:** the client page — see [`stakeholder.png`](stakeholder.png)
 for the exact frame — and then the number **changing**: the two tasks from cut
 3 finish, the page auto-refreshes (10 s cadence), and:
 

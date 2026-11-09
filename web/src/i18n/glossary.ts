@@ -21,6 +21,14 @@ export type GlossaryTerm =
   | "weighted_tokens"
   | "cost_source"
   | "quick_tunnel"
+  | "client"
+
+/**
+ * Words the UI does not use, each with the one it uses instead. "stakeholder"
+ * survives only as a config key and profile name (show_spend_to_stakeholder,
+ * --profile stakeholder); a test holds every dictionary to this.
+ */
+export const forbiddenTerms: Record<string, GlossaryTerm> = { stakeholder: "client" }
 
 export interface GlossaryEntry {
   title: string
@@ -115,6 +123,14 @@ export const glossary: Record<GlossaryTerm, GlossaryEntry> = {
     computed:
       "orch runs cloudflared tunnel --url against the dashboard's port. The address is random, changes on every start, carries no live streams and is limited to 200 requests at a time.",
     source: "cloudflared, supervised by orch dashboard (internal/tunnel)",
+  },
+  client: {
+    title: "Client",
+    definition:
+      "The person the work is for. They read the client page: progress by phase, blockers in plain words and the estimated finish — never a log, a prompt or a per-model cost.",
+    computed:
+      "Not a figure. The client page is built from one snapshot of the project, written by orch publish or served live by the dashboard behind a token.",
+    source: "internal/publish/snapshot, read by orch publish and the dashboard's client profile",
   },
 }
 

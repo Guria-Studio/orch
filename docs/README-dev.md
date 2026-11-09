@@ -50,10 +50,10 @@ orch atomize --file specs/f0-foundation.md --apply
 # 3. Start the dashboard with a Cloudflare quick tunnel
 #    (`tunnel: enabled: true` in config.yaml; needs cloudflared)
 orch dashboard --tunnel &
-# → Client portal: https://<words>.trycloudflare.com/stakeholder/?token=…
+# → Client page: https://<words>.trycloudflare.com/stakeholder/?token=…
 
 # 4. Message your client the client-portal link
-echo "Hey María — your project dashboard: <client portal link>"
+echo "Hey María — your project dashboard: <client page link>"
 echo "It updates as tasks complete. ETA and progress always current."
 
 # 5. Run
@@ -117,7 +117,7 @@ Metrics, Logs. Live SSE event stream updates the UI without polling.
 A Cloudflare quick tunnel (`cloudflared`) supervised by the dashboard — no Cloudflare
 account needed. Start / stop from the Tunnel page or `orch dashboard --tunnel`; the page
 walks through installing cloudflared when it is missing. Two links per start, each with
-its own token: the client portal (stakeholder allow-list only) and the full dashboard.
+its own token: the client page (stakeholder allow-list only) and the full dashboard.
 Stops with the dashboard.
 
 ### Architecture generator

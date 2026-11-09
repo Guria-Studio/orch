@@ -74,7 +74,17 @@ func registerProjectFlags(root *cobra.Command) *projectFlags {
 func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root := &cobra.Command{
 		Use:           "orch",
-		Short:         "Task orchestrator that walks a tasks.json DAG and dispatches to CLI coding agents",
+		Short:         "Run AI agents as a team and give your client a live page",
+		Long: "Run AI agents as a team. Show your client a live page, not a status thread.\n\n" +
+			"orch splits the work into a graph of tasks and runs each one on the coding\n" +
+			"agent CLI you route it to (claude, codex, opencode, gemini, agy, muse), in\n" +
+			"parallel, each in its own git worktree and pull request. Your client gets a\n" +
+			"page with progress by phase, blockers in plain words and the estimated finish.\n\n" +
+			"Start here, in a git repository:\n\n" +
+			"  orch start \"what you want to build\"\n\n" +
+			"It sets the project up, plans the idea with you, estimates it and runs the\n" +
+			"first tasks with the dashboard open. Then orch run carries on, orch dashboard\n" +
+			"shows the work and orch publish writes the client page.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true, // Run prints the error itself, once
