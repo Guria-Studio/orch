@@ -48,6 +48,8 @@ export interface StakeholderDeliverable {
   title: string
   status: DeliverableStatus
   finished_at?: string
+  /** The GitHub issue the deliverable came from, when it was imported from one. */
+  issue_url?: string
 }
 
 export interface StakeholderDelivery {

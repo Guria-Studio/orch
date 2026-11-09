@@ -1154,6 +1154,28 @@ optionally `fallback_cli_model`, `escalation_model`, `failover`, `effort`
 and `service_tier`. The field list is in the packaged file's header
 (`internal/scaffold/defaults/model_router.yaml`); `orch router` maintains it.
 
+**`effort` per backend (#576).** The reasoning effort the route's CLI runs at;
+unset, the CLI's own default. `orch validate` (and every command that loads
+the router) refuses a level the backend does not take, naming the ones it does.
+
+| Backend | Levels | Passed as |
+|---|---|---|
+| `codex` | `low`, `medium`, `high`, plus any higher level (`xhigh`, `max`, `ultra`, …) codex's model catalog lists for the route's `cli_model` | `-c model_reasoning_effort="<level>"` |
+| `agy` | `low`, `medium`, `high` | `--effort <level>` |
+| `muse` | `low`, `medium`, `high` | `--reasoning-effort <level>` |
+| `claude`, `gemini`, `opencode` | `low`, `medium`, `high` (accepted, not passed) | — |
+
+The codex catalog is `$CODEX_HOME/models_cache.json` (`~/.codex/` when
+`CODEX_HOME` is unset), which codex writes and refreshes as it runs; orch only
+reads it, offline, and only for a route asking for more than `high`. Its
+`supported_reasoning_levels` per model decide, so a level codex adds later
+needs no orch release. No catalog, or a model it does not list, leaves
+`low | medium | high`, and the error names the file it looked for:
+
+```
+entry 'codex/gpt-5.6-luna' field `effort` must be one of 'low' | 'medium' | 'high' | 'xhigh' | 'max' for codex model 'gpt-5.6-luna' (codex's model catalog, ~/.codex/models_cache.json), got 'ultra'
+```
+
 **`failover` (#439).** An ordered list of other route keys in the same file
 (`failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]`). When the route's
 provider runs out of quota — a `rate_limit` failure, or claude's

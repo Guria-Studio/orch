@@ -12,7 +12,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // openTaskEditor builds the project's TaskEditor (#390, v0.22): the one path
@@ -47,7 +46,7 @@ func routerKeys(paths config.Paths) []string {
 
 // editErr maps an edit's errors onto exit codes: 1 for a refused edit.
 func editErr(id string, err error) error {
-	if errors.Is(err, project.ErrInvalidEdit) || errors.Is(err, state.ErrTaskNotFound) {
+	if errors.Is(err, project.ErrInvalidEdit) || errors.Is(err, project.ErrTaskNotFound) {
 		return withExitCode(1, fmt.Errorf("%s: %w", id, err))
 	}
 	return err

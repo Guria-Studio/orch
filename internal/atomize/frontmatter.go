@@ -40,6 +40,9 @@ type Frontmatter struct {
 	GeneratedBy string
 	GeneratedAt string
 	Title       string
+	// SourceIssue is the URL of the GitHub issue the spec was imported from
+	// (`orch atomize --from-issues`, #525); every task in the file carries it.
+	SourceIssue string
 	Warnings    []string
 }
 
@@ -179,6 +182,14 @@ func extractFrontmatter(text string) (Frontmatter, string) {
 	if v, ok := m["title"]; ok {
 		if s, ok := v.(string); ok {
 			fm.Title = s
+		}
+	}
+
+	if v, ok := m["source_issue"]; ok {
+		if s, ok := v.(string); ok {
+			fm.SourceIssue = s
+		} else {
+			fm.Warnings = append(fm.Warnings, "frontmatter source_issue debe ser string — ignorado")
 		}
 	}
 

@@ -174,6 +174,12 @@ capture carries **plain-text stderr interleaved among the JSONL**
 `jsonlEvents` skipping unparseable lines is for; before this file, the only
 thing exercising it was a truncated final line.
 
+## `codex/0.166.0/` — real capture (#576)
+
+| File | How it was produced | Exit |
+|---|---|---|
+| `models_cache.json` | the catalog codex 0.166.0 wrote to `~/.codex/models_cache.json` on this VPS (fetched 2026-11-09), projected with `jq '{client_version, models: [.models[] \| {slug, visibility, default_reasoning_level, supported_reasoning_levels: [.supported_reasoning_levels[] \| {effort}]}]}'` — the full file carries each model's instructions; `ParseCodexEfforts` reads `slug` and the efforts only. gpt-6-astra lists `xhigh`, `max`, `ultra`; gpt-5.6-luna stops at `max` | — |
+
 ## `opencode/1.18.32/` — real capture
 
 Captured on 2026-10-16 with the same argv as below, in a scratch directory

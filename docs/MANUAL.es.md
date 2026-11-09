@@ -253,6 +253,14 @@ despacho, no se acepta en silencio; el parser se salta los bloques de código
 con fences de un spec (así un spec de ejemplo dentro de `specs/README.md` no se
 importa como tareas reales).
 
+**Las tareas nuevas quedan en `backlog`**, y `orch run` nunca despacha una
+tarea en backlog. `--apply` termina diciéndolo, con el comando que las
+promueve — `orch task set --id F1.1.T1 --status todo` para una, un bucle
+`for id in …; do …; done` sobre el mismo comando para varias. Promueve las que
+quieras correr. Si te olvidas, `orch run` (y `orch estimate`) dicen cuántas
+tareas siguen en backlog e imprimen el mismo comando, en vez de solo "nothing
+is ready".
+
 ---
 
 ## 4. Revisar el plan antes de correrlo
@@ -667,6 +675,23 @@ gemini/gemini-2.5-flash:
 `orch router validate` comprueba que cada tarea resuelva a una entrada, y
 `orch doctor`, que cada CLI que nombran esas entradas esté instalada.
 
+**Esfuerzo de razonamiento.** El `effort:` de una ruta fija cuánto piensa su
+CLI. `low`, `medium` y `high` valen en todos los backends (codex, agy y muse
+los pasan). Las rutas de codex aceptan además los niveles superiores —
+`xhigh`, `max`, `ultra`— que el catálogo de modelos de codex
+(`~/.codex/models_cache.json`, que escribe el propio codex) lista para ese
+modelo; sin el catálogo, o con un nivel que el modelo no lista, `orch
+validate` falla y nombra los niveles que ese modelo acepta. La matriz
+completa está en `docs/CONFIG.md`.
+
+```yaml
+codex/gpt-6-astra:
+  backend: codex
+  cli_model: gpt-6-astra
+  tier: premium
+  effort: xhigh
+```
+
 **Failover cuando un proveedor se queda sin cuota.** Por defecto, una tarea con
 rate limit espera `retry.rate_limit` y vuelve a intentar con la misma CLI. Dale
 a su ruta una lista `failover:` de otras claves de ruta y el reintento va de
@@ -919,6 +944,7 @@ los flags.
 | Comando | Para qué sirve |
 |---|---|
 | `orch sync issues` | Convierte los issues de GitHub etiquetados del cliente en tareas (`gh-<número>`), y en cada corrida agrega solo lo nuevo. |
+| `orch atomize --from-issues label:orch --model M` | Convierte cada issue abierto de GitHub que coincide con la búsqueda en un spec (`specs/issue-<n>-<slug>.md`) y sus tareas; muestra la vista previa y con `--apply` escribe. Una segunda corrida no importa nada dos veces. El PR de la tarea cierra el issue al mergear (`Closes`); con `vcs.provider: local` orch lo cierra con un comentario cuando aterriza su última tarea. |
 | `orch export clickup` | Refleja el plan en una Folder de ClickUp para un cliente que sigue el trabajo ahí; al volver a correrlo, los estados se actualizan. |
 | `orch export multica` | Crea el plan como issues de Multica, un padre por fase. |
 | `orch ci setup` / `ci review` / `ci usage` | Escribe el pipeline de CI que pide el repositorio, corre una revisión con IA de cada PR dentro del CI y suma los minutos de Actions facturados. |

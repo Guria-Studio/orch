@@ -24,6 +24,12 @@ type Task struct {
 	EstimateHours float64
 	Files         []string
 	SpecRef       string
+	// SourceIssue is the URL of the GitHub issue the task was imported from
+	// (`orch atomize --from-issues`, #525): the PR body closes it and the
+	// client page links it. Optional on the wire (`sourceIssue`), and never
+	// written for a task without one, so files from before it keep their
+	// shape.
+	SourceIssue string
 	// Comments holds each entry's raw JSON value verbatim —
 	// orchestrator/models.py types this `list[dict]` with no fixed shape,
 	// so Go doesn't need to understand it to preserve it losslessly.
@@ -104,6 +110,12 @@ func TaskFromJSON(raw map[string]json.RawMessage) (Task, error) {
 		return Task{}, err
 	}
 	if t.Comments, err = popRawMessageSlice(raw, "comments"); err != nil {
+		return Task{}, err
+	}
+	if _, ok := raw["sourceIssue"]; ok {
+		t.present["sourceIssue"] = true
+	}
+	if t.SourceIssue, err = popOptionalString(raw, "sourceIssue", ""); err != nil {
 		return Task{}, err
 	}
 
@@ -188,6 +200,13 @@ func (t Task) MarshalJSON() ([]byte, error) {
 	}
 	if include("specRef") {
 		if err := out.set("specRef", t.SpecRef); err != nil {
+			return nil, err
+		}
+	}
+	// Not in optionalTaskKeys: a task built in Go writes it only when it has
+	// one, unlike the Python-era keys that are always emitted.
+	if t.SourceIssue != "" || t.present["sourceIssue"] {
+		if err := out.set("sourceIssue", t.SourceIssue); err != nil {
 			return nil, err
 		}
 	}
