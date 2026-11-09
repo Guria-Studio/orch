@@ -255,6 +255,14 @@ no dispatch, não é aceita em silêncio; blocos de código cercados num spec
 são ignorados pelo parser (assim um spec de exemplo dentro de
 `specs/README.md` não é importado como tarefas reais).
 
+**As tarefas novas ficam em `backlog`**, e o `orch run` nunca despacha uma
+tarefa em backlog. O `--apply` termina dizendo isso, com o comando que as
+promove — `orch task set --id F1.1.T1 --status todo` para uma, um loop
+`for id in …; do …; done` sobre o mesmo comando para várias. Promova as que
+você quer rodar. Se esquecer, o `orch run` (e o `orch estimate`) dizem
+quantas tarefas continuam em backlog e imprimem o mesmo comando, em vez de só
+"nothing is ready".
+
 ---
 
 ## 4. Revisar o plano antes de rodar
@@ -667,6 +675,23 @@ gemini/gemini-2.5-flash:
 
 `orch router validate` verifica que cada tarefa resolve para uma entrada, e
 `orch doctor` que cada CLI nomeada por essas entradas está instalada.
+
+**Esforço de raciocínio.** O `effort:` de uma rota define quanto a CLI dela
+pensa. `low`, `medium` e `high` valem em todos os backends (codex, agy e muse
+os repassam). As rotas de codex aceitam também os níveis acima — `xhigh`,
+`max`, `ultra` — que o catálogo de modelos do codex
+(`~/.codex/models_cache.json`, escrito pelo próprio codex) lista para esse
+modelo; sem o catálogo, ou com um nível que o modelo não lista, `orch
+validate` falha e nomeia os níveis que esse modelo aceita. A matriz completa
+está em `docs/CONFIG.md`.
+
+```yaml
+codex/gpt-6-astra:
+  backend: codex
+  cli_model: gpt-6-astra
+  tier: premium
+  effort: xhigh
+```
 
 **Failover quando um provedor fica sem cota.** Por padrão uma tarefa com rate
 limit espera `retry.rate_limit` e tenta a mesma CLI de novo. Dê à rota dela uma

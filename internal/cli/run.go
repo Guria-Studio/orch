@@ -212,7 +212,8 @@ func reportRunSummary(ctx context.Context, w io.Writer, p *project.Project, noti
 }
 
 // noteEstimate prints `orch estimate`'s first line before anything is
-// dispatched (#357). An estimate that cannot be made is not a reason to stop.
+// dispatched (#357), and with nothing to dispatch, the backlog that is why
+// and how to promote it (#579). An estimate that cannot be made is not a reason to stop.
 func noteEstimate(ctx context.Context, w io.Writer, p *project.Project, queue *engine.TaskQueue, opts runOptions) {
 	tasks := queue.AllTasks()
 	for i := range tasks {
@@ -224,6 +225,11 @@ func noteEstimate(ctx context.Context, w io.Writer, p *project.Project, queue *e
 	}
 	lines := e.Lines()
 	_, _ = fmt.Fprintf(w, "estimate: %s\n", lines[0])
+	// Nothing to dispatch because the selection sits in backlog is the
+	// one "nothing is ready" whose fix is a command away (#579).
+	if note := e.BacklogNote(); len(e.Tasks) == 0 && note != "" {
+		_, _ = fmt.Fprintf(w, "note: %s\n", note)
+	}
 }
 
 // offerReportFindings is report_findings asked at the right moment (#376):

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/estimate"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/pyfmt"
@@ -140,6 +142,12 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			if !apply {
+				// Where they will land, and what that means for a run (#579).
+				if len(diff.NewTasks) > 0 {
+					_, err := fmt.Fprintln(out, "New tasks are written in backlog, which orch run does not dispatch: "+
+						"after --apply, promote the ones to run with orch task set --id <ID> --status todo.")
+					return err
+				}
 				return nil
 			}
 			if len(diff.NewTasks) == 0 && len(diff.Updated) == 0 {
@@ -149,8 +157,9 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 
 			// Merged again under the task editor's lock, onto tasks.json as it is
 			// now: an edit that landed since the preview is kept (#531).
+			var written atomize.MergeDiff
 			backupPath, err := project.MutateTasks(paths.StateDir(), tasksPath, !noBackup, func(tf *model.TasksFile) error {
-				*tf, _ = atomize.MergeTasks(*tf, parse.Tasks)
+				*tf, written = atomize.MergeTasks(*tf, parse.Tasks)
 				return nil
 			})
 			if err != nil {
@@ -164,7 +173,7 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 					return err
 				}
 			}
-			return nil
+			return noteNewInBacklog(out, written.NewTasks)
 		},
 	}
 	cmd.Flags().StringVar(&specsDir, "specs-dir", "",
@@ -186,6 +195,26 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&allAuthors, "all-authors", false,
 		"With --from-issues: import issues by anyone, not only the repo's collaborators")
 	return cmd
+}
+
+// noteNewInBacklog says that the tasks --apply just added are in backlog,
+// which `orch run` never dispatches, and the command that promotes them
+// (#579): a run right after used to report only that nothing was ready.
+func noteNewInBacklog(w io.Writer, added []model.Task) error {
+	if len(added) == 0 {
+		return nil
+	}
+	ids := make([]string, len(added))
+	for i, t := range added {
+		ids[i] = t.ID
+	}
+	noun, pronoun := "task is", "it"
+	if len(ids) > 1 {
+		noun, pronoun = "tasks are", "them"
+	}
+	_, err := fmt.Fprintf(w, "%d new %s in backlog, which orch run does not dispatch — promote %s with: %s\n",
+		len(ids), noun, pronoun, estimate.PromoteCommand(ids))
+	return err
 }
 
 // renderAtomizeList is `--list`'s renderer, porting `render_list`'s content

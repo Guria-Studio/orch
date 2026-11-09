@@ -10,7 +10,6 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
@@ -48,9 +47,9 @@ func openSteer(cmd *cobra.Command, flags *projectFlags) (project.Steer, func() e
 // steerErr maps the backend's errors onto `task set`'s exit codes.
 func steerErr(id string, err error) error {
 	switch {
-	case errors.Is(err, state.ErrTaskNotFound):
+	case errors.Is(err, project.ErrTaskNotFound):
 		return withExitCode(1, fmt.Errorf("%s: %w", id, err))
-	case errors.Is(err, state.ErrIllegalTransition):
+	case errors.Is(err, project.ErrIllegalTransition):
 		return withExitCode(3, fmt.Errorf("illegal transition: %w", err))
 	}
 	return err
@@ -155,7 +154,7 @@ func newTaskStopCmd(flags *projectFlags) *cobra.Command {
 				_, err = fmt.Fprintf(out, "the run has not answered yet; `orch events %s` shows it when it does\n", id)
 				return err
 			}
-			_, err = fmt.Fprintln(out, stopAnswer(id, ev))
+			_, err = fmt.Fprintln(out, stopAnswer(id, ev.Extra))
 			return err
 		},
 	}
@@ -166,10 +165,11 @@ func newTaskStopCmd(flags *projectFlags) *cobra.Command {
 	return cmd
 }
 
-// stopAnswer says what the run did with a stop request.
-func stopAnswer(id string, ev state.Event) string {
-	hold, _ := ev.Extra["hold"].(bool)
-	switch ev.Extra["stopped"] {
+// stopAnswer says what the run did with a stop request, from its answer
+// event's extra.
+func stopAnswer(id string, extra map[string]any) string {
+	hold, _ := extra["hold"].(bool)
+	switch extra["stopped"] {
 	case "attempt":
 		if hold {
 			return fmt.Sprintf("stopped: %s's attempt ended; the task is held (blocked) — `orch task set --id %s --status todo` releases it", id, id)
@@ -187,7 +187,7 @@ func stopAnswer(id string, ev state.Event) string {
 
 // newTaskSetCmd ports `orch task set` (orchestrator/orch.py's
 // _run_task_set_subcommand). Only `--status` is wired to
-// state.Backend.Transition today — `--model`/`--backend` would write to
+// Project.SetStatus today — `--model`/`--backend` would write to
 // `tasks_definition`, and the Backend interface has no method for
 // that yet (see go-migration-notes.md). The flags are still registered, so
 // a caller gets a clear "not implemented" error instead of cobra's opaque
@@ -231,12 +231,12 @@ func newTaskSetCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := project.OpenWith(ctx, paths, cfg)
 			if err != nil {
 				return err
 			}
-			defer func() { _ = closeDB() }()
-			if err := backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
+			defer func() { _ = p.Close() }()
+			if err := p.Backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
 				return fmt.Errorf("bootstrap: %w", err)
 			}
 
@@ -244,19 +244,12 @@ func newTaskSetCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return withExitCode(1, err)
 			}
-			note := state.Note{Author: "operator", Body: "manual set via orch task set"}
-			err = backend.Transition(ctx, id, st, note)
-			switch {
-			case err == nil:
-				_, ferr := fmt.Fprintf(cmd.OutOrStdout(), "task %s: status -> %s\n", id, status)
-				return ferr
-			case errors.Is(err, state.ErrTaskNotFound):
-				return withExitCode(1, fmt.Errorf("%s: %w", id, err))
-			case errors.Is(err, state.ErrIllegalTransition):
-				return withExitCode(3, fmt.Errorf("illegal transition: %w", err))
-			default:
-				return err
+			note := project.Note{Author: "operator", Body: "manual set via orch task set"}
+			if err := p.SetStatus(ctx, id, st, note); err != nil {
+				return steerErr(id, err)
 			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "task %s: status -> %s\n", id, status)
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Task ID, e.g. F1.1.T3")

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
@@ -63,15 +63,15 @@ func newTaskSalvageCmd(flags *projectFlags) *cobra.Command {
 			if i < 0 {
 				return withExitCode(1, fmt.Errorf("%s has no committed work outside %s for %s; run `orch task salvage --id %s` to list what there is", accept, base, id, id))
 			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := project.OpenWith(ctx, paths, cfg)
 			if err != nil {
 				return err
 			}
-			defer func() { _ = closeDB() }()
-			if err := backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
+			defer func() { _ = p.Close() }()
+			if err := p.Backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
 				return fmt.Errorf("bootstrap: %w", err)
 			}
-			if _, err := backend.Task(ctx, id); err != nil {
+			if _, err := p.TaskStatus(ctx, id); err != nil {
 				return steerErr(id, err)
 			}
 			taskBranch := "orch/" + id
@@ -86,10 +86,10 @@ func newTaskSalvageCmd(flags *projectFlags) *cobra.Command {
 				}
 			}
 
-			note := state.Note{Author: "orch-salvage", Body: fmt.Sprintf("salvaged: %d commit(s) an earlier attempt left on %s, accepted without running the agent again", commitCount(found[i].commits), accept)}
-			if err := backend.Transition(ctx, id, model.StatusDone, note); errors.Is(err, state.ErrIllegalTransition) {
-				if err = backend.Transition(ctx, id, model.StatusTodo, note); err == nil {
-					err = backend.Transition(ctx, id, model.StatusDone, note)
+			note := project.Note{Author: "orch-salvage", Body: fmt.Sprintf("salvaged: %d commit(s) an earlier attempt left on %s, accepted without running the agent again", commitCount(found[i].commits), accept)}
+			if err := p.SetStatus(ctx, id, model.StatusDone, note); errors.Is(err, project.ErrIllegalTransition) {
+				if err = p.SetStatus(ctx, id, model.StatusTodo, note); err == nil {
+					err = p.SetStatus(ctx, id, model.StatusDone, note)
 				}
 				if err != nil {
 					return steerErr(id, err)
@@ -97,10 +97,8 @@ func newTaskSalvageCmd(flags *projectFlags) *cobra.Command {
 			} else if err != nil {
 				return steerErr(id, err)
 			}
-			if err := backend.AppendEvent(ctx, "", state.Event{
-				EventType: eventSalvageAccepted, TaskID: id, TS: state.FormatTS(time.Now()),
-				Extra: map[string]any{"branch": taskBranch, "from": accept, "commits": commitCount(found[i].commits), "base": base},
-			}); err != nil {
+			if err := p.RecordEvent(ctx, id, eventSalvageAccepted,
+				map[string]any{"branch": taskBranch, "from": accept, "commits": commitCount(found[i].commits), "base": base}); err != nil {
 				return fmt.Errorf("recording the salvage: %w", err)
 			}
 			_, err = fmt.Fprintf(out, "%s: done, with the %d commit(s) now on %s. Publish them as a task's work goes out:\n"+
