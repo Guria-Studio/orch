@@ -23,10 +23,10 @@ func TestStopAnswerSaysWhatTheRunDid(t *testing.T) {
 		{"not_running", false, "T was not running; nothing to stop"},
 	} {
 		ev := state.Event{Extra: map[string]any{"stopped": tc.stopped, "hold": tc.hold}}
-		if got := stopAnswer("T", ev); got != tc.want {
+		if got := stopAnswer("T", ev.Extra); got != tc.want {
 			t.Errorf("%s/hold=%v: %q, want %q", tc.stopped, tc.hold, got, tc.want)
 		}
-		if !strings.Contains(stopAnswer("T", ev), "T") {
+		if !strings.Contains(stopAnswer("T", ev.Extra), "T") {
 			t.Errorf("%s: the answer does not name the task", tc.stopped)
 		}
 	}
