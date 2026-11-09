@@ -212,3 +212,12 @@ sobrevive a un reinicio de `orch run` (hoy el estado de merge es en memoria,
    nunca?
 6. ¿Dónde está el incidente v5/v5 (proyecto y PRs) para usarlo como fixture
    real además del sintético?
+
+## 9. Decisiones (Héctor, 2026-11-09)
+
+1. Prioridad: sale de la fase y de la cantidad de tareas dependientes; sin campo nuevo en `tasks.json`.
+2. Las reglas viven en `.orchestrator/config.yaml`.
+3. Si el repo tiene la merge queue de GitHub activa, orch la detecta y le delega el orden; solo agrega los chequeos semánticos.
+4. `orch init` agrega la regla `migrations` por defecto para los stacks conocidos (Alembic por `down_revision`).
+5. El re-verify de la cola **no** repite la review LLM.
+6. Fixture real del choque v5/v5: pendiente de confirmar (probablemente dogfood #99/#103); mientras tanto, solo el sintético.

@@ -201,3 +201,11 @@ orch-cloud deben aceptar ambos).
 3. ¿Qué video se muestra si hay varios tests: el primero que pasa, o los marcados `@evidence`?
 4. ¿Los títulos de pasos (`test.step`) se traducen al idioma del cliente con `snapshot/translate.go`, o se exige escribirlos ya en ese idioma?
 5. ¿`orch evidence` como comando nuevo, o basta con el dashboard y `--json` en `orch status`?
+
+## 9. Decisiones (Héctor, 2026-11-09)
+
+1. Medios: (a) solo local + dashboard (con túnel si hace falta) en esta fase; orch-cloud queda para una fase posterior.
+2. Video en la página del cliente: **opt-in**.
+3. Con varios tests se muestran solo los marcados `@evidence`.
+4. Los títulos de `test.step` se escriben ya en el idioma del cliente; no se traducen.
+5. Sin comando nuevo: alcanza con el dashboard y `--json` en `orch status`.
