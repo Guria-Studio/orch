@@ -10,7 +10,6 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // defaultAuthor is who a tool call is attributed to when it does not say.
@@ -40,7 +39,7 @@ const (
 
 // transitionError is the structured half of a refused write.
 //
-// The list is the point. `state.Transition` already refuses an illegal move
+// The list is the point. The backend's Transition already refuses an illegal move
 // and its message names the legal destinations — but as prose, inside an
 // error string, which a model has to parse out of English. Here the same
 // facts are fields: where the task actually is, where it may go, and which
@@ -143,13 +142,13 @@ func (s *server) move(ctx context.Context, taskID, rawStatus, note, author strin
 
 	// The current status is read before the write so a successful result can
 	// report where the task came from, and so a refusal can name the legal
-	// destinations. `state.Transition` re-reads it inside its own
+	// destinations. The backend's Transition re-reads it inside its own
 	// transaction — this read is for the report, never for the decision, so
 	// a concurrent move between the two cannot let through anything the
 	// table forbids.
 	from, err := s.currentStatus(ctx, taskID)
 	switch {
-	case errors.Is(err, state.ErrTaskNotFound):
+	case errors.Is(err, project.ErrTaskNotFound):
 		return refuse(setStatusOut{
 			TaskID: taskID,
 			To:     string(status),
@@ -165,31 +164,31 @@ func (s *server) move(ctx context.Context, taskID, rawStatus, note, author strin
 	if author == "" {
 		author = defaultAuthor
 	}
-	err = s.opts.Backend.Transition(ctx, taskID, status, state.Note{Author: author, Body: note})
+	err = project.SetStatus(ctx, s.opts.Backend, taskID, status, project.Note{Author: author, Body: note})
 	switch {
 	case err == nil:
 		return nil, setStatusOut{
 			OK:     true,
 			TaskID: taskID,
-			From:   string(from.Status),
+			From:   string(from),
 			To:     string(status),
 		}, nil
 
-	case errors.Is(err, state.ErrIllegalTransition):
+	case errors.Is(err, project.ErrIllegalTransition):
 		return refuse(setStatusOut{
 			TaskID: taskID,
-			From:   string(from.Status),
+			From:   string(from),
 			To:     string(status),
 			Error: &transitionError{
 				Code: codeIllegalTransition,
 				Message: fmt.Sprintf("%s cannot move from %s to %s",
-					taskID, from.Status, status),
-				From:             string(from.Status),
-				ValidTransitions: transitionNames(from.Status),
+					taskID, from, status),
+				From:             string(from),
+				ValidTransitions: transitionNames(from),
 			},
 		})
 
-	case errors.Is(err, state.ErrTaskNotFound):
+	case errors.Is(err, project.ErrTaskNotFound):
 		// Reachable only if the row vanished between the read above and the
 		// write — reported rather than folded into the generic error, so the
 		// agent gets the same actionable code it would have got a moment
@@ -228,7 +227,7 @@ func refuse(out setStatusOut) (*mcpsdk.CallToolResult, setStatusOut, error) {
 	}, out, nil
 }
 
-// currentStatus reads a task's runtime row, seeding it first if tasks.json
+// currentStatus reads a task's runtime status, seeding its row first if tasks.json
 // has the task and the database does not.
 //
 // `orch task-status` calls Bootstrap on every invocation, so a task added to
@@ -237,10 +236,10 @@ func refuse(out setStatusOut) (*mcpsdk.CallToolResult, setStatusOut, error) {
 // task permanently unknown to an agent that was dispatched for it. The seed
 // happens on the miss path only: the common case is one read of an existing
 // row, and Bootstrap never overwrites a runtime status anyway.
-func (s *server) currentStatus(ctx context.Context, taskID string) (state.TaskRuntime, error) {
-	rt, err := s.opts.Backend.Task(ctx, taskID)
-	if !errors.Is(err, state.ErrTaskNotFound) {
-		return rt, err
+func (s *server) currentStatus(ctx context.Context, taskID string) (model.Status, error) {
+	st, err := project.TaskStatus(ctx, s.opts.Backend, taskID)
+	if !errors.Is(err, project.ErrTaskNotFound) {
+		return st, err
 	}
 
 	tasks, loadErr := project.Load(ctx, s.opts.Backend, s.opts.TasksJSON)
@@ -248,20 +247,20 @@ func (s *server) currentStatus(ctx context.Context, taskID string) (state.TaskRu
 		if s.opts.TasksJSON == "" {
 			// No manifest to consult, so nothing was learned: the task is
 			// unknown and that is the whole story.
-			return state.TaskRuntime{}, err
+			return "", err
 		}
 		// A configured tasks.json that cannot be read is a broken project,
 		// not an unknown task. Reporting the miss and dropping this would
 		// send an agent looking for a typo in an id while the project's
 		// manifest is the thing that is wrong.
-		return state.TaskRuntime{}, fmt.Errorf("read %s while looking up %q: %w",
+		return "", fmt.Errorf("read %s while looking up %q: %w",
 			s.opts.TasksJSON, taskID, loadErr)
 	}
 	if _, ok := findTask(tasks, taskID); !ok {
-		return state.TaskRuntime{}, err
+		return "", err
 	}
 	if bootErr := s.opts.Backend.Bootstrap(ctx, tasks); bootErr != nil {
-		return state.TaskRuntime{}, fmt.Errorf("seed the project from %s: %w", s.opts.TasksJSON, bootErr)
+		return "", fmt.Errorf("seed the project from %s: %w", s.opts.TasksJSON, bootErr)
 	}
-	return s.opts.Backend.Task(ctx, taskID)
+	return project.TaskStatus(ctx, s.opts.Backend, taskID)
 }

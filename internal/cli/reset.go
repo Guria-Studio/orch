@@ -9,7 +9,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newResetCmd ports `orch reset` (orchestrator/orch.py's
@@ -23,7 +23,7 @@ import (
 // project that field is frozen at whatever `orch init` wrote (normally
 // "todo") and never reflects a live run, so a literal port would almost
 // never find anything to reset. Go reads the actual runtime status via
-// Backend.Tasks/TaskFilter instead, which is what "revert stuck
+// project.TaskIDsIn instead, which is what "revert stuck
 // in-progress tasks" needs to mean once the database, not the file, is
 // the truth.
 func newResetCmd(flags *projectFlags) *cobra.Command {
@@ -44,18 +44,18 @@ func newResetCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("config load failed: %w", err)
 			}
-			backend, closeDB, err := openBackend(ctx, paths, res.Config)
+			p, err := project.OpenWith(ctx, paths, res.Config)
 			if err != nil {
 				return err
 			}
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
 
 			tasks := loadDAG(paths)
-			if err := backend.Bootstrap(ctx, tasks); err != nil {
+			if err := p.Backend.Bootstrap(ctx, tasks); err != nil {
 				return fmt.Errorf("bootstrap: %w", err)
 			}
 
-			candidates, err := inProgressCandidates(ctx, backend, only)
+			candidates, err := inProgressCandidates(ctx, p.Backend, only)
 			if err != nil {
 				return err
 			}
@@ -79,10 +79,10 @@ func newResetCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 
-			note := state.Note{Author: "orch-reset", Body: "reset"}
+			note := project.Note{Author: "orch-reset", Body: "reset"}
 			reverted := make([]string, 0, len(candidates))
 			for _, id := range candidates {
-				if err := backend.Transition(ctx, id, model.StatusTodo, note); err != nil {
+				if err := p.SetStatus(ctx, id, model.StatusTodo, note); err != nil {
 					if _, werr := fmt.Fprintf(cmd.ErrOrStderr(), "reset failed for %s: %v\n", id, err); werr != nil {
 						return werr
 					}
@@ -106,17 +106,17 @@ func newResetCmd(flags *projectFlags) *cobra.Command {
 	return cmd
 }
 
-// inProgressCandidates returns every in-progress task id (DAG order),
-// narrowed by --only when set.
-func inProgressCandidates(ctx context.Context, backend state.Backend, only string) ([]string, error) {
-	rows, err := backend.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusInProgress}})
+// inProgressCandidates returns every in-progress task id (task id order, as
+// the database lists them), narrowed by --only when set.
+func inProgressCandidates(ctx context.Context, backend project.StatusReader, only string) ([]string, error) {
+	ids, err := project.TaskIDsIn(ctx, backend, model.StatusInProgress)
 	if err != nil {
 		return nil, fmt.Errorf("list in-progress tasks: %w", err)
 	}
-	out := make([]string, 0, len(rows))
-	for _, r := range rows {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
 		if only != "" {
-			ok, err := path.Match(only, r.ID)
+			ok, err := path.Match(only, id)
 			if err != nil {
 				return nil, fmt.Errorf("--only %q: %w", only, err)
 			}
@@ -124,7 +124,7 @@ func inProgressCandidates(ctx context.Context, backend state.Backend, only strin
 				continue
 			}
 		}
-		out = append(out, r.ID)
+		out = append(out, id)
 	}
 	return out, nil
 }
