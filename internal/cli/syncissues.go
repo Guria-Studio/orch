@@ -173,10 +173,10 @@ func newSyncCmd(flags *projectFlags) *cobra.Command {
 
 func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 	var (
-		label     string
-		modelName string
-		state     string
-		limit     int
+		label      string
+		modelName  string
+		state      string
+		limit      int
 		dryRun     bool
 		allAuthors bool
 	)
