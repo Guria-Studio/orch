@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // Event presentation, ported from `format_event` in
@@ -86,7 +86,7 @@ type eventPayload struct {
 // formatEvent never fails. A row with an unknown type, a missing timestamp
 // and no extra still produces something a human can read — the alternative is
 // a log view that goes blank exactly when something has gone wrong.
-func formatEvent(e state.Event) eventPayload {
+func formatEvent(e project.Event) eventPayload {
 	etype := e.EventType
 	if etype == "" {
 		etype = "?"
@@ -258,9 +258,9 @@ func formatDuration(raw any) string {
 }
 
 // rawEvent is the untouched row the SPA keeps for its detail panel. Built
-// rather than passed through because `state.Event` is a struct and Python's
+// rather than passed through because `project.Event` is a struct and Python's
 // `raw` is the dict it read.
-func rawEvent(e state.Event) map[string]any {
+func rawEvent(e project.Event) map[string]any {
 	extra := e.Extra
 	if extra == nil {
 		extra = map[string]any{}

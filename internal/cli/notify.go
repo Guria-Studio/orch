@@ -14,7 +14,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/notify"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // defaultTestMessage is Python's own `--message` default, word for word: an
@@ -212,7 +211,7 @@ func newNotifyDigestCmd(flags *projectFlags) *cobra.Command {
 // The milestone ETAs below ARE dates, because a milestone's projection is the
 // task-count kind (graph.ProjectCompletion) — the same figure
 // `/api/milestones` renders.
-func digestText(ctx context.Context, backend state.Backend, paths config.Paths, cfg config.Config, language string) (string, error) {
+func digestText(ctx context.Context, backend project.Backend, paths config.Paths, cfg config.Config, language string) (string, error) {
 	lang := language
 	if lang == "" {
 		lang = cfg.Dashboard.SummaryLanguage
@@ -309,8 +308,8 @@ func startOfDayUTC(now time.Time) time.Time {
 // budget gate's per-provider window, not for a project-wide report — so a
 // total means one call per known backend. Same loop computeCostByTask runs,
 // and the same reason it exists.
-func spendSince(ctx context.Context, backend state.Backend, since time.Time) ([]state.Spend, error) {
-	var out []state.Spend
+func spendSince(ctx context.Context, backend project.Backend, since time.Time) ([]project.Spend, error) {
+	var out []project.Spend
 	for _, b := range knownBackends {
 		rows, err := backend.SpendSince(ctx, string(b), since)
 		if err != nil {

@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/findings"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
@@ -56,7 +56,7 @@ func newFindingsCmd(flags *projectFlags) *cobra.Command {
 		Use:   "send ID... | --all",
 		Short: "File the queued findings as issues on " + findings.Repo + " with your gh login",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return eachFinding(cmd, flags, args, sendAll, func(b state.Backend, id int64) (string, error) {
+			return eachFinding(cmd, flags, args, sendAll, func(b project.Backend, id int64) (string, error) {
 				url, err := findings.Send(cmd.Context(), b, newFindingsFiler(), id)
 				return "sent " + url, err
 			})
@@ -69,7 +69,7 @@ func newFindingsCmd(flags *projectFlags) *cobra.Command {
 		Short: "Drop queued findings without sending them",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return eachFinding(cmd, flags, args, false, func(b state.Backend, id int64) (string, error) {
+			return eachFinding(cmd, flags, args, false, func(b project.Backend, id int64) (string, error) {
 				return "dismissed", findings.Dismiss(cmd.Context(), b, id)
 			})
 		},
@@ -78,7 +78,7 @@ func newFindingsCmd(flags *projectFlags) *cobra.Command {
 	return cmd
 }
 
-func openFindings(cmd *cobra.Command, flags *projectFlags) (state.Backend, func() error, error) {
+func openFindings(cmd *cobra.Command, flags *projectFlags) (project.Backend, func() error, error) {
 	paths, cfg, err := loadProjectConfig(flags)
 	if err != nil {
 		return nil, nil, err
@@ -89,7 +89,7 @@ func openFindings(cmd *cobra.Command, flags *projectFlags) (state.Backend, func(
 // eachFinding runs act on each id named, or on every queued one with all,
 // printing one line per finding; the first failure is the exit code.
 func eachFinding(cmd *cobra.Command, flags *projectFlags, args []string, all bool,
-	act func(state.Backend, int64) (string, error)) error {
+	act func(project.Backend, int64) (string, error)) error {
 	if all == (len(args) > 0) {
 		return withExitCode(2, fmt.Errorf("name the findings by id, or pass --all"))
 	}
@@ -130,17 +130,17 @@ func eachFinding(cmd *cobra.Command, flags *projectFlags, args []string, all boo
 	return first
 }
 
-func pendingFindings(rows []state.QueuedFinding) []state.QueuedFinding {
-	out := []state.QueuedFinding{}
+func pendingFindings(rows []project.QueuedFinding) []project.QueuedFinding {
+	out := []project.QueuedFinding{}
 	for _, f := range rows {
-		if f.Status == state.FindingQueued {
+		if f.Status == project.FindingQueued {
 			out = append(out, f)
 		}
 	}
 	return out
 }
 
-func writeFindings(w io.Writer, rows []state.QueuedFinding) error {
+func writeFindings(w io.Writer, rows []project.QueuedFinding) error {
 	if len(rows) == 0 {
 		_, err := fmt.Fprintln(w, "No findings waiting. Your agents queue them here when orch gets in their way.")
 		return err
@@ -161,7 +161,7 @@ func writeFindings(w io.Writer, rows []state.QueuedFinding) error {
 	return err
 }
 
-func writeFindingsJSON(w io.Writer, rows []state.QueuedFinding) error {
+func writeFindingsJSON(w io.Writer, rows []project.QueuedFinding) error {
 	type row struct {
 		ID       int64  `json:"id"`
 		Status   string `json:"status"`

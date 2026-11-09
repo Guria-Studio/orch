@@ -30,27 +30,13 @@ const modelPkg = "github.com/Guria-Studio/orch/internal/model"
 
 // stateImportAllowed: files that still import internal/state directly.
 var stateImportAllowed = map[string]string{
-	"cli/doctorsmoke.go":          "uses state.Backend, state.Spend",
-	"cli/eventjson.go":            "uses state.Backend, state.Event",
-	"cli/events.go":               "uses state.Event",
-	"cli/findings.go":             "uses state.Backend, state.FindingQueued, state.QueuedFinding",
-	"cli/knowledge.go":            "uses state.Backend, state.ParseTS, state.TaskFilter, ...",
-	"cli/knowledgecurate.go":      "uses state.Backend, state.ParseTS, state.TaskFilter",
-	"cli/migrate.go":              "imports Python-era databases: state.Open, state.NewSQLite, state.Event, ...",
-	"cli/notify.go":               "uses state.Backend, state.Spend",
-	"cli/onboarding.go":           "uses state.SQLite",
-	"cli/project.go":              "opens the backend: state.Open, state.NewSQLite",
-	"cli/report_summary.go":       "uses state.SummarySpendID",
-	"cli/status.go":               "uses state.Backend, state.ErrNoRuns, state.Run",
-	"cli/tui.go":                  "uses state.Backend, state.ErrNoRuns, state.ParseTS, ...",
-	"dashboard/events.go":         "uses state.Event",
-	"dashboard/findingsroutes.go": "uses state.FindingDismissed, state.FindingSent",
-	"dashboard/metrics.go":        "uses state.Spend",
-	"dashboard/sprint.go":         "uses state.Event",
-	"dashboard/usage.go":          "uses state.Spend",
-	"mcp/findings.go":             "uses state.FindingQueued, state.QueuedFinding",
-	"mcp/readtools.go":            "uses state.Event",
-	"mcp/tasks.go":                "uses state.TaskFilter, state.TaskRuntime",
+	"cli/knowledge.go":       "uses state.Backend, state.ParseTS, state.TaskFilter, ...",
+	"cli/knowledgecurate.go": "uses state.Backend, state.ParseTS, state.TaskFilter",
+	"cli/migrate.go":         "imports Python-era databases: state.Open, state.NewSQLite, state.Event, ...",
+	"cli/onboarding.go":      "uses state.SQLite",
+	"cli/project.go":         "opens the backend: state.Open, state.NewSQLite",
+	"cli/report_summary.go":  "uses state.SummarySpendID",
+	"cli/tui.go":             "uses state.Backend, state.ErrNoRuns, state.ParseTS, ...",
 }
 
 // tasksLoadAllowed: files that still read tasks.json themselves — through

@@ -9,8 +9,8 @@ import (
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/explain"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/prompt"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // ---- orch_budget -----------------------------------------------------------
@@ -85,7 +85,7 @@ func (s *server) events(ctx context.Context, _ *mcpsdk.CallToolRequest, in event
 	}
 
 	var (
-		evs []state.Event
+		evs []project.Event
 		err error
 	)
 	if in.TaskID != "" {
