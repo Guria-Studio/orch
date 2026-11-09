@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,9 @@ func newRunCmd(flags *projectFlags) *cobra.Command {
 			err := runProject(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), flags, opts)
 			// Whatever the run's outcome, its evidence is kept within its
 			// limits (#520).
-			if paths, cfg, loadErr := loadProjectConfig(flags); loadErr == nil {
+			if paths, cfg, loadErr := loadProjectConfig(flags); loadErr != nil {
+				slog.Warn("not pruning the evidence: the project's config could not be read", "err", loadErr)
+			} else {
 				pruneEvidence(cmd.ErrOrStderr(), paths, cfg)
 			}
 			if err != nil {
