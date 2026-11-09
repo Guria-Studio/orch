@@ -182,6 +182,20 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 	}
 }
 
+// TestVerifySkipsTheReviewWhenAskedTo (#522): the re-verify after the base
+// moved runs the checks again but not the LLM review — that read the agent's
+// diff already, and the base's commits are not the agent's work.
+func TestVerifySkipsTheReviewWhenAskedTo(t *testing.T) {
+	dir := branchWithWork(t)
+	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"true"}, Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir, SkipReview: true})
+	if res.Failure != "" || res.Reviewer != "" || len(res.Commands) != 1 {
+		t.Errorf("Verify = %+v, want the checks run and no review", res)
+	}
+}
+
 func TestVerifyPassesAnApprovingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}"}`))

@@ -109,6 +109,45 @@ func (m *Manager) BranchConflicts(taskID, otherID string) ([]string, error) {
 	return conflicts, err
 }
 
+// BehindBase reports whether baseBranch has commits taskID's branch lacks —
+// the base moved since the branch was cut or last caught up — and, if so, the
+// files on which merging it in would conflict, without touching any checkout
+// (#522). While it is not behind, landing the branch lands exactly the tree
+// that was verified. With push enabled the base is origin's, freshly fetched.
+func (m *Manager) BehindBase(taskID, baseBranch string) (behind bool, conflicts []string, err error) {
+	ref := "refs/heads/" + baseBranch
+	if m.pushEnabled {
+		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
+			return false, nil, fmt.Errorf("worktree: fetching %s: %w", baseBranch, err)
+		}
+		ref = "refs/remotes/origin/" + baseBranch
+	}
+	base, err := m.run(taskID, "git", "rev-parse", "--verify", ref+"^{commit}")
+	if err != nil {
+		return false, nil, fmt.Errorf("worktree: reading the base %s: %w", baseBranch, err)
+	}
+	base = strings.TrimSpace(base)
+	branch := m.BranchName(taskID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
+	// #nosec G204 -- fixed git subcommand; base is a hash, branch orch/<task id>.
+	cmd := exec.CommandContext(ctx, "git", "merge-base", "--is-ancestor", base, branch)
+	cmd.Dir = m.root
+	var exit *exec.ExitError
+	switch runErr := cmd.Run(); {
+	case runErr == nil:
+		return false, nil, nil
+	case !errors.As(runErr, &exit) || exit.ExitCode() != 1:
+		return false, nil, fmt.Errorf("worktree: is %s in %s: %w", baseBranch, branch, runErr)
+	}
+	_, conflicts, err = m.mergeTree(taskID, base, branch)
+	if err != nil {
+		return true, nil, err
+	}
+	return true, conflicts, nil
+}
+
 // mergeTree merges branch into base without a checkout, returning the merged
 // tree, or the conflicting paths.
 func (m *Manager) mergeTree(taskID, base, branch string) (tree string, conflicts []string, err error) {

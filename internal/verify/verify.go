@@ -97,7 +97,7 @@ func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contra
 	}
 	res := v.e2e(ctx, req, timeout)
 	res.Commands = append(ran, res.Commands...)
-	if res.Failure != "" || !v.Cfg.Review {
+	if res.Failure != "" || !v.Cfg.Review || req.SkipReview {
 		return res
 	}
 	res.Failure = v.review(ctx, req, timeout, &res, v.rules(req.TaskID, req.Dir, changed))

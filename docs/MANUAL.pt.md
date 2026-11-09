@@ -363,7 +363,10 @@ tentativa com os logs da falha anexados, e depois `blocked`. Um vermelho que o
 GitHub causou por nunca iniciar o job (billing do Actions, o limite de gastos)
 é bloqueado na hora com esse motivo, sem gastar nova tentativa. Um PR em
 conflito com sua base é atualizado no trabalho guardado da tarefa: o orch faz
-merge da base e push quando o merge entra limpo, sem agente; senão o agente
+merge da base e push quando o merge entra limpo, sem agente — com
+`verify.enabled`, depois de rodar de novo os checks do verify local sobre o
+merge, assim um merge limpo que quebra um teste volta ao agente em vez de ir
+para o PR; senão o agente
 recebe os arquivos em conflito e os commits da base por trás deles para
 resolver, `retry.conflict` vezes (1 num projeto novo; uma config sem a chave
 mantém o bloqueio de antes) antes de a tarefa ser bloqueada citando os
@@ -438,7 +441,10 @@ uma dependente só é despachada quando as dependências já estão na base, ent
 ela parte do trabalho delas. Nada é enviado com push e o `gh` nunca roda. Uma
 tarefa cujo trabalho conflita com a base recebe a base mesclada no seu worktree
 e volta ao agente para resolver o conflito, `retry.conflict` vezes; depois é
-bloqueada citando os arquivos (o trabalho fica em `orch/<task-id>`). Se a
+bloqueada citando os arquivos (o trabalho fica em `orch/<task-id>`). Com o
+verify local ligado, uma base que avançou enquanto a tarefa trabalhava é
+mesclada no worktree antes do verify (e de novo, repetindo os checks, se
+avançar durante ele): o que entra é o que foi verificado. Se a
 branch base estiver em checkout com mudanças não commitadas nos mesmos
 arquivos, o merge é recusado e a tarefa é bloqueada: faça commit ou stash e
 depois `orch task-status <id> todo`.
