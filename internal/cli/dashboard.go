@@ -20,7 +20,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
-	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/tunnel"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -136,14 +135,15 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				dashCfg.Port = port
 			}
 
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := project.OpenWith(ctx, paths, cfg)
 			if err != nil {
 				return err
 			}
 			// Discarded like every other command's: the process is exiting,
 			// the database is read-only here, and a close error at that point
 			// changes nothing a caller could act on.
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
+			backend := p.Backend
 
 			// Resolved BEFORE Validate() so a project whose token lives only
 			// in the database (never in config.yaml/--token) validates
@@ -202,7 +202,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				// `orch publish` would write, built fresh per request.
 				Portal: portal,
 				Snapshot: func(ctx context.Context) (snapshot.Snapshot, error) {
-					return buildPublishSnapshot(ctx, paths, cfg, backend, portalRefresh, time.Now())
+					return buildPublishSnapshot(ctx, p, portalRefresh, time.Now())
 				},
 				Version:   cmd.Root().Version,
 				Releases:  dashboardReleases(),
@@ -301,6 +301,11 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 	return cmd
 }
 
+// tokenStore is the slice of the backend resolveTokenHash reads.
+type tokenStore interface {
+	StakeholderToken(ctx context.Context) (tokenHash string, rotatedAt time.Time, ok bool, err error)
+}
+
 // resolveTokenHash sets dashCfg.TokenHash/TokenSource from whichever source
 // currently has one for this project.
 //
@@ -310,7 +315,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 // token rotate` exists so an operator can invalidate a token without editing
 // YAML; a stale --token left in a shell alias or a saved command silently
 // resurrecting the old one after a rotation would defeat that.
-func resolveTokenHash(ctx context.Context, backend state.Backend, dashCfg *dashboard.Config) error {
+func resolveTokenHash(ctx context.Context, backend tokenStore, dashCfg *dashboard.Config) error {
 	hash, _, ok, err := backend.StakeholderToken(ctx)
 	if err != nil {
 		return err

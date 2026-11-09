@@ -56,11 +56,12 @@ func newReportSummaryCmd(flags *projectFlags) *cobra.Command {
 			if aiBackend != "" && !slices.Contains(ci.ReviewBackends, model.Backend(aiBackend)) {
 				return withExitCode(2, fmt.Errorf("--backend %q: expected claude, gemini, codex or opencode", aiBackend))
 			}
-			rec, _, paths, cfg, st, done, err := loadRunReceipt(cmd, flags, runID)
+			rec, _, p, done, err := loadRunReceipt(cmd, flags, runID)
 			if err != nil {
 				return err
 			}
 			defer done()
+			paths, cfg := p.Paths, p.Config
 			if language == "" {
 				language = cfg.Dashboard.SummaryLanguage
 			}
@@ -70,7 +71,7 @@ func newReportSummaryCmd(flags *projectFlags) *cobra.Command {
 			}
 			text := s.Text()
 			if ai {
-				answer, err := explainSummary(cmd, paths, engine.OneShot{State: st, Gate: newBudgetGate(paths, cfg, st)}, rec, s, aiBackend)
+				answer, err := explainSummary(cmd, paths, engine.OneShot{State: p.Backend, Gate: newBudgetGate(paths, cfg, p.Backend)}, rec, s, aiBackend)
 				if err != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] --ai: %v — the plain summary follows\n", err)
 				} else {

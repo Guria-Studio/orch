@@ -121,7 +121,7 @@ func runSmoke(cmd *cobra.Command, only string, asJSON, keep bool) error {
 
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "orch doctor --smoke: dispatching one task to each of %v (cap $%.2f each where the CLI takes one)\n", backends, smokeCapUSD)
 	// The run's own verdict is in the rows: a blocked smoke task is a failed check.
-	_ = runProject(ctx, cmd.InOrStdin(), cmd.ErrOrStderr(), flags, runOptions{mode: string(engine.ModeAuto), backend: backend})
+	_ = runProject(ctx, cmd.InOrStdin(), cmd.ErrOrStderr(), flags, runOptions{mode: string(engine.ModeAuto), project: project.New(paths, cfg, backend)})
 
 	payload := smokePayload{}
 	prices := pricing.Load(root)

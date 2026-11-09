@@ -9,6 +9,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/notify"
 	"github.com/Guria-Studio/orch/internal/project"
@@ -64,7 +65,7 @@ func newNotifyTestCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			notifier := newNotifier(cfg)
+			notifier := engine.NewNotifier(cfg)
 			if !notifier.Enabled() {
 				return withExitCode(1, fmt.Errorf(
 					"no webhook configured — set notifications.slack_webhook or "+
@@ -162,7 +163,7 @@ func newNotifyDigestCmd(flags *projectFlags) *cobra.Command {
 			if !send {
 				return nil
 			}
-			notifier := newNotifier(cfg)
+			notifier := engine.NewNotifier(cfg)
 			if !notifier.Enabled() {
 				return withExitCode(1, fmt.Errorf(
 					"--send requested but no webhook is configured"))
@@ -182,14 +183,6 @@ func newNotifyDigestCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().StringVar(&language, "language", "",
 		"Override dashboard.language for this run (en|es|pt)")
 	return cmd
-}
-
-func newNotifier(cfg config.Config) *notify.Notifier {
-	return notify.New(
-		cfg.Notifications.SlackWebhook,
-		cfg.Notifications.DiscordWebhook,
-		float64(cfg.Notifications.TimeoutS),
-	)
 }
 
 // digestText builds the body.

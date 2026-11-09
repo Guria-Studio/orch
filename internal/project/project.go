@@ -18,6 +18,7 @@ package project
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Guria-Studio/orch/internal/config"
@@ -136,12 +137,27 @@ func Open(ctx context.Context, paths config.Paths) (*Project, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config load failed: %w", err)
 	}
-	dbPath := paths.SQLitePath(res.Config)
+	return OpenWith(ctx, paths, res.Config)
+}
+
+// OpenWith is Open for a caller that has already loaded cfg: `orch run`
+// reads the config to decide whether it may start at all (the sandbox, the
+// run lock) before it opens the database.
+func OpenWith(ctx context.Context, paths config.Paths, cfg config.Config) (*Project, error) {
+	dbPath := paths.SQLitePath(cfg)
 	db, _, err := state.Open(ctx, dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", dbPath, err)
 	}
-	return &Project{Paths: paths, Config: res.Config, Backend: state.NewSQLite(db, paths.ID, paths.Root), db: db}, nil
+	return &Project{Paths: paths, Config: cfg, Backend: state.NewSQLite(db, paths.ID, paths.Root), db: db}, nil
+}
+
+// New is a project over a backend the caller already holds and closes
+// itself — `orch bench` and `orch knowledge curate` read through the run's
+// own backend while it goes, so the file keeps one writer (CHECKLIST rule
+// 17). Close does not close that backend.
+func New(paths config.Paths, cfg config.Config, backend state.Backend) *Project {
+	return &Project{Paths: paths, Config: cfg, Backend: backend}
 }
 
 // Tasks is tasks.json hydrated with the database's live status and comments.
@@ -149,9 +165,57 @@ func (p *Project) Tasks(ctx context.Context) ([]model.Task, error) {
 	return Load(ctx, p.Backend, p.Paths.TasksJSON())
 }
 
-// Close closes the project's database.
+// Close closes the project's database, when Open opened it.
 func (p *Project) Close() error {
+	if p.db == nil {
+		return nil
+	}
 	return p.db.Close()
+}
+
+// Runtime is every task's runtime row in the database — status, PR, CI
+// result, finish time — for a caller that reads those columns rather than
+// the hydrated tasks.json (metrics, the stakeholder report's CI figures).
+func Runtime(ctx context.Context, backend StatusReader) ([]state.TaskRuntime, error) {
+	return backend.Tasks(ctx, state.TaskFilter{})
+}
+
+// Statuses maps each task id the database knows to its runtime status: what
+// a run's queue starts from, since the database owns runtime status (F-12).
+func Statuses(ctx context.Context, backend StatusReader) (map[string]model.Status, error) {
+	rows, err := Runtime(ctx, backend)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]model.Status, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.Status
+	}
+	return out, nil
+}
+
+// AnyDone says whether the database has at least one task done.
+func AnyDone(ctx context.Context, backend StatusReader) (bool, error) {
+	rows, err := backend.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
+	return len(rows) > 0, err
+}
+
+// RunReader is the slice of the backend LatestRun needs.
+type RunReader interface {
+	LatestRun(ctx context.Context) (state.Run, error)
+}
+
+// LatestRun is the most recently started run; ok is false when the project
+// has never been run (state.ErrNoRuns), which is not an error to a reader.
+func LatestRun(ctx context.Context, backend RunReader) (run state.Run, ok bool, err error) {
+	run, err = backend.LatestRun(ctx)
+	if errors.Is(err, state.ErrNoRuns) {
+		return state.Run{}, false, nil
+	}
+	if err != nil {
+		return state.Run{}, false, err
+	}
+	return run, true, nil
 }
 
 // FinishedAt maps each task id to when it first reached done, for the tasks

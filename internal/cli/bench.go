@@ -21,6 +21,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/doctor"
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/scaffold"
 )
@@ -279,7 +280,7 @@ func benchOne(ctx context.Context, in io.Reader, errOut io.Writer, src, provider
 		watched <- nil
 	}
 
-	runErr := runProject(runCtx, in, errOut, flags, runOptions{mode: string(engine.ModeAuto), runID: runID, isolated: true, backend: backend})
+	runErr := runProject(runCtx, in, errOut, flags, runOptions{mode: string(engine.ModeAuto), runID: runID, isolated: true, project: project.New(paths, cfg, backend)})
 	stop()
 	capErr := <-watched
 

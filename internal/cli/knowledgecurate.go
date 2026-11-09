@@ -19,6 +19,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -132,7 +133,8 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 		task.ID = fmt.Sprintf("%s-%d", stem, n)
 	}
 
-	e, err := projectEstimate(ctx, backend, paths, cfg, []model.Task{task}, "", 0)
+	p := project.New(paths, cfg, backend)
+	e, err := projectEstimate(ctx, p, []model.Task{task}, "", 0)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -152,7 +154,7 @@ func curateKnowledge(ctx context.Context, flags *projectFlags, req curateRequest
 		mode:         string(engine.ModeAuto),
 		worktreeMode: true,
 		noPush:       req.NoPush,
-		backend:      backend,
+		project:      p,
 		tasks:        []model.Task{task},
 		verifier:     curateScope{base: base},
 	})

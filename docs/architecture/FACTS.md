@@ -13,15 +13,17 @@ explain export graph mcp model notify project providers publish publish/snapshot
 report router scaffold skills state telemetry templates tunnel vcs worktree.
 
 Real import edges (non-cli):
-- engine → budget, config, contract, graph, model, prompt, providers, pyfmt, state, vcs, worktree
-  (engine does NOT import router, notify, dashboard or publish; cli resolves routes and wires notify)
+- engine → budget, config, contract, graph, guard, knowledge, model, notify, project, prompt, providers, pyfmt,
+  router, sandbox, state, vcs, verify, worktree
+  (engine does NOT import dashboard or publish; engine.FromProject wires a run from an opened project —
+  routes from model_router.yaml, notify, verify, budget gate, worktrees, PRs — and cli only prints and exits, #550)
 - ci → contract, model, providers ; verify → ci, config, contract, knowledge, model, project, state
   (neither imports engine: the types they trade with it live in the leaf contract → model, providers)
 - dashboard → budget, config, graph, model, pricing, project, publish/snapshot, state, tunnel
 - mcp → budget, explain, graph, model, project, prompt, state
 - publish → publish/snapshot ; report → publish/snapshot
 - publish/snapshot → graph, model, project, providers, state
-- project → model, state
+- project → atomize, config, graph, model, state, vcs, worktree
 - doctor → budget, model, router, state, vcs, worktree
 - explain → budget, graph, model, pyfmt
 - export → graph, model          (orch export multica)
@@ -56,7 +58,7 @@ agents report back through MCP tools (orch_set_status, orch_block) or scripts/ta
 
 Participants: operator, orch run (engine Scheduler), state (orch.db), budget, worktree (git), prompt, agent CLI (provider), gh (vcs).
 1. Refill: drain retry queue whose backoff expired, then Queue.Ready (deps done, status todo, not owned by retry queue).
-2. Route lookup Routes[task.Model] (resolved by cli from model_router.yaml before the run).
+2. Route lookup Routes[task.Model] (loaded from model_router.yaml by engine.FromProject before the run).
 3. (semi mode, critical task) operator gate.
 4. spawnOne: (1) per-task lock if --task-locks; (2) budget gate BEFORE semaphores (capped provider → skip);
    (3) semaphores: per-provider then global.

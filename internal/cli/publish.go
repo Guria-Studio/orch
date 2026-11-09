@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // defaultPublishDir is where `--to dir` writes when nothing says otherwise.
@@ -79,12 +79,12 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 				gitBranch = cfg.Publish.GitBranch
 			}
 
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := project.OpenWith(ctx, paths, cfg)
 			if err != nil {
 				return err
 			}
 			defer func() {
-				if cerr := closeDB(); cerr != nil {
+				if cerr := p.Close(); cerr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 						"[warn] closing the database: %v\n", cerr)
 				}
@@ -111,7 +111,7 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			build := func(ctx context.Context) (snapshot.Snapshot, error) {
-				return buildPublishSnapshot(ctx, paths, cfg, backend, every, time.Now())
+				return buildPublishSnapshot(ctx, p, every, time.Now())
 			}
 			publisher := func(ctx context.Context, snap snapshot.Snapshot) error {
 				if dest == "cloud" {
@@ -281,9 +281,8 @@ func runOneCloudPublish(ctx context.Context, cmd *cobra.Command, opts publish.Cl
 // would quietly stop agreeing. The one thing publish knows that the PDF does
 // not is how often the page will be refreshed, which is the field the document
 // carries for the viewer's benefit.
-func buildPublishSnapshot(ctx context.Context, paths config.Paths, cfg config.Config,
-	backend state.Backend, every time.Duration, now time.Time) (snapshot.Snapshot, error) {
-	snap, err := buildStakeholderSnapshot(ctx, paths, cfg, backend, now)
+func buildPublishSnapshot(ctx context.Context, p *project.Project, every time.Duration, now time.Time) (snapshot.Snapshot, error) {
+	snap, err := buildStakeholderSnapshot(ctx, p, now)
 	if err != nil {
 		return snapshot.Snapshot{}, err
 	}

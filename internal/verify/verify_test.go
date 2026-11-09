@@ -1,4 +1,4 @@
-package verify
+package verify_test
 
 import (
 	"context"
@@ -21,10 +21,11 @@ import (
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/verify"
 )
 
 func TestVerifyPassesWhenTheCommandsPass(t *testing.T) {
-	v := Verifier{Cfg: config.Verify{Commands: []string{"true", "test -d .", "no-such-tool-463"}, TimeoutS: 10}}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"true", "test -d .", "no-such-tool-463"}, TimeoutS: 10}}
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()})
 	if res.Failure != "" {
 		t.Errorf("Verify = %q, want a pass", res.Failure)
@@ -38,7 +39,7 @@ func TestVerifyPassesWhenTheCommandsPass(t *testing.T) {
 // The agent is shown the command and the end of its output: that is where a
 // test runner or a compiler says what broke.
 func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
-	v := Verifier{Cfg: config.Verify{Commands: []string{"true", "echo FAIL TestLogin: want 401; exit 3", "touch never-ran"}, TimeoutS: 10}}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"true", "echo FAIL TestLogin: want 401; exit 3", "touch never-ran"}, TimeoutS: 10}}
 	dir := t.TempDir()
 	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure
 	for _, want := range []string{"`echo FAIL TestLogin: want 401; exit 3`", "exit status 3", "FAIL TestLogin: want 401"} {
@@ -55,7 +56,7 @@ func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 // `tue`) is the operator's config, not the agent's work: it is skipped, and
 // so is the E2E an app that cannot be started was for (#433).
 func TestVerifySkipsAConfiguredCommandThatIsNotFound(t *testing.T) {
-	v := Verifier{Cfg: config.Verify{
+	v := verify.Verifier{Cfg: config.Verify{
 		Commands: []string{"orch-no-such-command-tue", "touch commands-ran"},
 		App:      config.VerifyApp{Start: "orch-no-such-command-tue"},
 		E2E:      []string{"orch-no-such-command-tue", "touch e2e-ran"},
@@ -82,7 +83,7 @@ func TestVerifySkipsAConfiguredCommandThatIsNotFound(t *testing.T) {
 }
 
 func TestVerifyBoundsEachCommand(t *testing.T) {
-	v := Verifier{Cfg: config.Verify{Commands: []string{"sleep 30"}, TimeoutS: 1}}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"sleep 30"}, TimeoutS: 1}}
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure; !strings.Contains(got, "timed out after 1s") {
 		t.Errorf("Verify = %q, want a timeout", got)
 	}
@@ -96,7 +97,7 @@ func TestVerifyRunsTheDetectedChecks(t *testing.T) {
 	if _, err := exec.LookPath("make"); err != nil {
 		t.Skip("make is not installed")
 	}
-	v := Verifier{Cfg: config.Verify{TimeoutS: 10}}
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10}}
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure; !strings.Contains(got, "detected-make-test") {
 		t.Errorf("Verify = %q, want the detected make test to have run and failed", got)
 	}
@@ -119,7 +120,7 @@ func TestVerifyRunsOnlyTheTouchedPackagesChecks(t *testing.T) {
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "app only")
 
-	v := Verifier{Cfg: config.Verify{TimeoutS: 10}, Base: "main"}
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10}, Base: "main"}
 	req := engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}
 	if got := v.Verify(context.Background(), req).Failure; got != "" {
 		t.Errorf("Verify = %q, want the app-only change to skip the firmware's checks", got)
@@ -136,7 +137,7 @@ func TestVerifyRunsOnlyTheTouchedPackagesChecks(t *testing.T) {
 // can scope itself (#498).
 func TestVerifyTellsTheCommandsWhatChanged(t *testing.T) {
 	dir := branchWithWork(t) // adds store.go only
-	v := Verifier{Cfg: config.Verify{Commands: []string{`test "$ORCH_CHANGED_FILES" = store.go`}, TimeoutS: 10}, Base: "main"}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{`test "$ORCH_CHANGED_FILES" = store.go`}, TimeoutS: 10}, Base: "main"}
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want ORCH_CHANGED_FILES to list the change", got)
 	}
@@ -145,7 +146,7 @@ func TestVerifyTellsTheCommandsWhatChanged(t *testing.T) {
 func TestVerifySendsBackABlockingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure
 	for _, want := range []string{"the review asks for changes", "Tests: new behaviour comes with a test that exercises it"} {
@@ -167,7 +168,7 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 	verdict, _ := json.Marshal(ci.Verdict{Verdict: ci.VerdictRequestChanges, Summary: "twelve problems", Findings: findings})
 	answer, _ := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": string(verdict)})
 	fakeReviewer(t, "0", answer)
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", ReviewModel: "opus", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", ReviewModel: "opus", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if !strings.Contains(res.Failure, "the review asks for changes") {
@@ -184,7 +185,7 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 func TestVerifyPassesAnApprovingReview(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}"}`))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
@@ -195,7 +196,7 @@ func TestVerifyPassesAnApprovingReview(t *testing.T) {
 func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "1", []byte(`{"type":"result","subtype":"error","is_error":true,"terminal_reason":"api_error"}`))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
 		t.Errorf("Verify = %q, want a pass", got)
@@ -244,7 +245,7 @@ func TestVerifyReviewSeesTheTask(t *testing.T) {
 	write(t, filepath.Join(dir, "specs", "f1.md"), "# F1\n\n### F1.1.T1 — Store\n\nDone when: Load reads the saved rows.\n\n### F1.1.T2 — Other\n\nnot this task\n")
 	fakeReviewer(t, "0", []byte(approveAnswer))
 	seen := recordReviews(t, "")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", SpecRoot: "specs", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", SpecRoot: "specs", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir,
 		Title: "Add the store", Description: "Persist the rows between runs", SpecRef: "f1.md#F1.1.T1"})
@@ -272,7 +273,7 @@ func TestVerifyUnparseableReviewIsUnavailableNotApproved(t *testing.T) {
 	dir := branchWithWork(t)
 	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"looks good to me!"}`))
 	seen := recordReviews(t, "")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if n := len(reviews(t, seen)); n != 2 {
@@ -297,7 +298,7 @@ func TestVerifyRetriesAFailedReview(t *testing.T) {
 	write(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"),
 		readFile(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"))+
 			`echo 0 > "`+filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".exit")+`"`+"\n")
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
 	if n := len(reviews(t, seen)); n != 2 {
@@ -320,14 +321,14 @@ func TestConfiguredReviewerNeverReviewsItsOwnWork(t *testing.T) {
 		}
 	}
 	t.Setenv("PATH", bin)
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
-	if got := v.reviewer(model.BackendClaude); got != model.BackendGemini {
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+	if got := verify.Reviewer(v, model.BackendClaude); got != model.BackendGemini {
 		t.Errorf("reviewer of claude's work with verify.reviewer claude = %q, want gemini", got)
 	}
 	if err := os.Remove(filepath.Join(bin, "gemini")); err != nil {
 		t.Fatal(err)
 	}
-	if got := v.reviewer(model.BackendClaude); got != "" {
+	if got := verify.Reviewer(v, model.BackendClaude); got != "" {
 		t.Errorf("reviewer with no other provider = %q, want none", got)
 	}
 
@@ -369,7 +370,7 @@ func TestVerifyRecordsTheReviewsSpend(t *testing.T) {
 	dir := branchWithWork(t)
 	b := openState(t)
 	fakeReviewerFor(t, "T-1-verify-2", "0", []byte(approveWithUsage))
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
 		Once: engine.OneShot{State: b}}
 
 	if got := v.Verify(ctx, engine.VerifyRequest{TaskID: "T-1", Attempt: 2, Writer: model.BackendCodex, Dir: dir}).Failure; got != "" {
@@ -397,7 +398,7 @@ func TestVerifySkipsAReviewerOverItsBudget(t *testing.T) {
 	gate := budget.NewGate(b, &budget.Config{Providers: map[string]budget.ProviderBudget{
 		"claude": {WindowHours: 5, TokenBudget: 10, ThresholdPct: 100},
 	}})
-	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
+	v := verify.Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main",
 		Once: engine.OneShot{State: b, Gate: gate}}
 
 	res := v.Verify(ctx, engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
@@ -418,34 +419,34 @@ func TestReviewerIsNeverTheWriterByDefault(t *testing.T) {
 		}
 	}
 	t.Setenv("PATH", bin)
-	v := Verifier{}
-	if got := v.reviewer(model.BackendClaude); got != model.BackendGemini {
+	v := verify.Verifier{}
+	if got := verify.Reviewer(v, model.BackendClaude); got != model.BackendGemini {
 		t.Errorf("reviewer for claude's work = %q, want gemini", got)
 	}
-	if got := v.reviewer(model.BackendCodex); got != model.BackendClaude {
+	if got := verify.Reviewer(v, model.BackendCodex); got != model.BackendClaude {
 		t.Errorf("reviewer for codex's work = %q, want claude", got)
 	}
 	v.Cfg.Reviewer = "claude"
-	if got := v.reviewer(model.BackendCodex); got != model.BackendClaude {
+	if got := verify.Reviewer(v, model.BackendCodex); got != model.BackendClaude {
 		t.Errorf("configured reviewer = %q, want claude", got)
 	}
 }
 
 func TestChecklistPrefersTheProjectsOwn(t *testing.T) {
 	dir := t.TempDir()
-	if got := checklist(dir, ""); got != ci.BuiltinChecklist {
+	if got := verify.Checklist(dir, ""); got != ci.BuiltinChecklist {
 		t.Errorf("no checklist file: got %q, want the built-in one", got)
 	}
 	write(t, filepath.Join(dir, ".github", "orch-review.md"), "- github one\n")
-	if got := checklist(dir, ""); got != "- github one\n" {
+	if got := verify.Checklist(dir, ""); got != "- github one\n" {
 		t.Errorf("got %q, want .github/orch-review.md", got)
 	}
 	write(t, filepath.Join(dir, ".orch", "review.md"), "- the domain imports no adapter\n")
-	if got := checklist(dir, ""); got != "- the domain imports no adapter\n" {
+	if got := verify.Checklist(dir, ""); got != "- the domain imports no adapter\n" {
 		t.Errorf("got %q, want .orch/review.md first", got)
 	}
 	write(t, filepath.Join(dir, "docs", "rules.md"), "- configured\n")
-	if got := checklist(dir, "docs/rules.md"); got != "- configured\n" {
+	if got := verify.Checklist(dir, "docs/rules.md"); got != "- configured\n" {
 		t.Errorf("got %q, want verify.checklist", got)
 	}
 }
@@ -529,8 +530,8 @@ func TestIsTestFile(t *testing.T) {
 		"src/contest/entry.ts":         false,
 	}
 	for path, want := range tests {
-		if got := IsTestFile(path); got != want {
-			t.Errorf("IsTestFile(%q) = %v, want %v", path, got, want)
+		if got := verify.IsTestFile(path); got != want {
+			t.Errorf("verify.IsTestFile(%q) = %v, want %v", path, got, want)
 		}
 	}
 }
@@ -539,7 +540,7 @@ func TestIsTestFile(t *testing.T) {
 // before any command runs; one with a test goes on to the commands.
 func TestVerifyRequiresATestWhenTDDIsOn(t *testing.T) {
 	dir := branchWithWork(t) // adds store.go only
-	v := Verifier{Cfg: config.Verify{Commands: []string{"touch commands-ran"}, TimeoutS: 10}, Base: "main", RequireTests: true}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"touch commands-ran"}, TimeoutS: 10}, Base: "main", RequireTests: true}
 
 	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}).Failure
 	if !strings.Contains(got, "touches no test file") || !strings.Contains(got, "store.go") {
@@ -577,7 +578,7 @@ func gitIn(t *testing.T, dir string, args ...string) {
 // appFixture is a server standing in for the task's app, already up, and a
 // worktree whose start/stop commands leave a mark. The URL is written the
 // way a project writes it, from the task's slot.
-func appFixture(t *testing.T, status int) (Verifier, engine.VerifyRequest, string) {
+func appFixture(t *testing.T, status int) (verify.Verifier, engine.VerifyRequest, string) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) }))
 	t.Cleanup(srv.Close)
@@ -589,11 +590,11 @@ func appFixture(t *testing.T, status int) (Verifier, engine.VerifyRequest, strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := readyPoll
-	readyPoll = 10 * time.Millisecond
-	t.Cleanup(func() { readyPoll = old })
+	old := *verify.ReadyPoll
+	*verify.ReadyPoll = 10 * time.Millisecond
+	t.Cleanup(func() { *verify.ReadyPoll = old })
 
-	v := Verifier{Cfg: config.Verify{TimeoutS: 10, App: config.VerifyApp{
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, App: config.VerifyApp{
 		Start:         "touch started",
 		URL:           "http://127.0.0.1:$((BASE_PORT + ORCH_TASK_SLOT))",
 		Stop:          "touch stopped",
@@ -678,7 +679,7 @@ func TestVerifyCollectsARealPlaywrightReport(t *testing.T) {
 		write(t, filepath.Join(shots, f), "bytes of "+f)
 	}
 	artifacts := filepath.Join(t.TempDir(), "attempt-1")
-	v := Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{"cp captured.json e2e-report.json; exit 1"}, E2EReport: "e2e-report.json"}}
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{"cp captured.json e2e-report.json; exit 1"}, E2EReport: "e2e-report.json"}}
 
 	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir, ArtifactsDir: artifacts})
 
@@ -697,7 +698,7 @@ func TestVerifyCollectsARealPlaywrightReport(t *testing.T) {
 	if strings.Contains(res.Failure, "\x1b[") {
 		t.Errorf("the failure kept terminal colours:\n%q", res.Failure)
 	}
-	if res.E2E == nil || res.E2E.Passed != 1 || res.E2E.Failed != 1 || res.E2E.Report != filepath.Join(artifacts, ReportFile) {
+	if res.E2E == nil || res.E2E.Passed != 1 || res.E2E.Failed != 1 || res.E2E.Report != filepath.Join(artifacts, verify.ReportFile) {
 		t.Fatalf("E2E = %+v, want 1 passed, 1 failed, the report under the artifacts dir", res.E2E)
 	}
 
@@ -705,7 +706,7 @@ func TestVerifyCollectsARealPlaywrightReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var rep E2EReport
+	var rep verify.E2EReport
 	if err := json.Unmarshal(b, &rep); err != nil {
 		t.Fatal(err)
 	}
@@ -736,15 +737,15 @@ func TestVerifyReviewCarriesTheRulesForTheChange(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, ".orch", "knowledge", "layering.md"),
 		"---\nid: layering\ntitle: Banking layering\nkind: rule\nsource: operator\narea: [\"src/app/**\"]\n---\nNever call a provider from a controller.\n")
-	v := Verifier{Rules: true}
-	in := withRules("checklist", v.rules("T-1", dir, []string{"src/app/pay.ts"}))
+	v := verify.Verifier{Rules: true}
+	in := verify.WithRules("checklist", verify.Rules(v, "T-1", dir, []string{"src/app/pay.ts"}))
 	if !strings.Contains(in, "## Project rules") || !strings.Contains(in, "Never call a provider from a controller.") {
 		t.Errorf("checklist for a change in the area:\n%s", in)
 	}
-	if out := withRules("checklist", v.rules("T-1", dir, []string{"docs/x.md"})); out != "checklist" {
+	if out := verify.WithRules("checklist", verify.Rules(v, "T-1", dir, []string{"docs/x.md"})); out != "checklist" {
 		t.Errorf("checklist for a change outside the area:\n%s", out)
 	}
-	if off := (Verifier{}).rules("T-1", dir, []string{"src/app/pay.ts"}); off != nil {
+	if off := verify.Rules(verify.Verifier{}, "T-1", dir, []string{"src/app/pay.ts"}); off != nil {
 		t.Errorf("rules with knowledge off = %v", off)
 	}
 }
@@ -755,7 +756,7 @@ func TestVerifyReviewCarriesTheRulesForTheChange(t *testing.T) {
 func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
 	dir := t.TempDir()
 	start := time.Now()
-	_, err := run(context.Background(), dir, nil, `sleep 30 & echo $! > child.pid; wait`, 500*time.Millisecond)
+	_, err := verify.Run(context.Background(), dir, nil, `sleep 30 & echo $! > child.pid; wait`, 500*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("run = %v, want a timeout", err)
 	}

@@ -4,13 +4,15 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // #376: what keeps a task from branching off the base, said with the command
 // that fixes it, and nothing once the base has a commit.
 func TestBaseProblem(t *testing.T) {
 	dir := t.TempDir()
-	if got := baseProblem(dir, "trunk"); !strings.Contains(got, "not a git repository yet: git init") {
+	if got := worktree.BaseProblem(dir, "trunk"); !strings.Contains(got, "not a git repository yet: git init") {
 		t.Errorf("no repository: %q", got)
 	}
 	git := func(args ...string) {
@@ -24,14 +26,14 @@ func TestBaseProblem(t *testing.T) {
 	if got := repoBranch(dir); got != "trunk" {
 		t.Errorf("repoBranch = %q, want trunk before any commit", got)
 	}
-	if got := baseProblem(dir, "trunk"); !strings.Contains(got, "trunk, which has no commit yet") {
+	if got := worktree.BaseProblem(dir, "trunk"); !strings.Contains(got, "trunk, which has no commit yet") {
 		t.Errorf("no commit: %q", got)
 	}
 	git("commit", "-q", "--allow-empty", "-m", "init")
-	if got := baseProblem(dir, "trunk"); got != "" {
+	if got := worktree.BaseProblem(dir, "trunk"); got != "" {
 		t.Errorf("with a commit: %q, want none", got)
 	}
-	if got := baseProblem(dir, "main"); !strings.Contains(got, "main, which has no commit yet") {
+	if got := worktree.BaseProblem(dir, "main"); !strings.Contains(got, "main, which has no commit yet") {
 		t.Errorf("a base the repository does not have: %q", got)
 	}
 }

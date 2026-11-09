@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -67,7 +68,7 @@ func TestRunProjectUsesThePassedBackend(t *testing.T) {
 	passed := &countingBackend{Backend: state.NewSQLite(db, paths.ID, paths.Root)}
 
 	err = runProject(context.Background(), strings.NewReader(""), io.Discard, flags,
-		runOptions{mode: string(engine.ModeAuto), isolated: true, backend: passed})
+		runOptions{mode: string(engine.ModeAuto), isolated: true, project: project.New(paths, cfg, passed)})
 	if err != nil {
 		t.Fatalf("runProject: %v", err)
 	}
