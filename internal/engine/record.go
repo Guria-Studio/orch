@@ -231,7 +231,8 @@ func outcomeEvent(runID string, d Dispatch, o Outcome, ts string, attempt int) s
 	if len(o.Result.PermissionDenials) > 0 {
 		ev.Extra["permission_denials"] = o.Result.PermissionDenials
 	}
-	// The subscription windows the CLI reported (claude's 5-hour and weekly),
+	// The subscription windows the CLI reported (claude's 5-hour and weekly;
+	// codex's from its session rollout, readSessionFacts),
 	// kept on the outcome so the dashboard reads the latest per backend
 	// without a table of its own.
 	if len(o.Result.Quota) > 0 {

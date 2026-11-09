@@ -30,6 +30,8 @@ type fakeState struct {
 	done7d     int
 	lastEvents map[string]state.Event
 	attempts   []state.Attempt
+	// quotas answers LatestQuota, which a `source: provider` budget reads.
+	quotas map[string]state.ProviderQuota
 
 	latestErr error
 	sinceErr  error
@@ -647,4 +649,9 @@ func TestTaskDetailServesTheDatabasesComments(t *testing.T) {
 	if other.Comments == nil {
 		t.Error("comments = null for a task with no row; the SPA maps over it")
 	}
+}
+
+func (f *fakeState) LatestQuota(_ context.Context, backend string) (state.ProviderQuota, bool, error) {
+	q, ok := f.quotas[backend]
+	return q, ok, nil
 }

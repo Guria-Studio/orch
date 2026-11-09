@@ -35,7 +35,8 @@ vi.mock("@/hooks/useBudgetSummary", () => ({
     isLoading: false,
     data: {
       available: true, preset: "conservative", path: "", waiting: [],
-      rows: [{ provider: "codex", token_budget: 1000, tokens_used: 920, raw_tokens_used: 920, pct: 92, threshold_pct: 90, over_threshold: true, window_hours: 5, reset_at: null, cost_usd: 0, cost_source: "none", estimated_cost_usd: 0 }],
+      rows: [{ provider: "claude", token_budget: 800000, tokens_used: 1000, raw_tokens_used: 1000, pct: 0, threshold_pct: 60, over_threshold: false, window_hours: 5, reset_at: null, cost_usd: 0, cost_source: "none", estimated_cost_usd: 0, source: "tokens", provider_windows: [] },
+        { provider: "codex", token_budget: 1000, tokens_used: 920, raw_tokens_used: 920, pct: 92, threshold_pct: 90, over_threshold: true, window_hours: 5, reset_at: null, cost_usd: 0, cost_source: "none", estimated_cost_usd: 0 }],
     },
   }),
 }))
@@ -55,6 +56,16 @@ describe("QuotaPage", () => {
     expect(within(codex).getByRole("progressbar", { name: "5h window" })).toHaveAttribute("aria-valuenow", "92")
     expect(within(codex).getByText(/Pauses at 90%/)).toBeInTheDocument()
     expect(screen.getByText("Preset conservative · budgets.yaml")).toBeInTheDocument()
+  })
+
+  // A reported card says what the guardrail pauses on: with the default
+  // source, this project's own tokens, not the account windows it shows (#577).
+  it("says the budget window is per project when it is not the reported quota", () => {
+    renderPage()
+    const claude = screen.getByRole("article", { name: "claude" })
+    expect(within(claude).getByText(/pauses dispatching on this project's own weighted tokens \(5h window, at 60%\), not on these windows/)).toBeInTheDocument()
+    const codex = screen.getByRole("article", { name: "codex" })
+    expect(within(codex).getByText(/this project's dispatches only/)).toBeInTheDocument()
   })
 
   // "Edit limits" sends only what changed, through orch budget set's endpoint,

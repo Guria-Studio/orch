@@ -134,6 +134,7 @@ func (CodexProvider) Parse(exitCode int, output []byte) Result {
 		Stdout:              text,
 		Text:                codexText(events),
 		ErrorMessage:        errMsg,
+		SessionID:           codexSessionID(events),
 	}
 }
 

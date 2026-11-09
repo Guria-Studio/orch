@@ -51,6 +51,9 @@ func (s *Scheduler) supervise(pid int, task model.Task, d Dispatch, sp *Spawned,
 		LogPath:   d.LogPath,
 	}
 	out.Result = d.Provider.Parse(exitCode, []byte(ReadLog(d.LogPath)))
+	if err := readSessionFacts(d, &out.Result); err != nil {
+		s.logger().Warn("could not read the CLI's session record", "task", d.Req.TaskID, "err", err)
+	}
 	if timedOut {
 		out.Result.Success = false
 		out.Result.ErrorMessage = reason

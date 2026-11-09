@@ -17,6 +17,24 @@ stderr 'nothing to change'
 exec cat budproj/.orchestrator/budgets.yaml
 stdout 'threshold_pct: 75'
 
+# --source provider gates on the plan's reported windows (#577); a source
+# that is neither spelling is refused.
+exec orch budget set claude --source provider --project-root budproj --project-id budproj
+stdout 'pauses at 75% of the provider''s reported quota, else this project''s tokens'
+exec cat budproj/.orchestrator/budgets.yaml
+stdout 'source: provider'
+! exec orch budget set claude --source account --project-root budproj --project-id budproj
+stderr 'source must be tokens or provider'
+
+# orch budget show: with no dispatch yet there is no report, so the token
+# window decides, and the output says whose count that is.
+exec orch budget show --project-root budproj --project-id budproj
+stdout 'Preset conservative'
+stdout '^claude — provider quota \(account\): no fresh report yet, so the token window decides: 0 of 1,200,000 weighted tokens in 5h \(0%\), pauses at 75%$'
+stdout 'counts this project''s own dispatches, weighted'
+exec orch budget show --json --project-root budproj --project-id budproj
+stdout '"claude":\{"tokens_used":0,.*"source":"provider"\}'
+
 -- budproj/tasks.json --
 {"meta":{},"phases":[],"tasks":[
   {"id":"A","phase":0,"title":"A","model":"claude/claude-sonnet-4-6","dependencies":[]}

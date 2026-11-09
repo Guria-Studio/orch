@@ -25,5 +25,13 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "usage", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, usage.Build(rows))
+	u := usage.Build(rows)
+	// The plan quota beside it, when the backend keeps reports (#577).
+	if qr, ok := s.state.(usage.QuotaReader); ok {
+		if err := usage.AddQuota(r.Context(), &u, qr); err != nil {
+			s.failRead(w, "usage", err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, u)
 }

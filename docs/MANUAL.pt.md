@@ -388,6 +388,18 @@ contêineres dentro do projeto compose da tarefa, não um banco para o qual o
 **Concorrência, orçamentos, novas tentativas** são todos definidos por config,
 não por flags — veja [`CONFIG.md`](CONFIG.md).
 
+**A janela de orçamento é por projeto.** `budgets.yaml` conta os dispatches
+deste projeto, ponderados (leituras de cache a 10%, escritas a 125%), contra um
+`token_budget` que você calibra; não é a cota do seu plano, que outros projetos
+e o seu próprio terminal compartilham. claude e codex reportam as janelas reais
+do plano, de 5 horas e semanal — claude no seu stream, codex no rollout da sua
+sessão em `~/.codex/sessions/` (`$CODEX_HOME`), que o orch lê depois de cada
+dispatch ao codex — e a página Providers and quota do dashboard e
+`orch report usage` as mostram. Escreva `source: provider` sob um provedor no
+`budgets.yaml` (ou `orch budget set codex --source provider`) para pausar no
+`threshold_pct` dessas janelas; enquanto não houver um relatório vigente, decide
+a janela de tokens. `orch budget show` diz, por provedor, qual está decidindo.
+
 ### Começar sem GitHub
 
 Um repositório ainda sem remote — ou uma máquina sem `gh` — não precisa de pull
@@ -932,7 +944,8 @@ as flags.
 | `orch router suggest` / `router refresh` | Qual rota funcionou para que tipo de tarefa, com sugestões mais baratas ou mais fortes; rotas para os modelos que as suas CLIs ganharam ([§9](#9-o-roteador-de-modelos)). |
 | `orch knowledge curate` / `knowledge stats` | Junta e poda as lições que os agentes escreveram, como um PR; mede o sucesso na primeira tentativa antes e desde a primeira lição. |
 | `orch provider disable` / `enable` | Pausa um provedor enquanto ele falha; as tarefas dele esperam em vez de falhar. |
-| `orch budget set` | Muda o orçamento de tokens, a janela ou o limite de um provedor sem editar YAML. |
+| `orch budget set` | Muda o orçamento de tokens, a janela, o limite ou a fonte (`tokens` / `provider`) de um provedor sem editar YAML. |
+| `orch budget show` | A janela de cada provedor, o que a decide (os tokens deste projeto ou a cota reportada do plano) e quando ela reinicia. |
 | `orch task salvage` | Aceita o trabalho que uma tentativa anterior commitou mas nunca publicou, sem rodar o agente de novo. |
 | `orch reset` | Encontra tarefas presas em andamento depois de uma queda, e as recoloca na fila com `--requeue` ([§8](#8-corrigir-coisas-à-mão-task-set-task-status-reset)). |
 | `orch dashboard token` | Rotaciona ou inspeciona o token que um link de cliente exige. |

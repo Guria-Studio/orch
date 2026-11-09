@@ -159,6 +159,31 @@ printf '<prompt>' | codex exec --skip-git-repo-check --json \
 | `models.json` | captured 2026-10-23, `codex debug models` (codex's model catalog, offline, exit 0), then projected with `jq '{models: [.models[] \| {slug, display_name, visibility, supported_in_api}]}'`: the full catalog is 352 KB, almost all of it each model's base instructions, and the parser reads `slug` and `visibility` only (#397) | 0 |
 | `tier-not-advertised.jsonl` | captured 2026-10-22, prompt `Reply with exactly: ok` in an empty scratch git repository, **no `-m`** (gpt-6-astra), plus `-c 'service_tier="flex"'`: codex warns the tier "will be omitted from requests" as an `error` item, then answers at the standard tier (#416). `default`, `priority` and `fast` ran with no such item | 0 |
 
+### `codex/0.154.0/sessions/` — real rollouts, trimmed
+
+codex's session rollouts for three of the runs above, at the path codex filed
+them under (`sessions/YYYY/MM/DD/rollout-<local time>-<thread id>.jsonl`, the
+thread id being the one each exec log's `thread.started` names), so this
+directory works as a `CODEX_HOME`. Read by `codexsession_test.go` and the
+engine's `sessionfacts_test.go` (#577, #580).
+
+| File | Exec log |
+|---|---|
+| `2026/09/12/rollout-…-01a096cd-6b96-….jsonl` | `success.jsonl` (gpt-6-astra, account default, no effort set) |
+| `2026/10/22/rollout-…-01a1660d-9856-….jsonl` | `tier-not-advertised.jsonl` (`service_tier="flex"`, dropped) |
+| `2026/10/22/rollout-…-01a16611-5f35-….jsonl` | `reasoning.jsonl` (`model_reasoning_effort="high"`) |
+
+Trimmed, every kept field as codex wrote it, re-serialised compactly:
+only `session_meta` (its `id`, `timestamp`, `originator`, `cli_version`,
+`source`, `model_provider`; the base instructions are 20 KB of prompt),
+`turn_context` (without `cwd`, `workspace_roots` and the permission profile,
+which hold local paths), and the `task_started`, `token_count` and
+`task_complete` events (the last without timing fields). The
+`response_item`/`item_completed` lines carry the conversation and are
+dropped. Nothing in the rollouts names a service tier: codex records the
+model (`turn_context.model`) and the effort (`turn_context.effort`, absent
+when none was set), and the plan's `rate_limits` on each `token_count`.
+
 `success.jsonl` was captured **without `-m`**, which is the one place these
 bytes and `CodexProvider.Argv` differ. Every model name in
 `model_router.yaml`'s codex routes is refused by this account — *"The

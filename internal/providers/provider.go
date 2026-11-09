@@ -169,6 +169,12 @@ type Result struct {
 	// route with `failover` over to its next provider on it (#439).
 	QuotaExhausted bool
 	QuotaResetsAt  int64
+
+	// SessionID is the CLI's own id for the run, when its output names one:
+	// codex's thread.started thread_id, which names the session rollout
+	// file the engine reads the quota from afterwards (#577). "" when the
+	// output carries none.
+	SessionID string
 }
 
 // QuotaWindow is one usage window of a provider's subscription, as the

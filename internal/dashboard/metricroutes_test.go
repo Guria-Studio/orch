@@ -447,3 +447,58 @@ func TestUsageSplitsTheSpend(t *testing.T) {
 		t.Errorf("usage = %+v", got)
 	}
 }
+
+// A `source: provider` row says so and carries the account's windows, which
+// decide over_threshold; a token row says "tokens" and has none (#577).
+func TestBudgetSummaryShowsTheProviderSource(t *testing.T) {
+	now := time.Now().UTC()
+	f := &fakeState{
+		spends: []state.Spend{{Backend: "codex", TokensIn: 90, TokensOut: 10, TS: now.Format(time.RFC3339), TaskID: "T-1"}},
+		quotas: map[string]state.ProviderQuota{"codex": {SeenAt: now, Windows: []state.QuotaWindow{
+			{Window: "five_hour", Utilization: 0.07, ResetsAt: now.Add(2 * time.Hour).Unix()},
+		}}},
+	}
+	yaml := testBudgetsYAML + "      source: provider\n"
+	s, _ := newMoneyServer(t, f, map[string]string{"budgets.yaml": yaml})
+
+	var got budgetSummaryPayload
+	decode(t, get(t, s, "/api/budget/summary"), &got)
+	if len(got.Rows) != 2 {
+		t.Fatalf("rows = %+v", got.Rows)
+	}
+	claude, codex := got.Rows[0], got.Rows[1]
+	if claude.Source != "tokens" || len(claude.ProviderWindows) != 0 {
+		t.Errorf("claude = %+v, want the token source and no windows", claude)
+	}
+	// 100 of 100 tokens is over the 50% token threshold, but the account
+	// is at 7%: the provider's number decides.
+	if codex.Source != "provider" || codex.OverThreshold || len(codex.ProviderWindows) != 1 || codex.ProviderWindows[0].UsedPct != 7 {
+		t.Errorf("codex = %+v, want the provider source at 7%%, not over", codex)
+	}
+	if codex.Pct != 100 {
+		t.Errorf("codex pct = %d, want the token window's 100 still shown", codex.Pct)
+	}
+}
+
+// /api/usage carries the plan quota beside the project's tokens (#577).
+func TestUsageCarriesThePlanQuota(t *testing.T) {
+	f := &fakeState{
+		spends: []state.Spend{{Backend: "codex", Model: "gpt-6-astra", TokensIn: 10, TS: "2026-10-23T00:00:00Z", TaskID: "T-1"}},
+		quotas: map[string]state.ProviderQuota{"codex": {SeenAt: time.Date(2026, 10, 23, 0, 3, 2, 0, time.UTC),
+			Windows: []state.QuotaWindow{{Window: "five_hour", Utilization: 0.2, ResetsAt: 1792722104}}}},
+	}
+	s, _ := newMoneyServer(t, f, nil)
+	var got struct {
+		Quota []struct {
+			Backend string `json:"backend"`
+			SeenAt  string `json:"seen_at"`
+			Windows []struct {
+				Window string `json:"window"`
+			} `json:"windows"`
+		} `json:"quota"`
+	}
+	decode(t, get(t, s, "/api/usage"), &got)
+	if len(got.Quota) != 1 || got.Quota[0].Backend != "codex" || got.Quota[0].SeenAt != "2026-10-23T00:03:02Z" || len(got.Quota[0].Windows) != 1 {
+		t.Errorf("quota = %+v", got.Quota)
+	}
+}

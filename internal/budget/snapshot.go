@@ -30,6 +30,22 @@ type ProviderSnapshot struct {
 	// the CLI's report. Not serialised: the dashboard labels spend from
 	// /api/metrics, and this JSON shape is Python's. The spend alerts read it.
 	Estimated bool `json:"-"`
+	// Source is "provider" for a budget written `source: provider` (#577),
+	// absent for the token window. ProviderWindows are the account's
+	// windows as its CLI last reported them, those not reset since; when
+	// there are any, UsagePct, Capped and ResetAt are theirs and the token
+	// fields above are only this project's count, for reading.
+	Source          string           `json:"source,omitempty"`
+	ProviderWindows []ProviderWindow `json:"provider_windows,omitempty"`
+}
+
+// ProviderWindow is one of the account's windows in a snapshot.
+type ProviderWindow struct {
+	Window string `json:"window"`
+	// UsedPct is 0-100, as the provider reported it.
+	UsedPct float64 `json:"used_pct"`
+	// ResetsAt is UTC with a literal Z, as reset_at.
+	ResetsAt string `json:"resets_at"`
 }
 
 // resetLayout is Python's `strftime("%Y-%m-%dT%H:%M:%SZ")`: UTC, second
@@ -82,7 +98,7 @@ func (g *Gate) Snapshot(ctx context.Context) (map[string]ProviderSnapshot, error
 			usagePct = float64(w.tokens) / float64(pb.TokenBudget) * 100.0
 		}
 
-		out[provider] = ProviderSnapshot{
+		snap := ProviderSnapshot{
 			TokensUsed:    int(math.Round(w.tokens)),
 			RawTokensUsed: w.raw,
 			TokenBudget:   pb.TokenBudget,
@@ -93,6 +109,21 @@ func (g *Gate) Snapshot(ctx context.Context) (map[string]ProviderSnapshot, error
 			ResetAt:       resetAt,
 			Estimated:     w.estimated,
 		}
+		if pb.Source == SourceProvider {
+			snap.Source = SourceProvider
+			r, ok, err := g.providerReport(ctx, provider, pb, now)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				snap.ProviderWindows, snap.UsagePct, snap.Capped, snap.ResetAt = r.windows, r.usedPct, r.capped, nil
+				if r.capped {
+					s := r.resetAt.Format(resetLayout)
+					snap.ResetAt = &s
+				}
+			}
+		}
+		out[provider] = snap
 	}
 	return out, nil
 }

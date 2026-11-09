@@ -3,14 +3,18 @@
 // per attempt, with the retries apart. `orch report usage` and the
 // dashboard's /api/usage read the same Build, so the two cannot disagree.
 //
-// These are orch's own records of what each dispatch reported. They are not
-// the provider's subscription quota (a ChatGPT or Claude plan's 5-hour
-// window), which orch cannot see; orch's budget guardrail is likewise its own
-// limit on these numbers.
+// These are orch's own records of what each dispatch reported, in this
+// project. They are not the provider's subscription quota (a ChatGPT or
+// Claude plan's 5-hour window), which other projects and interactive use
+// share; Quota carries that plan quota as claude and codex last reported it
+// (#577). orch's budget guardrail is its own, per-project limit on these
+// numbers unless a budget says `source: provider`.
 package usage
 
 import (
 	"cmp"
+	"context"
+	"fmt"
 	"slices"
 
 	"github.com/Guria-Studio/orch/internal/state"
@@ -78,6 +82,9 @@ type Usage struct {
 	RetryTokens int     `json:"retry_tokens"`
 	ByModel     []Model `json:"by_model"`
 	ByTask      []Task  `json:"by_task"`
+	// Quota is the plan quota each backend's CLI last reported, the whole
+	// account's, sorted by backend; filled by AddQuota, nil before.
+	Quota []PlanQuota `json:"quota,omitempty"`
 }
 
 // Build splits rows, a project's spend.
@@ -123,4 +130,38 @@ func Build(rows []state.Spend) Usage {
 		return cmp.Or(cmp.Compare(b.Total(), a.Total()), cmp.Compare(a.TaskID, b.TaskID))
 	})
 	return u
+}
+
+// PlanQuota is one backend's subscription windows as its CLI last reported
+// them (claude's rate_limit_event, codex's session rollout), as of SeenAt.
+type PlanQuota struct {
+	Backend string              `json:"backend"`
+	Windows []state.QuotaWindow `json:"windows"`
+	SeenAt  string              `json:"seen_at"`
+}
+
+// QuotaReader is the slice of the state backend AddQuota reads.
+type QuotaReader interface {
+	LatestQuota(ctx context.Context, backend string) (state.ProviderQuota, bool, error)
+}
+
+// AddQuota fills u.Quota with the newest report of each backend that spent.
+func AddQuota(ctx context.Context, u *Usage, r QuotaReader) error {
+	var backends []string
+	for _, m := range u.ByModel {
+		if !slices.Contains(backends, m.Backend) {
+			backends = append(backends, m.Backend)
+		}
+	}
+	slices.Sort(backends)
+	for _, b := range backends {
+		q, ok, err := r.LatestQuota(ctx, b)
+		if err != nil {
+			return fmt.Errorf("plan quota of %s: %w", b, err)
+		}
+		if ok {
+			u.Quota = append(u.Quota, PlanQuota{Backend: b, Windows: q.Windows, SeenAt: state.FormatTS(q.SeenAt)})
+		}
+	}
+	return nil
 }

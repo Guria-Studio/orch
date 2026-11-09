@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -13,9 +14,10 @@ import (
 )
 
 // usageQuotaNote is what every usage view says about the numbers (#417).
-const usageQuotaNote = "These are the tokens each dispatch reported, as orch recorded them. They are not " +
-	"your provider plan's quota (a ChatGPT or Claude subscription's 5-hour window), which orch cannot see; " +
-	"orch's budget window is its own guardrail on these numbers."
+const usageQuotaNote = "These are the tokens each dispatch of this project reported, as orch recorded them. They are not " +
+	"your provider plan's quota (a ChatGPT or Claude subscription's 5-hour window), which other projects and your " +
+	"interactive use share: that is the plan quota above, as claude and codex last reported it. orch's budget window " +
+	"is its own guardrail on these numbers, per project (`orch budget show`)."
 
 // newReportUsageCmd is `orch report usage` (#417): where the tokens went.
 func newReportUsageCmd(flags *projectFlags) *cobra.Command {
@@ -52,6 +54,11 @@ func newReportUsageCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 			u := usage.Build(rows)
+			if r, ok := backend.(usage.QuotaReader); ok {
+				if err := usage.AddQuota(ctx, &u, r); err != nil {
+					return err
+				}
+			}
 			if asJSON {
 				return printCompactJSON(cmd.OutOrStdout(), u)
 			}
@@ -102,6 +109,20 @@ func writeUsage(w io.Writer, u usage.Usage, top int) error {
 					fmt.Fprintf(&b, "      %s: %s\n", label, tokensLine(a.Tokens))
 				}
 			}
+		}
+	}
+	if len(u.Quota) > 0 {
+		b.WriteString("\nPlan quota (the whole account, as each CLI last reported it)\n")
+		for _, q := range u.Quota {
+			parts := make([]string, 0, len(q.Windows))
+			for _, w := range q.Windows {
+				part := fmt.Sprintf("%s %s%% used", w.Window, trimFloat(math.Round(w.Utilization*10000)/100))
+				if w.ResetsAt > 0 {
+					part += ", resets " + time.Unix(w.ResetsAt, 0).UTC().Format("2006-01-02T15:04:05Z")
+				}
+				parts = append(parts, part)
+			}
+			fmt.Fprintf(&b, "  %s — %s (seen %s)\n", q.Backend, strings.Join(parts, " · "), q.SeenAt)
 		}
 	}
 	b.WriteString("\n" + usageQuotaNote + "\n")

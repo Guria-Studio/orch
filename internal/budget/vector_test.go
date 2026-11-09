@@ -43,6 +43,9 @@ type vectorProvider struct {
 	WindowHours  float64 `json:"window_hours"`
 	TokenBudget  int     `json:"token_budget"`
 	ThresholdPct float64 `json:"threshold_pct"`
+	// Source is Go-only (#577): the vector has none, which is the token
+	// window Python computed.
+	Source string `json:"source,omitempty"`
 }
 
 // fixtureBackend opens the Python-written database the state package keeps.

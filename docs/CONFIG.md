@@ -427,10 +427,13 @@ typical_dispatch_tokens: 200000
 Two different guardrails:
 
 - **The rolling window** (`budgets.yaml`) rations each provider's tokens across
-  a run. It is **orch's own guardrail, not your provider plan's quota**: a
-  ChatGPT or Claude subscription's 5-hour limit is the provider's, and orch
-  cannot see it — set `token_budget` and `window_hours` below what your plan
-  allows, and the provider may still cut you off first (#417). Every
+  a run. It is **orch's own guardrail, per project, not your provider plan's
+  quota**: it counts only this project's dispatches, while a ChatGPT or Claude
+  subscription's 5-hour limit is the account's, shared with your other
+  projects and your terminal. Set `token_budget` and `window_hours` below what
+  your plan allows — the presets are a starting point to calibrate — and the
+  provider may still cut you off first (#417), unless the provider is budgeted
+  with `source: provider` (below). Every
   dispatch's tokens are summed per provider over the preset's
   `window_hours`: input and output (reasoning included: codex and agy count it
   in their output, and orch adds opencode's, which it reports apart) at full
@@ -467,9 +470,32 @@ is no flag or environment variable for the preset. `typical_dispatch_tokens`
 also drives doctor's warning when a preset's window cannot fit two dispatches.
 
 To change a provider's window without opening the file, `orch budget set
-<provider> --tokens N --window-hours H --threshold PCT` edits the active preset
-in place (comments kept), and the dashboard's Providers and quota page offers
-the same as **Edit limits**.
+<provider> --tokens N --window-hours H --threshold PCT --source tokens|provider`
+edits the active preset in place (comments kept), and the dashboard's Providers
+and quota page offers the same as **Edit limits**. `orch budget show` prints
+each provider's window and what decides it.
+
+#### `source: provider` — gate on the plan's own windows (#577)
+
+```yaml
+presets:
+  conservative:
+    codex:
+      window_hours: 5
+      token_budget: 400000
+      threshold_pct: 90
+      source: provider   # optional; default tokens
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `source` | `tokens` | `tokens`: the gate compares this project's weighted token window with `threshold_pct` of `token_budget`, as above. `provider`: it compares the plan's own windows, as the provider's CLI last reported them, with `threshold_pct` — claude's `rate_limit_event` (5-hour, weekly) and codex's session rollout (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`, `~/.codex/sessions` by default; its `token_count` events carry `rate_limits.primary` = 5 hours and `secondary` = weekly, `used_percent` and `resets_at`). The fullest window decides; a deferred provider waits until that window's `resets_at`. A report counts while its window has not reset since; with none fresh (no dispatch yet, a provider that reports nothing, every window reset) the token window decides. Any other value is refused when the file loads. |
+
+The report arrives with each finished dispatch (the outcome event's
+`extra.quota`), so it lags by whatever is in flight, and it counts every use
+of the account, not only orch's — which is the point: the reporter of #577 had
+a codex task deferred at "507,223 tokens used, cap 360,000" while the plan
+stood at 7% of its 5-hour window.
 
 ### `dashboard`
 
