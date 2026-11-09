@@ -771,7 +771,7 @@ verify:
   enabled: true         # what `orch init` writes; absent = false
   commands: []          # [] = what `orch ci setup` detects
   review: true
-  reviewer: ""          # "" = another installed provider than the task's
+  reviewer: ""          # "" = another installed provider than the task's; never the task's own
   review_model: ""
   checklist: ""         # "" = .orch/review.md, then .github/orch-review.md, then the built-in one
   app:                  # the task's own app, for E2E; empty start = none
@@ -815,12 +815,20 @@ a note and verifies nothing.
    the dashboard's Tools page lists it.
 2. **Review.** With `review: true`, after the commands pass, a provider reads
    the task's diff against the base, read-only, and applies the checklist,
-   the same review `orch ci review` runs. The default reviewer is the first
-   installed of claude, gemini, codex and opencode that did not write the
-   task. Only a blocking finding fails the work. A review that cannot complete
-   (no other provider, a provider that is down or over its
-   [budget](#budget-and-budget-presets) window, an answer that does not
-   parse) is logged and the work passes. The review's spend is recorded like
+   the same review `orch ci review` runs, plus what the task asked for: its
+   title, description and its section of the spec (`specRef`, read from the
+   worktree under `spec_root`, its "Done when" included); a change that does
+   not do the task is a blocking finding (#539). The default reviewer is the
+   first installed of claude, gemini, codex and opencode that did not write
+   the task. A `reviewer` that did write the task never reviews its own work:
+   another installed provider does, with a warning. Only a blocking finding
+   fails the work. A review that fails or answers something that does not
+   parse is asked once more; a second failure — or no other provider, or one
+   over its [budget](#budget-and-budget-presets) window — is **review
+   unavailable**: the work is not failed for it, but it is not counted as
+   reviewed either. The `verify_passed` event carries `review_unavailable`,
+   the PR body says the change was not reviewed and why, and `orch metrics`
+   counts the attempt as unavailable, not as a pass. The review's spend is recorded like
    a task attempt's, under `<task>-verify-<attempt>` (#470), so it counts
    against the reviewer's budget window and shows in `orch report usage` and
    the dashboard's Usage page. `orch estimate` does not count it as a task's

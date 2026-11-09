@@ -32,6 +32,10 @@ type scriptedVerifier struct {
 	findings []VerifyFinding
 	// attempts records each call's Attempt.
 	attempts []int
+	// reqs records every request; unavailable comes back as every answer's
+	// ReviewUnavailable.
+	reqs        []VerifyRequest
+	unavailable string
 }
 
 func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) VerifyResult {
@@ -41,8 +45,12 @@ func (v *scriptedVerifier) Verify(_ context.Context, req VerifyRequest) VerifyRe
 	v.envs = append(v.envs, req.Env)
 	v.artifacts = append(v.artifacts, req.ArtifactsDir)
 	v.attempts = append(v.attempts, req.Attempt)
+	v.reqs = append(v.reqs, req)
 	i := min(len(v.dirs), len(v.answers)) - 1
 	res := VerifyResult{Failure: v.answers[i], E2E: v.e2e, Commands: []VerifyCommand{{Command: "go test ./...", DurationS: 1.5}}, Reviewer: "gemini"}
+	if v.unavailable != "" {
+		res.Reviewer, res.ReviewUnavailable = "", v.unavailable
+	}
 	if res.Failure != "" {
 		res.Findings = v.findings
 	}
@@ -324,5 +332,41 @@ func TestDispatchGrantsTheDatabaseDir(t *testing.T) {
 				t.Errorf("WritableDirs = %v, want %v", got, want)
 			}
 		})
+	}
+}
+
+// TestVerifyIsToldWhatTheTaskAsked (#539): the verifier gets the task's title,
+// description and specRef, for the reviewer to check the change against.
+func TestVerifyIsToldWhatTheTaskAsked(t *testing.T) {
+	f, _, _, _ := prFixture(t)
+	v := &scriptedVerifier{answers: []string{""}}
+	f.s.Verifier = v
+
+	f.runOnce(t)
+
+	if len(v.reqs) != 1 {
+		t.Fatalf("verified %d times, want 1", len(v.reqs))
+	}
+	if r := v.reqs[0]; r.Title != "Wire the webhook" || r.SpecRef != "specs/f1.md#T1" {
+		t.Errorf("request title %q, specRef %q; want the task's", r.Title, r.SpecRef)
+	}
+}
+
+// TestUnavailableReviewIsSaidInThePR (#539): work whose review could not run
+// is published, and its PR and verify event say it was not reviewed.
+func TestUnavailableReviewIsSaidInThePR(t *testing.T) {
+	f, _, v, _ := prFixture(t)
+	f.s.Verifier = &scriptedVerifier{answers: []string{""}, unavailable: "gemini's review failed twice: boom"}
+
+	f.runOnce(t)
+
+	if v.prHead != "orch/C-1" {
+		t.Fatalf("no PR was opened (head %q)", v.prHead)
+	}
+	if !strings.Contains(v.prBody, "Not reviewed") || !strings.Contains(v.prBody, "gemini's review failed twice: boom") {
+		t.Errorf("PR body does not say the review was unavailable:\n%s", v.prBody)
+	}
+	if !strings.Contains(f.backend.extraOf("C-1", EventVerifyPassed), "gemini's review failed twice: boom") {
+		t.Errorf("the verify_passed event does not carry review_unavailable")
 	}
 }

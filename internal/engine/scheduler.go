@@ -62,6 +62,9 @@ type InFlight struct {
 	Conflict *prompt.Conflict
 	// GuardWarnings is what the pre-PR guard warned about, for the PR body.
 	GuardWarnings []string
+	// ReviewUnavailable is why the local review did not run, for the PR body
+	// (#539).
+	ReviewUnavailable string
 }
 
 // SchedulerOptions configures one run.
@@ -761,7 +764,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	delete(s.radarSeen, task.ID)
 
 	// One supervisor per child, posting to the reaper when it finishes.
-	go s.supervise(sp.PID, d, sp, attempt)
+	go s.supervise(sp.PID, task, d, sp, attempt)
 
 	if s.Backend != nil {
 		if err := s.Backend.RecordDispatchAndEvent(ctx, s.Opts.RunID, d, sp, attempt); err != nil {

@@ -50,6 +50,10 @@ type VerifyResult struct {
 	Reviewer, ReviewModel string
 	// Findings are the review's, blocking and minor.
 	Findings []VerifyFinding
+	// ReviewUnavailable says why a review that was asked for did not happen
+	// (no other provider, or no answer that parsed after a retry). The work
+	// is not failed for it, and not counted as reviewed either (#539).
+	ReviewUnavailable string
 }
 
 // VerifyCommand is one check the verify ran.
@@ -82,6 +86,9 @@ type VerifyRequest struct {
 	Attempt int
 	// Writer is the backend that did the work; the review picks another.
 	Writer model.Backend
+	// Title, Description and SpecRef are the task's, for the reviewer to
+	// check the change against (#539).
+	Title, Description, SpecRef string
 	// Dir is the task's worktree, with the work committed.
 	Dir string
 	// Env is the agent's own environment: the task's ORCH_TASK_SLOT and
@@ -101,7 +108,7 @@ func (s *Scheduler) verifies() bool {
 // supervising goroutine: tests and a review take minutes, and the run loop
 // must not wait on them. The work is committed first, so the review reads it
 // as the diff the push would publish.
-func (s *Scheduler) verifyOutcome(d Dispatch, attempt int, out *Outcome) {
+func (s *Scheduler) verifyOutcome(task model.Task, d Dispatch, attempt int, out *Outcome) {
 	if !out.Result.Success || !s.verifies() {
 		return
 	}
@@ -109,6 +116,7 @@ func (s *Scheduler) verifyOutcome(d Dispatch, attempt int, out *Outcome) {
 	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
 	res := s.Verifier.Verify(ctx, VerifyRequest{
 		TaskID: d.Req.TaskID, Attempt: attempt, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
+		Title: task.Title, Description: task.Description, SpecRef: task.SpecRef,
 		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, d.Req.TaskID, attempt),
 	})
 	out.VerifyFailure, out.E2E, out.Verify = res.Failure, res.E2E, &res
@@ -132,6 +140,9 @@ func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *Veri
 	}
 	if len(res.Findings) > 0 {
 		extra["findings"] = res.Findings
+	}
+	if res.ReviewUnavailable != "" {
+		extra["review_unavailable"] = res.ReviewUnavailable
 	}
 	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, event, id, string(entry.Route.Backend), extra); err != nil {
 		s.logger().Error("recording the verify result failed", "task", id, "err", err)
@@ -210,6 +221,15 @@ func (s *Scheduler) sendBack(ctx context.Context, entry *InFlight, out Outcome) 
 		EarliestAt: s.now(),
 	})
 	return nil
+}
+
+// reviewUnavailableSection tells the PR's reader the local review did not
+// run, so the PR is not mistaken for reviewed work (#539).
+func reviewUnavailableSection(reason string) string {
+	if reason == "" {
+		return ""
+	}
+	return "\n\n**Not reviewed by orch's local verify**: " + reason + ". Review this change yourself."
 }
 
 // verifyBlockReason is the block reason once the send-backs are used up.

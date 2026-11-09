@@ -201,6 +201,9 @@ func attemptRow(runID string, d Dispatch, o Outcome, ts string, attempt int) sta
 				a.Review = "blocks"
 			}
 		}
+		if v.ReviewUnavailable != "" {
+			a.Review = "unavailable"
+		}
 		for _, f := range v.Findings {
 			a.Findings = append(a.Findings, state.AttemptFinding{Severity: f.Severity, File: f.File, Line: f.Line, Title: f.Title})
 		}
