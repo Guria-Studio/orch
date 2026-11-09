@@ -3,9 +3,8 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/explain"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newExplainCmd is `orch explain` — one screen that says where a project is
@@ -53,7 +52,7 @@ func newExplainCmd(flags *projectFlags) *cobra.Command {
 				ProjectRoot: p.Paths.Root,
 				SpecRoot:    p.Config.SpecRoot,
 				Tasks:       tasks,
-				Budget:      budgetReporter(p.Paths, p.Config, p.Backend),
+				Budget:      budgetReporter(p),
 			})
 			if err != nil {
 				return err
@@ -79,8 +78,8 @@ func newExplainCmd(flags *projectFlags) *cobra.Command {
 // first method call panics — `Gate.Disabled` dereferences its config. One of
 // Go's oldest sharp edges, and the reason this conversion is three lines with
 // a name rather than an inline assignment.
-func budgetReporter(paths config.Paths, cfg config.Config, backend state.Backend) explain.BudgetReporter {
-	gate := newBudgetGate(paths, cfg, backend)
+func budgetReporter(p *project.Project) explain.BudgetReporter {
+	gate := newBudgetGate(p.Paths, p.Config, p.Backend)
 	if gate == nil {
 		return nil
 	}

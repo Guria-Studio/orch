@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // newMetricsCmd is `orch metrics` (#538): how good the agents' work is, from
@@ -24,20 +23,16 @@ func newMetricsCmd(flags *projectFlags) *cobra.Command {
 			"attempt figures count each attempt where it ran.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			paths, cfg, err := loadProjectConfig(flags)
+			p, err := openProject(cmd.Context(), flags)
 			if err != nil {
 				return err
 			}
-			backend, closeDB, err := openBackend(cmd.Context(), paths, cfg)
+			defer func() { _ = p.Close() }()
+			attempts, err := p.Backend.Attempts(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer func() { _ = closeDB() }()
-			attempts, err := backend.Attempts(cmd.Context())
-			if err != nil {
-				return err
-			}
-			tasks, err := backend.Tasks(cmd.Context(), state.TaskFilter{})
+			tasks, err := project.Runtime(cmd.Context(), p.Backend)
 			if err != nil {
 				return err
 			}

@@ -2,12 +2,11 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // ---- orch_run_status -------------------------------------------------------
@@ -56,12 +55,12 @@ func (s *server) runStatus(ctx context.Context, _ *mcpsdk.CallToolRequest, _ run
 		out.Counts[string(t.Status)]++
 	}
 
-	run, err := s.opts.Backend.LatestRun(ctx)
-	if errors.Is(err, state.ErrNoRuns) {
-		return nil, out, nil
-	}
+	run, ok, err := project.LatestRun(ctx, s.opts.Backend)
 	if err != nil {
 		return nil, runStatusOut{}, fmt.Errorf("read the latest run: %w", err)
+	}
+	if !ok {
+		return nil, out, nil
 	}
 	out.Run = &runStatusRun{
 		RunID: run.RunID, Status: run.Status, Mode: run.Mode,

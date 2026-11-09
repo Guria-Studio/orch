@@ -267,7 +267,7 @@ func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer)
 	if err != nil {
 		return 0, err
 	}
-	e, err := projectEstimate(ctx, p.Backend, p.Paths, p.Config, tasks, "", 0)
+	e, err := projectEstimate(ctx, p, tasks, "", 0)
 	if err != nil {
 		return 0, err
 	}

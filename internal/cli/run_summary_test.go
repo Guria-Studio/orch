@@ -11,6 +11,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/demo"
 	"github.com/Guria-Studio/orch/internal/notify"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -36,12 +37,12 @@ func TestRunPrintsItsSummary(t *testing.T) {
 	cfg.Dashboard.SummaryLanguage = "en"
 
 	var out bytes.Buffer
-	reportRunSummary(ctx, &out, backend, paths, cfg, &notify.Notifier{}, demo.HistoryRunID)
+	reportRunSummary(ctx, &out, project.New(paths, cfg, backend), &notify.Notifier{}, demo.HistoryRunID)
 	if !strings.Contains(out.String(), "Run "+demo.HistoryRunID+" finished: 16 done") {
 		t.Errorf("finished run printed:\n%s", out.String())
 	}
 	out.Reset()
-	reportRunSummary(ctx, &out, backend, paths, cfg, &notify.Notifier{}, demo.RunID)
+	reportRunSummary(ctx, &out, project.New(paths, cfg, backend), &notify.Notifier{}, demo.RunID)
 	if out.Len() != 0 {
 		t.Errorf("an unfinished run printed a summary:\n%s", out.String())
 	}

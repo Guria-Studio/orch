@@ -23,7 +23,8 @@ Every node and edge traces to [`FACTS.md`](FACTS.md), which was written from
 the code on `main` at `723351e`, not from the migration plan:
 
 - the package graph from `go list` (internal imports only) — which is how the
-  diagrams know that `internal/engine` imports neither `router` nor `notify`;
+  diagrams know what `internal/engine` imports (since #550, `router` and
+  `notify` too: `engine.FromProject` wires the run);
 - task statuses and legal transitions from `internal/model/status.go`;
 - the dispatch order from `internal/engine/scheduler.go` (`Refill`,
   `spawnOne`) and `internal/engine/reaper.go`;

@@ -8,11 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/estimate"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newEstimateCmd is `orch estimate`: what the next `orch run` would dispatch,
@@ -43,7 +42,7 @@ func newEstimateCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return withExitCode(1, err)
 			}
-			e, err := projectEstimate(ctx, p.Backend, p.Paths, p.Config, tasks, only, maxTasks)
+			e, err := projectEstimate(ctx, p, tasks, only, maxTasks)
 			if err != nil {
 				return withExitCode(1, err)
 			}
@@ -62,9 +61,9 @@ func newEstimateCmd(flags *projectFlags) *cobra.Command {
 
 // projectEstimate gathers what estimate.Compute reads for a project whose
 // tasks already carry their runtime status.
-func projectEstimate(ctx context.Context, backend state.Backend, paths config.Paths, cfg config.Config,
-	tasks []model.Task, only string, maxTasks int) (estimate.Estimate, error) {
-	spend, err := backend.AllSpend(ctx, time.Time{})
+func projectEstimate(ctx context.Context, p *project.Project, tasks []model.Task, only string, maxTasks int) (estimate.Estimate, error) {
+	paths, cfg := p.Paths, p.Config
+	spend, err := p.Backend.AllSpend(ctx, time.Time{})
 	if err != nil {
 		return estimate.Estimate{}, fmt.Errorf("reading past spend: %w", err)
 	}

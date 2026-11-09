@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/scaffold"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -29,7 +31,7 @@ func TestReportFindingsIsOfferedOnceAfterATaskFinishes(t *testing.T) {
 	}
 	offer := func() string {
 		var out bytes.Buffer
-		offerReportFindings(ctx, &out, backend, root)
+		offerReportFindings(ctx, &out, project.New(config.Paths{Root: root}, config.Config{}, backend))
 		return out.String()
 	}
 

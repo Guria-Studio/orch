@@ -14,6 +14,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
 	"github.com/Guria-Studio/orch/internal/templates"
+	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // newInitCmd ports `orch init` (orchestrator/init_cmd.py's `run_init_cli`).
@@ -204,7 +205,7 @@ func printInitResult(cmd *cobra.Command, res scaffold.Result, opts scaffold.Opti
 	if wd, err := os.Getwd(); err != nil || wd != res.Root {
 		in = " --project-root " + res.Root
 	}
-	if problem := baseProblem(res.Root, opts.BaseBranch); problem != "" {
+	if problem := worktree.BaseProblem(res.Root, opts.BaseBranch); problem != "" {
 		say("First: %s", problem)
 		say("")
 	}
@@ -260,7 +261,7 @@ func planSteps() []string {
 // in a repository with no remote, or on a machine without gh (#455), and says
 // so: finished tasks are then merged into the base here instead of waiting on
 // a pull request that cannot be opened. A directory that is not a repository
-// yet is left alone; baseProblem already says what to run there. inPlace is
+// yet is left alone; worktree.BaseProblem already says what to run there. inPlace is
 // `orch start`, which runs at once: with no commit to branch from yet, its
 // agents work in the checkout instead (#377).
 func runLocallyWhenNoForge(root string, inPlace bool, say func(string, ...any)) error {
@@ -275,7 +276,7 @@ func runLocallyWhenNoForge(root string, inPlace bool, say func(string, ...any)) 
 		}
 		why = "gh is not installed"
 	}
-	inPlace = inPlace && baseProblem(root, repoBranch(root)) != ""
+	inPlace = inPlace && worktree.BaseProblem(root, repoBranch(root)) != ""
 	if err := scaffold.RunLocally(root, inPlace); err != nil {
 		return fmt.Errorf("configuring a project with %s: %w", why, err)
 	}
@@ -297,23 +298,4 @@ func repoBranch(dir string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
-}
-
-// baseProblem says why task worktrees cannot branch from base in root — not a
-// repository, or no commit on the base yet, the state `git init` leaves —
-// with the command that fixes it; "" when they can. #376: a fresh repository
-// blocked its first task on git's "invalid reference: main".
-func baseProblem(root, base string) string {
-	if base == "" {
-		base = "main"
-	}
-	if exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree").Run() != nil { // #nosec G204 -- fixed git arguments
-		return `each task works on its own git branch, and this is not a git repository yet: git init && git add -A && git commit -m "orch init"`
-	}
-	for _, ref := range []string{base, "origin/" + base} {
-		if exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Run() == nil { // #nosec G204 -- fixed git arguments; base comes from the project's config
-			return ""
-		}
-	}
-	return fmt.Sprintf(`each task branches from %s, which has no commit yet: git add -A && git commit -m "orch init"`, base)
 }

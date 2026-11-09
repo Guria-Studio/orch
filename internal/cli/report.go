@@ -15,7 +15,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 	"github.com/Guria-Studio/orch/internal/report"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // newReportCmd is `orch report`: `pdf` renders the stakeholder snapshot as a
@@ -50,11 +49,7 @@ func newReportPDFCmd(flags *projectFlags) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 
-			paths, cfg, err := loadProjectConfig(flags)
-			if err != nil {
-				return err
-			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := openProject(ctx, flags)
 			if err != nil {
 				return err
 			}
@@ -65,13 +60,14 @@ func newReportPDFCmd(flags *projectFlags) *cobra.Command {
 			// command — the PDF on disk is already correct — so it goes to
 			// stderr and the exit code stays 0.
 			defer func() {
-				if cerr := closeDB(); cerr != nil {
+				if cerr := p.Close(); cerr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 						"[warn] closing the database: %v\n", cerr)
 				}
 			}()
+			paths := p.Paths
 
-			snap, err := buildStakeholderSnapshot(ctx, paths, cfg, backend, time.Now())
+			snap, err := buildStakeholderSnapshot(ctx, p, time.Now())
 			if err != nil {
 				return err
 			}
@@ -134,8 +130,8 @@ func brandingLogoPath(paths config.Paths, logo string) string {
 // loud, because it is the same gap this migration keeps finding from the other
 // side: a builder nobody calls is as untested in practice as a column nobody
 // reads.
-func buildStakeholderSnapshot(ctx context.Context, paths config.Paths, cfg config.Config,
-	backend state.Backend, now time.Time) (snapshot.Snapshot, error) {
+func buildStakeholderSnapshot(ctx context.Context, p *project.Project, now time.Time) (snapshot.Snapshot, error) {
+	paths, cfg, backend := p.Paths, p.Config, p.Backend
 	f, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return snapshot.Snapshot{}, err
@@ -192,7 +188,7 @@ func buildStakeholderSnapshot(ctx context.Context, paths config.Paths, cfg confi
 			return snapshot.Snapshot{}, fmt.Errorf("reading the CI workflows: %w", err)
 		}
 		gates = ci.Gates(workflows)
-		rows, err := backend.Tasks(ctx, state.TaskFilter{})
+		rows, err := project.Runtime(ctx, backend)
 		if err != nil {
 			return snapshot.Snapshot{}, fmt.Errorf("reading the tasks' CI results: %w", err)
 		}

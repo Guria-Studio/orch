@@ -52,3 +52,64 @@ func TestOpenTasksAreHydrated(t *testing.T) {
 		t.Errorf("Definitions status = %q, want the file's todo", defs.Tasks[0].Status)
 	}
 }
+
+// The read models front ends use instead of naming state's filters and
+// sentinels (#550): every runtime row, the status map a run's queue starts
+// from, whether anything is done, and the latest run — none being no error.
+func TestProjectReadModels(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	paths, err := config.ResolvePaths(root, "demo", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = p.Close() })
+
+	if _, ok, err := LatestRun(ctx, p.Backend); ok || err != nil {
+		t.Errorf("LatestRun on a project never run: ok=%v err=%v, want neither", ok, err)
+	}
+	if done, err := AnyDone(ctx, p.Backend); done || err != nil {
+		t.Errorf("AnyDone with no task: %v, %v", done, err)
+	}
+	if err := p.Backend.Bootstrap(ctx, []model.Task{{ID: "A", Status: model.StatusTodo}, {ID: "B", Status: model.StatusDone}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Backend.StartRun(ctx, "run-1", "auto"); err != nil {
+		t.Fatal(err)
+	}
+	if run, ok, err := LatestRun(ctx, p.Backend); !ok || err != nil || run.RunID != "run-1" {
+		t.Errorf("LatestRun = %+v, %v, %v; want run-1", run, ok, err)
+	}
+	if done, err := AnyDone(ctx, p.Backend); !done || err != nil {
+		t.Errorf("AnyDone with B done: %v, %v", done, err)
+	}
+	statuses, err := Statuses(ctx, p.Backend)
+	if err != nil || statuses["A"] != model.StatusTodo || statuses["B"] != model.StatusDone {
+		t.Errorf("Statuses = %v, %v", statuses, err)
+	}
+	if rows, err := Runtime(ctx, p.Backend); err != nil || len(rows) != 2 {
+		t.Errorf("Runtime = %d rows, %v; want 2", len(rows), err)
+	}
+}
+
+// New wraps a backend its caller owns: Close leaves it open.
+func TestNewDoesNotCloseTheCallersBackend(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db, _, err := state.Open(ctx, filepath.Join(root, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	p := New(config.Paths{Root: root, ID: "demo"}, config.Config{}, state.NewSQLite(db, "demo", root))
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Backend.Tasks(ctx, state.TaskFilter{}); err != nil {
+		t.Errorf("the backend was closed with the project: %v", err)
+	}
+}

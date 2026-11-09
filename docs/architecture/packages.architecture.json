@@ -296,8 +296,8 @@
       "dot": "cyan",
       "title": "Dependencias",
       "items": [
-        "engine no importa dashboard, publish, router ni notify",
-        "cli resuelve las rutas de model_router.yaml y conecta notify"
+        "engine no importa dashboard ni publish",
+        "engine.FromProject carga model_router.yaml y conecta notify"
       ]
     },
     {

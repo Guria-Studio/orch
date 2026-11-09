@@ -6,12 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/receipt"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // newReportReceiptCmd is `orch report receipt`: one run's summary, the same
@@ -37,7 +35,7 @@ func newReportReceiptCmd(flags *projectFlags) *cobra.Command {
 			if (asJSON && asMarkdown) || (asSVG && (asJSON || asMarkdown)) {
 				return withExitCode(2, errors.New("--json, --markdown and --svg are mutually exclusive"))
 			}
-			rec, tf, paths, _, _, done, err := loadRunReceipt(cmd, flags, runID)
+			rec, tf, p, done, err := loadRunReceipt(cmd, flags, runID)
 			if err != nil {
 				return err
 			}
@@ -48,7 +46,7 @@ func newReportReceiptCmd(flags *projectFlags) *cobra.Command {
 			if asSVG {
 				project := tf.Meta.Project
 				if project == "" {
-					project = paths.ID
+					project = p.Paths.ID
 				}
 				if _, err := fmt.Fprint(cmd.OutOrStdout(), rec.SVG(project, !noBuiltWith)); err != nil {
 					return fmt.Errorf("write receipt: %w", err)
@@ -76,21 +74,18 @@ func newReportReceiptCmd(flags *projectFlags) *cobra.Command {
 // loadRunReceipt is the receipt `orch report receipt` and `orch report
 // summary` print: runID's, or the latest finished run's, with the open
 // database. done closes it; it is a no-op when err is set.
-func loadRunReceipt(cmd *cobra.Command, flags *projectFlags, runID string) (*receipt.Receipt, model.TasksFile, config.Paths, config.Config, state.Backend, func(), error) {
+func loadRunReceipt(cmd *cobra.Command, flags *projectFlags, runID string) (*receipt.Receipt, model.TasksFile, *project.Project, func(), error) {
 	ctx := cmd.Context()
 	var tf model.TasksFile
-	paths, cfg, err := loadProjectConfig(flags)
+	p, err := openProject(ctx, flags)
 	if err != nil {
-		return nil, tf, paths, cfg, nil, nil, err
+		return nil, tf, nil, nil, err
 	}
-	backend, closeDB, err := openBackend(ctx, paths, cfg)
-	if err != nil {
-		return nil, tf, paths, cfg, nil, nil, err
-	}
+	paths := p.Paths
 	// A failed close loses nothing on a read, so it warns on stderr rather
 	// than changing an exit code the receipt already earned.
 	done := func() {
-		if cerr := closeDB(); cerr != nil {
+		if cerr := p.Close(); cerr != nil {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] closing the database: %v\n", cerr)
 		}
 	}
@@ -100,7 +95,7 @@ func loadRunReceipt(cmd *cobra.Command, flags *projectFlags, runID string) (*rec
 	if err != nil {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] reading tasks.json: %v — tasks are named by id\n", err)
 	}
-	rec, err := receipt.Load(ctx, backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
+	rec, err := receipt.Load(ctx, p.Backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
 	if err == nil && rec == nil {
 		err = errors.New("no run has finished yet — `orch run` writes a receipt when its loop ends")
 		if runID != "" {
@@ -110,7 +105,7 @@ func loadRunReceipt(cmd *cobra.Command, flags *projectFlags, runID string) (*rec
 	}
 	if err != nil {
 		done()
-		return nil, tf, paths, cfg, nil, nil, err
+		return nil, tf, nil, nil, err
 	}
-	return rec, tf, paths, cfg, backend, done, nil
+	return rec, tf, p, done, nil
 }

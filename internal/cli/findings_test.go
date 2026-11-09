@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/findings"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -44,7 +45,7 @@ func TestFindingsAreReviewedBeforeTheyLeave(t *testing.T) {
 	}
 
 	var note bytes.Buffer
-	noteQueuedFindings(ctx, &note, backend)
+	noteQueuedFindings(ctx, &note, project.New(paths, cfg, backend))
 	if !strings.Contains(note.String(), "2 bug(s)") || !strings.Contains(note.String(), "orch findings") {
 		t.Errorf("end-of-run note = %q", note.String())
 	}
@@ -72,7 +73,7 @@ func TestFindingsAreReviewedBeforeTheyLeave(t *testing.T) {
 		t.Errorf("queue after send and dismiss:\n%s", out)
 	}
 	note.Reset()
-	noteQueuedFindings(ctx, &note, backend)
+	noteQueuedFindings(ctx, &note, project.New(paths, cfg, backend))
 	if note.Len() != 0 {
 		t.Errorf("a run with nothing queued still says %q", note.String())
 	}

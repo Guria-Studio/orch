@@ -4,39 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Guria-Studio/orch/internal/ci"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/ci"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/doctor"
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/findings"
-	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/notify"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/receipt"
 	"github.com/Guria-Studio/orch/internal/sandbox"
 	"github.com/Guria-Studio/orch/internal/scaffold"
-	"github.com/Guria-Studio/orch/internal/state"
-	"github.com/Guria-Studio/orch/internal/vcs"
-	"github.com/Guria-Studio/orch/internal/verify"
-	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
 // newRunCmd ports `orch run` (orchestrator/orch.py's main loop). The loop
-// itself lives in internal/engine; this resolves the project, builds the
-// scheduler, and translates the outcome into an exit code.
+// itself lives in internal/engine, and so does its wiring (engine.FromProject,
+// #550); this opens the project, says what the operator should know before
+// the run starts, and translates the outcome into an exit code.
 //
 // Flags are the subset the engine actually honours today. Python's `run` also
 // takes `--budgets-preset`, `--dry-run` and a few more; they are deliberately
@@ -91,11 +84,11 @@ type runOptions struct {
 	// benchmark copy has no git history of its own, must never open a PR on
 	// the real remote, and is not news for the project's Slack channel.
 	isolated bool
-	// backend, when set, is the database the run writes through instead of
+	// project, when set, is the project the run writes through instead of
 	// opening its own; the caller closes it. `orch bench` reads the run's
 	// spend while it goes, and doing that through the run's own backend keeps
 	// one writer on the file (CHECKLIST rule 17).
-	backend state.Backend
+	project *project.Project
 	// tasks, when set, is the whole DAG this run dispatches instead of
 	// tasks.json, which is then neither read nor reloaded: `orch knowledge
 	// curate`'s one task (#452).
@@ -111,7 +104,9 @@ var sandboxAvailable = sandbox.Available
 
 // runProject is `orch run` minus cobra: the one code path that walks a
 // project's DAG. `orch bench` calls it too, so a benchmark measures exactly
-// what `orch run` does.
+// what `orch run` does. The run's wiring is engine.FromProject's (#550); this
+// decides whether the run may start, says what the operator should know
+// before it does, and turns the outcome into an exit code.
 func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *projectFlags, opts runOptions) error {
 	switch engine.Mode(opts.mode) {
 	case engine.ModeAuto, engine.ModeSemi:
@@ -139,69 +134,39 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	}
 	defer runLock.Release()
 
-	backend := opts.backend
-	if backend == nil {
-		opened, closeBackend, err := openBackend(ctx, paths, cfg)
+	p := opts.project
+	if p == nil {
+		opened, err := project.OpenWith(ctx, paths, cfg)
 		if err != nil {
 			return withExitCode(1, err)
 		}
 		defer func() {
-			if cerr := closeBackend(); cerr != nil {
+			if cerr := opened.Close(); cerr != nil {
 				fmt.Fprintf(os.Stderr, "closing the state backend: %v\n", cerr)
 			}
 		}()
-		backend = opened
+		p = opened
 	}
 
-	tasks := opts.tasks
-	if tasks == nil {
-		tasks = loadDAG(paths)
-	}
-	if len(tasks) == 0 {
+	run, err := engine.FromProject(ctx, p, engine.RunOptions{
+		Mode:         engine.Mode(opts.mode),
+		MaxTasks:     opts.maxTasks,
+		Only:         opts.only,
+		TaskLocks:    opts.taskLocks,
+		WorktreeMode: opts.worktreeMode,
+		NoPush:       opts.noPush,
+		RunID:        opts.runID,
+		Isolated:     opts.isolated,
+		Tasks:        opts.tasks,
+		Verifier:     opts.verifier,
+		In:           in,
+		Out:          out,
+	})
+	if errors.Is(err, engine.ErrNoTasks) {
 		return withExitCode(1, fmt.Errorf("no tasks in %s — plan them with: %s", paths.TasksJSON(), strings.Join(planSteps(), "  then  ")))
 	}
-	if err := backend.Bootstrap(ctx, tasks); err != nil {
-		return withExitCode(1, fmt.Errorf("bootstrap: %w", err))
-	}
-
-	queue, err := engine.NewTaskQueue(tasks)
 	if err != nil {
 		return withExitCode(1, err)
-	}
-	// The database owns runtime status since F-12, so the queue
-	// starts from what it says rather than from tasks.json's seed.
-	if rows, rerr := backend.Tasks(ctx, state.TaskFilter{}); rerr != nil {
-		fmt.Fprintf(os.Stderr, "reading task status; starting from tasks.json: %v\n", rerr)
-	} else {
-		runtime := make(map[string]model.Status, len(rows))
-		for _, r := range rows {
-			runtime[r.ID] = r.Status
-		}
-		queue.Hydrate(runtime)
-	}
-
-	worktreeMode := (opts.worktreeMode || cfg.Dispatch.WorktreeMode) && !opts.isolated
-	autoPR := cfg.VCS.AutoPR && !opts.isolated
-	// vcs.provider: local (#455): each finished task is squash-merged into
-	// the base here; nothing is pushed and no PR is opened.
-	localMerge := worktreeMode && cfg.VCS.Provider == config.VCSProviderLocal
-	if worktreeMode {
-		if problem := baseProblem(paths.Root, cfg.Dispatch.BaseBranch); problem != "" {
-			return withExitCode(1, errors.New("cannot start: "+problem))
-		}
-		if localMerge {
-			opts.noPush, autoPR = true, false
-		}
-		// A repository with no remote has nowhere to push or open a PR
-		// (#376): the work stays on local branches, as doctor's vcs.remote
-		// says, instead of every task blocking on a push that cannot work.
-		if !hasGitRemote(paths.Root) {
-			opts.noPush = true
-			if autoPR {
-				autoPR = false
-				_, _ = fmt.Fprintln(os.Stderr, "note: this repository has no git remote — each task's work stays on its local orch/<task-id> branch, with no push and no pull request.")
-			}
-		}
 	}
 
 	// A typo in a configured command is found here, not mid-task as an exit
@@ -209,177 +174,21 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 	for _, m := range doctor.UnresolvedCommands(paths.Root, cfg) {
 		_, _ = fmt.Fprintln(os.Stderr, "warning: "+m.Detail+" — fix it in .orchestrator/config.yaml; until then verify skips it")
 	}
-	noteEstimate(ctx, os.Stderr, backend, paths, cfg, queue, opts)
-
-	rtr := loadRouterTolerant(paths)
-	warnMissingPermissions(os.Stderr, paths.Root, usedBackends(tasks, rtr, paths.TasksJSON()))
+	noteEstimate(ctx, os.Stderr, p, run.Queue, opts)
+	used := usedBackends(run.Tasks, run.Router, paths.TasksJSON())
+	warnMissingPermissions(os.Stderr, paths.Root, used)
 	if !opts.isolated {
-		noteOutdatedCLIs(ctx, os.Stderr, usedBackends(tasks, rtr, paths.TasksJSON()), cliLatest(cfg))
-	}
-	runID := opts.runID
-	if runID == "" {
-		runID = providers.NewSessionID()
-	}
-	if err := backend.StartRun(ctx, runID, opts.mode); err != nil {
-		return withExitCode(1, fmt.Errorf("starting the run: %w", err))
+		noteOutdatedCLIs(ctx, os.Stderr, used, cliLatest(cfg))
 	}
 
-	scheduler := engine.NewScheduler(queue, rtr, engine.SchedulerOptions{
-		Mode:              engine.Mode(opts.mode),
-		GlobalMax:         cfg.Concurrency.GlobalMax,
-		PerProvider:       cfg.Concurrency.PerProvider,
-		TimeoutMultiplier: cfg.DefaultTimeoutMult,
-		Cfg:               cfg,
-		UseTaskLocks:      opts.taskLocks,
-		WorktreeMode:      worktreeMode,
-		BaseBranch:        cfg.Dispatch.BaseBranch,
-		AutoPR:            autoPR,
-		LocalMerge:        localMerge,
-		ConflictRetries:   conflictRetries(cfg),
-		Only:              opts.only,
-		MaxTasks:          opts.maxTasks,
-		StateDir:          paths.StateDir(),
-		DBDir:             filepath.Dir(paths.SQLitePath(cfg)),
-		Cwd:               paths.Root,
-		ProjectID:         paths.ID,
-		RunID:             runID,
-		BudgetUSD:         perDispatchCap(cfg),
-	})
-	scheduler.Backend = engine.NewStateRecorder(backend)
-	// The same adapter, named separately because it answers a
-	// different question: what a finished dependency reported, for
-	// the prompt's context block.
-	scheduler.Comments = engine.NewStateRecorder(backend)
-	// And a dependency's PR, so one already merged is not merged into its
-	// dependent's worktree a second time (#345).
-	scheduler.PRs = engine.NewStateRecorder(backend)
-	// What `orch provider disable` turned off, read every tick so a switch
-	// flipped mid-run takes effect without a restart.
-	scheduler.Providers = backend
-	// The search index the prompt's project knowledge is ranked with (#451).
-	if r, ok := backend.(knowledge.Ranker); ok && cfg.Knowledge.Enabled {
-		scheduler.Knowledge = r
-	}
-	// Built unconditionally: with no webhook configured it is a
-	// working no-op, so the engine never has to ask whether the
-	// operator wanted notifications.
-	notifyCfg := cfg
-	if opts.isolated {
-		notifyCfg.Notifications.SlackWebhook, notifyCfg.Notifications.DiscordWebhook = "", ""
-	}
-	notifier := newNotifier(notifyCfg)
-	scheduler.Notify = notifier
-	if engine.Mode(opts.mode) == engine.ModeSemi {
-		scheduler.Gate = engine.TerminalGate{In: in, Out: out}
-	}
-	// Worktree isolation, and the auto-PR + CI chain that rides on
-	// it. All three are off unless the project asked: a project with
-	// worktree_mode off runs exactly as it did before, in its own
-	// root.
-	// One gate, shared: the scheduler asks it per dispatch, the loop
-	// whether every provider is capped, and the verify's review whether
-	// its reviewer may run (#470). Building two would read the same
-	// window twice and let them disagree inside a single tick.
-	budgetGate := newBudgetGate(paths, cfg, backend)
-	var wtManager engine.WorktreeManager
-	if worktreeMode {
-		wm := worktree.NewManager(paths.Root, !opts.noPush)
-		wm.Setup = cfg.Dispatch.WorktreeSetup
-		wtManager = engine.NewWorktreeManager(wm)
-		scheduler.Worktree = wtManager
-		if opts.verifier != nil {
-			scheduler.Verifier = opts.verifier
-		} else if cfg.Verify.Enabled {
-			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD, Rules: cfg.Knowledge.Enabled, SpecRoot: cfg.SpecRoot,
-				Once: engine.OneShot{State: backend, Gate: budgetGate}}
-		}
-	} else if cfg.Verify.Enabled {
-		_, _ = fmt.Fprintln(os.Stderr, "note: verify.enabled needs dispatch.worktree_mode; the work is not verified before it is published")
-	}
-
-	var provider vcs.Provider
-	if autoPR {
-		if wtManager == nil {
-			// Python's main() builds the provider only when BOTH are
-			// on, for the good reason that there is no branch to open
-			// a PR from without a worktree.
-			return withExitCode(1, errors.New(
-				"vcs.auto_pr needs dispatch.worktree_mode: there is no branch to open a PR from"))
-		}
-		provider = vcs.NewProvider(vcs.Config{
-			Provider: cfg.VCS.Provider,
-			Host:     cfg.VCS.Host,
-		})
-		scheduler.VCS = provider
-		scheduler.CIRecorder = backend
-		scheduler.OpenPRs = backend
-	}
-
-	runner := engine.NewRunner(scheduler)
-	// Resume: the same backend answers which dispatches a previous
-	// run left behind, so a crashed orch's rows do not hold tasks
-	// in-progress forever.
-	runner.Dispatches = backend
-	// And adopts statuses a person or a failed write changed in the
-	// database while this run held another view (#255).
-	runner.Statuses = engine.StateRecorder{Backend: backend}
-	// And acts on the operator's stop requests (#356).
-	runner.Requests = backend
-	// And takes tasks.json again when it changes (v0.22): a task added or
-	// edited — by `orch task add|edit`, the dashboard or a hand edit — joins
-	// this run. Checked by modification time, so an unchanged file costs a
-	// stat per tick.
-	tasksMod := fileModTime(paths.TasksJSON())
-	if opts.tasks == nil {
-		runner.ReloadTasks = func(ctx context.Context) ([]model.Task, bool, error) {
-			mod := fileModTime(paths.TasksJSON())
-			if mod.Equal(tasksMod) {
-				return nil, false, nil
-			}
-			// Before reading: a file broken mid-edit is reported once, and read
-			// again when it next changes.
-			tasksMod = mod
-			tf, err := project.Definitions(paths.TasksJSON())
-			if err != nil {
-				return nil, false, err
-			}
-			if err := backend.Bootstrap(ctx, tf.Tasks); err != nil {
-				return nil, false, err
-			}
-			return tf.Tasks, true, nil
-		}
-	}
-
-	// The CI poller only has something to watch when a PR can exist.
-	if provider != nil {
-		runner.CI = &engine.CIPoller{
-			Provider:        provider,
-			Backend:         backend,
-			Worktree:        wtManager,
-			PollInterval:    time.Duration(cfg.VCS.CIPollIntervalS) * time.Second,
-			MaxRetries:      cfg.VCS.CIMaxRetries,
-			ConflictRetries: conflictRetries(cfg),
-			AutoMerge:       cfg.GitHub.AutoMerge,
-			// Python's `gh pr merge --squash --auto`. Without a
-			// method gh refuses to merge non-interactively (#232).
-			Squash:           true,
-			MergeWhenPassing: true,
-		}
-	}
-	if budgetGate != nil {
-		scheduler.Budget = budgetGate
-		runner.Budget = budgetGate
-		runner.Alerts = newBudgetAlerts(notifyCfg, notifier, budgetGate, backend, runID)
-	}
-
-	code, err := runner.Run(ctx)
+	code, err := run.Start(ctx)
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	reportRunSummary(ctx, os.Stderr, backend, paths, cfg, notifier, runID)
+	reportRunSummary(ctx, os.Stderr, p, run.Notifier, run.RunID)
 	noteOutgrownCI(os.Stderr, paths.Root)
-	offerReportFindings(ctx, os.Stderr, backend, paths.Root)
-	noteQueuedFindings(ctx, os.Stderr, backend)
+	offerReportFindings(ctx, os.Stderr, p)
+	noteQueuedFindings(ctx, os.Stderr, p)
 	if code != 0 {
 		// The loop already said what it was doing on its way out;
 		// a second line here would be noise.
@@ -391,27 +200,25 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 // reportRunSummary prints the summary of the run that just ended, and posts
 // it to the webhooks when notifications are on (#456). Only a finished run
 // has one: a run stopped before its loop ended wrote no sprint_done.
-func reportRunSummary(ctx context.Context, w io.Writer, backend state.Backend, paths config.Paths, cfg config.Config,
-	notifier *notify.Notifier, runID string) {
-	tf, _ := project.Definitions(paths.TasksJSON())
-	rec, err := receipt.Load(ctx, backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
+func reportRunSummary(ctx context.Context, w io.Writer, p *project.Project, notifier *notify.Notifier, runID string) {
+	tf, _ := project.Definitions(p.Paths.TasksJSON())
+	rec, err := receipt.Load(ctx, p.Backend, runID, receipt.Titles(tf.Tasks), pricing.Load(p.Paths.Root))
 	if err != nil || rec == nil || !rec.Finished {
 		return
 	}
-	text := rec.Summary(cfg.Dashboard.SummaryLanguage, cfg.GitHub.AutoMerge).Text()
+	text := rec.Summary(p.Config.Dashboard.SummaryLanguage, p.Config.GitHub.AutoMerge).Text()
 	_, _ = fmt.Fprint(w, "\n"+text)
 	notifier.RunSummary(ctx, text)
 }
 
 // noteEstimate prints `orch estimate`'s first line before anything is
 // dispatched (#357). An estimate that cannot be made is not a reason to stop.
-func noteEstimate(ctx context.Context, w io.Writer, backend state.Backend, paths config.Paths, cfg config.Config,
-	queue *engine.TaskQueue, opts runOptions) {
+func noteEstimate(ctx context.Context, w io.Writer, p *project.Project, queue *engine.TaskQueue, opts runOptions) {
 	tasks := queue.AllTasks()
 	for i := range tasks {
 		tasks[i].Status, _ = queue.Status(tasks[i].ID)
 	}
-	e, err := projectEstimate(ctx, backend, paths, cfg, tasks, opts.only, opts.maxTasks)
+	e, err := projectEstimate(ctx, p, tasks, opts.only, opts.maxTasks)
 	if err != nil {
 		return
 	}
@@ -423,13 +230,13 @@ func noteEstimate(ctx context.Context, w io.Writer, backend state.Backend, paths
 // once, after a run in which a project `orch init` left the offer marker in
 // has a finished task. Anyone who has seen orch work can decide whether its
 // agents may file public issues about it.
-func offerReportFindings(ctx context.Context, w io.Writer, backend state.Backend, root string) {
-	marker := filepath.Join(root, ".orchestrator", scaffold.FindingsOfferName)
+func offerReportFindings(ctx context.Context, w io.Writer, p *project.Project) {
+	marker := filepath.Join(p.Paths.Root, ".orchestrator", scaffold.FindingsOfferName)
 	if _, err := os.Stat(marker); err != nil {
 		return
 	}
-	done, err := backend.Tasks(ctx, state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
-	if err != nil || len(done) == 0 {
+	done, err := project.AnyDone(ctx, p.Backend)
+	if err != nil || !done {
 		return
 	}
 	_, _ = fmt.Fprintln(w, "note: your agents can report problems with orch itself as public GitHub issues, under your gh login, "+
@@ -439,8 +246,8 @@ func offerReportFindings(ctx context.Context, w io.Writer, backend state.Backend
 
 // noteQueuedFindings says, once a run ends, how many reports about orch its
 // agents queued for the operator to review and send (#536).
-func noteQueuedFindings(ctx context.Context, w io.Writer, backend state.Backend) {
-	rows, err := backend.QueuedFindings(ctx)
+func noteQueuedFindings(ctx context.Context, w io.Writer, p *project.Project) {
+	rows, err := p.Backend.QueuedFindings(ctx)
 	if err != nil {
 		return
 	}
@@ -448,12 +255,6 @@ func noteQueuedFindings(ctx context.Context, w io.Writer, backend state.Backend)
 		_, _ = fmt.Fprintf(w, "orch found %d bug(s) of its own: review exactly what would be sent, and send or dismiss each, "+
 			"with `orch findings` or on the dashboard's Findings page. Nothing is public until you send it.\n", n)
 	}
-}
-
-// hasGitRemote says whether root's repository has any remote to push to.
-func hasGitRemote(root string) bool {
-	out, err := exec.Command("git", "-C", root, "remote").Output() // #nosec G204 -- fixed git arguments; root is the project root
-	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 
 // noteOutgrownCI says, once a run ends, that the tasks may have just built
@@ -478,71 +279,8 @@ func takeRunLock(opts runOptions, stateDir string) (*engine.RunLock, error) {
 	return engine.AcquireRunLock(stateDir)
 }
 
-// perDispatchCap is budget.per_dispatch_usd as the per-attempt cap claude
-// receives as `--max-budget-usd` — only when the project wrote the key. The
-// default 5.0 keeps its older meaning (it limits the attempt-3 escalation) and
-// caps nothing by itself. nil (no flag) when unwritten, zero or less.
-func perDispatchCap(cfg config.Config) *float64 {
-	if !cfg.Budget.PerDispatchExplicit || cfg.Budget.PerDispatchUSD <= 0 {
-		return nil
-	}
-	v := cfg.Budget.PerDispatchUSD
-	return &v
-}
-
-// newBudgetAlerts builds the budget-window alerts, or nil when they would
-// have nowhere to go: notifications.budget_alerts off, or no webhook set.
-func newBudgetAlerts(cfg config.Config, notifier *notify.Notifier, usage engine.BudgetUsage,
-	events engine.AlertEvents, runID string) *engine.BudgetAlerts {
-	if !cfg.Notifications.BudgetAlerts || !notifier.Enabled() {
-		return nil
-	}
-	return &engine.BudgetAlerts{
-		Usage:  usage,
-		Notify: notifier,
-		Events: events,
-		RunID:  runID,
-		Pct:    cfg.Notifications.BudgetAlertPct,
-	}
-}
-
-// newBudgetGate loads the provider guardrails, or returns nil when the
-// project has none — which is every project that never opted in, and is why
-// a missing budgets.yaml is not an error.
-//
-// Read failures are reported and treated as "no gate" rather than failing the
-// run: a guardrail that cannot be loaded must not be able to stop work, the
-// same fail-open the per-dispatch check takes when the window is unreadable.
-// The path is budget.ResolvePath's, the one doctor and the dashboard read too.
-func newBudgetGate(paths config.Paths, cfg config.Config, backend state.Backend) *budget.Gate {
-	path := budget.ResolvePath(paths.Root, paths.ConfigYAML, cfg.BudgetsConfig)
-	if path == "" {
-		return nil
-	}
-	bcfg, err := budget.LoadConfig(path, cfg.BudgetsPreset)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "budget guardrails disabled: %v\n", err)
-		return nil
-	}
-	if bcfg == nil {
-		return nil
-	}
-	bcfg.UnreportedDispatchTokens = cfg.TypicalDispatchToken
-	return budget.NewGate(backend, bcfg)
-}
-
-// fileModTime is path's modification time, zero when it cannot be read.
-func fileModTime(path string) time.Time {
-	info, err := os.Stat(path)
-	if err != nil {
-		return time.Time{}
-	}
-	return info.ModTime()
-}
-
-// conflictRetries is retry.conflict.max_attempts as written (#438). A config
-// without it is off, so upgrading never starts pushing to PRs and paying for
-// agents unasked; `orch init` and `orch start` write 1 into a new project.
-func conflictRetries(cfg config.Config) int {
-	return cfg.Retry.Conflict.Attempts(0)
+// newBudgetGate is engine.NewBudgetGate warning on stderr: the provider
+// guardrails, nil when the project has none.
+func newBudgetGate(paths config.Paths, cfg config.Config, spend budget.SpendReader) *budget.Gate {
+	return engine.NewBudgetGate(paths, cfg, spend, os.Stderr)
 }
