@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -222,10 +223,12 @@ const reportFile = "report.json"
 func readReport(dir string) ([]Media, []Walkthrough) {
 	b, err := os.ReadFile(filepath.Join(dir, reportFile)) // #nosec G304 -- the attempt's report, under orch's state dir
 	if err != nil {
+		slog.Warn("evidence: the E2E report could not be read; keeping the counts without media", "dir", dir, "err", err)
 		return nil, nil
 	}
 	var rep e2eReport
-	if json.Unmarshal(b, &rep) != nil {
+	if err := json.Unmarshal(b, &rep); err != nil {
+		slog.Warn("evidence: the E2E report is not JSON; keeping the counts without media", "dir", dir, "err", err)
 		return nil, nil
 	}
 	var media []Media
@@ -238,6 +241,7 @@ func readReport(dir string) ([]Media, []Walkthrough) {
 			}
 			info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(a.Path)))
 			if err != nil {
+				slog.Debug("evidence: a copied attachment is gone; leaving it out", "path", a.Path, "err", err)
 				continue
 			}
 			kind := mediaKind(a.Name, a.ContentType)
