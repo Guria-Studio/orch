@@ -44,6 +44,8 @@ export interface Evidence {
   verified_at: string
   verdict: "passed" | "failed" | "review_unavailable"
   checks: EvidenceCheck[]
+  /** verify.app.probes: what the app served, path by path. */
+  probes?: { path: string; status: number; ok: boolean; detail?: string }[]
   review?: EvidenceReview
   diff?: { files: number; insertions: number; deletions: number; top?: string[] }
   e2e?: {

@@ -110,6 +110,18 @@ type VerifyResult struct {
 	// when git could not say (#520).
 	HeadSHA, BaseSHA string
 	Diff             *DiffStat
+	// Probes are verify.app.probes' results, in order, up to the first
+	// that failed (#520).
+	Probes []VerifyProbe
+}
+
+// VerifyProbe is one content check against the task's app: the path, the
+// status it answered, and, when it failed, why. Never the app's URL.
+type VerifyProbe struct {
+	Path   string `json:"path"`
+	Status int    `json:"status"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // VerifyCommand is one check the verify ran.

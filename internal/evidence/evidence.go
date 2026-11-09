@@ -69,6 +69,7 @@ type Manifest struct {
 	VerifiedAt time.Time `json:"verified_at"`
 	Verdict    string    `json:"verdict"`
 	Checks     []Check   `json:"checks"`
+	Probes     []Probe   `json:"probes,omitempty"`
 	Review     *Review   `json:"review,omitempty"`
 	Diff       *Diff     `json:"diff,omitempty"`
 	E2E        *E2E      `json:"e2e,omitempty"`
@@ -79,6 +80,15 @@ type Check struct {
 	Command   string  `json:"command"`
 	DurationS float64 `json:"duration_s"`
 	Kind      string  `json:"kind,omitempty"`
+}
+
+// Probe is one verify.app.probes check: the path, the status the app
+// answered, and why it failed.
+type Probe struct {
+	Path   string `json:"path"`
+	Status int    `json:"status"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // Review is who read the diff and what they found. Unavailable says why a
@@ -164,6 +174,9 @@ func Build(stateDir string, a Attempt, res contract.VerifyResult) Manifest {
 	}
 	for _, c := range res.Commands {
 		m.Checks = append(m.Checks, Check(c))
+	}
+	for _, p := range res.Probes {
+		m.Probes = append(m.Probes, Probe(p))
 	}
 	if res.Reviewer != "" || res.ReviewUnavailable != "" {
 		r := &Review{Reviewer: res.Reviewer, Model: res.ReviewModel, Findings: []Finding{}, Unavailable: res.ReviewUnavailable}

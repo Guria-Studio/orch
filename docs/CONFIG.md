@@ -805,6 +805,7 @@ verify:
     url: ""             # e.g. http://localhost:$((3000 + ORCH_TASK_SLOT))
     stop: ""            # e.g. docker compose down -v --remove-orphans
     ready_timeout_s: 120
+    probes: []          # content checks once it answers; see below (#520)
   e2e: []               # run against the app, with ORCH_APP_URL set
   e2e_report: ""        # Playwright's JSON report, relative to the worktree
   max_attempts: 2
@@ -881,6 +882,25 @@ that does not start, or never answers, is sent back like a failing test. If
 the cause is the machine and not the change, the agent can block the task and
 say so. `e2e` without `app` runs too, for a suite that starts its own server
 (Playwright's `webServer`).
+
+**Content probes (#520).** Answering is not serving: a panel that returns 200
+with "not built" passes the wait above. `app.probes` reads what the app
+serves once it answers, before any `e2e` command:
+
+```yaml
+verify:
+  app:
+    probes:
+      - path: /
+        status: 200                 # absent = any status below 400
+        contains: ["Orders"]        # all must appear in the body
+        not_contains: ["not built", "Cannot GET"]
+```
+
+Each probe is one `GET <url><path>`; the first that fails sends the work back
+like a failing test, naming the path, the status and the text that was or was
+not there. Probes need `app.start` and `app.url`; without `probes` nothing
+changes. Their results go into the task's evidence (`probes`).
 
 **The app starts with the task's environment — make what it touches
 disposable (#506).** `app.start` runs in the task's worktree with its `.env`

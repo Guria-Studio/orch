@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -172,13 +173,21 @@ func (v Verifier) e2e(ctx context.Context, req contract.VerifyRequest, timeout t
 			}
 		}
 	}
+	var probes []contract.VerifyProbe
+	if len(app.Probes) > 0 {
+		if appURL == "" {
+			slog.Warn("verify: verify.app.probes need verify.app.start and a url that answers; not probing", "task", req.TaskID)
+		} else if failure := probe(ctx, appURL, app.Probes, &probes); failure != "" {
+			return contract.VerifyResult{Failure: failure, Probes: probes}
+		}
+	}
 	report := ""
 	if v.Cfg.E2EReport != "" {
 		// A report left by an earlier attempt must not pass for this one's.
 		report = filepath.Join(req.Dir, filepath.FromSlash(v.Cfg.E2EReport))
 		_ = os.Remove(report)
 	}
-	var res contract.VerifyResult
+	res := contract.VerifyResult{Probes: probes}
 	for _, c := range v.Cfg.E2E {
 		if out, err := timed(&res.Commands, c, kindE2E, func() (string, error) { return run(ctx, req.Dir, env, c, timeout) }); notFound(err) {
 			skipNotFound(req.TaskID, "verify.e2e", c, out)
@@ -246,6 +255,66 @@ func waitReady(ctx context.Context, url string, ready time.Duration) error {
 		case <-time.After(readyPoll):
 		}
 	}
+}
+
+// maxProbeBody is how much of an answer a probe reads.
+const maxProbeBody = 1 << 20
+
+// probe GETs each of probes at base and checks its status and body, in
+// order, adding each result to out; it stops at the first that fails and
+// returns what failed, written for the agent, or "" when all hold. Neither
+// the result nor the failure names base: the URL is the operator's.
+func probe(ctx context.Context, base string, probes []config.VerifyProbe, out *[]contract.VerifyProbe) string {
+	client := &http.Client{Timeout: 30 * time.Second}
+	for _, p := range probes {
+		path := p.Path
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		res := contract.VerifyProbe{Path: path}
+		res.Status, res.Detail = probeOnce(ctx, client, strings.TrimRight(base, "/")+path, p)
+		res.OK = res.Detail == ""
+		*out = append(*out, res)
+		if !res.OK {
+			return fmt.Sprintf("orch's local verify started the task's app and probed what it serves (verify.app.probes): "+
+				"GET %s %s. The app answers, but not with what it should; check that the change builds and serves the page.\n", path, res.Detail)
+		}
+	}
+	return ""
+}
+
+// probeOnce is one probe's status and, when it fails, why.
+func probeOnce(ctx context.Context, client *http.Client, url string, p config.VerifyProbe) (int, string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Sprintf("could not be asked (%v)", err)
+	}
+	resp, err := client.Do(req) // #nosec G704 -- the operator's own verify.app.url
+	if err != nil {
+		return 0, fmt.Sprintf("got no answer (%v)", errors.Unwrap(err))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxProbeBody))
+	if err != nil {
+		return resp.StatusCode, fmt.Sprintf("answered %d and its body could not be read (%v)", resp.StatusCode, err)
+	}
+	switch {
+	case p.Status != 0 && resp.StatusCode != p.Status:
+		return resp.StatusCode, fmt.Sprintf("answered %d, want %d", resp.StatusCode, p.Status)
+	case p.Status == 0 && resp.StatusCode >= 400:
+		return resp.StatusCode, fmt.Sprintf("answered %d, want a status below 400", resp.StatusCode)
+	}
+	for _, want := range p.Contains {
+		if !strings.Contains(string(body), want) {
+			return resp.StatusCode, fmt.Sprintf("answered %d without %q in the page", resp.StatusCode, want)
+		}
+	}
+	for _, bad := range p.NotContains {
+		if strings.Contains(string(body), bad) {
+			return resp.StatusCode, fmt.Sprintf("answered %d with %q in the page", resp.StatusCode, bad)
+		}
+	}
+	return resp.StatusCode, ""
 }
 
 // withVar is env with kv added, starting from this process's environment

@@ -858,3 +858,72 @@ func TestVerifyKeepsTheTestsTags(t *testing.T) {
 		t.Errorf("commands = %+v, want the E2E command of kind e2e", kinds)
 	}
 }
+
+// probedApp is a task's app that is up and answers 200 everywhere, with a
+// home page that says it is not built: the panel #520 started from.
+func probedApp(t *testing.T) (verify.Verifier, engine.VerifyRequest) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orders":
+			_, _ = w.Write([]byte("<h1>Orders</h1><p>3 open</p>"))
+		default:
+			_, _ = w.Write([]byte("<h1>Dashboard not built</h1><p>run the build first</p>"))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, App: config.VerifyApp{
+		Start: "touch started", URL: srv.URL, Stop: "touch stopped", ReadyTimeoutS: 30,
+	}}}
+	return v, engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}
+}
+
+// TestVerifyProbesTheAppsContent is #520's phase 2: an app that answers 200
+// with "not built" is ready for waitReady, but a probe that reads the page
+// sends the work back, naming the probe, before any E2E runs.
+func TestVerifyProbesTheAppsContent(t *testing.T) {
+	v, req := probedApp(t)
+	v.Cfg.App.Probes = []config.VerifyProbe{
+		{Path: "/orders", Contains: []string{"Orders"}},
+		{Path: "/", Status: 200, NotContains: []string{"not built", "Cannot GET"}},
+	}
+	v.Cfg.E2E = []string{"touch e2e-ran"}
+
+	res := v.Verify(context.Background(), req)
+
+	for _, want := range []string{"probe", "GET /", `"not built"`} {
+		if !strings.Contains(res.Failure, want) {
+			t.Errorf("failure is missing %q:\n%s", want, res.Failure)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err == nil {
+		t.Error("the E2E ran against an app whose probe failed")
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "stopped")); err != nil {
+		t.Errorf("the app was not stopped: %v", err)
+	}
+	if len(res.Probes) != 2 || !res.Probes[0].OK || res.Probes[0].Status != 200 || res.Probes[1].OK || res.Probes[1].Path != "/" {
+		t.Errorf("probes = %+v, want /orders ok and / failed", res.Probes)
+	}
+}
+
+// TestVerifyProbesPassAndDefaultToBelow400: probes that hold let the E2E
+// run; a probe without a status accepts anything below 400 and refuses a
+// 404, which waitReady alone takes for ready.
+func TestVerifyProbesPassAndDefaultToBelow400(t *testing.T) {
+	v, req := probedApp(t)
+	v.Cfg.App.Probes = []config.VerifyProbe{{Path: "/orders", Contains: []string{"Orders", "3 open"}}}
+	v.Cfg.E2E = []string{"touch e2e-ran"}
+	if res := v.Verify(context.Background(), req); res.Failure != "" || len(res.Probes) != 1 || !res.Probes[0].OK {
+		t.Fatalf("Verify = %+v, want a pass with the probe recorded", res)
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err != nil {
+		t.Errorf("the E2E did not run after the probes passed: %v", err)
+	}
+
+	v404, req404, _ := appFixture(t, http.StatusNotFound)
+	v404.Cfg.App.Probes = []config.VerifyProbe{{Path: "/"}}
+	if got := v404.Verify(context.Background(), req404).Failure; !strings.Contains(got, "404") {
+		t.Errorf("Verify = %q, want the 404 probe failed", got)
+	}
+}

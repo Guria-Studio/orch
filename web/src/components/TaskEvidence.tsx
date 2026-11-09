@@ -51,6 +51,18 @@ export function TaskEvidence({ taskId }: { taskId: string }) {
           ))}
         </ul>
       ) : null}
+      {data.probes && data.probes.length > 0 ? (
+        <ul className="space-y-0.5 text-xs">
+          {data.probes.map((p, i) => (
+            <li key={i} className={p.ok ? "" : "text-destructive"}>
+              <code>
+                GET {p.path} → {p.status || "—"}
+              </code>
+              {p.detail ? ` · ${p.detail}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {data.review ? <p className="text-xs">{reviewLine(data.review)}</p> : null}
       {data.diff ? (
         <p className="text-xs text-muted-foreground">

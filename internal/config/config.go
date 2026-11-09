@@ -174,6 +174,22 @@ type VerifyApp struct {
 	Stop string `yaml:"stop"`
 	// ReadyTimeoutS is how long the app has to answer at URL.
 	ReadyTimeoutS int `yaml:"ready_timeout_s"`
+	// Probes check what the app serves once it answers, before verify.e2e
+	// (#520): a page that answers 200 with "not built" is not ready.
+	Probes []VerifyProbe `yaml:"probes"`
+}
+
+// VerifyProbe is one GET against the task's app and what its answer must
+// hold.
+type VerifyProbe struct {
+	// Path is appended to verify.app.url, e.g. /dashboard.
+	Path string `yaml:"path"`
+	// Status is the status the answer must have; 0 accepts anything below
+	// 400.
+	Status int `yaml:"status"`
+	// Contains must all appear in the body; NotContains must not.
+	Contains    []string `yaml:"contains"`
+	NotContains []string `yaml:"not_contains"`
 }
 
 // Knowledge is the project memory (#451): lessons under .orch/knowledge/ that

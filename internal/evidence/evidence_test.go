@@ -265,3 +265,15 @@ func TestReadRefusesAnotherVersion(t *testing.T) {
 		t.Errorf("Read = %v, want a version error", err)
 	}
 }
+
+// The app's probes are part of the evidence (#520, phase 2).
+func TestBuildKeepsTheProbes(t *testing.T) {
+	res := contract.VerifyResult{Failure: "probe failed", Probes: []contract.VerifyProbe{
+		{Path: "/orders", Status: 200, OK: true},
+		{Path: "/", Status: 200, Detail: `answered 200 with "not built" in the page`},
+	}}
+	m := Build(t.TempDir(), Attempt{TaskID: "T"}, res)
+	if len(m.Probes) != 2 || !m.Probes[0].OK || m.Probes[1].Detail == "" || m.Probes[1].Path != "/" {
+		t.Errorf("probes = %+v, want both, as the verify ran them", m.Probes)
+	}
+}

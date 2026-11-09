@@ -25,6 +25,7 @@ const manifest: Evidence = {
     { command: "go test ./...", duration_s: 41.2, kind: "tests" },
     { command: "pnpm exec playwright test", duration_s: 12, kind: "e2e" },
   ],
+  probes: [{ path: "/orders", status: 200, ok: true }],
   review: { reviewer: "gemini", blocking: 0, findings: [{ severity: "minor", title: "naming" }] },
   diff: { files: 7, insertions: 120, deletions: 14, top: ["app.go"] },
   e2e: {
@@ -52,6 +53,7 @@ describe("TaskEvidence", () => {
     expect(section).toHaveTextContent("Passed · attempt 2 · abc1234")
     expect(section).toHaveTextContent("go test ./...")
     expect(section).toHaveTextContent("41.2s")
+    expect(section).toHaveTextContent("GET /orders → 200")
     expect(section).toHaveTextContent("Reviewed by gemini: no blocking findings · 1 minor")
     expect(section).toHaveTextContent("7 files, +120 −14")
     expect(section).toHaveTextContent("5 passed · 0 failed")
