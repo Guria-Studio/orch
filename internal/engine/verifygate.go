@@ -62,24 +62,107 @@ func (s *Scheduler) verifies() bool {
 // verifyOutcome runs the local verify on a clean exit, from the dispatch's
 // supervising goroutine: tests and a review take minutes, and the run loop
 // must not wait on them. The work is committed first, so the review reads it
-// as the diff the push would publish.
-func (s *Scheduler) verifyOutcome(task model.Task, d Dispatch, attempt int, out *Outcome) {
+// as the diff the push would publish. A task landed here (vcs.provider:
+// local) has the base merged into its worktree first when it moved and
+// merges cleanly, so what is verified is what would land (#522). skipReview
+// is the re-verify after the base moved again: the checks run, the LLM
+// review that already read the agent's diff does not.
+func (s *Scheduler) verifyOutcome(task model.Task, d Dispatch, attempt int, out *Outcome, skipReview bool) {
 	if !out.Result.Success || !s.verifies() {
 		return
 	}
 	ctx := context.Background()
 	s.commitWork(ctx, d.Req.TaskID, d.Cwd)
+	baseMoved := s.Opts.LocalMerge && s.catchUpBase(ctx, d.Req.TaskID)
 	res := s.Verifier.Verify(ctx, VerifyRequest{
 		TaskID: d.Req.TaskID, Attempt: attempt, Writer: d.Req.Route.Backend, Dir: d.Cwd, Env: d.Env,
 		Title: task.Title, Description: task.Description, SpecRef: task.SpecRef,
 		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, d.Req.TaskID, attempt),
+		SkipReview:   skipReview,
 	})
 	out.VerifyFailure, out.E2E, out.Verify = res.Failure, res.E2E, &res
+	out.VerifyBaseMoved = out.VerifyBaseMoved || baseMoved
+}
+
+// baseChecker is the worktree manager's view of the base (#522):
+// managerAdapter has it, test doubles that do not are treated as never
+// behind, which is how every run behaved before.
+type baseChecker interface {
+	BehindBase(ctx context.Context, taskID, baseBranch string) (behind bool, conflicts []string, err error)
+}
+
+// baseMovedCleanly reports whether the base has commits the task's branch
+// lacks and would merge into it without a conflict. A conflict is left to
+// the land, which hands it to the agent (#438).
+func (s *Scheduler) baseMovedCleanly(ctx context.Context, taskID string) bool {
+	bc, ok := s.Worktree.(baseChecker)
+	if !ok {
+		return false
+	}
+	behind, conflicts, err := bc.BehindBase(ctx, taskID, s.baseBranch())
+	if err != nil {
+		s.logger().Warn("checking whether the base moved failed; verifying the work as it is", "task", taskID, "err", err)
+		return false
+	}
+	return behind && len(conflicts) == 0
+}
+
+// catchUpBase merges a base that moved cleanly into the task's worktree, and
+// reports whether it did.
+func (s *Scheduler) catchUpBase(ctx context.Context, taskID string) bool {
+	if !s.baseMovedCleanly(ctx, taskID) {
+		return false
+	}
+	res, err := s.Worktree.MergeBase(ctx, taskID, s.baseBranch())
+	if err != nil || len(res.Conflicts) > 0 {
+		s.logger().Warn("merging the moved base into the worktree failed; verifying the work as it is",
+			"task", taskID, "conflicts", res.Conflicts, "err", err)
+		return false
+	}
+	s.logger().Info("the base moved while the task worked; merged it in before the verify", "task", taskID, "base", s.baseBranch())
+	return res.Moved
+}
+
+// reverifyBeforeLand catches a local land whose verify passed while the base
+// moved on (#522): another task landed during the verify, and the verified
+// tree is no longer the one that would land. The dispatch stays in flight —
+// its slot and lock held, as through the first verify — while a goroutine
+// merges the base in, runs the checks again without the review, and posts
+// the outcome back for the reaper. Reports whether it did; the reaper then
+// leaves the completion alone.
+//
+// Each round needs another land in between, and lands take turns in this
+// reaper, so the rounds end when the other tasks do.
+func (s *Scheduler) reverifyBeforeLand(ctx context.Context, c completion, entry *InFlight) bool {
+	out := c.outcome
+	id := entry.Task.ID
+	if !s.Opts.LocalMerge || !s.verifies() || !out.Result.Success || out.Verify == nil ||
+		out.VerifyFailure != "" || out.GuardBlock != "" {
+		return false
+	}
+	if _, stopping := s.stopping[c.pid]; stopping || s.taskStatusIs(ctx, id, model.StatusBlocked) {
+		return false
+	}
+	if !s.baseMovedCleanly(ctx, id) {
+		return false
+	}
+	s.logger().Info("the base moved during the verify; verifying again with it merged in", "task", id, "base", s.baseBranch())
+	reviewed := *out.Verify
+	go func() {
+		s.verifyOutcome(entry.Task, entry.Dispatch, entry.Attempt, &out, true)
+		if v := out.Verify; v != nil && v.Failure == "" {
+			// The pass stands on the attempt's own review.
+			v.Reviewer, v.ReviewModel, v.ReviewUnavailable, v.Findings =
+				reviewed.Reviewer, reviewed.ReviewModel, reviewed.ReviewUnavailable, reviewed.Findings
+		}
+		s.done <- completion{pid: c.pid, outcome: out}
+	}()
+	return true
 }
 
 // recordVerify records a verified attempt's verdict: verify_passed, or
 // verify_failed with the reason and the findings, sent back or not.
-func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *VerifyResult, sentBack bool) {
+func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *VerifyResult, baseMoved, sentBack bool) {
 	if res == nil {
 		return
 	}
@@ -99,6 +182,9 @@ func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *Veri
 	}
 	if len(res.Findings) > 0 {
 		extra["findings"] = res.Findings
+	}
+	if baseMoved {
+		extra["base_moved"] = true
 	}
 	if res.ReviewUnavailable != "" {
 		extra["review_unavailable"] = res.ReviewUnavailable

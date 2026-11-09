@@ -361,7 +361,10 @@ reintento con los logs del fallo adjuntos y después pasa a `blocked`. Un rojo
 causado por GitHub al no arrancar nunca el job (billing de Actions, el límite
 de gasto) se bloquea de inmediato con esa razón, sin gastar el reintento. Un PR
 que choca con su base se pone al día sobre el trabajo guardado de la tarea:
-orch fusiona la base y hace push si la fusión es limpia, sin agente; si no, el
+orch fusiona la base y hace push si la fusión es limpia, sin agente —
+con `verify.enabled`, después de volver a correr los checks del verify local
+sobre la fusión, así una fusión limpia que rompe un test vuelve al agente en
+vez de llegar al PR; si no, el
 agente recibe los archivos en conflicto y los commits de la base que los
 causaron para resolverlos, `retry.conflict` veces (1 en un proyecto nuevo; una
 config sin la clave sigue bloqueando como antes) antes de que la tarea se
@@ -436,7 +439,10 @@ dependiente solo se despacha cuando sus dependencias ya están en la base, así
 que parte de su trabajo. No se hace push y `gh` nunca se ejecuta. Una tarea
 cuyo trabajo choca con la base recibe la base fusionada en su worktree y vuelve
 a su agente para resolver el conflicto, `retry.conflict` veces; después se
-bloquea nombrando los archivos (su trabajo queda en `orch/<task-id>`). Si la
+bloquea nombrando los archivos (su trabajo queda en `orch/<task-id>`). Con el
+verify local activo, una base que avanzó mientras la tarea trabajaba se
+fusiona en su worktree antes del verify (y otra vez, repitiendo los checks, si
+avanza durante él): lo que entra es lo que se verificó. Si la
 rama base está en checkout con cambios sin commit en los mismos archivos, la
 fusión se rechaza y la tarea se bloquea: haz commit o stash y luego
 `orch task-status <id> todo`.
@@ -965,6 +971,7 @@ los flags.
 |---|---|
 | `orch sync issues` | Convierte los issues de GitHub etiquetados del cliente en tareas (`gh-<número>`), y en cada corrida agrega solo lo nuevo. |
 | `orch atomize --from-issues label:orch --model M` | Convierte cada issue abierto de GitHub que coincide con la búsqueda en un spec (`specs/issue-<n>-<slug>.md`) y sus tareas; muestra la vista previa y con `--apply` escribe. Una segunda corrida no importa nada dos veces. El PR de la tarea cierra el issue al mergear (`Closes`); con `vcs.provider: local` orch lo cierra con un comentario cuando aterriza su última tarea. |
+| `orch atomize --from spec-kit --model M` (o `--from openspec`) | Convierte el `specs/<feature>/tasks.md` de cada feature de spec-kit (o el `openspec/changes/<change>/tasks.md` de cada change de OpenSpec) en un spec, `specs/speckit-<feature>.md` / `specs/openspec-<change>.md`, y sus tareas: las fases, los grupos `[P]` y los `depends on` pasan a dependencias, y las tareas marcadas quedan fuera. Muestra la vista previa y con `--apply` escribe; una segunda corrida con el `tasks.md` igual no cambia nada ([`SPEC-IMPORT.md`](SPEC-IMPORT.md)). |
 | `orch export clickup` | Refleja el plan en una Folder de ClickUp para un cliente que sigue el trabajo ahí; al volver a correrlo, los estados se actualizan. |
 | `orch export multica` | Crea el plan como issues de Multica, un padre por fase. |
 | `orch ci setup` / `ci review` / `ci usage` | Escribe el pipeline de CI que pide el repositorio, corre una revisión con IA de cada PR dentro del CI y suma los minutos de Actions facturados. |

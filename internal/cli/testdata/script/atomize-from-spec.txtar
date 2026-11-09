@@ -1,0 +1,156 @@
+# orch atomize --from spec-kit|openspec — another tool's task list in, one
+# orch spec per feature or change, tasks through the normal atomize path
+# (#526). The fixtures are modelled on spec-kit's templates/tasks-template.md
+# and OpenSpec's openspec/changes/<change>/tasks.md (sources in
+# internal/atomize/importspec_test.go).
+
+exec cp -r proj sk
+cp router.yaml sk/.orchestrator/model_router.yaml
+cp empty-tasks.json sk/tasks.json
+exec mkdir -p sk/specs/001-photo-albums sk/specs/002-share-links
+cp albums-tasks.md sk/specs/001-photo-albums/tasks.md
+cp albums-spec.md sk/specs/001-photo-albums/spec.md
+cp albums-spec.md sk/specs/002-share-links/spec.md
+
+# ---- flags that do not go together ------------------------------------------
+! exec orch atomize --from kiro --model claude-sonnet-4-6 --project-root sk --project-id sk
+stderr 'unknown --from "kiro": orch imports spec-kit and openspec'
+! exec orch atomize --from spec-kit --project-root sk --project-id sk
+stderr '--model is required'
+! exec orch atomize --from spec-kit --file x.md --model claude-sonnet-4-6 --project-root sk --project-id sk
+stderr '--from and --file name two different inputs'
+! exec orch atomize --from spec-kit --from-issues label:x --model claude-sonnet-4-6 --project-root sk --project-id sk
+stderr '--from and --from-issues'
+! exec orch atomize sk/specs --project-root sk --project-id sk
+stderr 'a directory argument only applies with --from'
+! exec orch atomize --model claude-sonnet-4-6 --project-root sk --project-id sk
+stderr '--model only applies with --from-issues or --from'
+! exec orch atomize --from spec-kit nope --model claude-sonnet-4-6 --project-root sk --project-id sk
+stderr 'nope'
+
+# ---- dry run by default: the plan and the diff, nothing written -------------
+exec orch atomize --from spec-kit --model claude-sonnet-4-6 --project-root sk --project-id sk
+stdout 'Would write 1 spec\(s\) from spec-kit:'
+stdout 'specs/speckit-001-photo-albums.md  new  001-photo-albums: 5 open, 1 done, package 1'
+stdout 'No tasks.md yet \(nothing to import\): specs/002-share-links'
+stdout 'line 19: checkbox without a task id \(TXXX\)'
+stdout 'F1.1.T2'
+stdout 'F3.1.T14'
+! stdout 'F1.1.T1\b'
+stdout 'New tasks are written in backlog'
+! exists sk/specs/speckit-001-photo-albums.md
+grep '"tasks": \[\]' sk/tasks.json
+
+# ---- --apply writes the spec, then the tasks --------------------------------
+exec orch atomize --from spec-kit --model claude-sonnet-4-6 --apply --project-root sk --project-id sk
+stdout 'Wrote 1 spec\(s\)'
+stdout 'Escrito'
+stdout '5 new tasks are in backlog'
+exists sk/specs/speckit-001-photo-albums.md
+grep '^generated_by: orch atomize --from spec-kit$' sk/specs/speckit-001-photo-albums.md
+grep '"id": "F1.1.T2"' sk/tasks.json
+grep '"id": "F3.1.T14"' sk/tasks.json
+! grep '"id": "F1.1.T1"' sk/tasks.json
+grep '"specRef": "speckit-001-photo-albums.md#F3.1.T14"' sk/tasks.json
+grep '"F3.1.T12",\s*$' sk/tasks.json
+grep 'src/services/album_service.py' sk/tasks.json
+exec orch validate --project-root sk --project-id sk
+
+# ---- a re-run changes nothing -----------------------------------------------
+exec orch atomize --from spec-kit --model claude-sonnet-4-6 --apply --project-root sk --project-id sk
+stdout 'specs/speckit-001-photo-albums.md  unchanged'
+stdout 'Nothing to write'
+stdout 'no hay cambios que aplicar'
+
+# ---- a task checked off in tasks.md leaves the spec; nothing waits on it ----
+cp albums-tasks-t2-done.md sk/specs/001-photo-albums/tasks.md
+exec orch atomize --from spec-kit --model claude-sonnet-4-6 --apply --project-root sk --project-id sk
+stdout 'specs/speckit-001-photo-albums.md  update  001-photo-albums: 4 open, 2 done, package 1'
+! grep 'F1.1.T2' sk/specs/speckit-001-photo-albums.md
+
+# ---- a spec someone wrote by hand under that name is never overwritten ------
+cp hand.md sk/specs/speckit-001-photo-albums.md
+! exec orch atomize --from spec-kit --model claude-sonnet-4-6 --apply --project-root sk --project-id sk
+stderr 'specs/speckit-001-photo-albums.md was not written by orch atomize --from spec-kit'
+grep 'by hand' sk/specs/speckit-001-photo-albums.md
+
+# ---- OpenSpec: one spec per change, archived changes left out ---------------
+exec cp -r proj os
+cp router.yaml os/.orchestrator/model_router.yaml
+cp empty-tasks.json os/tasks.json
+exec mkdir -p os/openspec/changes/add-dark-mode os/openspec/changes/archive/2025-01-23-add-login
+cp dark-tasks.md os/openspec/changes/add-dark-mode/tasks.md
+cp dark-proposal.md os/openspec/changes/add-dark-mode/proposal.md
+cp dark-tasks.md os/openspec/changes/archive/2025-01-23-add-login/tasks.md
+exec orch atomize --from openspec --model claude-sonnet-4-6 --apply --project-root os --project-id os
+stdout 'specs/openspec-add-dark-mode.md  new  add-dark-mode: 3 open, 1 done, package 1'
+! stdout 'add-login'
+grep '"id": "F2.1.T1"' os/tasks.json
+grep 'openspec/changes/add-dark-mode/proposal.md' os/specs/openspec-add-dark-mode.md
+exec orch validate --project-root os --project-id os
+
+-- router.yaml --
+claude-sonnet-4-6:
+  backend: claude
+  cli_model: sonnet
+  tier: standard
+-- empty-tasks.json --
+{
+  "meta": {"project": "sk"},
+  "phases": [{"id": 1, "name": "F1"}],
+  "tasks": []
+}
+-- albums-spec.md --
+# Feature Specification: Photo albums
+-- albums-tasks.md --
+# Tasks: Photo albums
+
+## Phase 1: Setup (Shared Infrastructure)
+
+- [x] T001 Create project structure per implementation plan
+- [ ] T002 Initialize the Vite project with `package.json` dependencies
+
+## Phase 3: User Story 1 - Create an album (Priority: P1) 🎯 MVP
+
+### Implementation for User Story 1
+
+- [ ] T012 [P] [US1] Create Album model in src/models/album.py
+- [ ] T013 [P] [US1] Create Photo model in src/models/photo.py
+- [ ] T014 [US1] Implement AlbumService in src/services/album_service.py (depends on T012, T013)
+- [ ] T015 [US1] Implement POST /albums in src/api/albums.py
+
+## Phase N: Polish & Cross-Cutting Concerns
+
+- [ ] TXXX Security hardening
+-- albums-tasks-t2-done.md --
+# Tasks: Photo albums
+
+## Phase 1: Setup (Shared Infrastructure)
+
+- [x] T001 Create project structure per implementation plan
+- [X] T002 Initialize the Vite project with `package.json` dependencies
+
+## Phase 3: User Story 1 - Create an album (Priority: P1) 🎯 MVP
+
+### Implementation for User Story 1
+
+- [ ] T012 [P] [US1] Create Album model in src/models/album.py
+- [ ] T013 [P] [US1] Create Photo model in src/models/photo.py
+- [ ] T014 [US1] Implement AlbumService in src/services/album_service.py (depends on T012, T013)
+- [ ] T015 [US1] Implement POST /albums in src/api/albums.py
+-- hand.md --
+# Written by hand
+-- dark-proposal.md --
+## Why
+
+Users have requested a dark mode option.
+-- dark-tasks.md --
+## 1. Theme infrastructure
+
+- [x] 1.1 Create ThemeContext with light/dark state
+- [ ] 1.2 Add CSS custom properties for colors in `src/styles/theme.css`
+
+## 2. UI components
+
+- [ ] 2.1 Create ThemeToggle component in `src/components/ThemeToggle.tsx`
+- [ ] 2.2 Add toggle to settings page
