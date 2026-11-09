@@ -272,7 +272,7 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&host, "host", dashboard.DefaultHost,
-		"Address to bind; 0.0.0.0 exposes it beyond localhost")
+		"Address to bind; beyond localhost (0.0.0.0) every remote request needs the token")
 	cmd.Flags().IntVar(&port, "port", dashboard.DefaultPort,
 		"Port to listen on; 0 picks any free one")
 	cmd.Flags().StringVar(&profile, "profile", "",

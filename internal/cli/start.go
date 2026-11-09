@@ -407,7 +407,7 @@ func scaffoldForStart(ctx context.Context, root string, consent func(string) (bo
 		return fmt.Errorf("adding the routes of the installed CLIs: %w", err)
 	}
 	say("✓ model_router.yaml: %d routes for the CLIs on PATH", len(routes))
-	for _, line := range scaffold.DiscoverySummary(router.OnPath, lists, failed) {
+	if line := discoveryLine(root, lists, failed); line != "" {
 		say("· models: %s", line)
 	}
 	if send {

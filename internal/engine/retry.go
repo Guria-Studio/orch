@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/budget"
@@ -133,6 +134,48 @@ func DecideRetry(in RetryInput) RetryDecision {
 
 	decision.Backoff = retryBackoff(in.Cfg.Retry, in.Failure, decision.Escalated, rule)
 	return decision
+}
+
+// logTailLines and logTailBytes bound the log tail a retry is shown.
+const (
+	logTailLines = 40
+	logTailBytes = 4000
+)
+
+// failureNote is why entry's attempt failed, for the retry's prompt (#540):
+// the class, the message, the end of the attempt's log, and the findings of
+// the local verify's last rejection when one is still standing.
+func (s *Scheduler) failureNote(entry *InFlight, out Outcome) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Attempt %d (%s %s) failed. Failure class: %s.\nMessage: %s\n",
+		entry.Attempt, entry.Route.Backend, entry.Route.CLIModel, out.Failure, truncateReason(out.Result.ErrorMessage))
+	if tail := logTail(ReadLog(out.LogPath)); tail != "" {
+		fmt.Fprintf(&b, "\nThe end of its log:\n\n```\n%s\n```\n", tail)
+	}
+	if findings := s.verifyFindings[entry.Task.ID]; len(findings) > 0 {
+		b.WriteString("\nThe local verify's review still asks for:\n")
+		for _, f := range findings {
+			where := f.File
+			if f.Line > 0 {
+				where = fmt.Sprintf("%s:%d", f.File, f.Line)
+			}
+			fmt.Fprintf(&b, "- [%s] %s %s\n", f.Severity, where, f.Title)
+		}
+	}
+	return b.String()
+}
+
+// logTail is the last logTailLines lines of log, at most logTailBytes.
+func logTail(log string) string {
+	lines := strings.Split(strings.TrimRight(log, "\n"), "\n")
+	if len(lines) > logTailLines {
+		lines = lines[len(lines)-logTailLines:]
+	}
+	tail := strings.Join(lines, "\n")
+	if len(tail) > logTailBytes {
+		tail = "…" + tail[len(tail)-logTailBytes:]
+	}
+	return strings.TrimSpace(tail)
 }
 
 // retryBackoff is how long a retry waits before it may be dispatched.

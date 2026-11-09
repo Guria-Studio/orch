@@ -182,7 +182,7 @@ func runAlive(stateDir string, dispatches []state.Dispatch) bool {
 		return true
 	}
 	for _, d := range dispatches {
-		if project.PIDAlive(d.PID) {
+		if project.DispatchAlive(d) {
 			return true
 		}
 	}

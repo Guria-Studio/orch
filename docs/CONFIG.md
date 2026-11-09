@@ -375,6 +375,13 @@ retry:
 Classes: `transient`, `timeout`, `rate_limit`, `version_drift`, `ci_failed`.
 Each takes `max_attempts`, `backoff_seconds` and `escalate_model`.
 
+Every retry the reaper queues — a retry, an escalation, a rate-limit
+failover, a timed-out agent that was still working — tells the next attempt
+why the last one failed (#540): its prompt carries the failure class, the
+message, the last 40 lines of the attempt's log and, when the local verify's
+last rejection still stands, its review findings. CI retries and verify
+send-backs already leave theirs in the feedback file.
+
 `conflict` is the one class outside the reaper: a PR the CI poller finds
 conflicting with its base (#438). Only `max_attempts` is read. **A config
 without it is off** (`0`), so upgrading never starts pushing to PRs or paying
@@ -435,8 +442,14 @@ Two different guardrails:
   stops sending that provider new tasks (it writes a `budget_skip` event, and
   `orch status` shows `defer_reason: blocked-by-budget:<provider> until <reset>`);
   when every configured provider is capped the run sleeps until the earliest
-  reset (`budget_pause`). A provider the preset does not name is never gated.
-  A dispatch whose provider reports no usage at all (gemini) counts as
+  reset (`budget_pause`). A provider the preset does not name is never gated;
+  the packaged presets name all six backends (gemini and muse since #543). A
+  gemini that has `--output-format stream-json` (0.59 does; orch checks
+  `gemini --help` once per process) is run with it and reports its real tokens,
+  cache reads apart and its thinking counted as output. A dispatch whose
+  provider reports no usage at all (an older gemini, a silent opencode) is
+  estimated at four characters a token of its prompt and its output, marked
+  estimated; one with no prompt or output to measure counts as
   `typical_dispatch_tokens`, not as zero.
 - **`budget.per_dispatch_usd`** is a per-task limit (default 5.0). A task that
   has already cost that much does not get the attempt-3 escalation — that is
@@ -758,7 +771,7 @@ verify:
   enabled: true         # what `orch init` writes; absent = false
   commands: []          # [] = what `orch ci setup` detects
   review: true
-  reviewer: ""          # "" = another installed provider than the task's
+  reviewer: ""          # "" = another installed provider than the task's; never the task's own
   review_model: ""
   checklist: ""         # "" = .orch/review.md, then .github/orch-review.md, then the built-in one
   app:                  # the task's own app, for E2E; empty start = none
@@ -784,7 +797,9 @@ worktree. **Worktree mode only**: without `dispatch.worktree_mode` orch prints
 a note and verifies nothing.
 
 1. **Commands.** Each runs at the worktree root through `sh -c`, in order,
-   bounded by `timeout_s`. `commands: []` runs what `orch ci setup` detects:
+   bounded by `timeout_s`, in a process group of its own: a timeout kills the
+   whole group (#541), the servers and test workers it started included.
+   `commands: []` runs what `orch ci setup` detects:
    install, lint, typecheck, test and build, per package, where the repository
    has them, only for the packages the task's change touches (#498): each
    changed file belongs to the deepest package that holds it, so an app-only
@@ -802,12 +817,20 @@ a note and verifies nothing.
    the dashboard's Tools page lists it.
 2. **Review.** With `review: true`, after the commands pass, a provider reads
    the task's diff against the base, read-only, and applies the checklist,
-   the same review `orch ci review` runs. The default reviewer is the first
-   installed of claude, gemini, codex and opencode that did not write the
-   task. Only a blocking finding fails the work. A review that cannot complete
-   (no other provider, a provider that is down or over its
-   [budget](#budget-and-budget-presets) window, an answer that does not
-   parse) is logged and the work passes. The review's spend is recorded like
+   the same review `orch ci review` runs, plus what the task asked for: its
+   title, description and its section of the spec (`specRef`, read from the
+   worktree under `spec_root`, its "Done when" included); a change that does
+   not do the task is a blocking finding (#539). The default reviewer is the
+   first installed of claude, gemini, codex and opencode that did not write
+   the task. A `reviewer` that did write the task never reviews its own work:
+   another installed provider does, with a warning. Only a blocking finding
+   fails the work. A review that fails or answers something that does not
+   parse is asked once more; a second failure — or no other provider, or one
+   over its [budget](#budget-and-budget-presets) window — is **review
+   unavailable**: the work is not failed for it, but it is not counted as
+   reviewed either. The `verify_passed` event carries `review_unavailable`,
+   the PR body says the change was not reviewed and why, and `orch metrics`
+   counts the attempt as unavailable, not as a pass. The review's spend is recorded like
    a task attempt's, under `<task>-verify-<attempt>` (#470), so it counts
    against the reviewer's budget window and shows in `orch report usage` and
    the dashboard's Usage page. `orch estimate` does not count it as a task's

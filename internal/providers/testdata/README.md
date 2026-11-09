@@ -238,6 +238,18 @@ gemini -p '<prompt>' --model gemini-2.5-flash
 | `success.log` | `GEMINI_CLI_TRUST_WORKSPACE=true`, model `gemini-2.5-flash` | 0 |
 | `untrusted-directory.log` | the same command **without** that variable | **55** |
 | `auth-error.log` | captured before login | **41** |
+| `stream-success.jsonl` | `GEMINI_CLI_TRUST_WORKSPACE=true gemini -p 'Count from 1 to 60, one number per line, nothing else.' --model gemini-2.5-flash --output-format stream-json`, stdout and stderr merged as the engine captures them (#543) | 0 |
+| `stream-unknown-model.jsonl` | the same with `--model no-such-model-xyz` and `Reply with exactly: ok` | **1** |
+
+The stream captures (2026-11-08) are what makes gemini's spend real: the
+`result` event's `stats` carry `input_tokens` (cached included — `input` is
+the rest), `cached` and `output_tokens`, and `total_tokens` exceeds their sum
+by the thinking gemini bills as output (230 tokens in `stream-success.jsonl`).
+The answer arrives as several `"delta":true` assistant messages. The merged
+stderr is there on purpose: notices before the JSON, and in the failure a
+stack trace before the `result` event that names the error. The skill-conflict
+notices and the stack trace named the operator's home directory, rewritten to
+`/home/USER/` as below.
 
 The exit codes are the point. Nothing should key on "1 means failure" for
 gemini, and `GeminiProvider.Parse` reads success as `exit == 0` for exactly

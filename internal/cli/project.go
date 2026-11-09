@@ -32,7 +32,9 @@ func resolveAndValidate(f *projectFlags) (config.Paths, error) {
 	_, scriptErr := os.Stat(filepath.Join(paths.Root, "scripts", "task-start.sh"))
 	if tasksErr != nil || scriptErr != nil {
 		return config.Paths{}, fmt.Errorf(
-			"orchestrator project_root=%s is missing tasks.json or scripts/task-start.sh",
+			"orchestrator project_root=%s is missing tasks.json or scripts/task-start.sh\n"+
+				"  No orch project here: `orch start \"<idea>\"` plans one in this directory, "+
+				"`orch dashboard --demo` shows a sample, and --project-root points at an existing one",
 			paths.Root)
 	}
 	return paths, nil

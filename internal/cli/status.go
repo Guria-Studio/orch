@@ -218,7 +218,7 @@ func newStatusCmd(flags *projectFlags) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Project status: tasks, costs, last events, run summary",
+		Short: "The quick check: task counts, costs, last events, run summary (--json for scripts)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			paths, cfg, err := loadProjectConfig(flags)

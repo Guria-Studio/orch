@@ -15,6 +15,10 @@ import (
 // how bug 27 (a field gh never had) survived a green suite.
 const capturedIssueList = "testdata/gh/2.100.0/issue-list.json"
 
+// capturedIssueListWithAuthor is the same command with `author` asked for
+// too (#542), captured with the gh that has it in the field list.
+const capturedIssueListWithAuthor = "testdata/gh/2.101.0/issue-list.json"
+
 func TestListIssuesReadsCapturedPayload(t *testing.T) {
 	withFakeBin(t)
 	abs, err := filepath.Abs(capturedIssueList)
@@ -72,7 +76,7 @@ func TestListIssuesAsksGHForFieldsItHas(t *testing.T) {
 		"--label orch:task",
 		"--state open", // the default: a sync must not reopen closed work
 		"--limit 500",  // gh's own default of 30 truncates silently
-		"--json number,title,body,state,url,createdAt,labels",
+		"--json number,title,body,state,url,createdAt,labels,author",
 	} {
 		if !strings.Contains(argv, want) {
 			t.Errorf("argv %q does not contain %q", argv, want)
@@ -86,7 +90,7 @@ func TestListIssuesAsksGHForFieldsItHas(t *testing.T) {
 // have caught `conclusion` before it shipped — a hand-written literal proves
 // nothing, since the same wrong belief writes both sides.
 func TestIssueListFieldsAllExistInTheCapture(t *testing.T) {
-	b, err := os.ReadFile(capturedIssueList)
+	b, err := os.ReadFile(capturedIssueListWithAuthor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,5 +222,67 @@ func TestCreateIssueReportsAFailure(t *testing.T) {
 	t.Setenv("FAKE_GH_AUTH_EXIT", "0")
 	if _, err := NewGitHubProvider().CreateIssue("o/r", "t", "b", nil); err == nil {
 		t.Error("a failing gh issue create was reported as filed")
+	}
+}
+
+// The author's login is what `orch sync issues` checks against the repo's
+// collaborators (#542), read off a real payload.
+func TestListIssuesReadsTheAuthor(t *testing.T) {
+	withFakeBin(t)
+	abs, err := filepath.Abs(capturedIssueListWithAuthor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_GH_ISSUES_FILE", abs)
+
+	issues, err := NewGitHubProvider().ListIssues(IssueQuery{Label: "orch:task", State: "closed"})
+	if err != nil {
+		t.Fatalf("ListIssues: %v", err)
+	}
+	if len(issues) != 3 {
+		t.Fatalf("got %d issues, want 3", len(issues))
+	}
+	for _, issue := range issues {
+		if issue.Author.Login != "hectorcanaimero" {
+			t.Errorf("#%d Author.Login = %q, want hectorcanaimero", issue.Number, issue.Author.Login)
+		}
+	}
+}
+
+func TestIsCollaborator(t *testing.T) {
+	withFakeBin(t)
+	log := ghLog(t)
+
+	// HTTP 204: exit 0, nothing printed.
+	ok, err := NewGitHubProvider().IsCollaborator("", "hectorcanaimero")
+	if err != nil || !ok {
+		t.Fatalf("IsCollaborator(collaborator) = %v, %v; want true, nil", ok, err)
+	}
+	if got := readLog(t, log); !strings.Contains(got, "api repos/{owner}/{repo}/collaborators/hectorcanaimero") {
+		t.Errorf("gh invocation = %q, want the collaborators endpoint of the project's repo", got)
+	}
+
+	// HTTP 404, as captured: exit 1, the body on stdout, the status on stderr.
+	stdout, err := os.ReadFile("testdata/gh/2.101.0/api-collaborator-404.stdout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := os.ReadFile("testdata/gh/2.101.0/api-collaborator-404.stderr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_GH_API_STDOUT", string(stdout))
+	t.Setenv("FAKE_GH_API_STDERR", string(stderr))
+	t.Setenv("FAKE_GH_API_EXIT", "1")
+	ok, err = NewGitHubProvider().IsCollaborator("", "torvalds")
+	if err != nil || ok {
+		t.Fatalf("IsCollaborator(stranger) = %v, %v; want false, nil", ok, err)
+	}
+
+	// Any other failure is an error, never a quiet "not a collaborator".
+	t.Setenv("FAKE_GH_API_STDOUT", "")
+	t.Setenv("FAKE_GH_API_STDERR", "gh: Must have push access to view repository collaborators. (HTTP 403)")
+	if _, err := NewGitHubProvider().IsCollaborator("", "torvalds"); err == nil {
+		t.Fatal("a 403 read as an answer; it is a failure to ask")
 	}
 }
