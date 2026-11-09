@@ -575,10 +575,10 @@ func (b *SQLite) RecordDispatch(ctx context.Context, d Dispatch) error {
 	_, err := b.db.write.ExecContext(ctx,
 		`INSERT OR REPLACE INTO dispatches
 		   (run_id, task_id, project_id, backend, pid, session_id,
-		    started_at, prompt_path, log_path, output_path, attempt, status)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')`,
+		    started_at, prompt_path, log_path, output_path, attempt, status, proc_start)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight', ?)`,
 		d.RunID, d.TaskID, b.projectID, d.Backend, d.PID, d.SessionID,
-		d.StartedAt, d.PromptPath, d.LogPath, d.OutputPath, d.Attempt)
+		d.StartedAt, d.PromptPath, d.LogPath, d.OutputPath, d.Attempt, d.ProcStart)
 	if err != nil {
 		return fmt.Errorf("record dispatch of %q: %w", d.TaskID, err)
 	}

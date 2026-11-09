@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/ci"
@@ -282,6 +283,12 @@ func run(ctx context.Context, dir string, env []string, command string, timeout 
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = env
+	// Its own process group, killed whole on a timeout or cancel (#541):
+	// killing only sh leaves the app a start command ran and a test runner's
+	// workers alive, holding ports and the output pipe. Only then — a server
+	// app.start left running on purpose stays up for app.stop.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
