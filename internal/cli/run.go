@@ -44,7 +44,13 @@ func newRunCmd(flags *projectFlags) *cobra.Command {
 		Use:   "run",
 		Short: "Walk the DAG, dispatching ready tasks to their CLI agents",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := runProject(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), flags, opts); err != nil {
+			err := runProject(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), flags, opts)
+			// Whatever the run's outcome, its evidence is kept within its
+			// limits (#520).
+			if paths, cfg, loadErr := loadProjectConfig(flags); loadErr == nil {
+				pruneEvidence(cmd.ErrOrStderr(), paths, cfg)
+			}
+			if err != nil {
 				return err
 			}
 			// knowledge.curate_every (#452), once the run's lock is released.

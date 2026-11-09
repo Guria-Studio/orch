@@ -994,11 +994,21 @@ Without the block, or with `enabled: false`, a clean exit is pushed as before.
 
 ```yaml
 evidence:
-  pr_comment: true   # default; false = no comment on the PR
+  pr_comment: true          # default; false = no comment on the PR
+  keep_attempts: 3          # default; verified attempts kept per task
+  max_bytes_per_task: 0     # 0 = 200 MiB of E2E files per task; < 0 = no cap
 ```
 
 What the local verify proved about a task is kept as its evidence manifest
 (see *Evidence* under `verify`).
+
+**Retention.** When `orch run` ends, each task keeps its `keep_attempts`
+newest verified attempts (manifest in `history/` and E2E directory under
+`e2e/`); past `max_bytes_per_task` of E2E files the oldest go next. The
+attempt that was pushed (`evidence.json`) is never pruned and counts toward
+`keep_attempts`. A task's E2E directories no manifest names (from before
+evidence existed) are pruned with the rest. The run prints what it freed:
+`evidence: pruned 4 old attempts (38.2 MiB; evidence.keep_attempts: 3)`.
 
 **On the PR.** When the pushed attempt opens its PR, and on every
 later verified attempt pushed to it (an agent's CI or conflict retry), orch keeps one

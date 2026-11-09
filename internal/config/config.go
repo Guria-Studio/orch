@@ -186,6 +186,32 @@ type Evidence struct {
 	// PRComment posts the evidence on the task's PR as one comment, edited
 	// on every push. Nil (absent) means on.
 	PRComment *bool `yaml:"pr_comment"`
+	// KeepAttempts is how many verified attempts a task keeps, the pushed
+	// one included and never pruned; 0 means 3. Pruned when `orch run`
+	// ends.
+	KeepAttempts int `yaml:"keep_attempts"`
+	// MaxBytesPerTask caps a task's kept E2E files, oldest attempts going
+	// first; 0 means 200 MiB, below 0 no cap.
+	MaxBytesPerTask int64 `yaml:"max_bytes_per_task"`
+}
+
+// Keep is evidence.keep_attempts with its default.
+func (e Evidence) Keep() int {
+	if e.KeepAttempts < 1 {
+		return 3
+	}
+	return e.KeepAttempts
+}
+
+// MaxBytes is evidence.max_bytes_per_task with its default; 0 is no cap.
+func (e Evidence) MaxBytes() int64 {
+	switch {
+	case e.MaxBytesPerTask == 0:
+		return 200 << 20
+	case e.MaxBytesPerTask < 0:
+		return 0
+	}
+	return e.MaxBytesPerTask
 }
 
 // CommentsOnPRs reports whether evidence.pr_comment is on.
