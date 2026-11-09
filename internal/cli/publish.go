@@ -115,9 +115,11 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 			}
 			publisher := func(ctx context.Context, snap snapshot.Snapshot) error {
 				if dest == "cloud" {
-					return runOneCloudPublish(ctx, cmd, cloud, snap)
+					// The evidence media stay off orch-cloud for now (#520 §9).
+					return runOneCloudPublish(ctx, cmd, cloud, snapshot.StripEvidenceMedia(snap))
 				}
-				return runOnePublish(ctx, cmd, dir, dest, token, gitBranch, paths, snap)
+				return runOnePublish(ctx, cmd, dir, dest, token, gitBranch, paths, snap,
+					publishMediaFor(paths, cfg, snap))
 			}
 
 			if !watch {
@@ -162,8 +164,8 @@ func newPublishCmd(flags *projectFlags) *cobra.Command {
 
 // runOnePublish exports once and, for the git destination, pushes it.
 func runOnePublish(ctx context.Context, cmd *cobra.Command, dir, dest, token, branch string,
-	paths config.Paths, snap snapshot.Snapshot) error {
-	res, err := publish.Export(dir, snap, publish.Options{Token: token})
+	paths config.Paths, snap snapshot.Snapshot, media map[string]string) error {
+	res, err := publish.Export(dir, snap, publish.Options{Token: token, Media: media})
 	if err != nil {
 		return err
 	}

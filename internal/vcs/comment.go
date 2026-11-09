@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -97,4 +99,34 @@ func (p *GitHubProvider) CommentIssue(repo string, number int, body string) (str
 		return "", fmt.Errorf("reading gh's answer to the comment on %s#%d: %w", repo, number, err)
 	}
 	return posted.HTMLURL, nil
+}
+
+// UpsertPRComment is UpsertComment on the pull request at prURL,
+// https://github.com/<owner>/<repo>/pull/<n>: the one comment carrying
+// marker is edited, or created. The engine posts a task's evidence with it
+// (#520).
+func (p *GitHubProvider) UpsertPRComment(prURL, marker, body string) error {
+	repo, number, err := prFromURL(prURL)
+	if err != nil {
+		return err
+	}
+	_, _, err = UpsertComment(repo, number, marker, body)
+	return err
+}
+
+// prFromURL is the repository and number of a GitHub PR URL.
+func prFromURL(prURL string) (string, int, error) {
+	u, err := url.Parse(prURL)
+	if err != nil || u.Host == "" {
+		return "", 0, fmt.Errorf("not a pull request URL: %q", prURL)
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) != 4 || parts[2] != "pull" || parts[0] == "" || parts[1] == "" {
+		return "", 0, fmt.Errorf("not a pull request URL: %q", prURL)
+	}
+	n, err := strconv.Atoi(parts[3])
+	if err != nil || n < 1 {
+		return "", 0, fmt.Errorf("not a pull request URL: %q", prURL)
+	}
+	return parts[0] + "/" + parts[1], n, nil
 }

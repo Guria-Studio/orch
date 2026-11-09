@@ -393,6 +393,17 @@ export const pt = {
   "steer.noted": "Nota adicionada.",
   "steer.failed": "Não foi possível enviar: {detail}",
 
+  "evidence.title": "Evidência",
+  "evidence.verdict.passed": "Passou",
+  "evidence.verdict.failed": "Falhou",
+  "evidence.verdict.review_unavailable": "Passou, sem revisão",
+  "evidence.reviewed_by": "Revisado por {reviewer}",
+  "evidence.no_blocking": "sem achados bloqueantes",
+  "evidence.blocking": { one: "{count} achado bloqueante", other: "{count} achados bloqueantes" },
+  "evidence.minor": "{count} menores",
+  "evidence.not_reviewed": "Sem revisão: {reason}",
+  "evidence.diff": "{files} arquivos, +{insertions} −{deletions}",
+
   "tests.title": "Testes",
   "tests.intro":
     "As execuções E2E que o verify local do orch fez em cada tentativa de uma tarefa antes de publicá-la: quais testes passaram, onde um falhou e o que ele deixou.",

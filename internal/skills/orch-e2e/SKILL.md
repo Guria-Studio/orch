@@ -69,9 +69,10 @@ accessibility bug as well as a test that has nothing stable to hold.
 - One file per area, under the directory the task's *Files* list
   (`tests/e2e/checkout.spec.ts`). Reuse the project's `playwright.config.ts`;
   create one only if there is none, with `baseURL: process.env.ORCH_APP_URL`,
-  `screenshot: 'only-on-failure'`, `video: 'retain-on-failure'`,
-  `trace: 'retain-on-failure'` and the JSON reporter writing the file
-  `verify.e2e_report` names.
+  `screenshot: 'only-on-failure'`,
+  `video: process.env.ORCH_E2E_VIDEO ?? 'retain-on-failure'` (orch sets it
+  from `evidence.video`), `trace: 'retain-on-failure'` and the JSON reporter
+  writing the file `verify.e2e_report` names.
 - **Locate by role, label and text** — `getByRole('button', { name: 'Pay' })`,
   `getByLabel('Email')` — never by CSS classes or generated ids, which change
   without the behaviour changing.
@@ -80,6 +81,12 @@ accessibility bug as well as a test that has nothing stable to hold.
   add fixed `waitForTimeout` sleeps.
 - Wrap each user-meaningful action in `test.step('pay with a card', …)`: the
   step is what orch reports when a test fails, and what the dashboard shows.
+- Tag the one or two tests that tell the task's story for the client
+  `test('pays with a card', { tag: '@evidence' }, …)`: their steps (and,
+  when the operator publishes it, their video) are what the client page
+  shows as "how it was tested". Write those step titles in the client's
+  language (`dashboard.language`); orch does not translate them. Use seeded
+  test data, never real customer data: the video shows whatever is on screen.
 - Each test sets up its own state (sign up a fresh user, seed through the
   app's API) and depends on no other test's leftovers or order.
 - Cover the failure paths the spec names — a wrong password, an empty cart —

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	bundle "github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/worktree"
 )
@@ -368,5 +369,100 @@ func TestUnavailableReviewIsSaidInThePR(t *testing.T) {
 	}
 	if !strings.Contains(f.backend.extraOf("C-1", EventVerifyPassed), "gemini's review failed twice: boom") {
 		t.Errorf("the verify_passed event does not carry review_unavailable")
+	}
+}
+
+// TestVerifiedWorkLeavesItsEvidence is #520's phase 1: every verified
+// attempt leaves a manifest in the task's history, its verify event points
+// at it, and the attempt that is pushed becomes the task's evidence.json, at
+// a path that does not name the run.
+func TestVerifiedWorkLeavesItsEvidence(t *testing.T) {
+	v := &scriptedVerifier{answers: []string{"`make test` failed", ""}, e2e: &E2ESummary{Passed: 3}}
+	f, remote := verifyFixture(t, v, 2)
+
+	f.runOnce(t)
+	if m, err := bundle.Read(f.s.Opts.StateDir, "C-1"); err != nil || m != nil {
+		t.Fatalf("evidence after a failed verify = %+v, %v; want none yet (nothing was pushed)", m, err)
+	}
+	f.runOnce(t)
+
+	if _, pushed := remoteBranchFiles(t, remote, "orch/C-1"); !pushed {
+		t.Fatal("the passing attempt was not pushed")
+	}
+	m, err := bundle.Read(f.s.Opts.StateDir, "C-1")
+	if err != nil || m == nil {
+		t.Fatalf("evidence = %v, %v; want the pushed attempt's", m, err)
+	}
+	if m.Verdict != bundle.VerdictPassed || m.Attempt != 2 || m.RunID != f.s.Opts.RunID || m.Title == "" ||
+		len(m.Checks) != 1 || m.Checks[0].Command != "go test ./..." || m.Review == nil || m.Review.Reviewer != "gemini" ||
+		m.E2E == nil || m.E2E.Passed != 3 || m.E2E.Dir != filepath.ToSlash(filepath.Join("e2e", f.s.Opts.RunID, "C-1", "attempt-2")) {
+		t.Errorf("evidence = %+v", m)
+	}
+	history, err := os.ReadDir(filepath.Join(f.s.Opts.StateDir, "evidence", "C-1", "history"))
+	if err != nil || len(history) != 2 {
+		t.Fatalf("history = %v, %v; want both verified attempts", history, err)
+	}
+	failed, _ := f.backend.eventExtra("C-1", EventVerifyFailed)["evidence"].(string)
+	passed, _ := f.backend.eventExtra("C-1", EventVerifyPassed)["evidence"].(string)
+	if failed != "evidence/C-1/history/"+bundle.HistoryName(f.s.Opts.RunID, 1) ||
+		passed != "evidence/C-1/history/"+bundle.HistoryName(f.s.Opts.RunID, 2) {
+		t.Errorf("verify events point at %q and %q, want each attempt's manifest", failed, passed)
+	}
+}
+
+// commentingVCS is a fakeVCS that also takes PR comments, as
+// *vcs.GitHubProvider does.
+type commentingVCS struct {
+	*fakeVCS
+	comments []string // prURL + "\n" + marker + "\n" + body
+}
+
+func (v *commentingVCS) UpsertPRComment(prURL, marker, body string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.comments = append(v.comments, prURL+"\n"+marker+"\n"+body)
+	return nil
+}
+
+// TestPushedWorkCommentsItsEvidenceOnThePR is #520's phase 3: the PR a
+// verified task opens gets the evidence comment, under its marker, with
+// evidence.pr_comment on (orch init writes it); none without the key or
+// without a verify to show.
+func TestPushedWorkCommentsItsEvidenceOnThePR(t *testing.T) {
+	on, off := true, false
+	for _, tc := range []struct {
+		name     string
+		verifier Verifier
+		setting  *bool
+		want     int
+	}{
+		{"verified", &scriptedVerifier{answers: []string{""}}, &on, 1},
+		{"turned off", &scriptedVerifier{answers: []string{""}}, &off, 0},
+		// A config from before #520 has no key: an upgrade does not start
+		// writing to its PRs (checklist rule 2).
+		{"key absent", &scriptedVerifier{answers: []string{""}}, nil, 0},
+		{"no verify", nil, &on, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, _, v, _ := prFixture(t)
+			cv := &commentingVCS{fakeVCS: v}
+			f.s.VCS = cv
+			f.s.Verifier = tc.verifier
+			f.s.Opts.Cfg.Evidence.PRComment = tc.setting
+
+			f.runOnce(t)
+
+			if len(cv.comments) != tc.want {
+				t.Fatalf("comments = %q, want %d", cv.comments, tc.want)
+			}
+			if tc.want == 0 {
+				return
+			}
+			got := cv.comments[0]
+			if !strings.HasPrefix(got, "https://github.com/o/r/pull/7\n"+bundle.CommentMarker+"\n"+bundle.CommentMarker) ||
+				!strings.Contains(got, "### Evidence — C-1 (attempt 1)") || !strings.Contains(got, "| checks (1 command, 2 s) | ✅ |") {
+				t.Errorf("comment = %q", got)
+			}
+		})
 	}
 }

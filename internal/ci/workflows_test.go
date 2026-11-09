@@ -102,3 +102,18 @@ func TestReadWorkflowsWithNoDirectory(t *testing.T) {
 		t.Errorf("ReadWorkflows = %v, %v; want none and no error", wfs, err)
 	}
 }
+
+// GateOf reads one command the way Gates reads a step label (#520).
+func TestGateOf(t *testing.T) {
+	for cmd, want := range map[string]string{
+		"go test ./...":             GateTests,
+		"pnpm exec tsc -b":          GateTypecheck,
+		"golangci-lint run":         GateLint,
+		"cd web && pnpm build":      GateBuild,
+		"./scripts/deploy.sh --dry": "",
+	} {
+		if got := GateOf(cmd); got != want {
+			t.Errorf("GateOf(%q) = %q, want %q", cmd, got, want)
+		}
+	}
+}

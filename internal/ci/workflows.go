@@ -154,6 +154,21 @@ var gateWords = map[string][]string{
 	GateBuild:     {"build"},
 }
 
+// GateOf is the kind of check a command or step label runs, by the words
+// Gates reads (tests first, then typecheck, lint, build); "" when it says
+// none of them. The evidence bundle labels verify's commands with it (#520).
+func GateOf(label string) string {
+	label = strings.ToLower(label)
+	for _, g := range gateOrder {
+		for _, word := range gateWords[g] {
+			if strings.Contains(label, word) {
+				return g
+			}
+		}
+	}
+	return ""
+}
+
 // Gates names the kinds of check the workflows that run on pull requests
 // amount to, from their jobs' and steps' names. A job whose name or id says
 // review is a review, whatever its steps are called ("Build review input"

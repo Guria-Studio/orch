@@ -393,6 +393,17 @@ export const es = {
   "steer.noted": "Nota agregada.",
   "steer.failed": "No se pudo enviar: {detail}",
 
+  "evidence.title": "Evidencia",
+  "evidence.verdict.passed": "Pasó",
+  "evidence.verdict.failed": "Falló",
+  "evidence.verdict.review_unavailable": "Pasó, sin revisión",
+  "evidence.reviewed_by": "Revisado por {reviewer}",
+  "evidence.no_blocking": "sin hallazgos bloqueantes",
+  "evidence.blocking": { one: "{count} hallazgo bloqueante", other: "{count} hallazgos bloqueantes" },
+  "evidence.minor": "{count} menores",
+  "evidence.not_reviewed": "Sin revisión: {reason}",
+  "evidence.diff": "{files} archivos, +{insertions} −{deletions}",
+
   "tests.title": "Tests",
   "tests.intro": "Corridas E2E del verify local.",
   "tests.load_failed": "No se pudieron leer las corridas E2E",

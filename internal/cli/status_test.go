@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/router"
@@ -271,5 +272,52 @@ func TestStatusShowsTheEffectiveRoute(t *testing.T) {
 	}
 	if !regexp.MustCompile(`(?m)^B\s+done\s+\?/codex/luna\s`).MatchString(out.String()) {
 		t.Errorf("B shows a ran-model it never reported:\n%s", out.String())
+	}
+}
+
+// TestStatusJSONCarriesEachTasksEvidence is #520's reading side: a task with
+// an evidence manifest has it under `evidence` in `status --json`; one
+// without has no key at all, so the shape scripts read is unchanged.
+func TestStatusJSONCarriesEachTasksEvidence(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db, _, err := state.Open(ctx, filepath.Join(root, "orch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	backend := state.NewSQLite(db, "p", root)
+	paths := config.Paths{Root: root, ID: "p"}
+	tasks := []model.Task{
+		{ID: "F2.T3", Title: "Login", Status: model.StatusDone, Model: "claude/sonnet"},
+		{ID: "F2.T4", Title: "Logout", Status: model.StatusTodo, Model: "claude/sonnet"},
+	}
+	m := evidence.Manifest{Version: evidence.Version, TaskID: "F2.T3", RunID: "run-1", Attempt: 1,
+		Verdict: evidence.VerdictPassed, Checks: []evidence.Check{{Command: "go test ./...", Kind: "tests"}}}
+	if err := evidence.Promote(paths.StateDir(), m); err != nil {
+		t.Fatal(err)
+	}
+
+	snap, err := buildSnapshot(ctx, paths, backend, tasks, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(snap.Tasks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(b, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(rows[0]["evidence"]); !strings.Contains(got, `"verdict":"passed"`) || !strings.Contains(got, `"kind":"tests"`) {
+		t.Errorf("F2.T3 evidence = %s, want its manifest", got)
+	}
+	if _, ok := rows[1]["evidence"]; ok {
+		t.Errorf("F2.T4 has an evidence key with no manifest: %s", rows[1]["evidence"])
 	}
 }

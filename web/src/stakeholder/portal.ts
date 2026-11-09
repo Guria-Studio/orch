@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify"
 import { marked } from "marked"
-import type { StakeholderDelivery, StakeholderMilestone, StakeholderQuality, StakeholderSnapshot } from "./types"
+import type { StakeholderDelivery, StakeholderEvidence, StakeholderMilestone, StakeholderQuality, StakeholderSnapshot } from "./types"
 
 import { copy, LOCALES, type Lang } from "./i18n"
 
@@ -151,4 +151,32 @@ export function rememberLinkToken(search: string): string | null {
 export function qualityLine(q: StakeholderQuality | undefined, lang: Lang): string {
   if (!q || q.delivered === 0) return ""
   return copy[lang].verified(q.verified, q.delivered, q.first_pass)
+}
+
+// evidenceLine says how a delivered item was checked (#520), in the
+// client's words: the kinds of check, the walk-throughs that passed, and a
+// second model's review. "" when there is nothing to say.
+export function evidenceLine(e: StakeholderEvidence, lang: Lang): string {
+  const t = copy[lang]
+  const parts: string[] = []
+  for (const kind of e.checked ?? []) {
+    if (kind === "e2e") {
+      if (e.e2e && e.e2e.total > 0) parts.push(t.evidenceWalkthroughs(e.e2e.passed, e.e2e.total))
+      continue
+    }
+    const label = (t.gates as Record<string, string>)[kind]
+    if (label) parts.push(label.charAt(0).toLowerCase() + label.slice(1))
+  }
+  const out: string[] = []
+  if (parts.length > 0) out.push(t.evidenceChecked(parts.join(", ")))
+  if (e.reviewed) out.push(t.evidenceReviewed)
+  return out.join(" ")
+}
+
+// mediaURL is where the page loads an evidence video or poster: the site
+// path the snapshot gives, beside the page, with the token forwarded as
+// snapshotURL does (a live dashboard gates the media too).
+export function mediaURL(path: string, search: string, saved: string | null): string {
+  const token = new URLSearchParams(search).get("token") || saved
+  return token ? `./${path}?token=${encodeURIComponent(token)}` : `./${path}`
 }

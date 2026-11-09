@@ -16,6 +16,7 @@ import { useEventsHistory } from "@/hooks/useEventsHistory"
 import { useTaskDetail } from "@/hooks/useTaskDetail"
 import { useTasks } from "@/hooks/useTasks"
 import { useWhoami } from "@/hooks/useWhoami"
+import { TaskEvidence } from "@/components/TaskEvidence"
 import { fmt, t, type MessageKey } from "@/i18n"
 import { editTask, moveTask, type TaskFields } from "@/lib/api"
 import { taskPath } from "@/lib/nav"
@@ -749,6 +750,8 @@ export function TaskPage() {
                       </ul>
                     </section>
                   ) : null}
+
+                  {canEdit ? <TaskEvidence taskId={id} /> : null}
 
                   <Activity task={data} events={events} />
                   <TaskSteer task={data} />

@@ -36,6 +36,7 @@ var scaffoldOptIns = map[string]string{
 	"retry.conflict.max_attempts": "#438: 1 in a new project; absent = off",
 	"report_findings.enabled":     "#399: on in a new project; absent = off",
 	"verify.enabled":              "#398: on in a new project; absent = off",
+	"evidence.pr_comment":         "#520: on in a new project; absent = off",
 	"knowledge.enabled":           "#451: on in a new project; absent = off",
 	"knowledge.max_in_prompt":     "#451: written as 5; absent loads as 0, which Knowledge.Prompt reads as 5",
 	"knowledge.auto_capture":      "#451: written as true; absent loads as null, which Knowledge.Captures reads as on",

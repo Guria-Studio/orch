@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/Guria-Studio/orch/internal/evidence"
 )
 
 // The operator's Tests page: every E2E run the local verify collected
@@ -31,7 +33,29 @@ func (s *Server) testsRoutes() []route {
 		{pattern: "GET /api/tests", name: "api_tests", handler: s.handleTests},
 		{pattern: "GET /api/tests/{run}/{task}/{attempt}", name: "api_tests_report", handler: s.handleTestReport},
 		{pattern: "GET /api/tests/{run}/{task}/{attempt}/files/{file...}", name: "api_tests_file", handler: s.handleTestFile},
+		{pattern: "GET /api/tests/evidence/{task}", name: "api_tests_evidence", handler: s.handleTaskEvidence},
 	}
+}
+
+// handleTaskEvidence is the task's evidence manifest (#520): what the local
+// verify proved about the attempt that was pushed. Its media paths are
+// relative to e2e.dir, served by handleTestFile.
+func (s *Server) handleTaskEvidence(w http.ResponseWriter, r *http.Request) {
+	task := r.PathValue("task")
+	if !plainSegment(task) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "bad task id"})
+		return
+	}
+	m, err := evidence.Read(s.paths.StateDir(), task)
+	if err != nil {
+		s.failRead(w, "tests", err)
+		return
+	}
+	if m == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "no evidence for this task"})
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
 }
 
 // e2eRun is one collected E2E run: a task attempt and its counts.

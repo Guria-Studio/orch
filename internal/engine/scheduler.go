@@ -12,6 +12,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
+	bundle "github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/prompt"
@@ -68,6 +69,9 @@ type InFlight struct {
 	// VerifyNote is the verify's verdict in one line, for the closing
 	// comment of the task's source issue (#525); "" with no verify.
 	VerifyNote string
+	// Evidence is the verified attempt's evidence manifest (#520), made the
+	// task's evidence once the work is pushed; nil with no verify.
+	Evidence *bundle.Manifest
 }
 
 // SchedulerOptions configures one run.

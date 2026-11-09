@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -61,6 +63,10 @@ type Verifier struct {
 	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
 	Once contract.Runner
+	// E2EVideo is evidence.video, exported to the E2E commands as
+	// ORCH_E2E_VIDEO for the project's Playwright config to read (#520):
+	// on, retain-on-failure (the default), off.
+	E2EVideo string
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -76,6 +82,14 @@ type Verifier struct {
 // either (#539). A gate that blocks on its own breakage teaches people to
 // turn it off.
 func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contract.VerifyResult {
+	res := v.check(ctx, req)
+	// What was checked, for the task's evidence (#520), passed or not.
+	res.HeadSHA, res.BaseSHA, res.Diff = v.describe(ctx, req.TaskID, req.Dir)
+	return res
+}
+
+// check is Verify without the description of the change.
+func (v Verifier) check(ctx context.Context, req contract.VerifyRequest) contract.VerifyResult {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
 	changed := v.changedFiles(ctx, req.TaskID, req.Dir)
 	if v.RequireTests {
@@ -89,10 +103,10 @@ func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contra
 	}
 	var ran []contract.VerifyCommand
 	for _, c := range v.commands(req.TaskID, req.Dir, changed) {
-		if out, err := timed(&ran, c, func() (string, error) { return run(ctx, req.Dir, req.Env, c, timeout) }); notFound(err) {
-			skipNotFound(req.TaskID, "verify.commands", c, out)
+		if out, err := timed(&ran, c.command, c.kind, func() (string, error) { return run(ctx, req.Dir, req.Env, c.command, timeout) }); notFound(err) {
+			skipNotFound(req.TaskID, "verify.commands", c.command, out)
 		} else if err != nil {
-			return contract.VerifyResult{Failure: commandFailed(c, err, out, ""), Commands: ran}
+			return contract.VerifyResult{Failure: commandFailed(c.command, err, out, ""), Commands: ran}
 		}
 	}
 	res := v.e2e(ctx, req, timeout)
@@ -104,16 +118,19 @@ func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contra
 	return res
 }
 
-// timed runs f, the check command, and adds it to ran with how long it took
-// unless sh could not find it.
-func timed(ran *[]contract.VerifyCommand, command string, f func() (string, error)) (string, error) {
+// timed runs f, the check command, and adds it to ran with its kind and how
+// long it took unless sh could not find it.
+func timed(ran *[]contract.VerifyCommand, command, kind string, f func() (string, error)) (string, error) {
 	start := time.Now()
 	out, err := f()
 	if !notFound(err) {
-		*ran = append(*ran, contract.VerifyCommand{Command: command, DurationS: time.Since(start).Round(time.Millisecond).Seconds()})
+		*ran = append(*ran, contract.VerifyCommand{Command: command, DurationS: time.Since(start).Round(time.Millisecond).Seconds(), Kind: kind})
 	}
 	return out, err
 }
+
+// kindE2E is the kind of a verify.e2e command.
+const kindE2E = "e2e"
 
 func commandFailed(command string, err error, out, context string) string {
 	if strings.TrimSpace(out) == "" {
@@ -165,15 +182,28 @@ func (v Verifier) e2e(ctx context.Context, req contract.VerifyRequest, timeout t
 			}
 		}
 	}
+	var probes []contract.VerifyProbe
+	if len(app.Probes) > 0 {
+		if appURL == "" {
+			slog.Warn("verify: verify.app.probes need verify.app.start and a url that answers; not probing", "task", req.TaskID)
+		} else if failure := probe(ctx, appURL, app.Probes, &probes); failure != "" {
+			return contract.VerifyResult{Failure: failure, Probes: probes}
+		}
+	}
 	report := ""
 	if v.Cfg.E2EReport != "" {
 		// A report left by an earlier attempt must not pass for this one's.
 		report = filepath.Join(req.Dir, filepath.FromSlash(v.Cfg.E2EReport))
 		_ = os.Remove(report)
 	}
-	var res contract.VerifyResult
+	video := v.E2EVideo
+	if video == "" {
+		video = "retain-on-failure"
+	}
+	env = withVar(env, "ORCH_E2E_VIDEO="+video)
+	res := contract.VerifyResult{Probes: probes}
 	for _, c := range v.Cfg.E2E {
-		if out, err := timed(&res.Commands, c, func() (string, error) { return run(ctx, req.Dir, env, c, timeout) }); notFound(err) {
+		if out, err := timed(&res.Commands, c, kindE2E, func() (string, error) { return run(ctx, req.Dir, env, c, timeout) }); notFound(err) {
 			skipNotFound(req.TaskID, "verify.e2e", c, out)
 		} else if err != nil {
 			res.Failure = commandFailed(c, err, out, " against the running app")
@@ -241,6 +271,66 @@ func waitReady(ctx context.Context, url string, ready time.Duration) error {
 	}
 }
 
+// maxProbeBody is how much of an answer a probe reads.
+const maxProbeBody = 1 << 20
+
+// probe GETs each of probes at base and checks its status and body, in
+// order, adding each result to out; it stops at the first that fails and
+// returns what failed, written for the agent, or "" when all hold. Neither
+// the result nor the failure names base: the URL is the operator's.
+func probe(ctx context.Context, base string, probes []config.VerifyProbe, out *[]contract.VerifyProbe) string {
+	client := &http.Client{Timeout: 30 * time.Second}
+	for _, p := range probes {
+		path := p.Path
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		res := contract.VerifyProbe{Path: path}
+		res.Status, res.Detail = probeOnce(ctx, client, strings.TrimRight(base, "/")+path, p)
+		res.OK = res.Detail == ""
+		*out = append(*out, res)
+		if !res.OK {
+			return fmt.Sprintf("orch's local verify started the task's app and probed what it serves (verify.app.probes): "+
+				"GET %s %s. The app answers, but not with what it should; check that the change builds and serves the page.\n", path, res.Detail)
+		}
+	}
+	return ""
+}
+
+// probeOnce is one probe's status and, when it fails, why.
+func probeOnce(ctx context.Context, client *http.Client, url string, p config.VerifyProbe) (int, string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Sprintf("could not be asked (%v)", err)
+	}
+	resp, err := client.Do(req) // #nosec G704 -- the operator's own verify.app.url
+	if err != nil {
+		return 0, fmt.Sprintf("got no answer (%v)", errors.Unwrap(err))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxProbeBody))
+	if err != nil {
+		return resp.StatusCode, fmt.Sprintf("answered %d and its body could not be read (%v)", resp.StatusCode, err)
+	}
+	switch {
+	case p.Status != 0 && resp.StatusCode != p.Status:
+		return resp.StatusCode, fmt.Sprintf("answered %d, want %d", resp.StatusCode, p.Status)
+	case p.Status == 0 && resp.StatusCode >= 400:
+		return resp.StatusCode, fmt.Sprintf("answered %d, want a status below 400", resp.StatusCode)
+	}
+	for _, want := range p.Contains {
+		if !strings.Contains(string(body), want) {
+			return resp.StatusCode, fmt.Sprintf("answered %d without %q in the page", resp.StatusCode, want)
+		}
+	}
+	for _, bad := range p.NotContains {
+		if strings.Contains(string(body), bad) {
+			return resp.StatusCode, fmt.Sprintf("answered %d with %q in the page", resp.StatusCode, bad)
+		}
+	}
+	return resp.StatusCode, ""
+}
+
 // withVar is env with kv added, starting from this process's environment
 // when env is nil (which exec reads as "inherit").
 func withVar(env []string, kv string) []string {
@@ -250,29 +340,36 @@ func withVar(env []string, kv string) []string {
 	return append(slices.Clone(env), kv)
 }
 
-// commands are the configured ones, or what `orch ci setup` detects for the
-// packages the change touches.
-func (v Verifier) commands(taskID, dir string, changed []string) []string {
+// check is one command to run and its kind (tests, lint, install, …).
+type check struct{ command, kind string }
+
+// commands are the configured ones, their kind told from their words, or
+// what `orch ci setup` detects for the packages the change touches.
+func (v Verifier) commands(taskID, dir string, changed []string) []check {
 	if len(v.Cfg.Commands) > 0 {
-		return v.Cfg.Commands
+		out := make([]check, 0, len(v.Cfg.Commands))
+		for _, c := range v.Cfg.Commands {
+			out = append(out, check{c, ci.GateOf(c)})
+		}
+		return out
 	}
 	st, err := ci.Detect(dir)
 	if err != nil {
 		slog.Warn("verify: detecting the repository's checks failed; running none", "task", taskID, "err", err)
 		return nil
 	}
-	var out []string
+	var out []check
 	for _, p := range scope(st.Packages, changed) {
-		for _, c := range []string{p.Install, p.Lint, p.Typecheck, p.Test, p.Build} {
-			if c == "" {
+		for _, c := range []check{{p.Install, "install"}, {p.Lint, ci.GateLint}, {p.Typecheck, ci.GateTypecheck}, {p.Test, ci.GateTests}, {p.Build, ci.GateBuild}} {
+			if c.command == "" {
 				continue
 			}
-			if tool, _, _ := strings.Cut(c, " "); !onPath(tool) {
-				slog.Warn("verify: skipping a check whose tool is not installed", "task", taskID, "command", c)
+			if tool, _, _ := strings.Cut(c.command, " "); !onPath(tool) {
+				slog.Warn("verify: skipping a check whose tool is not installed", "task", taskID, "command", c.command)
 				continue
 			}
 			if p.Dir != "." {
-				c = "cd " + shellQuote(p.Dir) + " && " + c
+				c.command = "cd " + shellQuote(p.Dir) + " && " + c.command
 			}
 			out = append(out, c)
 		}
@@ -462,6 +559,51 @@ func scope(pkgs []ci.Package, changed []string) []ci.Package {
 		keep[owner] = true
 	}
 	return slices.DeleteFunc(slices.Clone(pkgs), func(p ci.Package) bool { return !keep[p.Dir] })
+}
+
+// maxTopFiles is how many of the most-changed files describe a change.
+const maxTopFiles = 5
+
+// describe is the commit verified, the base commit its branch left from,
+// and the change between them in numbers; empty when git cannot say (not a
+// repository, no base).
+func (v Verifier) describe(ctx context.Context, taskID, dir string) (head, base string, diff *contract.DiffStat) {
+	ref := v.baseRef(ctx, dir)
+	if out, err := run(ctx, dir, nil, "git rev-parse HEAD", time.Minute); err == nil {
+		head = strings.TrimSpace(out)
+	}
+	if out, err := run(ctx, dir, nil, "git merge-base HEAD "+shellQuote(ref), time.Minute); err == nil {
+		base = strings.TrimSpace(out)
+	}
+	out, err := run(ctx, dir, nil, "git diff --numstat --merge-base "+shellQuote(ref)+" --", time.Minute)
+	if err != nil {
+		slog.Debug("verify: the change could not be counted", "task", taskID, "err", err)
+		return head, base, nil
+	}
+	type file struct {
+		name    string
+		changed int
+	}
+	var files []file
+	diff = &contract.DiffStat{}
+	for _, line := range strings.Split(out, "\n") {
+		// added<TAB>deleted<TAB>path; a binary file counts "-" for both.
+		f := strings.SplitN(line, "\t", 3)
+		if len(f) != 3 {
+			continue
+		}
+		added, _ := strconv.Atoi(f[0])
+		deleted, _ := strconv.Atoi(f[1])
+		diff.Files++
+		diff.Insertions += added
+		diff.Deletions += deleted
+		files = append(files, file{f[2], added + deleted})
+	}
+	slices.SortStableFunc(files, func(a, b file) int { return b.changed - a.changed })
+	for i := 0; i < len(files) && i < maxTopFiles; i++ {
+		diff.Top = append(diff.Top, files[i].name)
+	}
+	return head, base, diff
 }
 
 // changedFiles is what the task changed against its base, as git prints the

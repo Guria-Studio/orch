@@ -312,12 +312,15 @@ func (s *Scheduler) tidyWorktree(ctx context.Context, entry *InFlight, out Outco
 			if s.prExpected() {
 				noPR = "the agent exited cleanly but its work was not pushed, so no PR was opened: " + err.Error()
 			}
-		} else if s.prExpected() {
-			// A CI retry's PR is kept until a push reaches it, so a retry
-			// whose agent failed first still finds it on the next attempt.
-			noPR = s.openPR(ctx, entry, s.ciRetryPR[id])
-			delete(s.ciRetryPR, id)
-			prOpened = noPR == ""
+		} else {
+			s.promoteEvidence(entry)
+			if s.prExpected() {
+				// A CI retry's PR is kept until a push reaches it, so a retry
+				// whose agent failed first still finds it on the next attempt.
+				noPR = s.openPR(ctx, entry, s.ciRetryPR[id])
+				delete(s.ciRetryPR, id)
+				prOpened = noPR == ""
+			}
 		}
 	}
 
@@ -374,6 +377,7 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 			"task", task.ID, "pr", prURL, "err", err)
 		return "a PR was opened but recording it failed (" + prURL + "): " + err.Error()
 	}
+	s.commentEvidence(entry, prURL)
 	if !created {
 		s.logger().Info("the CI retry pushed to its PR; waiting on CI again", "task", task.ID, "pr", prURL)
 		return ""
@@ -417,6 +421,7 @@ func (s *Scheduler) landLocally(ctx context.Context, entry *InFlight) localLand 
 			s.Worktree.BranchName(id) + "): " + err.Error()}
 	}
 	if len(res.Conflicts) == 0 {
+		s.promoteEvidence(entry)
 		return localLand{landed: true, commit: res.Commit}
 	}
 	files := strings.Join(res.Conflicts, ", ")

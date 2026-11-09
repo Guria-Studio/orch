@@ -809,3 +809,162 @@ func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// TestVerifyDescribesTheChangeItChecked is #520's evidence: the result names
+// the commit verified, where its branch left the base, the change in
+// numbers, and the kind of each check — failing or passing.
+func TestVerifyDescribesTheChangeItChecked(t *testing.T) {
+	dir := branchWithWork(t) // adds store.go, three lines
+	rev := func(ref string) string {
+		t.Helper()
+		out, err := exec.Command("git", "-C", dir, "rev-parse", ref).Output() // #nosec G204 -- a temp repo this test made
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"echo lint-ok", "echo build-ok", "true"}, TimeoutS: 10}, Base: "main"}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir})
+
+	if res.Failure != "" {
+		t.Fatalf("Verify = %q, want a pass", res.Failure)
+	}
+	if res.HeadSHA != rev("HEAD") || res.BaseSHA != rev("main") {
+		t.Errorf("shas = %q, %q; want HEAD %q and main %q", res.HeadSHA, res.BaseSHA, rev("HEAD"), rev("main"))
+	}
+	if d := res.Diff; d == nil || d.Files != 1 || d.Insertions != 3 || d.Deletions != 0 || len(d.Top) != 1 || d.Top[0] != "store.go" {
+		t.Errorf("Diff = %+v, want store.go: 1 file, +3 -0", d)
+	}
+	var kinds []string
+	for _, c := range res.Commands {
+		kinds = append(kinds, c.Kind)
+	}
+	if strings.Join(kinds, ",") != "lint,build," {
+		t.Errorf("kinds = %q, want lint, build and none", kinds)
+	}
+
+	v.Cfg.Commands = []string{"exit 1"}
+	if res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}); res.Failure == "" || res.Diff == nil || res.HeadSHA == "" {
+		t.Errorf("a failing verify = %+v, want the change described too", res)
+	}
+}
+
+// TestVerifyKeepsTheTestsTags: the report keeps each test's tags, so the
+// evidence can pick the ones tagged @evidence (#520).
+func TestVerifyKeepsTheTestsTags(t *testing.T) {
+	dir := t.TempDir()
+	raw, err := os.ReadFile(filepath.Join("testdata", "playwright", "1.64.1", "report.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagged := strings.Replace(string(raw), "\"title\": \"shows the cart\",\n              \"ok\": true,\n              \"tags\": []",
+		"\"title\": \"shows the cart\",\n              \"ok\": true,\n              \"tags\": [\"evidence\"]", 1)
+	if tagged == string(raw) {
+		t.Fatal("the fixture changed; tag another test")
+	}
+	write(t, filepath.Join(dir, "captured.json"), strings.ReplaceAll(tagged, "/capture", dir))
+	artifacts := filepath.Join(t.TempDir(), "attempt-1")
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{"cp captured.json e2e-report.json"}, E2EReport: "e2e-report.json"}}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir, ArtifactsDir: artifacts})
+
+	if res.E2E == nil {
+		t.Fatal("no E2E collected")
+	}
+	b, err := os.ReadFile(res.E2E.Report) // #nosec G304 -- a temp dir this test made
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rep verify.E2EReport
+	if err := json.Unmarshal(b, &rep); err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Tests) != 2 || strings.Join(rep.Tests[0].Tags, ",") != "evidence" || len(rep.Tests[1].Tags) != 0 {
+		t.Errorf("tags = %+v", rep.Tests)
+	}
+	if kinds := res.Commands; len(kinds) != 1 || kinds[0].Kind != "e2e" {
+		t.Errorf("commands = %+v, want the E2E command of kind e2e", kinds)
+	}
+}
+
+// probedApp is a task's app that is up and answers 200 everywhere, with a
+// home page that says it is not built: the panel #520 started from.
+func probedApp(t *testing.T) (verify.Verifier, engine.VerifyRequest) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orders":
+			_, _ = w.Write([]byte("<h1>Orders</h1><p>3 open</p>"))
+		default:
+			_, _ = w.Write([]byte("<h1>Dashboard not built</h1><p>run the build first</p>"))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, App: config.VerifyApp{
+		Start: "touch started", URL: srv.URL, Stop: "touch stopped", ReadyTimeoutS: 30,
+	}}}
+	return v, engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}
+}
+
+// TestVerifyProbesTheAppsContent is #520's phase 2: an app that answers 200
+// with "not built" is ready for waitReady, but a probe that reads the page
+// sends the work back, naming the probe, before any E2E runs.
+func TestVerifyProbesTheAppsContent(t *testing.T) {
+	v, req := probedApp(t)
+	v.Cfg.App.Probes = []config.VerifyProbe{
+		{Path: "/orders", Contains: []string{"Orders"}},
+		{Path: "/", Status: 200, NotContains: []string{"not built", "Cannot GET"}},
+	}
+	v.Cfg.E2E = []string{"touch e2e-ran"}
+
+	res := v.Verify(context.Background(), req)
+
+	for _, want := range []string{"probe", "GET /", `"not built"`} {
+		if !strings.Contains(res.Failure, want) {
+			t.Errorf("failure is missing %q:\n%s", want, res.Failure)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err == nil {
+		t.Error("the E2E ran against an app whose probe failed")
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "stopped")); err != nil {
+		t.Errorf("the app was not stopped: %v", err)
+	}
+	if len(res.Probes) != 2 || !res.Probes[0].OK || res.Probes[0].Status != 200 || res.Probes[1].OK || res.Probes[1].Path != "/" {
+		t.Errorf("probes = %+v, want /orders ok and / failed", res.Probes)
+	}
+}
+
+// TestVerifyProbesPassAndDefaultToBelow400: probes that hold let the E2E
+// run; a probe without a status accepts anything below 400 and refuses a
+// 404, which waitReady alone takes for ready.
+func TestVerifyProbesPassAndDefaultToBelow400(t *testing.T) {
+	v, req := probedApp(t)
+	v.Cfg.App.Probes = []config.VerifyProbe{{Path: "/orders", Contains: []string{"Orders", "3 open"}}}
+	v.Cfg.E2E = []string{"touch e2e-ran"}
+	if res := v.Verify(context.Background(), req); res.Failure != "" || len(res.Probes) != 1 || !res.Probes[0].OK {
+		t.Fatalf("Verify = %+v, want a pass with the probe recorded", res)
+	}
+	if _, err := os.Stat(filepath.Join(req.Dir, "e2e-ran")); err != nil {
+		t.Errorf("the E2E did not run after the probes passed: %v", err)
+	}
+
+	v404, req404, _ := appFixture(t, http.StatusNotFound)
+	v404.Cfg.App.Probes = []config.VerifyProbe{{Path: "/"}}
+	if got := v404.Verify(context.Background(), req404).Failure; !strings.Contains(got, "404") {
+		t.Errorf("Verify = %q, want the 404 probe failed", got)
+	}
+}
+
+// The E2E commands are told whether to record video (#520 §3.4):
+// ORCH_E2E_VIDEO, which the Playwright recipe reads, is evidence.video,
+// retain-on-failure when unset.
+func TestVerifyTellsTheE2EWhetherToRecordVideo(t *testing.T) {
+	for _, tc := range []struct{ video, want string }{{"", "retain-on-failure"}, {"on", "on"}} {
+		v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{`test "$ORCH_E2E_VIDEO" = ` + tc.want}}, E2EVideo: tc.video}
+		if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure; got != "" {
+			t.Errorf("E2EVideo %q: %s", tc.video, got)
+		}
+	}
+}

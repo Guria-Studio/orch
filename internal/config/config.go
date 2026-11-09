@@ -55,6 +55,7 @@ type Config struct {
 	ReportFindings       ReportFindings `yaml:"report_findings"`
 	Portal               Portal         `yaml:"portal"`
 	Verify               Verify         `yaml:"verify"`
+	Evidence             Evidence       `yaml:"evidence"`
 	Update               Update         `yaml:"update"`
 	Knowledge            Knowledge      `yaml:"knowledge"`
 	Guard                Guard          `yaml:"guard"`
@@ -182,6 +183,87 @@ type VerifyApp struct {
 	Stop string `yaml:"stop"`
 	// ReadyTimeoutS is how long the app has to answer at URL.
 	ReadyTimeoutS int `yaml:"ready_timeout_s"`
+	// Probes check what the app serves once it answers, before verify.e2e
+	// (#520): a page that answers 200 with "not built" is not ready.
+	Probes []VerifyProbe `yaml:"probes"`
+}
+
+// Evidence is the per-task evidence bundle the local verify leaves (#520):
+// <state>/evidence/<task>/evidence.json and what is shown from it.
+type Evidence struct {
+	// PRComment posts the evidence on the task's PR as one comment, edited
+	// on every push. On in a new project (orch init writes true); absent =
+	// off, so an upgrade never starts writing to a project's PRs.
+	PRComment *bool `yaml:"pr_comment"`
+	// KeepAttempts is how many verified attempts a task keeps, the pushed
+	// one included and never pruned; 0 means 3. Pruned when `orch run`
+	// ends.
+	KeepAttempts int `yaml:"keep_attempts"`
+	// MaxBytesPerTask caps a task's kept E2E files, oldest attempts going
+	// first; 0 means 200 MiB, below 0 no cap.
+	MaxBytesPerTask int64 `yaml:"max_bytes_per_task"`
+	// Video is ORCH_E2E_VIDEO for the E2E commands — Playwright's video
+	// mode (on, retain-on-failure, on-first-retry, off) for a config that
+	// reads it; "" means retain-on-failure. orch never edits the project's
+	// Playwright config.
+	Video string `yaml:"video"`
+	// Publish is what of the evidence reaches the client page.
+	Publish EvidencePublish `yaml:"publish"`
+}
+
+// EvidencePublish is what `orch publish` and the dashboard's client page
+// show of the evidence (#520 §3.4).
+type EvidencePublish struct {
+	// Video shows the @evidence walk-through's video and screenshot on the
+	// client page. Off by default: a video cannot be scanned for what it
+	// shows, so publishing it is the operator's decision.
+	Video bool `yaml:"video"`
+	// MaxVideoBytes leaves a bigger video out (its screenshot still
+	// shows); 0 means 4 MiB.
+	MaxVideoBytes int64 `yaml:"max_video_bytes"`
+}
+
+// MaxVideo is evidence.publish.max_video_bytes with its default.
+func (p EvidencePublish) MaxVideo() int64 {
+	if p.MaxVideoBytes <= 0 {
+		return 4 << 20
+	}
+	return p.MaxVideoBytes
+}
+
+// Keep is evidence.keep_attempts with its default.
+func (e Evidence) Keep() int {
+	if e.KeepAttempts < 1 {
+		return 3
+	}
+	return e.KeepAttempts
+}
+
+// MaxBytes is evidence.max_bytes_per_task with its default; 0 is no cap.
+func (e Evidence) MaxBytes() int64 {
+	switch {
+	case e.MaxBytesPerTask == 0:
+		return 200 << 20
+	case e.MaxBytesPerTask < 0:
+		return 0
+	}
+	return e.MaxBytesPerTask
+}
+
+// CommentsOnPRs reports whether evidence.pr_comment is on.
+func (e Evidence) CommentsOnPRs() bool { return e.PRComment != nil && *e.PRComment }
+
+// VerifyProbe is one GET against the task's app and what its answer must
+// hold.
+type VerifyProbe struct {
+	// Path is appended to verify.app.url, e.g. /dashboard.
+	Path string `yaml:"path"`
+	// Status is the status the answer must have; 0 accepts anything below
+	// 400.
+	Status int `yaml:"status"`
+	// Contains must all appear in the body; NotContains must not.
+	Contains    []string `yaml:"contains"`
+	NotContains []string `yaml:"not_contains"`
 }
 
 // Knowledge is the project memory (#451): lessons under .orch/knowledge/ that

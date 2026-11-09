@@ -122,6 +122,21 @@ time is recorded. **Optional** (additive, schema 1): `waiting`, on an
 #524) — one fixed phrase per activity in the snapshot's language, e.g.
 `"esperando: descargando datos"`; never the operator's evidence line.
 
+**Optional** (additive, schema 1, #520): `evidence`, on a `done` deliverable
+that went through orch's local verify — how it was checked, in the client's
+terms: `checked` (the kinds of check it passed, in order: `tests`,
+`typecheck`, `lint`, `build`, `e2e`), `reviewed` (another model read the
+change), `e2e` (`passed`/`total` walk-throughs), `steps` (the `test.step`
+titles of its first passing E2E test tagged `@evidence`, as the tests wrote
+them: write them in the client's language; orch does not translate them) and,
+only with `evidence.publish.video: true`, `video` and `poster`: paths inside
+the published site (`evidence/<hash>/video.webm`, `…/poster.png`; the hash
+names no task, run or attempt). Never commands, models, reviewers, findings
+or ids. Kept under schema 1 like `branding` and `waiting`: a viewer that does
+not know the key renders the deliverable as before. `orch publish --to cloud`
+sends `evidence` without `video`/`poster` (the media stay off orch-cloud for
+now).
+
 ## `documents[]`
 
 The project files the operator shares (`portal.documents` in

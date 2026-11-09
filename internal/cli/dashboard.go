@@ -204,6 +204,12 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Snapshot: func(ctx context.Context) (snapshot.Snapshot, error) {
 					return buildPublishSnapshot(ctx, p, portalRefresh, time.Now())
 				},
+				// The evidence videos that snapshot names, when
+				// evidence.publish.video is on (#520).
+				EvidenceMedia: func(site string) (string, bool) {
+					src, ok := publishMedia(paths, cfg, stakeholderEvidence(paths), []string{site})[site]
+					return src, ok
+				},
 				Version:   cmd.Root().Version,
 				Releases:  dashboardReleases(),
 				CLILatest: cliLatest(cfg),

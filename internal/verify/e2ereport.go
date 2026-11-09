@@ -54,6 +54,9 @@ type E2ETest struct {
 	Status     string `json:"status"`
 	DurationMS int64  `json:"duration_ms"`
 	Retries    int    `json:"retries"`
+	// Tags are the test's, as Playwright's report lists them (without the
+	// @): the evidence bundle shows the ones tagged evidence (#520).
+	Tags []string `json:"tags,omitempty"`
 	// Error is the failure's message without terminal colours; Location is
 	// where it was raised, file:line.
 	Error    string `json:"error,omitempty"`
@@ -96,9 +99,10 @@ type pwSuite struct {
 }
 
 type pwSpec struct {
-	Title string `json:"title"`
-	File  string `json:"file"`
-	Line  int    `json:"line"`
+	Title string   `json:"title"`
+	File  string   `json:"file"`
+	Line  int      `json:"line"`
+	Tags  []string `json:"tags"`
 	Tests []struct {
 		ProjectName string `json:"projectName"`
 		// Status is expected, unexpected, flaky or skipped.
@@ -183,6 +187,7 @@ func (r *E2EReport) walk(s pwSuite, titles []string, worktree, artifactsDir stri
 				Line:    spec.Line,
 				Project: t.ProjectName,
 				Status:  testStatus(t.Status),
+				Tags:    spec.Tags,
 			}
 			if n := len(t.Results); n > 0 {
 				res := t.Results[n-1]

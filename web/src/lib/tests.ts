@@ -62,7 +62,7 @@ export const runKey = (r: Pick<E2ERun, "run_id" | "task_id" | "attempt">) =>
  * no Authorization header, so the token rides in the query, as a shared link's
  * does.
  */
-export function attachmentUrl(run: E2ERun, path: string, download = false): string {
+export function attachmentUrl(run: Pick<E2ERun, "run_id" | "task_id" | "attempt">, path: string, download = false): string {
   const params = new URLSearchParams()
   const token = getToken()
   if (token) params.set("token", token)

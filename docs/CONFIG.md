@@ -823,6 +823,7 @@ verify:
     url: ""             # e.g. http://localhost:$((3000 + ORCH_TASK_SLOT))
     stop: ""            # e.g. docker compose down -v --remove-orphans
     ready_timeout_s: 120
+    probes: []          # content checks once it answers; see below (#520)
   e2e: []               # run against the app, with ORCH_APP_URL set
   e2e_report: ""        # Playwright's JSON report, relative to the worktree
   max_attempts: 2
@@ -900,6 +901,25 @@ the cause is the machine and not the change, the agent can block the task and
 say so. `e2e` without `app` runs too, for a suite that starts its own server
 (Playwright's `webServer`).
 
+**Content probes (#520).** Answering is not serving: a panel that returns 200
+with "not built" passes the wait above. `app.probes` reads what the app
+serves once it answers, before any `e2e` command:
+
+```yaml
+verify:
+  app:
+    probes:
+      - path: /
+        status: 200                 # absent = any status below 400
+        contains: ["Orders"]        # all must appear in the body
+        not_contains: ["not built", "Cannot GET"]
+```
+
+Each probe is one `GET <url><path>`; the first that fails sends the work back
+like a failing test, naming the path, the status and the text that was or was
+not there. Probes need `app.start` and `app.url`; without `probes` nothing
+changes. Their results go into the task's evidence (`probes`).
+
 **The app starts with the task's environment — make what it touches
 disposable (#506).** `app.start` runs in the task's worktree with its `.env`
 and environment, once per verify of every task. orch cannot tell what the app
@@ -942,7 +962,9 @@ export default defineConfig({
   reporter: [['line'], ['json', { outputFile: 'e2e-report.json' }]],
   use: {
     baseURL: process.env.ORCH_APP_URL,
-    screenshot: 'only-on-failure', video: 'retain-on-failure', trace: 'retain-on-failure',
+    screenshot: 'only-on-failure', trace: 'retain-on-failure',
+    // orch sets ORCH_E2E_VIDEO from evidence.video (#520); it never edits this file.
+    video: (process.env.ORCH_E2E_VIDEO ?? 'retain-on-failure') as 'on' | 'off' | 'retain-on-failure' | 'on-first-retry',
   },
 });
 ```
@@ -962,7 +984,83 @@ findings uncut under `findings` (`severity`, `file`, `line`, `title`, `detail`);
 each passed attempt is a `verify_passed` event with the `commands` that ran,
 their `duration_s`, and the `reviewer` and `review_model`. The dashboard's
 Changes tab and `orch report summary` read them.
+
+**Evidence (#520).** Every verified attempt also leaves a manifest of what
+was checked, at a path that does not change from run to run:
+
+```
+.orchestrator/state/<project>/evidence/<task>/
+  evidence.json                   # the attempt that was pushed (or landed)
+  history/<run>-attempt-<n>.json  # every verified attempt, passed or failed
+```
+
+It holds the `verdict` (`passed`, `failed`, `review_unavailable`), the
+commit verified and its base (`head_sha`, `base_sha`), each check with its
+`kind` (`tests`, `typecheck`, `lint`, `build`, `install`, `e2e`) and
+duration, the review (reviewer, blocking count, findings without their
+detail), the change in numbers (`diff`: files, `+`/`−` lines, the most
+changed files), and the E2E run: counts, its directory, every file a test
+left (`media`, with sizes) and the `walkthroughs` of the tests tagged
+`@evidence` (`test('…', { tag: '@evidence' }, …)`): their `test.step`
+titles and video. Write those step titles in the client's language; orch
+does not translate them. Paths are relative to the state directory (media to
+`e2e.dir`). The `verify_passed`/`verify_failed` events point at their
+manifest under `evidence`. `orch status --json` shows each task's
+`evidence`, and the task page of the dashboard (operator only) shows it with
+the walk-through's video.
 Without the block, or with `enabled: false`, a clean exit is pushed as before.
+
+### `evidence` — new (#520)
+
+```yaml
+evidence:
+  pr_comment: true          # what `orch init` writes; absent = false (no comment)
+  video: retain-on-failure  # default; ORCH_E2E_VIDEO for the E2E: on | retain-on-failure | on-first-retry | off
+  keep_attempts: 3          # default; verified attempts kept per task
+  max_bytes_per_task: 0     # 0 = 200 MiB of E2E files per task; < 0 = no cap
+  publish:
+    video: false            # default; true shows the walk-through video on the client page
+    max_video_bytes: 0      # 0 = 4 MiB; a bigger video is left out, its screenshot shows
+```
+
+What the local verify proved about a task is kept as its evidence manifest
+(see *Evidence* under `verify`).
+
+**On the client page.** Each `done` deliverable with evidence shows how it
+was checked, in the client's language: the kinds of check, whether another
+model reviewed it, how many walk-throughs passed, and the steps of its first
+passing E2E test tagged `@evidence` (`test.step` titles, written in the
+client's language; orch does not translate them). Tag the one or two tests
+that tell the story, not all of them. With `publish.video: true` the page
+also plays that test's video (and shows its screenshot as the poster):
+`orch publish --to dir|git` copies them into the site under
+`evidence/<hash>/`, and the dashboard serves them to the stakeholder token.
+Off by default: a video cannot be scanned for what it shows, so use seeded
+test data, never real customer data. `--to cloud` publishes the steps without
+the media for now. Recording needs Playwright's `video` on for that test; see
+the Playwright recipe under `verify` (*E2E results*): orch exports
+`ORCH_E2E_VIDEO` from `evidence.video` to every `verify.e2e` command, and a
+config that reads it records video for passing tests too with
+`video: on`.
+
+**Retention.** When `orch run` ends, each task keeps its `keep_attempts`
+newest verified attempts (manifest in `history/` and E2E directory under
+`e2e/`); past `max_bytes_per_task` of E2E files the oldest go next. The
+attempt that was pushed (`evidence.json`) is never pruned and counts toward
+`keep_attempts`. A task's E2E directories no manifest names (from before
+evidence existed) are pruned with the rest. The run prints what it freed:
+`evidence: pruned 4 old attempts (38.2 MiB; evidence.keep_attempts: 3)`.
+
+**On the PR.** When the pushed attempt opens its PR, and on every
+later verified attempt pushed to it (an agent's CI or conflict retry), orch keeps one
+comment on it, marked `<!-- orch:evidence -->` and edited in place: a row
+per kind of check with their count and time, the app probes, the E2E counts,
+the review's verdict, the diff in numbers and the commit, the `@evidence`
+walk-throughs with their steps, and the review's minor findings folded
+under *Review notes*. Videos and screenshots stay on your machine (the
+comment says so). Every text in it goes through the same redaction as
+`orch findings` (project path, home directory, token shapes); a text where
+the pre-PR guard sees a secret is left out whole. GitHub only for now.
 
 ### `update` — new (#448)
 
