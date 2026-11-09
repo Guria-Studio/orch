@@ -116,3 +116,7 @@ func (a managerAdapter) BranchConflicts(_ context.Context, taskID, otherID strin
 func (a managerAdapter) Collisions(ctx context.Context, taskID, baseBranch string, rules []collide.Rule, others []string) ([]collide.Collision, error) {
 	return a.m.Collisions(ctx, taskID, baseBranch, rules, others)
 }
+
+func (a managerAdapter) BehindBase(_ context.Context, taskID, baseBranch string) (bool, []string, error) {
+	return a.m.BehindBase(taskID, baseBranch)
+}

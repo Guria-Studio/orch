@@ -502,6 +502,89 @@ func TestGitHubCILogsTruncatesTo8000Chars(t *testing.T) {
 	}
 }
 
+// gh prints conclusions in UPPERCASE ("FAILURE"). Compared against
+// lowercase, a real failing PR never matched, so CILogs returned nothing and
+// the agent got an empty block (#598). The feedback names the commit and
+// every failing check with its URL before the log.
+func TestGitHubCILogsReadsARealFailingRollup(t *testing.T) {
+	withFakeBin(t)
+	log := ghLog(t)
+	t.Setenv("FAKE_GH_VIEW_STDOUT", readCapture(t, "2.101.0", "pr-view-rollup-failure.json"))
+	t.Setenv("FAKE_GH_RUNVIEW_STDOUT", "Auto-merge policy\tarm\tResource not accessible by integration\n")
+
+	logs, err := NewGitHubProvider().CILogs("https://github.com/Guria-Studio/orch/pull/582")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"64e181c9f2cce6bfc2dcda8a13ad073607704650",
+		"Auto-merge policy: failure",
+		"https://github.com/Guria-Studio/orch/actions/runs/42618329798/job/129163711304",
+		"Resource not accessible by integration",
+	} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("logs = %q, want it to contain %q", logs, want)
+		}
+	}
+	if strings.Contains(logs, "go-test") {
+		t.Errorf("logs = %q name a check that passed", logs)
+	}
+	if got := readLog(t, log); !strings.Contains(got, "run view 42618329798 --log-failed") {
+		t.Errorf("gh invocations = %q, want the failing run's log read", got)
+	}
+}
+
+// No log (gh failed, or printed nothing: a cancelled or never-started job)
+// still says which check failed and where, and that no log was captured.
+func TestGitHubCILogsSaysWhatFailedWhenNoLogIsCaptured(t *testing.T) {
+	for name, env := range map[string]map[string]string{
+		"empty log":  {"FAKE_GH_RUNVIEW_STDOUT": ""},
+		"gh refused": {"FAKE_GH_RUNVIEW_EXIT": "1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFakeBin(t)
+			t.Setenv("FAKE_GH_VIEW_STDOUT", readCapture(t, "2.101.0", "pr-view-rollup-failure.json"))
+			for k, v := range env {
+				t.Setenv(k, v)
+			}
+			logs, err := NewGitHubProvider().CILogs("https://github.com/Guria-Studio/orch/pull/582")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{
+				"Auto-merge policy: failure",
+				"https://github.com/Guria-Studio/orch/actions/runs/42618329798/job/129163711304",
+				NoCILogNote,
+			} {
+				if !strings.Contains(logs, want) {
+					t.Errorf("logs = %q, want it to contain %q", logs, want)
+				}
+			}
+		})
+	}
+}
+
+// --log-failed starts with runner setup and ends with the error: a long log
+// keeps its tail, after the checks summary, within the 8000-char budget.
+func TestGitHubCILogsKeepsTheEndOfALongLog(t *testing.T) {
+	withFakeBin(t)
+	t.Setenv("FAKE_GH_VIEW_STDOUT", readCapture(t, "2.101.0", "pr-view-rollup-failure.json"))
+	t.Setenv("FAKE_GH_RUNVIEW_STDOUT", "runner setup\n"+strings.Repeat("x", 20000)+"\nTHE ERROR: exit 1\n")
+
+	logs, err := NewGitHubProvider().CILogs("https://github.com/Guria-Studio/orch/pull/582")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) > 8000 {
+		t.Errorf("len(logs) = %d, want <= 8000", len(logs))
+	}
+	for _, want := range []string{"Auto-merge policy: failure", "THE ERROR: exit 1"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("logs lack %q:\n%.300s", want, logs)
+		}
+	}
+}
+
 func TestGitHubCILogsEmptyOnNoFailures(t *testing.T) {
 	withFakeBin(t)
 	t.Setenv("FAKE_GH_VIEW_STDOUT", `{"statusCheckRollup":[{"conclusion":"success","detailsUrl":""}]}`)

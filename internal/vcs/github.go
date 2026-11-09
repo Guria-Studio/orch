@@ -271,20 +271,47 @@ func (p *GitHubProvider) PRState(prURL string) (PRState, error) {
 	return st, nil
 }
 
+// NoCILogNote is what the agent's CI feedback says when a failing check left
+// no log to show: a job cancelled, timed out or never started prints
+// nothing to `gh run view --log-failed` (#598).
+const NoCILogNote = "No failure log could be captured (possible infra, cancelled or timed-out failure). " +
+	"Check the run or PR URL above; if the failure is unrelated to your change, say so in your status note."
+
+// githubPRView is the part of `gh pr view --json statusCheckRollup,headRefOid`
+// CILogs reads. The rollup mixes Actions check runs (name, conclusion,
+// detailsUrl) with commit statuses (context, state, targetUrl), and gh
+// prints both verdicts in UPPERCASE (testdata/gh/2.101.0/pr-view-rollup-failure.json).
 type githubPRView struct {
+	HeadRefOid        string `json:"headRefOid"`
 	StatusCheckRollup []struct {
+		Name       string `json:"name"`
+		Context    string `json:"context"`
 		Conclusion string `json:"conclusion"`
+		State      string `json:"state"`
 		DetailsURL string `json:"detailsUrl"`
+		TargetURL  string `json:"targetUrl"`
 	} `json:"statusCheckRollup"`
 }
 
+// githubFailedCheck is one red entry of the rollup, as the agent is told it.
+type githubFailedCheck struct{ name, verdict, url string }
+
+// maxLoggedRuns bounds the `gh run view --log-failed` calls per CI failure,
+// as GitLab's CILogs bounds its job traces.
+const maxLoggedRuns = 3
+
 var reTrailingDigits = regexp.MustCompile(`(\d+)$`)
 
+// CILogs tells the agent what failed: the commit, each failing check with its
+// verdict and URL, then the failed jobs' logs. A failure with no log to show
+// (cancelled, timed out, an infra fault, gh refusing) still names the checks
+// and says no log was captured, never an empty answer for a red PR (#598).
+// It returns "" only when nothing in the rollup failed or gh could not be read.
 func (p *GitHubProvider) CILogs(prURL string) (string, error) {
 	if err := checkBinary("gh"); err != nil {
 		return "", err
 	}
-	viewOut, err := run("gh", nil, "pr", "view", prURL, "--json", "statusCheckRollup")
+	viewOut, err := run("gh", nil, "pr", "view", prURL, "--json", "statusCheckRollup,headRefOid")
 	if err != nil {
 		return "", nil
 	}
@@ -294,49 +321,80 @@ func (p *GitHubProvider) CILogs(prURL string) (string, error) {
 		return "", nil
 	}
 
-	var runURL string
+	var failed []githubFailedCheck
 	for _, c := range view.StatusCheckRollup {
-		if c.Conclusion == "failure" || c.Conclusion == "timed_out" {
-			runURL = c.DetailsURL
-			break
+		verdict := normalizeCheckState(c.Conclusion)
+		if verdict == "" {
+			verdict = normalizeCheckState(c.State)
+		}
+		if githubConclusionMap[verdict] != CIFailure && verdict != "error" {
+			continue
+		}
+		name, url := c.Name, c.DetailsURL
+		if name == "" {
+			name = c.Context
+		}
+		if url == "" {
+			url = c.TargetURL
+		}
+		failed = append(failed, githubFailedCheck{name: name, verdict: verdict, url: url})
+	}
+	if len(failed) == 0 {
+		return "", nil
+	}
+
+	var b strings.Builder
+	if view.HeadRefOid != "" {
+		b.WriteString("Commit: " + view.HeadRefOid + "\n")
+	}
+	b.WriteString("Failing checks:\n")
+	for _, c := range failed {
+		fmt.Fprintf(&b, "- %s: %s %s\n", c.name, c.verdict, c.url)
+	}
+
+	var logs []string
+	seen := map[string]bool{}
+	for _, c := range failed {
+		runID := runIDFromURL(c.url)
+		if runID == "" || seen[runID] || len(seen) == maxLoggedRuns {
+			continue
+		}
+		seen[runID] = true
+		out, err := run("gh", nil, "run", "view", runID, "--log-failed")
+		if err == nil && strings.TrimSpace(out) != "" {
+			logs = append(logs, out)
 		}
 	}
-	if runURL == "" {
-		return "", nil
+	if len(logs) == 0 {
+		b.WriteString("\n" + NoCILogNote + "\n")
+		return truncate(b.String(), maxLogChars), nil
 	}
-
-	runID := runIDFromURL(runURL)
-	if runID == "" {
-		return "", nil
+	// A failed job's log opens with runner setup and ends with the error,
+	// so a long one keeps its end.
+	b.WriteString("\n")
+	log := strings.Join(logs, "\n---\n")
+	if room := maxLogChars - b.Len(); len(log) > room {
+		const cut = "…\n"
+		log = cut + log[len(log)-max(room-len(cut), 0):]
 	}
-
-	logOut, err := run("gh", nil, "run", "view", runID, "--log-failed")
-	if err != nil {
-		return "", nil
-	}
-	return truncate(logOut, maxLogChars), nil
+	b.WriteString(log)
+	return truncate(b.String(), maxLogChars), nil
 }
 
-// runIDFromURL extracts the trailing numeric run ID from a GitHub Actions
-// URL (".../runs/<id>" or ".../runs/<id>/jobs/<job-id>"). Ports the
-// Python's `next(p for p in reversed(parts) if p.isdigit())` — the
-// rightmost purely-numeric path segment.
+// runIDFromURL extracts the Actions run ID from a check's URL
+// (".../actions/runs/<id>" or ".../actions/runs/<id>/job/<job-id>"). The
+// Python port took the rightmost number, which on gh's real URLs is the job
+// ID: `gh run view <job id>` then failed and the agent got no log (#598).
+// A URL that is not an Actions run (a commit check run's ".../runs/<id>", an
+// external status) has no run to read and yields "".
 func runIDFromURL(url string) string {
-	for _, part := range reversedSplit(strings.TrimRight(url, "/"), "/") {
-		if isAllDigits(part) {
-			return part
+	parts := strings.Split(strings.TrimRight(url, "/"), "/")
+	for i := 1; i+1 < len(parts); i++ {
+		if parts[i-1] == "actions" && parts[i] == "runs" && isAllDigits(parts[i+1]) {
+			return parts[i+1]
 		}
 	}
 	return ""
-}
-
-func reversedSplit(s, sep string) []string {
-	parts := strings.Split(s, sep)
-	out := make([]string, len(parts))
-	for i, p := range parts {
-		out[len(parts)-1-i] = p
-	}
-	return out
 }
 
 func isAllDigits(s string) bool {
