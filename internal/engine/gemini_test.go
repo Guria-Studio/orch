@@ -24,31 +24,14 @@ func fakeGemini(t *testing.T, help string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// The probe reads gemini's own help: 0.59's lists stream-json among the
-// --output-format choices, an older one has no such flag (#543).
-func TestProbeGeminiStreamJSON(t *testing.T) {
-	fakeGemini(t, `  -o, --output-format  The format of the CLI output.  [string] [choices: "text", "json", "stream-json"]`)
-	if !probeGeminiStreamJSON() {
-		t.Error("a gemini whose help lists stream-json was not run with it")
-	}
-	fakeGemini(t, "  -p, --prompt  Prompt.")
-	if probeGeminiStreamJSON() {
-		t.Error("a gemini without the flag would be handed one it rejects")
-	}
-	t.Setenv("PATH", t.TempDir())
-	if probeGeminiStreamJSON() {
-		t.Error("no gemini at all probed as stream-json")
-	}
-}
-
 // Spawn hands gemini --output-format stream-json when the probe says the
 // installed CLI has it, and not otherwise.
 func TestSpawnAsksGeminiForStreamJSON(t *testing.T) {
 	fakeGemini(t, "")
 	for _, has := range []bool{true, false} {
-		saved := GeminiStreamJSON
-		GeminiStreamJSON = func() bool { return has }
-		t.Cleanup(func() { GeminiStreamJSON = saved })
+		saved := providers.GeminiStreamJSON
+		providers.GeminiStreamJSON = func() bool { return has }
+		t.Cleanup(func() { providers.GeminiStreamJSON = saved })
 
 		sp, err := Spawn(context.Background(), SpawnRequest{
 			Provider:   providers.GeminiProvider{},

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -171,7 +172,7 @@ func runCIReview(cmd *cobra.Command, o ciReviewOptions) error {
 		notes = append(notes, fmt.Sprintf("The diff is over %d bytes and was cut short in: %s.", o.maxDiff, strings.Join(cut, ", ")))
 	}
 
-	answer, err := ci.Ask(cmd.Context(), backend, o.model, ci.BuildPrompt(string(checklist), diff, cut), o.timeout)
+	answer, err := ci.Ask(cmd.Context(), engine.OneShot{}, backend, o.model, ci.BuildPrompt(string(checklist), diff, cut), o.timeout)
 	if err != nil {
 		return incomplete(err)
 	}

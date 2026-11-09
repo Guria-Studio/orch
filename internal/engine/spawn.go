@@ -133,7 +133,7 @@ func Spawn(ctx context.Context, sr SpawnRequest) (*Spawned, error) {
 	// gemini reports its tokens only in stream-json, which an old one lacks
 	// (#543).
 	if provider.Name() == model.BackendGemini && !sr.Req.StreamJSON {
-		sr.Req.StreamJSON = GeminiStreamJSON()
+		sr.Req.StreamJSON = providers.GeminiStreamJSON()
 	}
 	argv := provider.Argv(sr.Req)
 	if len(argv) == 0 {

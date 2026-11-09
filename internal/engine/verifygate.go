@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Guria-Studio/orch/internal/contract"
 	"github.com/Guria-Studio/orch/internal/model"
 )
 
@@ -30,74 +31,26 @@ const defaultVerifyMaxAttempts = 2
 // Verifier checks an agent's work in its worktree after a clean exit and
 // before the push (verify.enabled). It returns what failed, written for the
 // agent's next attempt, or "" when the work passes. internal/verify is the
-// implementation; it cannot live here because it reviews through internal/ci,
-// which imports this package.
+// implementation; its request and result types live in internal/contract so
+// it does not import this package.
 type Verifier interface {
 	Verify(ctx context.Context, req VerifyRequest) VerifyResult
 }
 
 // VerifyResult is the verdict on one attempt's work.
-type VerifyResult struct {
-	// Failure is what failed, written for the agent's next attempt; empty
-	// when the work passes.
-	Failure string
-	// E2E summarises the E2E run, when verify.e2e_report collected one.
-	E2E *E2ESummary
-	// Commands are the checks that ran, in order, with how long each took.
-	Commands []VerifyCommand
-	// Reviewer and ReviewModel name who reviewed the diff; empty when no
-	// review completed.
-	Reviewer, ReviewModel string
-	// Findings are the review's, blocking and minor.
-	Findings []VerifyFinding
-	// ReviewUnavailable says why a review that was asked for did not happen
-	// (no other provider, or no answer that parsed after a retry). The work
-	// is not failed for it, and not counted as reviewed either (#539).
-	ReviewUnavailable string
-}
+type VerifyResult = contract.VerifyResult
 
 // VerifyCommand is one check the verify ran.
-type VerifyCommand struct {
-	Command   string  `json:"command"`
-	DurationS float64 `json:"duration_s"`
-}
+type VerifyCommand = contract.VerifyCommand
 
 // VerifyFinding is one review finding, as internal/ci's Finding has it.
-type VerifyFinding struct {
-	Severity string `json:"severity"`
-	File     string `json:"file,omitempty"`
-	Line     int    `json:"line,omitempty"`
-	Title    string `json:"title"`
-	Detail   string `json:"detail,omitempty"`
-}
+type VerifyFinding = contract.VerifyFinding
 
 // E2ESummary is an E2E run in counts, and where its full report is.
-type E2ESummary struct {
-	Passed, Failed, Flaky, Skipped int
-	// Report is the report file, under ArtifactsDir.
-	Report string
-}
+type E2ESummary = contract.E2ESummary
 
 // VerifyRequest is one clean exit's work to verify.
-type VerifyRequest struct {
-	TaskID string
-	// Attempt is the task's dispatch attempt; the review's spend row is named
-	// after it (#470).
-	Attempt int
-	// Writer is the backend that did the work; the review picks another.
-	Writer model.Backend
-	// Title, Description and SpecRef are the task's, for the reviewer to
-	// check the change against (#539).
-	Title, Description, SpecRef string
-	// Dir is the task's worktree, with the work committed.
-	Dir string
-	// Env is the agent's own environment: the task's ORCH_TASK_SLOT and
-	// COMPOSE_PROJECT_NAME, so the checks and the app run as the task's.
-	Env []string
-	// ArtifactsDir is where this attempt's E2E report and the files its
-	// tests left are kept, under the state directory.
-	ArtifactsDir string
-}
+type VerifyRequest = contract.VerifyRequest
 
 // verifies reports whether a clean exit's work is checked before the push.
 func (s *Scheduler) verifies() bool {

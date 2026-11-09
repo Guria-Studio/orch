@@ -13,8 +13,10 @@ explain export graph mcp model notify project providers publish publish/snapshot
 report router scaffold skills state telemetry templates tunnel vcs worktree.
 
 Real import edges (non-cli):
-- engine → budget, config, graph, model, prompt, providers, pyfmt, state, vcs, worktree
+- engine → budget, config, contract, graph, model, prompt, providers, pyfmt, state, vcs, worktree
   (engine does NOT import router, notify, dashboard or publish; cli resolves routes and wires notify)
+- ci → contract, model, providers ; verify → ci, config, contract, knowledge, model, project, state
+  (neither imports engine: the types they trade with it live in the leaf contract → model, providers)
 - dashboard → budget, config, graph, model, pricing, project, publish/snapshot, state, tunnel
 - mcp → budget, explain, graph, model, project, prompt, state
 - publish → publish/snapshot ; report → publish/snapshot

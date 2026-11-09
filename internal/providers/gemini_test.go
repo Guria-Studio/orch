@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -219,5 +221,34 @@ func TestLastNonEmptyLine(t *testing.T) {
 		if got := lastNonEmptyLine(tt.in); got != tt.want {
 			t.Errorf("lastNonEmptyLine(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+// fakeGemini puts a `gemini` on PATH that prints help as its --help, and
+// otherwise exits 0.
+func fakeGemini(t *testing.T, help string) {
+	t.Helper()
+	dir := t.TempDir()
+	script := "#!/bin/sh\nif [ \"$1\" = --help ]; then printf '%s\\n' '" + help + "'; fi\n"
+	if err := os.WriteFile(filepath.Join(dir, "gemini"), []byte(script), 0o700); err != nil { // #nosec G306 -- an executable test stub
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// The probe reads gemini's own help: 0.59's lists stream-json among the
+// --output-format choices, an older one has no such flag (#543).
+func TestProbeGeminiStreamJSON(t *testing.T) {
+	fakeGemini(t, `  -o, --output-format  The format of the CLI output.  [string] [choices: "text", "json", "stream-json"]`)
+	if !probeGeminiStreamJSON() {
+		t.Error("a gemini whose help lists stream-json was not run with it")
+	}
+	fakeGemini(t, "  -p, --prompt  Prompt.")
+	if probeGeminiStreamJSON() {
+		t.Error("a gemini without the flag would be handed one it rejects")
+	}
+	t.Setenv("PATH", t.TempDir())
+	if probeGeminiStreamJSON() {
+		t.Error("no gemini at all probed as stream-json")
 	}
 }

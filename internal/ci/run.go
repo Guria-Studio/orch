@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/contract"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/providers"
 )
@@ -95,17 +95,21 @@ func (f fixedArgv) Argv(providers.Request) []string { return f.argv }
 
 func (fixedArgv) PromptDelivery() providers.PromptDelivery { return providers.PromptStdin }
 
-// Ask runs one provider on prompt, read-only, and returns its final answer.
-// It uses the engine's own spawn and supervision (a process group, the
-// timeout's SIGTERM then SIGKILL), and so honours ORCH_FAKE_PROVIDER.
-func Ask(ctx context.Context, backend model.Backend, cliModel, prompt string, timeout time.Duration) (answer string, err error) {
-	return AskOnce(ctx, engine.OneShot{}, ReviewTaskID, model.RouteEntry{Backend: backend, CLIModel: cliModel}, prompt, timeout)
+// Ask runs one provider on prompt, read-only, through run, and returns its
+// final answer. With engine.OneShot as run it gets the engine's own spawn and
+// supervision (a process group, the timeout's SIGTERM then SIGKILL), and so
+// honours ORCH_FAKE_PROVIDER.
+func Ask(ctx context.Context, run contract.Runner, backend model.Backend, cliModel, prompt string, timeout time.Duration) (answer string, err error) {
+	return AskOnce(ctx, run, ReviewTaskID, model.RouteEntry{Backend: backend, CLIModel: cliModel}, prompt, timeout)
 }
 
-// AskOnce is Ask on a whole route, under taskID, through once: with its
-// State set the spend is recorded under taskID, with its Gate the budget is
+// AskOnce is Ask on a whole route, under taskID, through once: an
+// engine.OneShot with its State set the spend is recorded under taskID, with its Gate the budget is
 // checked first (#461). taskID is also the fake's canned response name.
-func AskOnce(ctx context.Context, once engine.OneShot, taskID string, route model.RouteEntry, prompt string, timeout time.Duration) (answer string, err error) {
+func AskOnce(ctx context.Context, once contract.Runner, taskID string, route model.RouteEntry, prompt string, timeout time.Duration) (answer string, err error) {
+	if once == nil {
+		return "", errors.New("ci: no runner to ask through")
+	}
 	backend := route.Backend
 	p, err := providers.Get(backend)
 	if err != nil {
@@ -136,13 +140,13 @@ func AskOnce(ctx context.Context, once engine.OneShot, taskID string, route mode
 		OutputPath: filepath.Join(dir, "last-message.md"),
 		PromptText: geminiPrompt,
 		// Real tokens rather than an estimate, where gemini can (#543).
-		StreamJSON: backend == model.BackendGemini && engine.GeminiStreamJSON(),
+		StreamJSON: backend == model.BackendGemini && providers.GeminiStreamJSON(),
 	}
 	argv, err := ReadOnlyArgv(p, req)
 	if err != nil {
 		return "", err
 	}
-	out, err := once.Run(ctx, engine.Dispatch{
+	out, err := once.Run(ctx, contract.Dispatch{
 		Provider:   fixedArgv{Provider: p, argv: argv},
 		Req:        req,
 		PromptPath: promptPath,

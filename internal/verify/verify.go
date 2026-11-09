@@ -3,9 +3,9 @@
 // by another provider. What fails goes back to the agent; only work that
 // passes is published.
 //
-// It lives outside internal/engine because it drives the review through
-// internal/ci, which imports the engine; the engine sees it only as its
-// Verifier interface.
+// It lives outside internal/engine, which sees it only as its Verifier
+// interface; the types they trade are internal/contract's, so it does not
+// import the engine (#550).
 package verify
 
 import (
@@ -26,7 +26,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/ci"
 	"github.com/Guria-Studio/orch/internal/config"
-	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/contract"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
@@ -56,10 +56,11 @@ type Verifier struct {
 	// SpecRoot is spec_root, where the task's specRef is looked for; the
 	// reviewer is shown the task's section of the spec (#539).
 	SpecRoot string
-	// Once runs the review: with its State set the review's spend is
+	// Once runs the review, normally an engine.OneShot: with its State set
+	// the review's spend is
 	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
-	Once engine.OneShot
+	Once contract.Runner
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -74,24 +75,24 @@ type Verifier struct {
 // ReviewUnavailable: the work is not failed, and not counted as reviewed
 // either (#539). A gate that blocks on its own breakage teaches people to
 // turn it off.
-func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.VerifyResult {
+func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contract.VerifyResult {
 	timeout := time.Duration(v.Cfg.TimeoutS) * time.Second
 	changed := v.changedFiles(ctx, req.TaskID, req.Dir)
 	if v.RequireTests {
 		if failure := requireTests(changed); failure != "" {
-			return engine.VerifyResult{Failure: failure}
+			return contract.VerifyResult{Failure: failure}
 		}
 	}
 	if len(changed) > 0 {
 		// A project's own verify script can scope itself to the change (#498).
 		req.Env = withVar(req.Env, "ORCH_CHANGED_FILES="+strings.Join(changed, "\n"))
 	}
-	var ran []engine.VerifyCommand
+	var ran []contract.VerifyCommand
 	for _, c := range v.commands(req.TaskID, req.Dir, changed) {
 		if out, err := timed(&ran, c, func() (string, error) { return run(ctx, req.Dir, req.Env, c, timeout) }); notFound(err) {
 			skipNotFound(req.TaskID, "verify.commands", c, out)
 		} else if err != nil {
-			return engine.VerifyResult{Failure: commandFailed(c, err, out, ""), Commands: ran}
+			return contract.VerifyResult{Failure: commandFailed(c, err, out, ""), Commands: ran}
 		}
 	}
 	res := v.e2e(ctx, req, timeout)
@@ -105,11 +106,11 @@ func (v Verifier) Verify(ctx context.Context, req engine.VerifyRequest) engine.V
 
 // timed runs f, the check command, and adds it to ran with how long it took
 // unless sh could not find it.
-func timed(ran *[]engine.VerifyCommand, command string, f func() (string, error)) (string, error) {
+func timed(ran *[]contract.VerifyCommand, command string, f func() (string, error)) (string, error) {
 	start := time.Now()
 	out, err := f()
 	if !notFound(err) {
-		*ran = append(*ran, engine.VerifyCommand{Command: command, DurationS: time.Since(start).Round(time.Millisecond).Seconds()})
+		*ran = append(*ran, contract.VerifyCommand{Command: command, DurationS: time.Since(start).Round(time.Millisecond).Seconds()})
 	}
 	return out, err
 }
@@ -124,7 +125,7 @@ func commandFailed(command string, err error, out, context string) string {
 // whatever happened. An app that does not start or never answers is sent
 // back like a failing test: most often it is the change that broke it, and
 // when it is the machine instead, the agent can block the task and say so.
-func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout time.Duration) engine.VerifyResult {
+func (v Verifier) e2e(ctx context.Context, req contract.VerifyRequest, timeout time.Duration) contract.VerifyResult {
 	app := v.Cfg.App
 	env := req.Env
 	appURL := ""
@@ -140,9 +141,9 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 		if out, err := run(ctx, req.Dir, req.Env, app.Start, timeout); notFound(err) {
 			// The E2E is for the app: without it there is nothing to run.
 			skipNotFound(req.TaskID, "verify.app.start", app.Start, out)
-			return engine.VerifyResult{}
+			return contract.VerifyResult{}
 		} else if err != nil {
-			return engine.VerifyResult{Failure: "The task's app did not start. " + commandFailed(app.Start, err, out, "")}
+			return contract.VerifyResult{Failure: "The task's app did not start. " + commandFailed(app.Start, err, out, "")}
 		}
 		if app.URL != "" {
 			url, err := expandURL(ctx, req.Dir, req.Env, app.URL)
@@ -151,7 +152,7 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 			} else {
 				ready := time.Duration(app.ReadyTimeoutS) * time.Second
 				if err := waitReady(ctx, url, ready); err != nil {
-					return engine.VerifyResult{Failure: fmt.Sprintf("orch's local verify started the task's app with `%s`, and it never answered at %s (%v). "+
+					return contract.VerifyResult{Failure: fmt.Sprintf("orch's local verify started the task's app with `%s`, and it never answered at %s (%v). "+
 						"Check that the change still builds and serves.\n", app.Start, url, err)}
 				}
 				env = withVar(env, "ORCH_APP_URL="+url)
@@ -165,7 +166,7 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 		report = filepath.Join(req.Dir, filepath.FromSlash(v.Cfg.E2EReport))
 		_ = os.Remove(report)
 	}
-	var res engine.VerifyResult
+	var res contract.VerifyResult
 	for _, c := range v.Cfg.E2E {
 		if out, err := timed(&res.Commands, c, func() (string, error) { return run(ctx, req.Dir, env, c, timeout) }); notFound(err) {
 			skipNotFound(req.TaskID, "verify.e2e", c, out)
@@ -182,7 +183,7 @@ func (v Verifier) e2e(ctx context.Context, req engine.VerifyRequest, timeout tim
 		slog.Warn("verify: the E2E report could not be read; keeping the command's verdict", "task", req.TaskID, "err", err)
 		return res
 	}
-	res.E2E = &engine.E2ESummary{
+	res.E2E = &contract.E2ESummary{
 		Passed: rep.Stats.Passed, Failed: rep.Stats.Failed, Flaky: rep.Stats.Flaky, Skipped: rep.Stats.Skipped,
 		Report: filepath.Join(req.ArtifactsDir, ReportFile),
 	}
@@ -314,7 +315,7 @@ func skipNotFound(taskID, key, command, out string) {
 // review asks another provider to review the diff, and returns its blocking
 // findings for the agent, or "". A review that completes names its reviewer
 // and all its findings in res.
-func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout time.Duration, res *engine.VerifyResult, rules []knowledge.Lesson) string {
+func (v Verifier) review(ctx context.Context, req contract.VerifyRequest, timeout time.Duration, res *contract.VerifyResult, rules []knowledge.Lesson) string {
 	taskID, writer, dir := req.TaskID, req.Writer, req.Dir
 	reviewer := v.reviewer(writer)
 	if reviewer == "" {
@@ -353,7 +354,7 @@ func (v Verifier) review(ctx context.Context, req engine.VerifyRequest, timeout 
 	}
 	res.Reviewer, res.ReviewModel = string(reviewer), v.Cfg.ReviewModel
 	for _, f := range verdict.Findings {
-		res.Findings = append(res.Findings, engine.VerifyFinding(f))
+		res.Findings = append(res.Findings, contract.VerifyFinding(f))
 	}
 	if !verdict.Blocks() {
 		return ""
@@ -384,7 +385,7 @@ func (v Verifier) reviewer(writer model.Backend) model.Backend {
 
 // taskBrief is what the reviewer checks the change against: the task's title,
 // description and its section of the spec, read from the task's worktree.
-func (v Verifier) taskBrief(req engine.VerifyRequest) string {
+func (v Verifier) taskBrief(req contract.VerifyRequest) string {
 	var b strings.Builder
 	if req.Title != "" {
 		fmt.Fprintf(&b, "**%s** (%s)\n\n", req.Title, req.TaskID)
