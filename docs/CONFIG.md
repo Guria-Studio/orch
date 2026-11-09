@@ -944,6 +944,30 @@ findings uncut under `findings` (`severity`, `file`, `line`, `title`, `detail`);
 each passed attempt is a `verify_passed` event with the `commands` that ran,
 their `duration_s`, and the `reviewer` and `review_model`. The dashboard's
 Changes tab and `orch report summary` read them.
+
+**Evidence (#520).** Every verified attempt also leaves a manifest of what
+was checked, at a path that does not change from run to run:
+
+```
+.orchestrator/state/<project>/evidence/<task>/
+  evidence.json                   # the attempt that was pushed (or landed)
+  history/<run>-attempt-<n>.json  # every verified attempt, passed or failed
+```
+
+It holds the `verdict` (`passed`, `failed`, `review_unavailable`), the
+commit verified and its base (`head_sha`, `base_sha`), each check with its
+`kind` (`tests`, `typecheck`, `lint`, `build`, `install`, `e2e`) and
+duration, the review (reviewer, blocking count, findings without their
+detail), the change in numbers (`diff`: files, `+`/`−` lines, the most
+changed files), and the E2E run: counts, its directory, every file a test
+left (`media`, with sizes) and the `walkthroughs` of the tests tagged
+`@evidence` (`test('…', { tag: '@evidence' }, …)`): their `test.step`
+titles and video. Write those step titles in the client's language; orch
+does not translate them. Paths are relative to the state directory (media to
+`e2e.dir`). The `verify_passed`/`verify_failed` events point at their
+manifest under `evidence`. `orch status --json` shows each task's
+`evidence`, and the task page of the dashboard (operator only) shows it with
+the walk-through's video.
 Without the block, or with `enabled: false`, a clean exit is pushed as before.
 
 ### `update` — new (#448)

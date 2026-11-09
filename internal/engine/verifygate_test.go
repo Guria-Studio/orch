@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	bundle "github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/worktree"
 )
@@ -368,5 +369,43 @@ func TestUnavailableReviewIsSaidInThePR(t *testing.T) {
 	}
 	if !strings.Contains(f.backend.extraOf("C-1", EventVerifyPassed), "gemini's review failed twice: boom") {
 		t.Errorf("the verify_passed event does not carry review_unavailable")
+	}
+}
+
+// TestVerifiedWorkLeavesItsEvidence is #520's phase 1: every verified
+// attempt leaves a manifest in the task's history, its verify event points
+// at it, and the attempt that is pushed becomes the task's evidence.json, at
+// a path that does not name the run.
+func TestVerifiedWorkLeavesItsEvidence(t *testing.T) {
+	v := &scriptedVerifier{answers: []string{"`make test` failed", ""}, e2e: &E2ESummary{Passed: 3}}
+	f, remote := verifyFixture(t, v, 2)
+
+	f.runOnce(t)
+	if m, err := bundle.Read(f.s.Opts.StateDir, "C-1"); err != nil || m != nil {
+		t.Fatalf("evidence after a failed verify = %+v, %v; want none yet (nothing was pushed)", m, err)
+	}
+	f.runOnce(t)
+
+	if _, pushed := remoteBranchFiles(t, remote, "orch/C-1"); !pushed {
+		t.Fatal("the passing attempt was not pushed")
+	}
+	m, err := bundle.Read(f.s.Opts.StateDir, "C-1")
+	if err != nil || m == nil {
+		t.Fatalf("evidence = %v, %v; want the pushed attempt's", m, err)
+	}
+	if m.Verdict != bundle.VerdictPassed || m.Attempt != 2 || m.RunID != f.s.Opts.RunID || m.Title == "" ||
+		len(m.Checks) != 1 || m.Checks[0].Command != "go test ./..." || m.Review == nil || m.Review.Reviewer != "gemini" ||
+		m.E2E == nil || m.E2E.Passed != 3 || m.E2E.Dir != filepath.ToSlash(filepath.Join("e2e", f.s.Opts.RunID, "C-1", "attempt-2")) {
+		t.Errorf("evidence = %+v", m)
+	}
+	history, err := os.ReadDir(filepath.Join(f.s.Opts.StateDir, "evidence", "C-1", "history"))
+	if err != nil || len(history) != 2 {
+		t.Fatalf("history = %v, %v; want both verified attempts", history, err)
+	}
+	failed, _ := f.backend.eventExtra("C-1", EventVerifyFailed)["evidence"].(string)
+	passed, _ := f.backend.eventExtra("C-1", EventVerifyPassed)["evidence"].(string)
+	if failed != "evidence/C-1/history/"+bundle.HistoryName(f.s.Opts.RunID, 1) ||
+		passed != "evidence/C-1/history/"+bundle.HistoryName(f.s.Opts.RunID, 2) {
+		t.Errorf("verify events point at %q and %q, want each attempt's manifest", failed, passed)
 	}
 }

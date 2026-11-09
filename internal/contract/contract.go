@@ -105,12 +105,29 @@ type VerifyResult struct {
 	// (no other provider, or no answer that parsed after a retry). The work
 	// is not failed for it, and not counted as reviewed either (#539).
 	ReviewUnavailable string
+	// HeadSHA and BaseSHA are the commit verified and where its branch
+	// left the base; Diff is the change between them in numbers. Empty
+	// when git could not say (#520).
+	HeadSHA, BaseSHA string
+	Diff             *DiffStat
 }
 
 // VerifyCommand is one check the verify ran.
 type VerifyCommand struct {
 	Command   string  `json:"command"`
 	DurationS float64 `json:"duration_s"`
+	// Kind is what sort of check it is: tests, typecheck, lint, build,
+	// install, e2e, or "" when the command does not say (#520).
+	Kind string `json:"kind,omitempty"`
+}
+
+// DiffStat is a change in numbers: files touched, lines added and removed,
+// and the files that changed most, biggest first.
+type DiffStat struct {
+	Files      int      `json:"files"`
+	Insertions int      `json:"insertions"`
+	Deletions  int      `json:"deletions"`
+	Top        []string `json:"top,omitempty"`
 }
 
 // VerifyFinding is one review finding, as internal/ci's Finding has it.

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Guria-Studio/orch/internal/contract"
+	bundle "github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 )
 
@@ -78,7 +79,11 @@ func (s *Scheduler) verifyOutcome(task model.Task, d Dispatch, attempt int, out 
 // recordVerify records a verified attempt's verdict: verify_passed, or
 // verify_failed with the reason and the findings, sent back or not.
 func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *VerifyResult, sentBack bool) {
-	if res == nil || s.Backend == nil {
+	if res == nil {
+		return
+	}
+	manifest := s.recordEvidence(entry, res)
+	if s.Backend == nil {
 		return
 	}
 	id := entry.Task.ID
@@ -97,8 +102,46 @@ func (s *Scheduler) recordVerify(ctx context.Context, entry *InFlight, res *Veri
 	if res.ReviewUnavailable != "" {
 		extra["review_unavailable"] = res.ReviewUnavailable
 	}
+	if manifest != "" {
+		extra["evidence"] = manifest
+	}
 	if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, event, id, string(entry.Route.Backend), extra); err != nil {
 		s.logger().Error("recording the verify result failed", "task", id, "err", err)
+	}
+}
+
+// recordEvidence writes a verified attempt's evidence manifest into the
+// task's history (#520) and returns its path under the state directory, ""
+// when it could not be written. Work that passed is kept on entry, for
+// promoteEvidence once it is pushed.
+func (s *Scheduler) recordEvidence(entry *InFlight, res *VerifyResult) string {
+	if s.Opts.StateDir == "" {
+		return ""
+	}
+	id := entry.Task.ID
+	m := bundle.Build(s.Opts.StateDir, bundle.Attempt{
+		TaskID: id, Title: entry.Task.Title, RunID: s.Opts.RunID, Attempt: entry.Attempt, At: s.now(),
+		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, id, entry.Attempt),
+	}, *res)
+	rel, err := bundle.Record(s.Opts.StateDir, m)
+	if err != nil {
+		s.logger().Error("writing the task's evidence failed", "task", id, "err", err)
+		return ""
+	}
+	if m.Verdict != bundle.VerdictFailed {
+		entry.Evidence = &m
+	}
+	return rel
+}
+
+// promoteEvidence makes the pushed attempt's manifest the task's evidence,
+// at <state>/evidence/<task>/evidence.json (#520).
+func (s *Scheduler) promoteEvidence(entry *InFlight) {
+	if entry.Evidence == nil || s.Opts.StateDir == "" {
+		return
+	}
+	if err := bundle.Promote(s.Opts.StateDir, *entry.Evidence); err != nil {
+		s.logger().Error("writing the task's evidence failed", "task", entry.Task.ID, "err", err)
 	}
 }
 

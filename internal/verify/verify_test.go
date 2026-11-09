@@ -780,3 +780,81 @@ func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// TestVerifyDescribesTheChangeItChecked is #520's evidence: the result names
+// the commit verified, where its branch left the base, the change in
+// numbers, and the kind of each check — failing or passing.
+func TestVerifyDescribesTheChangeItChecked(t *testing.T) {
+	dir := branchWithWork(t) // adds store.go, three lines
+	rev := func(ref string) string {
+		t.Helper()
+		out, err := exec.Command("git", "-C", dir, "rev-parse", ref).Output() // #nosec G204 -- a temp repo this test made
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"echo lint-ok", "echo build-ok", "true"}, TimeoutS: 10}, Base: "main"}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir})
+
+	if res.Failure != "" {
+		t.Fatalf("Verify = %q, want a pass", res.Failure)
+	}
+	if res.HeadSHA != rev("HEAD") || res.BaseSHA != rev("main") {
+		t.Errorf("shas = %q, %q; want HEAD %q and main %q", res.HeadSHA, res.BaseSHA, rev("HEAD"), rev("main"))
+	}
+	if d := res.Diff; d == nil || d.Files != 1 || d.Insertions != 3 || d.Deletions != 0 || len(d.Top) != 1 || d.Top[0] != "store.go" {
+		t.Errorf("Diff = %+v, want store.go: 1 file, +3 -0", d)
+	}
+	var kinds []string
+	for _, c := range res.Commands {
+		kinds = append(kinds, c.Kind)
+	}
+	if strings.Join(kinds, ",") != "lint,build," {
+		t.Errorf("kinds = %q, want lint, build and none", kinds)
+	}
+
+	v.Cfg.Commands = []string{"exit 1"}
+	if res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir}); res.Failure == "" || res.Diff == nil || res.HeadSHA == "" {
+		t.Errorf("a failing verify = %+v, want the change described too", res)
+	}
+}
+
+// TestVerifyKeepsTheTestsTags: the report keeps each test's tags, so the
+// evidence can pick the ones tagged @evidence (#520).
+func TestVerifyKeepsTheTestsTags(t *testing.T) {
+	dir := t.TempDir()
+	raw, err := os.ReadFile(filepath.Join("testdata", "playwright", "1.64.1", "report.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagged := strings.Replace(string(raw), "\"title\": \"shows the cart\",\n              \"ok\": true,\n              \"tags\": []",
+		"\"title\": \"shows the cart\",\n              \"ok\": true,\n              \"tags\": [\"evidence\"]", 1)
+	if tagged == string(raw) {
+		t.Fatal("the fixture changed; tag another test")
+	}
+	write(t, filepath.Join(dir, "captured.json"), strings.ReplaceAll(tagged, "/capture", dir))
+	artifacts := filepath.Join(t.TempDir(), "attempt-1")
+	v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{"cp captured.json e2e-report.json"}, E2EReport: "e2e-report.json"}}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir, ArtifactsDir: artifacts})
+
+	if res.E2E == nil {
+		t.Fatal("no E2E collected")
+	}
+	b, err := os.ReadFile(res.E2E.Report) // #nosec G304 -- a temp dir this test made
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rep verify.E2EReport
+	if err := json.Unmarshal(b, &rep); err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Tests) != 2 || strings.Join(rep.Tests[0].Tags, ",") != "evidence" || len(rep.Tests[1].Tags) != 0 {
+		t.Errorf("tags = %+v", rep.Tests)
+	}
+	if kinds := res.Commands; len(kinds) != 1 || kinds[0].Kind != "e2e" {
+		t.Errorf("commands = %+v, want the E2E command of kind e2e", kinds)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"slices"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -138,6 +140,15 @@ func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backen
 	all, err := buildStatusRows(ctx, backend, paths.ID, tasks, rtr, costByTask)
 	if err != nil {
 		return statusSnapshot{}, err
+	}
+
+	for i := range all {
+		// Unreadable evidence is said, not fatal: status is the quick check.
+		m, err := evidence.Read(paths.StateDir(), all[i].ID)
+		if err != nil {
+			slog.Warn("status: reading a task's evidence failed", "task", all[i].ID, "err", err)
+		}
+		all[i].Evidence = m
 	}
 
 	totals := newOrderedCount()

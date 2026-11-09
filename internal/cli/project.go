@@ -12,6 +12,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
@@ -194,6 +195,9 @@ type statusRow struct {
 	LastEventHuman   *string         `json:"last_event_human"`
 	DeferReason      *string         `json:"defer_reason"`
 	Effective        *effectiveJSON  `json:"effective,omitempty"`
+	// Evidence is what orch's local verify proved about the task's pushed
+	// work (#520); absent when it has none.
+	Evidence *evidence.Manifest `json:"evidence,omitempty"`
 
 	// cost is the sum behind CostUSD/CostSource/EstimatedCostUSD, kept for
 	// buildSnapshot's filtered totals and the table's COST column —

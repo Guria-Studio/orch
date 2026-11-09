@@ -388,6 +388,17 @@ export const en = {
   "steer.noted": "Note added.",
   "steer.failed": "Couldn't send it: {detail}",
 
+  "evidence.title": "Evidence",
+  "evidence.verdict.passed": "Passed",
+  "evidence.verdict.failed": "Failed",
+  "evidence.verdict.review_unavailable": "Passed, not reviewed",
+  "evidence.reviewed_by": "Reviewed by {reviewer}",
+  "evidence.no_blocking": "no blocking findings",
+  "evidence.blocking": { one: "{count} blocking finding", other: "{count} blocking findings" },
+  "evidence.minor": "{count} minor",
+  "evidence.not_reviewed": "Not reviewed: {reason}",
+  "evidence.diff": "{files} files, +{insertions} −{deletions}",
+
   "tests.title": "Tests",
   "tests.intro":
     "The E2E runs orch's local verify made on each task attempt before publishing it: which tests passed, where one failed, and what it left behind.",

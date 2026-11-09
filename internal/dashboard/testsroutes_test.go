@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Guria-Studio/orch/internal/engine"
+	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -163,5 +164,33 @@ func TestDispatchLineNamesTheEffort(t *testing.T) {
 		Extra: map[string]any{"cli_model": "gpt-5.6-codex", "effort": "low", "attempt": float64(1)}})
 	if want := "[20:00:00] -> C-1 dispatch -> gpt-5.6-codex (effort low)"; got.Human != want {
 		t.Errorf("dispatch = %q, want %q", got.Human, want)
+	}
+}
+
+// The task's evidence (#520) is served as the engine wrote it, 404 when the
+// task has none, and to the operator only, like the files it points at.
+func TestTaskEvidenceIsServed(t *testing.T) {
+	s := newReadServer(t, &fakeState{})
+	m := evidence.Manifest{Version: evidence.Version, TaskID: "C-1", RunID: "run-1", Attempt: 2,
+		Verdict: evidence.VerdictPassed, Checks: []evidence.Check{{Command: "go test ./...", Kind: "tests"}}}
+	if err := evidence.Promote(s.paths.StateDir(), m); err != nil {
+		t.Fatal(err)
+	}
+
+	var got evidence.Manifest
+	decode(t, get(t, s, "/api/tests/evidence/C-1"), &got)
+	if got.RunID != "run-1" || got.Attempt != 2 || len(got.Checks) != 1 || got.Checks[0].Kind != "tests" {
+		t.Errorf("evidence = %+v, want C-1's manifest", got)
+	}
+	if resp := get(t, s, "/api/tests/evidence/C-2"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("a task without evidence: %d, want 404", resp.StatusCode)
+	}
+	if resp := get(t, s, "/api/tests/evidence/%2E%2E"); resp.StatusCode == http.StatusOK {
+		t.Error("a task id of .. was served")
+	}
+
+	gated := newGatedServer(t, &fakeState{})
+	if resp := get(t, gated, "/api/tests/evidence/C-1?token=test-token-stakeholder"); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("as a stakeholder: %d, want 403", resp.StatusCode)
 	}
 }
