@@ -12,3 +12,23 @@ stdout '"confidence":"none"'
 # --only narrows like run's.
 exec orch estimate --only 'F0*' --project-root proj --project-id parity-project
 stdout '^≈ 0 tasks'
+! stdout 'backlog'
+
+# Backlog never dispatches; with nothing else to run, the estimate says how to
+# promote it (#579), and --json lists it.
+exec orch estimate --project-root backlog-proj
+stdout '^≈ 0 tasks: nothing is ready to run'
+stdout '^1 task in backlog is not dispatched — promote it with: orch task set --id B-1 --status todo$'
+exec orch estimate --json --project-root backlog-proj
+stdout '"backlog":\["B-1"\]'
+-- backlog-proj/tasks.json --
+{"tasks":[{"id":"B-1","phase":1,"title":"b one","model":"claude/haiku","status":"backlog","dependencies":[],"estimateHours":1.0,"files":[],"specRef":""}]}
+-- backlog-proj/.orchestrator/model_router.yaml --
+claude/haiku:
+  backend: claude
+  cli_model: claude-haiku-4-5
+  tier: cheap
+  is_premium: false
+-- backlog-proj/scripts/task-start.sh --
+#!/bin/sh
+exit 0
