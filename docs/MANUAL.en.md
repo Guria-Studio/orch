@@ -246,6 +246,13 @@ silently accepted; fenced code blocks in a spec are skipped by the parser
 (so an example spec inside `specs/README.md` doesn't get imported as real
 tasks).
 
+**New tasks land in `backlog`**, and `orch run` never dispatches a backlog
+task. `--apply` ends by saying so, with the command that promotes them —
+`orch task set --id F1.1.T1 --status todo` for one, a `for id in …; do …;
+done` loop over the same command for several. Promote the ones you want run.
+If you forget, `orch run` (and `orch estimate`) say how many tasks sit in
+backlog and print the same command instead of only "nothing is ready".
+
 ---
 
 ## 4. Check the plan before running

@@ -63,6 +63,9 @@ type Estimate struct {
 	AttemptsPerTask float64 `json:"attempts_per_task"`
 	// Confidence is "none" (no history: defaults), "low", "medium" or "high".
 	Confidence string `json:"confidence"`
+	// Backlog is the selection's tasks in backlog, which a run never
+	// dispatches until they are promoted to todo (#579), in dispatch order.
+	Backlog []string `json:"backlog"`
 }
 
 // Compute is the estimate for in.
@@ -72,7 +75,7 @@ func Compute(in Input) Estimate {
 	// attempt (#470): its short, cheap run would pull every per-attempt
 	// figure down. in is a copy, so this filters only the estimate's view.
 	in.Spend = slices.DeleteFunc(slices.Clone(in.Spend), func(s state.Spend) bool { return state.IsSyntheticSpend(s.TaskID) })
-	out := Estimate{Tasks: runSet(in), ByBackend: map[string]float64{}, Slots: slots,
+	out := Estimate{Tasks: runSet(in), Backlog: backlog(in), ByBackend: map[string]float64{}, Slots: slots,
 		PastAttempts: len(in.Spend), AttemptsPerTask: 1, Confidence: confidence(len(in.Spend))}
 	if len(in.Spend) > 0 {
 		perTask := map[string]bool{}
@@ -169,6 +172,18 @@ func runSet(in Input) []string {
 		}
 		pending = rest
 	}
+}
+
+// backlog is the tasks --only selects that sit in backlog. Never nil, like
+// runSet's answer.
+func backlog(in Input) []string {
+	out := []string{}
+	for _, t := range graph.DisplayOrder(in.Tasks) {
+		if t.Status == model.StatusBacklog && (in.Only == "" || matchGlob(in.Only, t.ID)) {
+			out = append(out, t.ID)
+		}
+	}
+	return out
 }
 
 func depsIn(t model.Task, done map[string]bool) bool {
@@ -268,7 +283,7 @@ func confidence(n int) string {
 // they rest on.
 func (e Estimate) Lines() [2]string {
 	if len(e.Tasks) == 0 {
-		return [2]string{"≈ 0 tasks: nothing is ready to run, nor becomes ready during a run", ""}
+		return [2]string{"≈ 0 tasks: nothing is ready to run, nor becomes ready during a run", e.BacklogNote()}
 	}
 	backends := make([]string, 0, len(e.ByBackend))
 	for b := range e.ByBackend {
@@ -295,6 +310,45 @@ func (e Estimate) Lines() [2]string {
 	}
 	return [2]string{first, fmt.Sprintf("based on %d past attempts in this project (%.2g per task) · confidence: %s",
 		e.PastAttempts, e.AttemptsPerTask, e.Confidence)}
+}
+
+// BacklogNote says how many of the selection's tasks wait in backlog and the
+// command that promotes them, or "" when none does (#579). Lines carries it
+// only when nothing else would run: beside work that runs, backlog is the
+// operator's choice.
+func (e Estimate) BacklogNote() string {
+	switch len(e.Backlog) {
+	case 0:
+		return ""
+	case 1:
+		return "1 task in backlog is not dispatched — promote it with: " + PromoteCommand(e.Backlog)
+	}
+	return fmt.Sprintf("%d tasks in backlog are not dispatched — promote them with: %s", len(e.Backlog), PromoteCommand(e.Backlog))
+}
+
+// PromoteCommand is the shell command that moves ids to todo: `orch task
+// set` for one, a loop over it for several.
+func PromoteCommand(ids []string) string {
+	if len(ids) == 1 {
+		return "orch task set --id " + shellWord(ids[0]) + " --status todo"
+	}
+	words := make([]string, len(ids))
+	for i, id := range ids {
+		words[i] = shellWord(id)
+	}
+	return "for id in " + strings.Join(words, " ") + `; do orch task set --id "$id" --status todo; done`
+}
+
+// shellWord is s as one POSIX shell word: as is when it is made of characters
+// the shell takes literally, single-quoted otherwise.
+func shellWord(s string) string {
+	literal := func(r rune) bool {
+		return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._-/:+@%,=", r)
+	}
+	if s != "" && strings.IndexFunc(s, func(r rune) bool { return !literal(r) }) < 0 {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Duration is seconds as "2h10m", "45m" or "<1m".

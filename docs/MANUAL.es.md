@@ -253,6 +253,14 @@ despacho, no se acepta en silencio; el parser se salta los bloques de código
 con fences de un spec (así un spec de ejemplo dentro de `specs/README.md` no se
 importa como tareas reales).
 
+**Las tareas nuevas quedan en `backlog`**, y `orch run` nunca despacha una
+tarea en backlog. `--apply` termina diciéndolo, con el comando que las
+promueve — `orch task set --id F1.1.T1 --status todo` para una, un bucle
+`for id in …; do …; done` sobre el mismo comando para varias. Promueve las que
+quieras correr. Si te olvidas, `orch run` (y `orch estimate`) dicen cuántas
+tareas siguen en backlog e imprimen el mismo comando, en vez de solo "nothing
+is ready".
+
 ---
 
 ## 4. Revisar el plan antes de correrlo
