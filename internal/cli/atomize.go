@@ -43,12 +43,32 @@ import (
 func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 	var specsDir, file, tasksJSONPath string
 	var listMode, apply, noBackup bool
-	var fromIssues, issuesModel string
+	var fromIssues, issuesModel, from string
 	var allAuthors bool
 	cmd := &cobra.Command{
-		Use:   "atomize",
+		Use:   "atomize [DIR]",
 		Short: "Parse markdown specs and merge them into tasks.json (read-only unless --apply)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 && from == "" {
+				return withExitCode(2, errors.New("a directory argument only applies with --from spec-kit|openspec"))
+			}
+			var format atomize.ImportFormat
+			if from != "" {
+				var ferr error
+				if format, ferr = atomize.ParseImportFormat(from); ferr != nil {
+					return withExitCode(2, ferr)
+				}
+				switch {
+				case file != "":
+					return withExitCode(2, errFromWithFile)
+				case fromIssues != "":
+					return withExitCode(2, errFromWithIssues)
+				case allAuthors:
+					return withExitCode(2, errors.New("--all-authors only applies with --from-issues"))
+				}
+			}
+
 			paths, cfg, err := loadProjectConfig(flags)
 			if err != nil {
 				return err
@@ -79,8 +99,22 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 					apply: apply, noBackup: noBackup, list: listMode,
 				})
 			}
-			if issuesModel != "" || allAuthors {
-				return withExitCode(2, errors.New("--model and --all-authors only apply with --from-issues"))
+			if from != "" {
+				dir := ""
+				if len(args) > 0 {
+					dir = args[0]
+				}
+				return runAtomizeImport(cmd, flags, atomizeImportOpts{
+					format: format, dir: dir, model: issuesModel,
+					specsRoot: specsRoot, tasksPath: tasksPath,
+					apply: apply, noBackup: noBackup, list: listMode,
+				})
+			}
+			if allAuthors {
+				return withExitCode(2, errors.New("--all-authors only applies with --from-issues"))
+			}
+			if issuesModel != "" {
+				return withExitCode(2, errors.New("--model only applies with --from-issues or --from"))
 			}
 
 			var specFiles []string
@@ -191,7 +225,10 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 	cmd.Flags().StringVar(&fromIssues, "from-issues", "",
 		"GitHub issue search (e.g. label:orch): each open issue becomes specs/issue-<n>-<slug>.md, then tasks")
 	cmd.Flags().StringVar(&issuesModel, "model", "",
-		"With --from-issues: model for the imported tasks; must be one model_router.yaml resolves (required)")
+		"With --from-issues or --from: model for the imported tasks; must be one model_router.yaml resolves (required)")
+	cmd.Flags().StringVar(&from, "from", "",
+		"Import another tool's task lists: spec-kit (specs/<feature>/tasks.md) or openspec (openspec/changes/<change>/tasks.md), "+
+			"under DIR (default: the project root); each becomes <spec_root>/speckit-<feature>.md or openspec-<change>.md, then tasks")
 	cmd.Flags().BoolVar(&allAuthors, "all-authors", false,
 		"With --from-issues: import issues by anyone, not only the repo's collaborators")
 	return cmd

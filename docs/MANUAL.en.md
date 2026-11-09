@@ -947,6 +947,7 @@ none of them is required to start. [`CLI.md`](CLI.md) has every flag.
 |---|---|
 | `orch sync issues` | Turns the client's labelled GitHub issues into tasks (`gh-<number>`), adding only what is new on each run. |
 | `orch atomize --from-issues label:orch --model M` | Turns each open GitHub issue the search matches into a spec (`specs/issue-<n>-<slug>.md`) and its tasks; preview by default, `--apply` writes. A re-run imports nothing twice. The task's PR closes the issue on merge (`Closes`); with `vcs.provider: local` orch closes it with a comment once its last task lands. |
+| `orch atomize --from spec-kit --model M` (or `--from openspec`) | Turns each spec-kit feature's `specs/<feature>/tasks.md` (or each OpenSpec change's `openspec/changes/<change>/tasks.md`) into a spec, `specs/speckit-<feature>.md` / `specs/openspec-<change>.md`, and its tasks: phases, `[P]` runs and `depends on` become dependencies, checked tasks are left out. Preview by default, `--apply` writes; a re-run with an unchanged `tasks.md` changes nothing ([`SPEC-IMPORT.md`](SPEC-IMPORT.md)). |
 | `orch export clickup` | Mirrors the plan into a ClickUp Folder for a client who tracks work there; re-run it and statuses follow. |
 | `orch export multica` | Creates the plan as Multica issues, one parent per phase. |
 | `orch ci setup` / `ci review` / `ci usage` | Writes the CI pipeline the repository calls for, runs an AI review of each PR inside CI, and adds up the billed Actions minutes. |

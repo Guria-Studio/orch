@@ -971,6 +971,7 @@ as flags.
 |---|---|
 | `orch sync issues` | Transforma as issues do GitHub etiquetadas do cliente em tarefas (`gh-<número>`), adicionando a cada execução só o que é novo. |
 | `orch atomize --from-issues label:orch --model M` | Transforma cada issue aberta do GitHub que bate com a busca em um spec (`specs/issue-<n>-<slug>.md`) e suas tarefas; mostra a prévia e com `--apply` escreve. Uma segunda execução não importa nada duas vezes. O PR da tarefa fecha a issue no merge (`Closes`); com `vcs.provider: local` o orch a fecha com um comentário quando a última tarefa chega à base. |
+| `orch atomize --from spec-kit --model M` (ou `--from openspec`) | Transforma o `specs/<feature>/tasks.md` de cada feature do spec-kit (ou o `openspec/changes/<change>/tasks.md` de cada change do OpenSpec) em um spec, `specs/speckit-<feature>.md` / `specs/openspec-<change>.md`, e suas tarefas: as fases, os grupos `[P]` e os `depends on` viram dependências, e as tarefas marcadas ficam de fora. Mostra a prévia e com `--apply` escreve; uma segunda execução com o `tasks.md` igual não muda nada ([`SPEC-IMPORT.md`](SPEC-IMPORT.md)). |
 | `orch export clickup` | Espelha o plano numa Folder do ClickUp para um cliente que acompanha o trabalho lá; rodando de novo, os status acompanham. |
 | `orch export multica` | Cria o plano como issues do Multica, um pai por fase. |
 | `orch ci setup` / `ci review` / `ci usage` | Escreve o pipeline de CI que o repositório pede, roda uma revisão com IA de cada PR dentro do CI e soma os minutos de Actions cobrados. |

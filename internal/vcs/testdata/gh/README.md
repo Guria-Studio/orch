@@ -107,6 +107,12 @@ the point:
 | `actions-job-not-started.json` | `gh api repos/<owner>/billing-api/actions/jobs/123724387525 --jq '{id,status,conclusion,started_at,completed_at,runner_id,runner_name,steps}'` — that job: `runner_id` 0, `steps` empty |
 | `actions-job-ran.json` | the same for job 123727313209, which ran and failed (`pytest` exit 5, #500), with each step's `name,status,conclusion,number` |
 
+For the CI feedback a red PR's agent gets (#598):
+
+| file | what it is |
+|---|---|
+| `pr-view-rollup-failure.json` | `gh pr view https://github.com/Guria-Studio/orch/pull/582 --json statusCheckRollup,headRefOid` — a PR whose `Auto-merge policy` check failed: conclusions in UPPERCASE (`FAILURE`, `SKIPPED`), and each `detailsUrl` is `…/actions/runs/<run>/job/<job>`, the run ID before the job ID |
+
 For `orch sync issues` importing only collaborators' issues by default (#542):
 
 | file | what it is |

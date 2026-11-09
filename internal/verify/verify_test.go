@@ -52,6 +52,21 @@ func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 	}
 }
 
+// A command that fails without printing anything still tells the agent so,
+// rather than handing it an empty code block to puzzle over (#598).
+func TestVerifySaysWhenTheFailingCommandPrintedNothing(t *testing.T) {
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"exit 4"}, TimeoutS: 10}}
+	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure
+	if strings.Contains(got, "```\n\n```") {
+		t.Errorf("Verify = %q, an empty code block", got)
+	}
+	for _, want := range []string{"`exit 4`", "exit status 4", "printed nothing"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Verify = %q, want it to contain %q", got, want)
+		}
+	}
+}
+
 // A configured command that is not found (sh's exit 127, a typo such as
 // `tue`) is the operator's config, not the agent's work: it is skipped, and
 // so is the E2E an app that cannot be started was for (#433).
