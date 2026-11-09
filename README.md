@@ -228,6 +228,7 @@ are there when you need them.
 | Command | What it is for |
 |---|---|
 | `orch sync issues` | Turns the client's labelled GitHub issues into tasks (`gh-<number>`), adding only what is new on each run. |
+| `orch atomize --from spec-kit` / `--from openspec` | Runs a [spec-kit](https://github.com/github/spec-kit) or [OpenSpec](https://github.com/Fission-AI/OpenSpec) plan: each feature's or change's `tasks.md` becomes tasks with dependencies, run in parallel with a PR each. See [`docs/SPEC-IMPORT.md`](docs/SPEC-IMPORT.md). |
 | `orch export clickup` | Mirrors the plan into a ClickUp Folder for a client who tracks work there; re-run it and statuses follow. |
 | `orch export multica` | Creates the plan as Multica issues, one parent per phase. |
 | `orch ci setup` / `ci review` / `ci usage` | Writes the CI pipeline the repository calls for, runs an AI review of each PR inside CI, and adds up the billed Actions minutes. |
@@ -289,6 +290,7 @@ it. [Releases](https://github.com/Guria-Studio/orch/releases) ·
 - [Manual en español](docs/MANUAL.es.md)
 - [Manual em português](docs/MANUAL.pt.md)
 - [CLI reference (every command and flag)](docs/CLI.md)
+- [Running spec-kit and OpenSpec plans](docs/SPEC-IMPORT.md)
 - [Sharing the client page](docs/DELIVERING-TO-STAKEHOLDERS.md)
 - [Release process / tag scheme](docs/RELEASING.md)
 - [Developer notes](docs/README-dev.md)
