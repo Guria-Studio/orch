@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -367,7 +368,11 @@ func copyMedia(site, sitePath, src string) error {
 	if err != nil {
 		return fmt.Errorf("reading evidence media: %w", err)
 	}
-	defer func() { _ = in.Close() }()
+	defer func() {
+		if err := in.Close(); err != nil {
+			slog.Debug("closing an evidence file failed", "file", src, "err", err)
+		}
+	}()
 	dst := filepath.Join(site, filepath.FromSlash(sitePath))
 	// #nosec G301 -- a public static site, as above
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
