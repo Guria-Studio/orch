@@ -12,7 +12,6 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/ci"
 	"github.com/Guria-Studio/orch/internal/config"
-	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
 	"github.com/Guria-Studio/orch/internal/report"
@@ -137,7 +136,7 @@ func brandingLogoPath(paths config.Paths, logo string) string {
 // reads.
 func buildStakeholderSnapshot(ctx context.Context, paths config.Paths, cfg config.Config,
 	backend state.Backend, now time.Time) (snapshot.Snapshot, error) {
-	f, err := model.LoadTasksFile(paths.TasksJSON())
+	f, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return snapshot.Snapshot{}, err
 	}

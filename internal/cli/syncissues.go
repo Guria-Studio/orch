@@ -233,7 +233,7 @@ func newSyncIssuesCmd(flags *projectFlags) *cobra.Command {
 				return withExitCode(2, err)
 			}
 
-			tasksFile, err := model.LoadTasksFile(paths.TasksJSON())
+			tasksFile, err := project.Definitions(paths.TasksJSON())
 			if err != nil {
 				return fmt.Errorf("read %s: %w", paths.TasksJSON(), err)
 			}

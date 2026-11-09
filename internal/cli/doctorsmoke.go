@@ -21,6 +21,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
@@ -255,7 +256,7 @@ report_findings:
 		return err
 	}
 	rtr := map[string]model.RouteEntry{}
-	tf, err := model.LoadTasksFile(filepath.Join(root, "tasks.json"))
+	tf, err := project.Definitions(filepath.Join(root, "tasks.json"))
 	if err != nil {
 		return err
 	}

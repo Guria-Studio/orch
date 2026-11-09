@@ -100,7 +100,7 @@ func newDoctorCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			var tasks []model.Task
-			if tf, err := model.LoadTasksFile(paths.TasksJSON()); err == nil {
+			if tf, err := project.Definitions(paths.TasksJSON()); err == nil {
 				tasks = tf.Tasks
 				checks = append(checks, checkTasksValid(tasks), checkTaskSpecs(paths.Root, cfg, tasks))
 			} else {
@@ -309,7 +309,7 @@ func renderDoctorReport(cmd *cobra.Command, payload doctorPayload) error {
 // tierDefaults reads tasks.json's meta.default_<tier>_model keys, which
 // `orch init` stamps; nil when the file or the keys are missing.
 func tierDefaults(path string) map[string]string {
-	tf, err := model.LoadTasksFile(path)
+	tf, err := project.Definitions(path)
 	if err != nil {
 		return nil
 	}

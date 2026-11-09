@@ -1,12 +1,11 @@
 package dashboard
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // The routes this phase wires. G5.2(b) adds the read endpoints; tunnel is
@@ -129,19 +128,11 @@ func (s *Server) configStatus() (configStatusPayload, error) {
 	out.Backend = loaded.Config.State.Backend
 	out.BudgetPreset = loaded.Config.BudgetsPreset
 
-	raw, err := os.ReadFile(s.paths.TasksJSON()) // #nosec G304 -- the project's own tasks.json
+	tf, err := project.Definitions(s.paths.TasksJSON())
 	if err != nil {
-		return out, fmt.Errorf("reading %s: %w", s.paths.TasksJSON(), err)
+		return out, err // names the file and whether reading or parsing failed
 	}
-	var doc struct {
-		Meta struct {
-			Project string `json:"project"`
-		} `json:"meta"`
-	}
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return out, fmt.Errorf("parsing %s: %w", s.paths.TasksJSON(), err)
-	}
-	out.ProjectID = doc.Meta.Project
+	out.ProjectID = tf.Meta.Project
 
 	out.IsSetup = out.ProjectID != "" && out.SpecRoot != "" &&
 		out.Backend != "" && out.BudgetPreset != ""

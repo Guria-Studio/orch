@@ -10,7 +10,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/graph"
-	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 )
 
@@ -114,7 +114,7 @@ func newValidateCmd(flags *projectFlags) *cobra.Command {
 				})
 			}
 
-			tf, tasksErr := model.LoadTasksFile(paths.TasksJSON())
+			tf, tasksErr := project.Definitions(paths.TasksJSON())
 			switch {
 			case tasksErr == nil:
 				var routes []string

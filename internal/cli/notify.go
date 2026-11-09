@@ -10,7 +10,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/graph"
-	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/notify"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
@@ -226,7 +225,7 @@ func digestText(ctx context.Context, backend state.Backend, paths config.Paths, 
 		lang = cfg.Dashboard.SummaryLanguage
 	}
 
-	tasksFile, err := model.LoadTasksFile(paths.TasksJSON())
+	tasksFile, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", paths.TasksJSON(), err)
 	}

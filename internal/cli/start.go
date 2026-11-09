@@ -113,7 +113,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	tf, err := model.LoadTasksFile(paths.TasksJSON())
+	tf, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -140,7 +140,7 @@ func runStart(cmd *cobra.Command, flags *projectFlags, idea string, yes, noRun, 
 			say("! claude exited with %v", err)
 		}
 		say("")
-		if tf, err = model.LoadTasksFile(paths.TasksJSON()); err != nil {
+		if tf, err = project.Definitions(paths.TasksJSON()); err != nil {
 			return withExitCode(1, err)
 		}
 		if len(tf.Tasks) == 0 || scaffold.OnlySampleTask(tf.Tasks) {
@@ -254,24 +254,20 @@ func rerouteToInstalled(tf *model.TasksFile, rtr, packaged router.Router, instal
 // many tasks a run would dispatch. Status comes from the database: tasks.json
 // does not know it.
 func printStartEstimate(ctx context.Context, flags *projectFlags, out io.Writer) (ready int, err error) {
-	paths, cfg, err := loadProjectConfig(flags)
-	if err != nil {
-		return 0, err
-	}
-	backend, closeDB, err := openBackend(ctx, paths, cfg)
+	p, err := openProject(ctx, flags)
 	if err != nil {
 		return 0, err
 	}
 	defer func() {
-		if cerr := closeDB(); cerr != nil && err == nil {
+		if cerr := p.Close(); cerr != nil && err == nil {
 			err = fmt.Errorf("closing the project database: %w", cerr)
 		}
 	}()
-	tasks, err := project.Load(ctx, backend, paths.TasksJSON())
+	tasks, err := p.Tasks(ctx)
 	if err != nil {
 		return 0, err
 	}
-	e, err := projectEstimate(ctx, backend, paths, cfg, tasks, "", 0)
+	e, err := projectEstimate(ctx, p.Backend, p.Paths, p.Config, tasks, "", 0)
 	if err != nil {
 		return 0, err
 	}
