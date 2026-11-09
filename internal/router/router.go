@@ -84,8 +84,6 @@ var validTiers = map[model.Tier]bool{
 	model.TierPremium: true, model.TierStandard: true, model.TierCheap: true,
 }
 
-var validEfforts = map[string]bool{"low": true, "medium": true, "high": true}
-
 // validServiceTiers are the values codex knows for service_tier (codex
 // 0.154). Which ones a model takes is codex's call: one it does not
 // advertise is dropped, and the run says so (codexTierNotAdvertised).
@@ -202,10 +200,8 @@ func validateEntry(path, key string, e model.RouteEntry) error {
 		return &FormatError{Path: path,
 			Msg: fmt.Sprintf("entry %s missing non-empty cli_model", pyfmt.Quote(key))}
 	}
-	if e.Effort != nil && !validEfforts[*e.Effort] {
-		return &FormatError{Path: path, Msg: fmt.Sprintf(
-			"entry %s field `effort` must be one of 'low' | 'medium' | 'high', got %s",
-			pyfmt.Quote(key), pyfmt.Quote(*e.Effort))}
+	if err := validateEffort(path, key, e); err != nil {
+		return err
 	}
 	if e.ServiceTier != nil {
 		if e.Backend != model.BackendCodex {

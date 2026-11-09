@@ -25,7 +25,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // headlessPlan is appended to the idea when the welcome page plans: claude
@@ -405,17 +404,17 @@ func promoteToTodo(ctx context.Context, paths config.Paths, cfg config.Config, a
 	if len(added) == 0 {
 		return nil
 	}
-	backend, closeDB, err := openBackend(ctx, paths, cfg)
+	p, err := project.OpenWith(ctx, paths, cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = closeDB() }()
-	if err := backend.Bootstrap(ctx, all); err != nil {
+	defer func() { _ = p.Close() }()
+	if err := p.Backend.Bootstrap(ctx, all); err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
-	note := state.Note{Author: "operator", Body: "applied from the dashboard"}
+	note := project.Note{Author: "operator", Body: "applied from the dashboard"}
 	for _, t := range added {
-		if err := backend.Transition(ctx, t.ID, model.StatusTodo, note); err != nil && !errors.Is(err, state.ErrIllegalTransition) {
+		if err := p.SetStatus(ctx, t.ID, model.StatusTodo, note); err != nil && !errors.Is(err, project.ErrIllegalTransition) {
 			return fmt.Errorf("%s: %w", t.ID, err)
 		}
 	}

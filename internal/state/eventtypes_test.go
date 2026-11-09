@@ -103,6 +103,10 @@ var goOnlyEventTypes = map[string]bool{
 	// The agent watch's warnings about a running attempt (#487).
 	"agent_stalled": true,
 	"agent_looping": true,
+	// A stalled or waiting agent writing again (#533), and one silent but
+	// working, with the evidence (#524).
+	"agent_resumed": true,
+	"agent_waiting": true,
 	// The conflict radar's: overlapping files before dispatch, conflicting
 	// task PRs after (#482).
 	"files_overlap":   true,
@@ -110,6 +114,10 @@ var goOnlyEventTypes = map[string]bool{
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,
+	// A source issue closed after a local landing, or the close that failed
+	// (#525).
+	"issue_closed":       true,
+	"issue_close_failed": true,
 	// A PR finished with no CI check ever reported (#233).
 	"ci_no_checks": true,
 	// A PR merged outside orch while its CI was watched (#255).

@@ -65,6 +65,9 @@ type InFlight struct {
 	// ReviewUnavailable is why the local review did not run, for the PR body
 	// (#539).
 	ReviewUnavailable string
+	// VerifyNote is the verify's verdict in one line, for the closing
+	// comment of the task's source issue (#525); "" with no verify.
+	VerifyNote string
 }
 
 // SchedulerOptions configures one run.
@@ -173,6 +176,10 @@ type Scheduler struct {
 	// Knowledge ranks the project lessons a prompt carries (knowledge.enabled,
 	// #451). Nil renders no lessons.
 	Knowledge knowledge.Ranker
+	// Issues closes the GitHub issue a task came from once its last task
+	// lands locally (vcs.provider: local, #525); with a PR the body's
+	// `Closes` keyword does it on merge. Nil closes nothing.
+	Issues IssueCloser
 	// Log receives the operator-facing lines. Nil uses slog's default.
 	Log *slog.Logger
 
@@ -217,6 +224,9 @@ type Scheduler struct {
 	// watches and lastWatch are the agent watch's (#487), see WatchAgents.
 	watches   map[int]*agentWatch
 	lastWatch time.Time
+	// procProbe reads an agent's process group for the watch's liveness
+	// (#524); nil is readProcGroup. Tests swap it.
+	procProbe func(pgid int) (procStats, error)
 	// retryWorktree is the worktree a retry runs in, by task, with the
 	// feedback file saying what failed: the one the poller rebuilt for a CI
 	// retry, or the one a failed local verify kept.

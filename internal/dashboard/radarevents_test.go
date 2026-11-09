@@ -19,3 +19,13 @@ func TestRadarEventsReadInTheLog(t *testing.T) {
 		}
 	}
 }
+
+// agent_waiting (#524) reads as information with its evidence: the agent is
+// working, nothing to act on.
+func TestAgentWaitingReadsInTheLog(t *testing.T) {
+	got := formatEvent(state.Event{EventType: "agent_waiting", TaskID: "F7.7", TS: "2026-10-22T20:00:00Z",
+		Extra: map[string]any{"reason": "downloading data: +163 MB in 1h0m0s", "activity": "download"}})
+	if want := "[20:00:00] WATCH F7.7 agent_waiting (downloading data: +163 MB in 1h0m0s)"; got.Human != want || got.Severity != "info" {
+		t.Errorf("agent_waiting = %q %q, want %q info", got.Human, got.Severity, want)
+	}
+}

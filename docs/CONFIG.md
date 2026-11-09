@@ -1113,18 +1113,45 @@ the task's `files` list are already named in the PR body for every task.
 watch:
   enabled: true        # default
   stall_after_s: 600   # default; 0 leaves stalls unreported
+  liveness: true       # default; false judges by the log alone (#524)
+  min_cpu_pct: 2       # default; % of one core that counts as working
+  data_dirs: []        # default; more dirs whose growth counts as work
 ```
 
 While `orch run` has attempts running it reads the tail of each one's log
-(`<state>/logs/<task>.log`) every 30 seconds and records these events, which
-`orch events` and the task page show:
+(`<state>/logs/<task>.log`) every 30 seconds. A silent log is not enough to
+call an agent stuck: one downloading data or running a long build writes
+nothing for an hour. So with `liveness` on (#524), while the log is silent the
+watch also looks at:
 
-- **`agent_stalled`**: the log has not grown for `stall_after_s`. An agent
-  waiting on a prompt it cannot get in a headless run looks like this too.
-  It is recorded again only after the log grows and then goes silent again.
-- **`agent_resumed`**: the log of an agent flagged `agent_stalled` grew again.
-  Until it does, the dashboard shows the task as stalled on Now (under
-  attention, with `orch task stop`), on its board card and in the list (#533).
+- **the agent's processes**: its process group (the CLI and everything it
+  started) using more than `min_cpu_pct` of one core, or moving more than
+  1 MB per 30 s through reads and writes, sockets included. Linux reads
+  `/proc`; macOS asks `ps`, which gives CPU but not I/O.
+- **its files**: anything in the task's worktree (or the project, without
+  worktrees) growing or changing, `.git` and orch's state left out, and the
+  same in each `data_dirs` entry (relative to the project root, or absolute)
+  — for a download cache outside the repo.
+
+It records these events, which `orch events` and the task page show:
+
+- **`agent_waiting`**: the log has been silent for `stall_after_s` but the
+  agent showed work within the last `stall_after_s`. The event carries the
+  evidence, as in `downloading data: +163 MB in 1h0m0s` (or `writing files`,
+  `receiving data`, `computing: 4m10s of CPU`), and is refreshed every
+  `stall_after_s` while the wait lasts. The dashboard shows it on Now, under
+  the running agent ("waiting: downloading data"), and the client page shows
+  it on the deliverable. It is not an alert. The words are a reading of the
+  figures, not of the agent's intent: "downloading" is files growing while
+  its processes read as much, which a large local copy also does.
+- **`agent_stalled`**: no output and no sign of life for `stall_after_s`. An
+  agent waiting on a prompt it cannot get in a headless run looks like this.
+  It is recorded again only after the agent shows work and then stops again.
+  With `liveness: false` it is the log alone, as before #524.
+- **`agent_resumed`**: the log of an agent flagged `agent_stalled` or
+  `agent_waiting` grew again. Until it does, the dashboard shows a stalled
+  task as stalled on Now (under attention, with `orch task stop`), on its
+  board card and in the list (#533).
 - **`agent_looping`**: one tool call (the same tool on the same command,
   file or pattern) fills 5 of the attempt's last 20. Recorded once per attempt.
   It reads the CLIs that stream their steps (claude, codex, opencode); gemini
@@ -1179,6 +1206,28 @@ backend CLI, its `cli_model`, a `tier` (premium | standard | cheap), and
 optionally `fallback_cli_model`, `escalation_model`, `failover`, `effort`
 and `service_tier`. The field list is in the packaged file's header
 (`internal/scaffold/defaults/model_router.yaml`); `orch router` maintains it.
+
+**`effort` per backend (#576).** The reasoning effort the route's CLI runs at;
+unset, the CLI's own default. `orch validate` (and every command that loads
+the router) refuses a level the backend does not take, naming the ones it does.
+
+| Backend | Levels | Passed as |
+|---|---|---|
+| `codex` | `low`, `medium`, `high`, plus any higher level (`xhigh`, `max`, `ultra`, …) codex's model catalog lists for the route's `cli_model` | `-c model_reasoning_effort="<level>"` |
+| `agy` | `low`, `medium`, `high` | `--effort <level>` |
+| `muse` | `low`, `medium`, `high` | `--reasoning-effort <level>` |
+| `claude`, `gemini`, `opencode` | `low`, `medium`, `high` (accepted, not passed) | — |
+
+The codex catalog is `$CODEX_HOME/models_cache.json` (`~/.codex/` when
+`CODEX_HOME` is unset), which codex writes and refreshes as it runs; orch only
+reads it, offline, and only for a route asking for more than `high`. Its
+`supported_reasoning_levels` per model decide, so a level codex adds later
+needs no orch release. No catalog, or a model it does not list, leaves
+`low | medium | high`, and the error names the file it looked for:
+
+```
+entry 'codex/gpt-5.6-luna' field `effort` must be one of 'low' | 'medium' | 'high' | 'xhigh' | 'max' for codex model 'gpt-5.6-luna' (codex's model catalog, ~/.codex/models_cache.json), got 'ultra'
+```
 
 **`failover` (#439).** An ordered list of other route keys in the same file
 (`failover: [codex/gpt-5.4, gemini/gemini-2.5-flash]`). When the route's

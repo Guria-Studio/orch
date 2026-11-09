@@ -54,6 +54,11 @@ func TestEveryLanguageHasEveryPhrase(t *testing.T) {
 				t.Errorf("%s: no phrase for failure class %q", lang, class)
 			}
 		}
+		for activity := range waitingPhrases["en"] {
+			if waitingPhrases[lang][activity] == "" {
+				t.Errorf("%s: no waiting phrase for %q", lang, activity)
+			}
+		}
 		if _, ok := summaryPhrasesByLang[lang]; !ok {
 			t.Errorf("%s: no executive summary phrases", lang)
 		}

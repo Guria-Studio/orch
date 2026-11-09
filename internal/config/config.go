@@ -105,6 +105,16 @@ type Watch struct {
 	// StallAfterS is how long a silent log takes to count as stalled; 0
 	// leaves stalls unreported.
 	StallAfterS int `yaml:"stall_after_s"`
+	// Liveness looks past a silent log before calling an agent stalled
+	// (#524): its process group using CPU or doing I/O, or files growing in
+	// its worktree and DataDirs, make it waiting (agent_waiting), not stuck.
+	Liveness bool `yaml:"liveness"`
+	// DataDirs are more directories whose growth counts as the agent's work,
+	// relative to the project root or absolute (a download cache, say).
+	DataDirs []string `yaml:"data_dirs"`
+	// MinCPUPct is the share of one core, over a 30 s watch, that counts as
+	// the agent's processes working; an idle CLI uses less.
+	MinCPUPct float64 `yaml:"min_cpu_pct"`
 }
 
 // Update is about the agent CLIs orch dispatches to (#448): whether `orch

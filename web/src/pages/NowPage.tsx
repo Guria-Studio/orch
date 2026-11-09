@@ -15,13 +15,13 @@ import { useFindings } from "@/hooks/useFindings"
 import { flowStep, useFlow } from "@/hooks/useFlow"
 import { useOnboarding, useReceipt } from "@/hooks/useReceipt"
 import { useMilestones } from "@/hooks/useMilestones"
-import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch } from "@/hooks/useNow"
+import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch, type NowWaiting } from "@/hooks/useNow"
 import { useTasks } from "@/hooks/useTasks"
 import { fmt, t } from "@/i18n"
 import { moveTask } from "@/lib/api"
 import { describeLoadError } from "@/lib/errors"
 import { taskPath } from "@/lib/nav"
-import { formatDuration, formatElapsed, formatRelative } from "@/lib/time"
+import { formatBytes, formatDuration, formatElapsed, formatRelative } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import type { SprintBlocker } from "@/lib/types"
 
@@ -55,6 +55,25 @@ function Kpi({ label, value, sub, children }: { label: React.ReactNode; value: R
       {children}
     </div>
   )
+}
+
+const WAITING_KEYS = {
+  download: "now.waiting.download",
+  write: "now.waiting.write",
+  read: "now.waiting.read",
+  compute: "now.waiting.compute",
+  edit: "now.waiting.edit",
+} as const
+
+/** What a silent agent is doing, from the watch's evidence (#524): "downloading data, +163 MB in 1h 0m". */
+function waitingLine(w: NowWaiting): string {
+  const vars = {
+    size: formatBytes(w.activity === "read" ? w.read_bytes : w.files_bytes),
+    time: formatDuration(w.window_s),
+    cpu: formatDuration(w.cpu_s),
+  }
+  const key = WAITING_KEYS[w.activity] ?? "now.waiting.edit"
+  return t("now.waiting", { what: t(key, vars) })
 }
 
 // An agent at work: id and title open its page; the eye follows what it is
@@ -95,6 +114,11 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
           <Eye className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
+      {d.waiting ? (
+        <p className="-mt-1.5 truncate px-3.5 pb-2.5 text-xs text-muted-foreground sm:pl-[calc(4.5rem+1.625rem)]" title={d.waiting.evidence}>
+          {waitingLine(d.waiting)}
+        </p>
+      ) : null}
       <div id={activityId} hidden={!open} className="border-t bg-muted/30 px-3.5 py-3">
         {open ? <ActivityFeed taskId={d.task_id} live provider={d.provider} /> : null}
       </div>

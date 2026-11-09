@@ -90,7 +90,7 @@ func Defaults() Config {
 		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
 		Update:  Update{CheckCLIs: true},
 		Guard:   Guard{Secrets: "block", Debug: "warn", Protected: "block"},
-		Watch:   Watch{Enabled: true, StallAfterS: 600},
+		Watch:   Watch{Enabled: true, StallAfterS: 600, Liveness: true, MinCPUPct: 2},
 		Radar:   "warn",
 	}
 }
@@ -387,6 +387,7 @@ var knownKeys = map[string]bool{
 	"guard.protected": true, "guard.protected_paths": true,
 	"gate.critical_paths": true,
 	"watch.enabled":       true, "watch.stall_after_s": true,
+	"watch.liveness": true, "watch.data_dirs": true, "watch.min_cpu_pct": true,
 	"radar": true,
 }
 

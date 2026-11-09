@@ -38,6 +38,7 @@ var severityByEvent = map[string]string{
 	"e2e_report":        "info",
 	"agent_stalled":     "warn",
 	"agent_resumed":     "info",
+	"agent_waiting":     "info",
 	"agent_looping":     "warn",
 	"files_overlap":     "warn",
 	"branch_conflict":   "warn",
@@ -63,6 +64,7 @@ var iconByEvent = map[string]string{
 	"e2e_report":        "E2E",
 	"agent_stalled":     "WATCH",
 	"agent_resumed":     "WATCH",
+	"agent_waiting":     "WATCH",
 	"agent_looping":     "WATCH",
 	"files_overlap":     "RADAR",
 	"branch_conflict":   "RADAR",
@@ -146,6 +148,11 @@ func eventTail(etype string, extra map[string]any) string {
 	case "agent_stalled", "agent_resumed":
 		if d := formatDuration(extra["silent_s"]); d != "" {
 			return " (silent " + d + ")"
+		}
+		return ""
+	case "agent_waiting":
+		if r := extraString(extra, "reason"); r != "" {
+			return " (" + r + ")"
 		}
 		return ""
 	case "agent_looping":

@@ -39,3 +39,16 @@ export function formatRelative(iso: string, now: number): string {
   if (abs < 86_400) return relative.format(Math.round(diff / 3600), "hour")
   return relative.format(Math.round(diff / 86_400), "day")
 }
+
+/** 163 MB, 1.5 GB, 900 B — decimal units, as the watch's evidence spells them. */
+export function formatBytes(n: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let f = Math.max(0, n)
+  let i = 0
+  while (f >= 1000 && i < units.length - 1) {
+    f /= 1000
+    i++
+  }
+  if (i === 0) return `${Math.round(f)} B`
+  return `${f < 10 ? String(Math.round(f * 10) / 10) : Math.round(f)} ${units[i]}`
+}

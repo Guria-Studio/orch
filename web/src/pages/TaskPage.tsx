@@ -72,8 +72,11 @@ const DOT: Record<string, string> = {
   agent_stalled: "bg-status-blocked",
   agent_looping: "bg-status-blocked",
   model_mismatch: "bg-status-blocked",
+  agent_waiting: "bg-status-running",
   files_overlap: "bg-status-blocked",
   branch_conflict: "bg-status-blocked",
+  issue_closed: "bg-status-done",
+  issue_close_failed: "bg-status-blocked",
 }
 
 interface TimelineItem {
