@@ -658,6 +658,22 @@ gemini/gemini-2.5-flash:
 `orch router validate` checks that every task resolves to an entry, and
 `orch doctor` that each CLI those entries name is installed.
 
+**Reasoning effort.** A route's `effort:` sets how hard its CLI thinks.
+`low`, `medium` and `high` work on every backend (codex, agy and muse pass
+them on). codex routes also take the higher levels — `xhigh`, `max`, `ultra`
+— that codex's model catalog (`~/.codex/models_cache.json`, written by codex
+itself) lists for that model; without the catalog, or for a level the model
+does not list, `orch validate` fails and names the levels that model takes.
+The full matrix is in `docs/CONFIG.md`.
+
+```yaml
+codex/gpt-6-astra:
+  backend: codex
+  cli_model: gpt-6-astra
+  tier: premium
+  effort: xhigh
+```
+
 **Failover when a provider runs out of quota.** By default a rate-limited
 task waits out `retry.rate_limit` and tries the same CLI again. Give its
 route a `failover:` list of other route keys and the retry goes at once to
