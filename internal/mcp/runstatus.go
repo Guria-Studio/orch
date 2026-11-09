@@ -55,7 +55,7 @@ func (s *server) runStatus(ctx context.Context, _ *mcpsdk.CallToolRequest, _ run
 		out.Counts[string(t.Status)]++
 	}
 
-	run, ok, err := project.LatestRun(ctx, s.opts.Backend)
+	run, ok, err := project.LatestRun(ctx, s.opts.Project.Backend)
 	if err != nil {
 		return nil, runStatusOut{}, fmt.Errorf("read the latest run: %w", err)
 	}
@@ -69,7 +69,7 @@ func (s *server) runStatus(ctx context.Context, _ *mcpsdk.CallToolRequest, _ run
 
 	// In-flight rows span every run; a dispatch left over from an earlier
 	// run is the reconciler's business, not this run's.
-	flight, err := s.opts.Backend.InFlightDispatches(ctx)
+	flight, err := s.opts.Project.Backend.InFlightDispatches(ctx)
 	if err != nil {
 		return nil, runStatusOut{}, fmt.Errorf("read in-flight dispatches: %w", err)
 	}

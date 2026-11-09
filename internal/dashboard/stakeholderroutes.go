@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // `/stakeholder/summary` — the one route the stakeholder profile exists for.
@@ -140,8 +140,8 @@ func (s *Server) handleStakeholderSummary(w http.ResponseWriter, r *http.Request
 		for _, t := range tasks {
 			ids[t.ID] = true
 		}
-		events = slices.DeleteFunc(events, func(e state.Event) bool { return !ids[e.TaskID] })
-		spends = slices.DeleteFunc(spends, func(sp state.Spend) bool { return !ids[sp.TaskID] })
+		events = slices.DeleteFunc(events, func(e project.Event) bool { return !ids[e.TaskID] })
+		spends = slices.DeleteFunc(spends, func(sp project.Spend) bool { return !ids[sp.TaskID] })
 	}
 
 	snap := snapshot.Build(snapshot.Input{

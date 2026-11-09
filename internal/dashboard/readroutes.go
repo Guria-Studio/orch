@@ -8,7 +8,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // The read endpoints of G5.2(b): everything the trimmed operator SPA fetches
@@ -100,7 +100,7 @@ func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	// A curation (#452) lives in the database only; Curate now links to it.
 	if strings.HasPrefix(taskID, knowledge.CurateTaskPrefix) {
-		rows, err := s.state.Tasks(r.Context(), state.TaskFilter{IDs: []string{taskID}})
+		rows, err := project.RuntimeOf(r.Context(), s.state, taskID)
 		if err != nil {
 			s.failRead(w, "task", err)
 			return

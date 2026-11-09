@@ -177,11 +177,11 @@ func (s *server) getTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in getT
 // else, so attempts, the PR URL and the milestone still have to come from the
 // rows themselves.
 func (s *server) load(ctx context.Context) ([]model.Task, map[string]state.TaskRuntime, error) {
-	tasks, err := project.Load(ctx, s.opts.Backend, s.opts.TasksJSON)
+	tasks, err := project.Load(ctx, s.opts.Project.Backend, s.opts.TasksJSON)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", s.opts.TasksJSON, err)
 	}
-	rows, err := s.opts.Backend.Tasks(ctx, state.TaskFilter{})
+	rows, err := s.opts.Project.Backend.Tasks(ctx, state.TaskFilter{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("read task runtime: %w", err)
 	}

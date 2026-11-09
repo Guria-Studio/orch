@@ -87,11 +87,11 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 	// What this project filed or queued comes first: GitHub's search
 	// indexes a new issue only after a while, and #433-#435 were reported
 	// within a minute.
-	filed, err := s.opts.Backend.FiledFindings(ctx)
+	filed, err := s.opts.Project.Backend.FiledFindings(ctx)
 	if err != nil {
 		return nil, reportFindingOut{}, fmt.Errorf("reading the findings this project filed: %w", err)
 	}
-	queue, err := s.opts.Backend.QueuedFindings(ctx)
+	queue, err := s.opts.Project.Backend.QueuedFindings(ctx)
 	if err != nil {
 		return nil, reportFindingOut{}, fmt.Errorf("reading the findings queue: %w", err)
 	}
@@ -145,7 +145,7 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 				"call again with confirm_new: true."}, nil
 	}
 
-	id, err := s.opts.Backend.QueueFinding(ctx, state.QueuedFinding{
+	id, err := s.opts.Project.Backend.QueueFinding(ctx, state.QueuedFinding{
 		Title:    s.redact(in.Title),
 		Body:     s.redact(findingBody(in, s.opts.Version, time.Now())),
 		Summary:  s.redact(in.Summary),

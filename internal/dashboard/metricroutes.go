@@ -9,7 +9,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The money endpoints of G5.2(b2): what the project has spent, and what the
@@ -44,7 +43,7 @@ func (s *Server) handleAgentMetrics(w http.ResponseWriter, r *http.Request) {
 		s.failRead(w, "attempts", err)
 		return
 	}
-	tasks, err := s.state.Tasks(r.Context(), state.TaskFilter{})
+	tasks, err := project.Runtime(r.Context(), s.state)
 	if err != nil {
 		s.failRead(w, "tasks", err)
 		return
@@ -307,7 +306,7 @@ func (s *Server) todaysCostByProvider(r *http.Request) (map[string]pricing.Sum, 
 // waitingForBudget lists the todo tasks the gate deferred whose window has
 // not reset yet — the same rule `orch status` uses for `defer_reason`.
 func (s *Server) waitingForBudget(r *http.Request) ([]budget.Waiting, error) {
-	rows, err := s.state.Tasks(r.Context(), state.TaskFilter{})
+	rows, err := project.Runtime(r.Context(), s.state)
 	if err != nil {
 		return nil, err
 	}

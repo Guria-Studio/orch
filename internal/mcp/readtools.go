@@ -89,9 +89,9 @@ func (s *server) events(ctx context.Context, _ *mcpsdk.CallToolRequest, in event
 		err error
 	)
 	if in.TaskID != "" {
-		evs, err = s.opts.Backend.Events(ctx, in.TaskID, limit)
+		evs, err = s.opts.Project.Backend.Events(ctx, in.TaskID, limit)
 	} else {
-		evs, err = s.opts.Backend.AllEvents(ctx, limit)
+		evs, err = s.opts.Project.Backend.AllEvents(ctx, limit)
 	}
 	if err != nil {
 		return nil, eventsOut{}, fmt.Errorf("read events: %w", err)
