@@ -584,7 +584,7 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 			"task", row.ID, "err", err)
 		return false
 	}
-	if err := writeCIFeedback(wtPath, ciLogs); err != nil {
+	if err := writeCIFeedback(wtPath, row.PRURL, ciLogs); err != nil {
 		// The retry is still worth doing with a stale or missing file —
 		// Python logs and carries on here too.
 		s.logger().Warn("CI re-dispatch: writing the feedback file failed",
@@ -728,8 +728,17 @@ func (p *CIPoller) dropWorktree(ctx context.Context, s *Scheduler, taskID string
 // its own worktree (project.CIFeedbackFile, which Accept also leaves out).
 const CIFeedbackFile = project.CIFeedbackFile
 
-func writeCIFeedback(worktreePath, ciLogs string) error {
-	return writeFeedback(worktreePath, "CI Failure — Please fix", "```\n"+ciLogs+"\n```\n")
+// writeCIFeedback names the PR, then shows what the provider found. A
+// provider that found nothing to show gets a sentence saying so, never an
+// empty code block the agent can only guess at (#598).
+func writeCIFeedback(worktreePath, prURL, ciLogs string) error {
+	body := "PR: " + prURL + "\n\n"
+	if strings.TrimSpace(ciLogs) == "" {
+		body += "orch saw this PR's CI fail but could not read which check failed. " + vcs.NoCILogNote + "\n"
+	} else {
+		body += "```\n" + ciLogs + "\n```\n"
+	}
+	return writeFeedback(worktreePath, "CI Failure — Please fix", body)
 }
 
 // transitionThroughTodo moves a task to `to`, hopping through `todo` first
