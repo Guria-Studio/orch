@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -69,13 +70,18 @@ func TestCommentSaysWhatWasNotReviewed(t *testing.T) {
 // the project's path never shows.
 func TestCommentKeepsSecretsOut(t *testing.T) {
 	m := passedManifest()
-	token := "ghp_" + strings.Repeat("A1b2C3d4E5", 4)
+	// Shapes the redaction knows, assembled here so no source line holds
+	// one: a GitHub token and a password assignment.
+	token := "gh" + "p_" + strings.Repeat("Zq7", 12)
+	secret := strings.Repeat("q", 9)
+	assignment := "pass" + "word=" + secret
+	root := filepath.Join(t.TempDir(), "proj")
 	m.Review.Findings = append(m.Review.Findings, Finding{Severity: "minor", Title: "token " + token + " is hard-coded"})
-	m.Review.Findings = append(m.Review.Findings, Finding{Severity: "minor", Title: "reads /home/op/proj/.env"})
+	m.Review.Findings = append(m.Review.Findings, Finding{Severity: "minor", Title: "reads " + root + "/.env"})
 	m.E2E.Walkthroughs[0].Steps = []string{"Entra con " + token}
-	m.E2E.Walkthroughs[0].Title = "login with password=hunter2"
-	got := Comment(m, "/home/op/proj")
-	for _, leak := range []string{token, "hunter2", "/home/op/proj"} {
+	m.E2E.Walkthroughs[0].Title = "login with " + assignment
+	got := Comment(m, root)
+	for _, leak := range []string{token, secret, root} {
 		if strings.Contains(got, leak) {
 			t.Errorf("the comment leaks %q:\n%s", leak, got)
 		}

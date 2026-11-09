@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,7 @@ func TestRunPrunesTheEvidenceWhenItEnds(t *testing.T) {
 		if _, err := evidence.Record(stateDir, m); err != nil {
 			t.Fatal(err)
 		}
-		dir := filepath.Join(stateDir, "e2e", "run-1", "F1", "attempt-"+string(rune('0'+i)))
+		dir := filepath.Join(stateDir, "e2e", "run-1", "F1", fmt.Sprintf("attempt-%d", i))
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatal(err)
 		}

@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,7 @@ import (
 // bytes.
 func attempt(t *testing.T, stateDir, task, run string, n int, at time.Time, bytes int) Manifest {
 	t.Helper()
-	dir := filepath.ToSlash(filepath.Join("e2e", run, task, "attempt-"+string(rune('0'+n))))
+	dir := filepath.ToSlash(filepath.Join("e2e", run, task, fmt.Sprintf("attempt-%d", n)))
 	writeFile(t, filepath.Join(stateDir, filepath.FromSlash(dir), "t001", "video.webm"), string(make([]byte, bytes)))
 	m := Manifest{Version: Version, TaskID: task, RunID: run, Attempt: n, VerifiedAt: at, Verdict: VerdictPassed,
 		E2E: &E2E{Dir: dir}}
