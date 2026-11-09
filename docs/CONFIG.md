@@ -1173,7 +1173,7 @@ needs no orch release. No catalog, or a model it does not list, leaves
 `low | medium | high`, and the error names the file it looked for:
 
 ```
-entry 'codex/gpt-5.6-luna' field `effort` must be one of 'low' | 'medium' | 'high' | 'xhigh' | 'max' for codex model 'gpt-5.6-luna' (codex's model catalog, /home/me/.codex/models_cache.json), got 'ultra'
+entry 'codex/gpt-5.6-luna' field `effort` must be one of 'low' | 'medium' | 'high' | 'xhigh' | 'max' for codex model 'gpt-5.6-luna' (codex's model catalog, ~/.codex/models_cache.json), got 'ultra'
 ```
 
 **`failover` (#439).** An ordered list of other route keys in the same file
