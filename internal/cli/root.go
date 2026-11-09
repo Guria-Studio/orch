@@ -73,8 +73,8 @@ func registerProjectFlags(root *cobra.Command) *projectFlags {
 
 func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	root := &cobra.Command{
-		Use:           "orch",
-		Short:         "Run AI agents as a team and give your client a live page",
+		Use:   "orch",
+		Short: "Run AI agents as a team and give your client a live page",
 		Long: "Run AI agents as a team. Show your client a live page, not a status thread.\n\n" +
 			"orch splits the work into a graph of tasks and runs each one on the coding\n" +
 			"agent CLI you route it to (claude, codex, opencode, gemini, agy, muse), in\n" +
