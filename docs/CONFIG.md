@@ -313,6 +313,13 @@ vcs:
 Needs `gh` (or `glab`) authenticated. Without it, PRs are skipped with a
 warning; worktrees still work.
 
+A red PR goes back to its agent with `.orch-ci-feedback.md` in the worktree:
+the PR URL, then (GitHub) the head commit, each failing check with its verdict
+and URL, and the end of the failed jobs' `gh run view --log-failed` output.
+When no log can be captured (a cancelled, timed-out or infra-failed job, or
+`gh` refusing) the file says so and asks the agent to note in its status if the
+failure is unrelated to its change, rather than showing an empty block (#598).
+
 `provider: local` (#455) is for a repository with no remote or no `gh`: with
 `dispatch.worktree_mode` on, each task that finishes and passes the local
 verify is squash-merged into `dispatch.base_branch` in the repository itself,
