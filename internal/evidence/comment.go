@@ -96,7 +96,7 @@ func Comment(m Manifest, root string) string {
 	b.WriteString("\n")
 	var facts []string
 	if d := m.Diff; d != nil {
-		facts = append(facts, fmt.Sprintf("Diff: %d files, +%d −%d", d.Files, d.Insertions, d.Deletions))
+		facts = append(facts, fmt.Sprintf("Diff: %s, +%d −%d", plural(d.Files, "file"), d.Insertions, d.Deletions))
 	}
 	if len(m.HeadSHA) >= 7 {
 		facts = append(facts, fmt.Sprintf("commit `%s`", m.HeadSHA[:7]))
