@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+	"slices"
 )
 
 // AllEvents returns events across every task, oldest first. n <= 0 means all;
@@ -19,25 +19,25 @@ import (
 //
 // # Ordering
 //
-// By `ts`, then by `id`. Python sorts its merged JSONL + SQLite rows with
+// By time, then by `id`. Python sorts its merged JSONL + SQLite rows with
 // `sort(key=ts)`, which is stable, so rows sharing a timestamp keep the order
 // they were read in — insertion order, which is `id`. Two events inside the
 // same second are not rare: a dispatch and its block land together all the
 // time. Ordering by `id` alone would be right for one project and wrong for
 // one that migrated from JSONL, where ids were assigned at import.
+//
+// Sorted in Go on the parsed time, not with `ORDER BY ts`: migration 015 made
+// every stored spelling canonical, but an older orch still running against
+// the same file can write `+00:00` after it, and as text `...09:00:00Z` sorts
+// after `...10:00:00+02:00`. The tail is cut after the sort, so it reads every
+// row; a project's events are thousands, not millions.
 func (b *SQLite) AllEvents(ctx context.Context, n int) ([]Event, error) {
-	q := `SELECT id, run_id, event_type, task_id, COALESCE(backend, ''), ts,
-	             COALESCE(extra_json, '{}')
-	        FROM events
-	       WHERE project_id = ?
-	       ORDER BY ts, id`
-	args := []any{b.projectID}
-	if n > 0 {
-		q = strings.Replace(q, "ORDER BY ts, id", "ORDER BY ts DESC, id DESC LIMIT ?", 1)
-		args = append(args, n)
-	}
-
-	rows, err := b.db.read.QueryContext(ctx, q, args...)
+	rows, err := b.db.read.QueryContext(ctx,
+		`SELECT id, run_id, event_type, task_id, COALESCE(backend, ''), ts,
+		        COALESCE(extra_json, '{}')
+		   FROM events
+		  WHERE project_id = ?
+		  ORDER BY id`, b.projectID)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
@@ -59,8 +59,15 @@ func (b *SQLite) AllEvents(ctx context.Context, n int) ([]Event, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate events: %w", err)
 	}
-	if n > 0 {
-		reverse(out)
+	// Stable over id order, so equal times keep insertion order. An
+	// unreadable ts parses as the zero time and sorts first, as '' did in SQL.
+	slices.SortStableFunc(out, func(a, b Event) int {
+		ta, _ := ParseTS(a.TS)
+		tb, _ := ParseTS(b.TS)
+		return ta.Compare(tb)
+	})
+	if n > 0 && len(out) > n {
+		out = out[len(out)-n:]
 	}
 	return out, nil
 }

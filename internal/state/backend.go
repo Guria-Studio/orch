@@ -179,19 +179,32 @@ func NewSQLite(db *DB, projectID, projectRoot string) *SQLite {
 	}
 }
 
-// utcNow formats a timestamp the way the shell scripts and the Python
-// backend do: `2026-09-11T18:30:00Z`, second precision, always UTC. The
-// format is shared with `scripts/task-*.sh`, so it is a contract, not a
-// preference.
+// FormatTS is the one spelling of a timestamp in an orch.db:
+// `2026-09-11T18:30:00Z`, second precision, always UTC. The format is shared
+// with `scripts/task-*.sh`, so it is a contract, not a preference; migration
+// 015 rewrote every older spelling to it. Every writer goes through this.
+func FormatTS(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05Z")
+}
+
+// canonicalTS rewrites a caller's timestamp string to FormatTS. A string
+// ParseTS cannot read is stored as given rather than dropped.
+func canonicalTS(s string) string {
+	if t, ok := ParseTS(s); ok {
+		return FormatTS(t)
+	}
+	return s
+}
+
 func (b *SQLite) utcNow() string {
-	return b.now().UTC().Format("2006-01-02T15:04:05Z")
+	return FormatTS(b.now())
 }
 
 func (b *SQLite) ts(t time.Time) string {
 	if t.IsZero() {
 		return b.utcNow()
 	}
-	return t.UTC().Format("2006-01-02T15:04:05Z")
+	return FormatTS(t)
 }
 
 // ---- bootstrap -------------------------------------------------------------
@@ -618,7 +631,7 @@ func (b *SQLite) RecordSpend(ctx context.Context, s Spend) error {
 		    tokens_out, cost_usd, duration_s, estimated, dedup_hash,
 		    cache_read_tokens, cache_creation_tokens, reasoning_tokens, attempt)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		projectID, s.TS, s.TaskID, s.Backend, s.Model, s.TokensIn,
+		projectID, canonicalTS(s.TS), s.TaskID, s.Backend, s.Model, s.TokensIn,
 		s.TokensOut, s.CostUSD, s.DurationS, estimated, hash,
 		s.CacheReadTokens, s.CacheCreationTokens, s.ReasoningTokens, s.Attempt)
 	if err != nil {
@@ -641,13 +654,16 @@ func (b *SQLite) AppendEvent(ctx context.Context, runID string, e Event) error {
 	if err != nil {
 		return fmt.Errorf("encode event extra for %q: %w", e.TaskID, err)
 	}
+	// The hash is of the spelling the caller handed in and the ts column holds
+	// the canonical one, so a replayed import still dedups against rows hashed
+	// before migration 015.
 	hash := eventDedupHash(b.projectID, e.TS, e.TaskID, e.EventType, runID, pidHintFromExtra(extra))
 
 	_, err = b.db.write.ExecContext(ctx,
 		`INSERT OR IGNORE INTO events
 		   (project_id, run_id, event_type, task_id, backend, ts, extra_json, dedup_hash)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.projectID, runID, e.EventType, e.TaskID, e.Backend, e.TS,
+		b.projectID, runID, e.EventType, e.TaskID, e.Backend, canonicalTS(e.TS),
 		string(extraJSON), hash)
 	if err != nil {
 		return fmt.Errorf("append event for %q: %w", e.TaskID, err)
@@ -741,7 +757,7 @@ func (b *SQLite) MigratedAt(ctx context.Context) (string, error) {
 // RecordSpend.
 func (b *SQLite) MarkMigrated(ctx context.Context, ts string) error {
 	res, err := b.db.write.ExecContext(ctx,
-		`UPDATE projects SET migrated_at = ? WHERE project_id = ?`, ts, b.projectID)
+		`UPDATE projects SET migrated_at = ? WHERE project_id = ?`, canonicalTS(ts), b.projectID)
 	if err != nil {
 		return fmt.Errorf("mark %q migrated: %w", b.projectID, err)
 	}

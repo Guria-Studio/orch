@@ -61,7 +61,7 @@ func (s Steer) Accept(ctx context.Context, taskID string) (string, error) {
 	if err := s.Backend.AppendEvent(ctx, "", state.Event{
 		EventType: EventPRMerged,
 		TaskID:    taskID,
-		TS:        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		TS:        state.FormatTS(time.Now()),
 		Extra:     map[string]any{"pr_url": t.PRURL, "accepted_by": s.Source, "pid": os.Getpid()},
 	}); err != nil {
 		return "", fmt.Errorf("the PR is merged, but recording it failed: %w", err)
@@ -117,7 +117,7 @@ func (s Steer) acceptLocally(ctx context.Context, t state.TaskRuntime) (string, 
 	if err := s.Backend.AppendEvent(ctx, "", state.Event{
 		EventType: EventMergedLocally,
 		TaskID:    t.ID,
-		TS:        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		TS:        state.FormatTS(time.Now()),
 		Extra:     map[string]any{"base": base, "commit": res.Commit, "accepted_by": s.Source, "pid": os.Getpid()},
 	}); err != nil {
 		return "", fmt.Errorf("the work is on %s, but recording it failed: %w", base, err)

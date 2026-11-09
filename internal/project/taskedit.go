@@ -173,7 +173,7 @@ func (e TaskEditor) edit(ctx context.Context, kind, id string, fields []string, 
 		extra["fields"] = fields
 	}
 	if err := e.Backend.AppendEvent(ctx, "", state.Event{
-		EventType: kind, TaskID: id, TS: time.Now().UTC().Format(time.RFC3339), Extra: extra,
+		EventType: kind, TaskID: id, TS: state.FormatTS(time.Now()), Extra: extra,
 	}); err != nil {
 		return fmt.Errorf("tasks.json is saved, but recording the edit failed: %w", err)
 	}

@@ -98,7 +98,7 @@ func newTaskSalvageCmd(flags *projectFlags) *cobra.Command {
 				return steerErr(id, err)
 			}
 			if err := backend.AppendEvent(ctx, "", state.Event{
-				EventType: eventSalvageAccepted, TaskID: id, TS: time.Now().UTC().Format(time.RFC3339),
+				EventType: eventSalvageAccepted, TaskID: id, TS: state.FormatTS(time.Now()),
 				Extra: map[string]any{"branch": taskBranch, "from": accept, "commits": commitCount(found[i].commits), "base": base},
 			}); err != nil {
 				return fmt.Errorf("recording the salvage: %w", err)

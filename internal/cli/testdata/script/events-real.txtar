@@ -7,7 +7,8 @@ exec orch events F0.T1 --json --project-root billing-api --project-id billing-ap
 ! stderr .
 stdout '"event_type":"dispatch"'
 stdout '"event_type":"success"'
-stdout '"ts":"2026-09-01T09:00:00\+00:00"'
+# Python wrote +00:00; migration 015 (#550) stores the canonical Z.
+stdout '"ts":"2026-09-01T09:00:00Z"'
 stdout '"run_id":"fixture-run-0001"'
 stdout '"project_id":"billing-api"'
 
