@@ -156,7 +156,7 @@ dashboard:
     refresh_interval_s: 10
 
 tunnel:
-  enabled: false          # flip to share a link with your client (Cloudflare quick tunnel)
+  enabled: false          # flip to share a live link with your client (Cloudflare quick tunnel or Tailscale)
 
 github:
   test_command: pytest    # CI workflow orch generates for you
@@ -173,9 +173,13 @@ Optional overrides drop in as their own files at the project root: `budgets.yaml
 ## What your client sees
 
 With `tunnel: enabled: true` in `config.yaml`, `orch dashboard --tunnel` (or
-the **Start** button on the dashboard's Tunnel page) opens a Cloudflare quick
+the **Start** button on the dashboard's Share page) opens a Cloudflare quick
 tunnel — no Cloudflare account needed, just `cloudflared`, whose install steps
-the page shows — and gives you a client page link with a token in it. Send
+the page shows — and gives you a client page link with a token in it. The
+Share page can share through Tailscale instead (`tailscale serve` inside your
+tailnet, or Funnel for the public internet). Or skip the live link: `orch
+publish` writes the same page as a static site, to a folder or a `gh-pages`
+branch. Send
 it; the numbers update themselves, and stopping the tunnel revokes the link.
 The client gets:
 
@@ -199,12 +203,12 @@ line, a prompt, a diff, or a per-model cost breakdown.
 **Shipped** — worktrees, a pull request and CI watch per task, the budget window
 per provider, the client page and its PDF, the guided `orch init` wizard with
 five templates, the operator dashboard (Now, ⌘K, run receipts) in English,
-Spanish and Portuguese, `orch dashboard --demo`, and a Cloudflare quick tunnel
-that requires a token. The [releases](https://github.com/Guria-Studio/orch/releases)
+Spanish and Portuguese, `orch dashboard --demo`, `orch dashboard --portfolio`
+for agencies running several clients at once, and a live client link over a
+Cloudflare quick tunnel or Tailscale that requires a token. The [releases](https://github.com/Guria-Studio/orch/releases)
 are the living list.
 
-**Next** — a DAG visual editor, a VS Code extension, and `orch dashboard
---portfolio` for agencies running several clients at once.
+**Next** — a DAG visual editor and a VS Code extension.
 
 Every pull request here is reviewed in CI by an AI against a written checklist
 before a human merges it — see [`docs/CI-REVIEW.md`](docs/CI-REVIEW.md).
@@ -227,7 +231,7 @@ it. [Releases](https://github.com/Guria-Studio/orch/releases) ·
 - [English manual](docs/MANUAL.en.md)
 - [Manual en español](docs/MANUAL.es.md)
 - [Manual em português](docs/MANUAL.pt.md)
-- [CLI reference (flags, parity with Python)](docs/CLI.md)
+- [CLI reference (every command and flag)](docs/CLI.md)
 - [Sharing the client page](docs/DELIVERING-TO-STAKEHOLDERS.md)
 - [Release process / tag scheme](docs/RELEASING.md)
 - [Developer notes](docs/README-dev.md)

@@ -24,6 +24,19 @@ func TestRootHelpTellsTheStory(t *testing.T) {
 	}
 }
 
+// orch ships several skills for four agent CLIs, not "the Claude Code
+// skill" (#545).
+func TestInstallSkillsHelpCountsSkillsAndTargets(t *testing.T) {
+	root, _ := newRootCmd("test")
+	cmd, _, err := root.Find([]string{"install-skills"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(cmd.Short, "Claude Code skill") || !strings.Contains(cmd.Short, "cursor") {
+		t.Errorf("install-skills help: %q", cmd.Short)
+	}
+}
+
 func TestDashboardHelpSaysClient(t *testing.T) {
 	root, _ := newRootCmd("test")
 	cmd, _, err := root.Find([]string{"dashboard"})
@@ -38,6 +51,11 @@ func TestDashboardHelpSaysClient(t *testing.T) {
 		if strings.Contains(strings.ToLower(line), "stakeholder") && !strings.Contains(line, "`stakeholder`") {
 			t.Errorf("dashboard help says stakeholder outside the profile name: %q", line)
 		}
+	}
+	// The local operator edits tasks, config, budgets and lessons from the
+	// dashboard (#545): the help must not promise it never writes.
+	if strings.Contains(cmd.Long, "never writes") {
+		t.Errorf("dashboard help claims it never writes:\n%s", cmd.Long)
 	}
 	if u := cmd.Flags().Lookup("token").Usage; strings.Contains(u, "stakeholder") {
 		t.Errorf("--token help says stakeholder: %q", u)

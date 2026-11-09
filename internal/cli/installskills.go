@@ -35,7 +35,7 @@ func newInstallSkillsCmd(flags *projectFlags) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "install-skills",
-		Short: "Install orch's Claude Code skill(s) into one or more agent CLIs",
+		Short: "Install orch's skills (the orch manual, the planning pipeline, TDD, E2E) into claude, codex, opencode or cursor",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInstallSkills(cmd.OutOrStdout(), installSkillsArgs{
 				path: path, projectRoot: flags.root, force: force, dryRun: dryRun,
