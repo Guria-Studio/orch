@@ -15,6 +15,7 @@ import {
   Bug,
   ListIcon,
   Milestone,
+  PenLine,
   Radio,
   ScrollText,
   Send,
@@ -77,6 +78,8 @@ export const DESTINATIONS: NavDestination[] = [
       { to: "/work/graph", label: "nav.graph", route: "api_graph", operatorOnly: true },
       { to: "/work/phases", label: "nav.phases", route: "api_milestones" },
       { to: "/work/pace", label: "nav.pace", route: "api_sprint" },
+      // Last: the one tab that writes — claude plans, the operator applies (#548).
+      { to: "/work/plan", label: "nav.plan", route: "api_flow", operatorOnly: true },
     ],
   },
   {
@@ -126,6 +129,7 @@ export const TAB_ICONS: Record<string, typeof Activity> = {
   "/now/portfolio": LayoutGrid,
   "/now/releases": Sparkles,
   "/work/list": ListIcon,
+  "/work/plan": PenLine,
   "/work/kanban": KanbanSquare,
   "/work/graph": GitFork,
   "/work/phases": Milestone,

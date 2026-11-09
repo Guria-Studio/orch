@@ -65,6 +65,8 @@ type welcomeFlow struct {
 	applied  bool
 	url      string
 	dash     *exec.Cmd
+	run      *exec.Cmd // projectFlow's orch run, while it runs
+	runErr   string
 }
 
 type welcomeCLI struct {
@@ -93,6 +95,56 @@ type welcomeState struct {
 	Estimate  string           `json:"estimate,omitempty"`
 	Ready     int              `json:"ready"`
 	URL       string           `json:"dashboard_url,omitempty"`
+	// Running and RunError are the dashboard's Run (#548): an `orch run` on
+	// this project is going (this flow's, or any other holding the run lock),
+	// and how the last one this flow started ended, when it failed.
+	Running  bool   `json:"running"`
+	RunError string `json:"run_error,omitempty"`
+}
+
+// projectFlow is dashboard.ProjectFlow: the welcome page's plan and apply
+// steps on the project a dashboard already serves (#548).
+type projectFlow struct{ *welcomeFlow }
+
+// errPlanNeedsClaude is why planning is claude's alone, and the way without it.
+var errPlanNeedsClaude = errors.New("planning needs claude (Claude Code) on PATH: orch's planning pipeline " +
+	"(orch-plan → PRD → architecture → specs) runs as Claude Code skills, headless, with only orch's read-only " +
+	"commands allowed, and no other CLI runs it that way yet. Install it (https://docs.anthropic.com/en/docs/claude-code), " +
+	"or write specs/ by hand and apply them here; every installed CLI runs the tasks once they exist")
+
+// Run is the Now page's Run, after it showed /api/estimate: `orch run` on the
+// whole plan — the run that estimate priced — as a child of the dashboard,
+// its output on the dashboard's terminal. Refused while a run holds the
+// project's run lock, as `orch run` itself would refuse.
+func (f *projectFlow) Run() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	switch {
+	case f.planning:
+		return errors.New("claude is still planning; apply its plan first")
+	case f.run != nil:
+		return errors.New("orch run is already running")
+	}
+	if paths, _, err := loadProjectConfig(&projectFlags{root: f.root}); err == nil && project.RunLockHeld(paths.StateDir()) {
+		return errors.New("another orch run is already running on this project")
+	}
+	run := exec.Command(f.self, "run", "--project-root", f.root) // #nosec G204 G702 -- this orch, as it was invoked, with fixed arguments
+	run.Stdout, run.Stderr = os.Stdout, os.Stderr
+	if err := run.Start(); err != nil {
+		return fmt.Errorf("starting orch run: %w", err)
+	}
+	f.run, f.runErr = run, ""
+	f.log = append(f.log, "→ orch run")
+	go func() {
+		err := run.Wait()
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.run = nil
+		if err != nil {
+			f.runErr = fmt.Sprintf("orch run: %v", err)
+		}
+	}()
+	return nil
 }
 
 func (f *welcomeFlow) say(format string, a ...any) {
@@ -108,6 +160,7 @@ func (f *welcomeFlow) State() any {
 		Cwd: f.cwd, Root: f.root, Log: append([]string{}, f.log...), Planning: f.planning,
 		Steps: append([]providers.Step{}, f.steps...), PlanError: f.planErr, Applied: f.applied,
 		Estimate: f.estimate, Ready: f.ready, URL: f.url, Tasks: []welcomeTask{},
+		Running: f.run != nil, RunError: f.runErr,
 	}
 	for _, b := range startBackends {
 		s.CLIs = append(s.CLIs, welcomeCLI{Name: string(b), Installed: router.OnPath(b)})
@@ -118,6 +171,7 @@ func (f *welcomeFlow) State() any {
 	// The tasks the page shows are the specs' when they would change
 	// tasks.json (planned, not applied yet), else tasks.json's own.
 	if paths, cfg, err := loadProjectConfig(&projectFlags{root: f.root}); err == nil {
+		s.Running = s.Running || project.RunLockHeld(paths.StateDir())
 		if merged, diff, parse, err := previewSpecs(paths, cfg); err == nil && len(diff.NewTasks)+len(diff.Updated) > 0 {
 			s.Diff = atomize.RenderDiff(diff, parse)
 			s.Tasks = welcomeTasks(merged.Tasks)
@@ -222,7 +276,7 @@ func (f *welcomeFlow) Plan(idea string) error {
 	case planning:
 		return errors.New("claude is already planning")
 	case !router.OnPath(model.BackendClaude):
-		return errors.New("planning needs claude (Claude Code) on PATH: https://docs.anthropic.com/en/docs/claude-code")
+		return errPlanNeedsClaude
 	}
 	idea = strings.TrimSpace(idea)
 	if idea == "" {
@@ -359,7 +413,7 @@ func promoteToTodo(ctx context.Context, paths config.Paths, cfg config.Config, a
 	if err := backend.Bootstrap(ctx, all); err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
-	note := state.Note{Author: "operator", Body: "applied from the welcome page"}
+	note := state.Note{Author: "operator", Body: "applied from the dashboard"}
 	for _, t := range added {
 		if err := backend.Transition(ctx, t.ID, model.StatusTodo, note); err != nil && !errors.Is(err, state.ErrIllegalTransition) {
 			return fmt.Errorf("%s: %w", t.ID, err)

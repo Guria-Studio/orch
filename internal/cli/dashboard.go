@@ -191,6 +191,8 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				return fmt.Errorf("reading the embedded client portal: %w", err)
 			}
 
+			flowCtx, cancelFlow := context.WithCancel(ctx)
+			defer cancelFlow()
 			server, err := dashboard.New(dashCfg, dashboard.Options{
 				Paths:  paths,
 				Static: dashboard.SPAHandler(spa),
@@ -210,6 +212,9 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				Editor:    &project.TaskEditor{TasksJSON: paths.TasksJSON(), StateDir: paths.StateDir(), Routes: routerKeys(paths), Backend: backend, Source: "dashboard"},
 				Knowledge: &knowledge.Editor{Root: paths.Root, Events: backend, Source: "dashboard"},
 				Findings:  &dashboard.FindingsDesk{Store: backend, Filer: vcs.NewGitHubProvider()},
+				// Cancelled when the dashboard returns, which kills a plan in
+				// progress (claude runs in its own process group, out of Ctrl-C's reach).
+				Flow: projectFlowFor(flowCtx, paths.Root, withDemo),
 				// The Knowledge page's Curate now: `orch knowledge curate`
 				// itself, through the dashboard's own database.
 				Curate: func(ctx context.Context, out io.Writer, confirm func(taskID string) bool) error {
@@ -404,21 +409,20 @@ func firstNonLoopbackIP() string {
 // is up: a profile that must not publish itself, a missing cloudflared (with
 // the steps to install it), or a cloudflared config that blocks quick tunnels.
 func setUpTunnel(cfg config.Config, paths config.Paths, dashCfg dashboard.Config, start bool) (dashboard.TunnelOptions, error) {
-	if !cfg.Tunnel.Enabled {
-		if start {
-			return dashboard.TunnelOptions{}, errors.New(
-				"--tunnel needs `tunnel.enabled: true` in config.yaml")
-		}
-		return dashboard.TunnelOptions{}, nil
+	if !cfg.Tunnel.Enabled && start {
+		return dashboard.TunnelOptions{}, errors.New(
+			"--tunnel needs `tunnel.enabled: true` in config.yaml")
 	}
 
+	// The manager exists even with the tunnel off: the Share panel's "Turn
+	// sharing on" enables it in the running dashboard (#548).
 	mgr := tunnel.NewManager(paths.StateDir(), nil, tunnelLogLines)
 	// A lock left by a process that died without releasing it would refuse
 	// every start until somebody deleted a file by hand. Swept once at boot,
 	// which is the only moment it is safe to assume nothing of ours holds it.
 	mgr.SweepStaleLock(&tunnel.ManagerConfig{})
 	opts := dashboard.TunnelOptions{
-		Enabled: true, Manager: mgr, URLParseTimeoutS: cfg.Tunnel.URLParseTimeoutS,
+		Enabled: cfg.Tunnel.Enabled, Manager: mgr, URLParseTimeoutS: cfg.Tunnel.URLParseTimeoutS,
 	}
 	if !start {
 		return opts, nil
@@ -470,6 +474,15 @@ func startTunnelFromCLI(ctx context.Context, cmd *cobra.Command, server *dashboa
 		case <-ticker.C:
 		}
 	}
+}
+
+// projectFlowFor is the Plan page's and the Now page's Run steps (#548), none
+// under --demo: its project is synthetic and nothing is dispatched there.
+func projectFlowFor(ctx context.Context, root string, demo bool) dashboard.ProjectFlow {
+	if demo {
+		return nil
+	}
+	return &projectFlow{&welcomeFlow{ctx: ctx, self: os.Args[0], cwd: root, root: root}}
 }
 
 // defaultTunnelURLTimeoutS is how long --tunnel waits to print the links when

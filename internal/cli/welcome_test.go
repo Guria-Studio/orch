@@ -153,3 +153,64 @@ func TestWelcomeRunStartsTheDashboardAndTheFirstTasks(t *testing.T) {
 		}
 	}
 }
+
+// fakeLongRun is this orch with a `run` that records its arguments and takes
+// a moment, as a real run does.
+const fakeLongRun = `#!/bin/sh
+case "$1" in
+run) echo "$@" > "$RUN_ARGS"; sleep 1 ;;
+esac
+`
+
+// #548: the Now page's Run is `orch run` on the whole plan — what /api/estimate
+// priced — in the project the dashboard serves, and the state says it runs.
+func TestProjectFlowRunsThePlanTheEstimatePriced(t *testing.T) {
+	dir := t.TempDir()
+	self := filepath.Join(dir, "orch")
+	if err := os.WriteFile(self, []byte(fakeLongRun), 0o755); err != nil { // #nosec G306 -- a test executable
+		t.Fatal(err)
+	}
+	runArgs := filepath.Join(dir, "run-args")
+	t.Setenv("RUN_ARGS", runArgs)
+	root := t.TempDir()
+	f := &projectFlow{&welcomeFlow{ctx: context.Background(), self: self, root: root}}
+	if err := f.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if s := f.State().(welcomeState); !s.Running {
+		t.Error("the state does not say the run is going")
+	}
+	if err := f.Run(); err == nil {
+		t.Error("a second Run should be refused while the first is going")
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		b, err := os.ReadFile(runArgs) // #nosec G304 -- the test's own temp file
+		if err == nil && strings.TrimSpace(string(b)) == "run --project-root "+root {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("orch run was not started on the whole plan: %q", b)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	for f.State().(welcomeState).Running {
+		select {
+		case <-deadline:
+			t.Fatal("the state still says running after orch run exited")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+// #548: planning needs claude; without it the step says why, and that specs
+// written by hand apply without it.
+func TestPlanWithoutClaudeSaysWhy(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	f := &welcomeFlow{ctx: context.Background(), root: t.TempDir()}
+	err := f.Plan("x")
+	if err == nil || !strings.Contains(err.Error(), "skills") || !strings.Contains(err.Error(), "specs/") {
+		t.Fatalf("err = %v", err)
+	}
+}

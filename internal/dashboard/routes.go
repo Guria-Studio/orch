@@ -48,6 +48,7 @@ func (s *Server) routes() []route {
 	out = append(out, s.knowledgeRoutes()...)
 	out = append(out, s.reviewRoutes()...)
 	out = append(out, s.findingsRoutes()...)
+	out = append(out, s.flowRoutes()...)
 	return append(out, s.streamRoutes()...)
 }
 
