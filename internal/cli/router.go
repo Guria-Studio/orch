@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
 )
@@ -127,7 +128,7 @@ func newRouterValidateCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return withExitCode(2, fmt.Errorf("load %s: %w", paths.RouterYAML(), err))
 			}
-			tf, err := model.LoadTasksFile(paths.TasksJSON())
+			tf, err := project.Definitions(paths.TasksJSON())
 			if err != nil {
 				return withExitCode(2, fmt.Errorf("load %s: %w", paths.TasksJSON(), err))
 			}
@@ -218,7 +219,7 @@ func newRouterAddMissingCmd(flags *projectFlags) *cobra.Command {
 				}
 				return withExitCode(2, err)
 			}
-			tf, err := model.LoadTasksFile(paths.TasksJSON())
+			tf, err := project.Definitions(paths.TasksJSON())
 			if err != nil {
 				return withExitCode(2, fmt.Errorf("error: tasks file not found: %s: %w", paths.TasksJSON(), err))
 			}

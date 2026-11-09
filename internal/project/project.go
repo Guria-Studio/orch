@@ -9,7 +9,10 @@
 // hard way — `_load_tasks_hydrated` was extracted in sprint F-8 (issue #72)
 // after three endpoints shipped stale statuses from the file.
 //
-// Imports model, graph and state; imported by cli and dashboard. Nothing here
+// Open is the front ends' door to a project: its config, its database and
+// its tasks, hydrated (#550).
+//
+// Imports config, model, graph and state; imported by cli, dashboard and mcp. Nothing here
 // knows about HTTP or about a terminal.
 package project
 
@@ -17,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -91,17 +95,63 @@ func Hydrate(ctx context.Context, backend StatusReader, tasks []model.Task) ([]m
 	return out, nil
 }
 
-// Load reads tasks.json and hydrates it in one call.
-//
-// The two steps are also available separately because `orch atomize` and the
-// scaffolder want the file exactly as written, with no database anywhere near
-// it.
+// Load reads tasks.json and hydrates it in one call, for a caller that already
+// holds the backend (the dashboard's server, the MCP server). Everything else
+// opens the project with Open and asks it for Tasks.
 func Load(ctx context.Context, backend StatusReader, tasksJSON string) ([]model.Task, error) {
-	f, err := model.LoadTasksFile(tasksJSON)
+	f, err := Definitions(tasksJSON)
 	if err != nil {
 		return nil, err
 	}
 	return Hydrate(ctx, backend, f.Tasks)
+}
+
+// Definitions reads tasks.json exactly as written: the DAG's shape, with the
+// status and comments the file was last saved with — stale as soon as a run
+// moves a task. It is for callers that want definitions only and no database
+// near them (validate, doctor, the router, a rewrite of the file, Bootstrap's
+// seed). Anything that shows or decides on a status reads Tasks or Load
+// instead (review checklist rule 30).
+//
+// It is the front ends' only way to read the file (#550,
+// TestFrontEndsGoThroughProject).
+func Definitions(tasksJSON string) (model.TasksFile, error) {
+	return model.LoadTasksFile(tasksJSON)
+}
+
+// Project is an opened project: where it lives, its config, and its database.
+// Open is the door to it; Close releases the database.
+type Project struct {
+	Paths   config.Paths
+	Config  config.Config
+	Backend state.Backend
+	db      *state.DB
+}
+
+// Open loads the project's config.yaml and opens its database (creating and
+// migrating it if needed). paths come from config.ResolvePaths; checking that
+// they are a real project is the caller's (the CLI words that error itself).
+func Open(ctx context.Context, paths config.Paths) (*Project, error) {
+	res, err := config.Load(paths.ConfigYAML, paths.Root)
+	if err != nil {
+		return nil, fmt.Errorf("config load failed: %w", err)
+	}
+	dbPath := paths.SQLitePath(res.Config)
+	db, _, err := state.Open(ctx, dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", dbPath, err)
+	}
+	return &Project{Paths: paths, Config: res.Config, Backend: state.NewSQLite(db, paths.ID, paths.Root), db: db}, nil
+}
+
+// Tasks is tasks.json hydrated with the database's live status and comments.
+func (p *Project) Tasks(ctx context.Context) ([]model.Task, error) {
+	return Load(ctx, p.Backend, p.Paths.TasksJSON())
+}
+
+// Close closes the project's database.
+func (p *Project) Close() error {
+	return p.db.Close()
 }
 
 // FinishedAt maps each task id to when it first reached done, for the tasks

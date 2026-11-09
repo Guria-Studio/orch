@@ -112,7 +112,7 @@ internal/
   verify/            — local verify before the push (verify.enabled): repo checks + read-only review by another provider; the engine sees it as its Verifier interface
   state/             — SQLite backend, the single source of truth
   engine/            — dispatch loop: refill, reaper, scheduler, run loop, CI poller
-  project/           — what CLI and dashboard share: tasks.json hydrated with state
+  project/           — what CLI and dashboard share: tasks.json hydrated with state. `project.Open(ctx, paths)` is the door (config, state backend, `Tasks(ctx)` hydrated); `Definitions` is the file as written, no database. cli/dashboard/mcp never read tasks.json themselves (arch_test.go ratchet, #550)
   providers/         — per-CLI adapters: claude, codex, opencode, gemini, agy, muse (real captures in testdata/)
   prompt/            — dispatch prompt builder
   worktree/          — per-task git isolation
@@ -174,5 +174,5 @@ To keep context small, do not proactively call these MCP servers or skills on or
 - `go test ./...` fails locally in `internal/dashboard` and `internal/publish` until you run `make web` once: both packages embed a built bundle, and `TestSPARequiresABuild` / `TestBundleRequiresABuild` say so on purpose. CI runs `make web` before `make test`, so it never sees this.
 - `web/`'s builds do NOT emit `web/dist/`: vite's `build.outDir` points straight at `internal/dashboard/dist/build/` (operator SPA) and `internal/publish/dist/stakeholder/` (stakeholder bundle), because `//go:embed` cannot reach outside its own package directory. Each `dist/` tracks only its `README.md`; the build output is gitignored and rebuilt from scratch.
 - Project templates (`internal/templates/files/projects/*/tasks.json.tmpl`) must use camelCase keys (`estimateHours`, `specRef`) — snake_case silently defaults to `0`/`""` instead of erroring.
-- Timestamps in one `orch.db` come in both `+00:00` and `Z` spellings (Python wrote both); never filter them with a string comparison in SQL — parse in Go.
+- Timestamps in `orch.db` are one canonical UTC `Z` spelling since migration 015 (#584): every write goes through `state.FormatTS`, and `AllEvents` orders by time in Go. Python wrote both `+00:00` and `Z`; a value from an unmigrated or hand-written database can still carry either, so parse with `state.ParseTS` in Go rather than comparing strings in SQL.
 - A field that moved from `tasks.json` to the database needs its reader moved too: `.Status` / `.Comments` read off a `model.Task` without `project.Hydrate` upstream is the recurring bug (review checklist rule 30).

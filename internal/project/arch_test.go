@@ -79,25 +79,10 @@ var stateImportAllowed = map[string]string{
 	"mcp/tasks.go":                   "uses state.TaskFilter, state.TaskRuntime",
 }
 
-// tasksLoadAllowed: files that still call model.LoadTasksFile themselves
-// instead of going through project.
-var tasksLoadAllowed = map[string]string{
-	"cli/doctor.go":                    "loads tasks.json itself",
-	"cli/doctorsmoke.go":               "loads tasks.json itself",
-	"cli/notify.go":                    "loads tasks.json itself",
-	"cli/project.go":                   "loads tasks.json itself",
-	"cli/report.go":                    "loads tasks.json itself",
-	"cli/report_receipt.go":            "loads tasks.json itself",
-	"cli/router.go":                    "loads tasks.json itself",
-	"cli/routersuggest.go":             "loads tasks.json itself",
-	"cli/run.go":                       "loads tasks.json itself",
-	"cli/start.go":                     "loads tasks.json itself",
-	"cli/syncissues.go":                "loads tasks.json itself",
-	"cli/validate.go":                  "loads tasks.json itself",
-	"cli/welcome.go":                   "loads tasks.json itself",
-	"dashboard/routersuggestroutes.go": "loads tasks.json itself",
-	"dashboard/view.go":                "loads tasks.json itself",
-}
+// tasksLoadAllowed: files that still read tasks.json themselves — through
+// model.LoadTasksFile or an os.ReadFile of it — instead of going through
+// project (Open, Load, Definitions). Empty since #550: keep it that way.
+var tasksLoadAllowed = map[string]string{}
 
 func TestFrontEndsGoThroughProject(t *testing.T) {
 	importsState := map[string]bool{}
@@ -117,28 +102,20 @@ func TestFrontEndsGoThroughProject(t *testing.T) {
 				t.Fatal(err)
 			}
 			rel := filepath.ToSlash(filepath.Join(pkg, filepath.Base(path)))
-			modelName := ""
+			modelName, osName := "", ""
 			for _, imp := range f.Imports {
 				p, _ := strconv.Unquote(imp.Path.Value)
 				switch p {
 				case statePkg:
 					importsState[rel] = true
 				case modelPkg:
-					modelName = "model"
-					if imp.Name != nil {
-						modelName = imp.Name.Name
-					}
+					modelName = importName(imp, "model")
+				case "os":
+					osName = importName(imp, "os")
 				}
-			}
-			if modelName == "" {
-				continue
 			}
 			ast.Inspect(f, func(n ast.Node) bool {
-				sel, ok := n.(*ast.SelectorExpr)
-				if !ok || sel.Sel.Name != "LoadTasksFile" {
-					return true
-				}
-				if id, ok := sel.X.(*ast.Ident); ok && id.Name == modelName {
+				if isCall(n, modelName, "LoadTasksFile") || isCall(n, osName, "ReadFile") && mentionsTasksJSON(n) {
 					loadsTasks[rel] = true
 				}
 				return true
@@ -146,7 +123,47 @@ func TestFrontEndsGoThroughProject(t *testing.T) {
 		}
 	}
 	ratchet(t, "imports internal/state", "stateImportAllowed", importsState, stateImportAllowed)
-	ratchet(t, "calls model.LoadTasksFile", "tasksLoadAllowed", loadsTasks, tasksLoadAllowed)
+	ratchet(t, "reads tasks.json itself", "tasksLoadAllowed", loadsTasks, tasksLoadAllowed)
+}
+
+func importName(imp *ast.ImportSpec, def string) string {
+	if imp.Name != nil {
+		return imp.Name.Name
+	}
+	return def
+}
+
+// isCall: n is a call to pkg.fn, pkg being the file's name for the import
+// ("" when the file does not import it).
+func isCall(n ast.Node, pkg, fn string) bool {
+	call, ok := n.(*ast.CallExpr)
+	if !ok || pkg == "" {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != fn {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg
+}
+
+// mentionsTasksJSON: the call's arguments name tasks.json, as paths.TasksJSON()
+// or a "tasks.json" literal.
+func mentionsTasksJSON(n ast.Node) bool {
+	found := false
+	for _, arg := range n.(*ast.CallExpr).Args {
+		ast.Inspect(arg, func(m ast.Node) bool {
+			switch v := m.(type) {
+			case *ast.SelectorExpr:
+				found = found || v.Sel.Name == "TasksJSON"
+			case *ast.BasicLit:
+				found = found || strings.Contains(v.Value, "tasks.json")
+			}
+			return !found
+		})
+	}
+	return found
 }
 
 func ratchet(t *testing.T, what, list string, got map[string]bool, allowed map[string]string) {

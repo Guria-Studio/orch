@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/estimate"
-	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 )
 
@@ -61,7 +61,7 @@ func newRouterSuggestCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return withExitCode(2, fmt.Errorf("load %s: %w", paths.RouterYAML(), err))
 			}
-			tf, err := model.LoadTasksFile(paths.TasksJSON())
+			tf, err := project.Definitions(paths.TasksJSON())
 			if err != nil {
 				return withExitCode(2, fmt.Errorf("load %s: %w", paths.TasksJSON(), err))
 			}

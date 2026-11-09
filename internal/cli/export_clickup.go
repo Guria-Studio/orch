@@ -54,18 +54,15 @@ func newExportClickUpCmd(flags *projectFlags) *cobra.Command {
 				return withExitCode(2, err)
 			}
 
-			paths, cfg, err := loadProjectConfig(flags)
+			p, err := openProject(ctx, flags)
 			if err != nil {
 				return err
 			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
+			paths, cfg, backend := p.Paths, p.Config, p.Backend
 
 			// Hydrated (rule 30): the status is exactly what gets mirrored.
-			tasks, err := project.Load(ctx, backend, paths.TasksJSON())
+			tasks, err := p.Tasks(ctx)
 			if err != nil {
 				return err
 			}

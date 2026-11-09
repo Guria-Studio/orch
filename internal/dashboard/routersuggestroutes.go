@@ -6,6 +6,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/estimate"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 )
 
@@ -47,7 +48,7 @@ func (s *Server) handleRouterSuggest(w http.ResponseWriter, r *http.Request) {
 	}
 	// The route keys come from tasks.json; status is not read.
 	var tasks []model.Task
-	if tf, tErr := model.LoadTasksFile(s.paths.TasksJSON()); tErr == nil {
+	if tf, tErr := project.Definitions(s.paths.TasksJSON()); tErr == nil {
 		tasks = tf.Tasks
 	}
 	rtr, rErr := router.Load(s.paths.RouterYAML())

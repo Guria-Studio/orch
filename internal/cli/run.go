@@ -23,6 +23,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/notify"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/receipt"
 	"github.com/Guria-Studio/orch/internal/sandbox"
@@ -338,7 +339,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 			// Before reading: a file broken mid-edit is reported once, and read
 			// again when it next changes.
 			tasksMod = mod
-			tf, err := model.LoadTasksFile(paths.TasksJSON())
+			tf, err := project.Definitions(paths.TasksJSON())
 			if err != nil {
 				return nil, false, err
 			}
@@ -392,7 +393,7 @@ func runProject(ctx context.Context, in io.Reader, out io.Writer, flags *project
 // has one: a run stopped before its loop ended wrote no sprint_done.
 func reportRunSummary(ctx context.Context, w io.Writer, backend state.Backend, paths config.Paths, cfg config.Config,
 	notifier *notify.Notifier, runID string) {
-	tf, _ := model.LoadTasksFile(paths.TasksJSON())
+	tf, _ := project.Definitions(paths.TasksJSON())
 	rec, err := receipt.Load(ctx, backend, runID, receipt.Titles(tf.Tasks), pricing.Load(paths.Root))
 	if err != nil || rec == nil || !rec.Finished {
 		return

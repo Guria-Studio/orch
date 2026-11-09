@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/export"
-	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newExportCmd wires `orch export`, the parent for verbs that send work out.
@@ -52,21 +51,18 @@ func newExportMulticaCmd(flags *projectFlags) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			paths, cfg, err := loadProjectConfig(flags)
-			if err != nil {
-				return err
-			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := openProject(ctx, flags)
 			if err != nil {
 				return err
 			}
 			// Discarded like every other read-only command's: the process is
 			// exiting and nothing was written through this handle.
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
+			paths, cfg := p.Paths, p.Config
 
 			// Hydrated (rule 30): whether a task is done decides whether it
 			// is exported, and tasks.json's status froze at F-12.
-			tasks, err := project.Load(ctx, backend, paths.TasksJSON())
+			tasks, err := p.Tasks(ctx)
 			if err != nil {
 				return err
 			}

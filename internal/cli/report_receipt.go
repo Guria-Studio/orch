@@ -9,6 +9,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/receipt"
 	"github.com/Guria-Studio/orch/internal/state"
 )
@@ -95,7 +96,7 @@ func loadRunReceipt(cmd *cobra.Command, flags *projectFlags, runID string) (*rec
 	}
 	// Titles and the project name dress the receipt; the run is in the
 	// database. A tasks.json that does not load is said, not fatal.
-	tf, err = model.LoadTasksFile(paths.TasksJSON())
+	tf, err = project.Definitions(paths.TasksJSON())
 	if err != nil {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "[warn] reading tasks.json: %v — tasks are named by id\n", err)
 	}

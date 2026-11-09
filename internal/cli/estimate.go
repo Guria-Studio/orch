@@ -12,7 +12,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/estimate"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
-	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -35,20 +34,16 @@ func newEstimateCmd(flags *projectFlags) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			paths, cfg, err := loadProjectConfig(flags)
+			p, err := openProject(ctx, flags)
 			if err != nil {
 				return withExitCode(1, err)
 			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			defer func() { _ = p.Close() }()
+			tasks, err := p.Tasks(ctx)
 			if err != nil {
 				return withExitCode(1, err)
 			}
-			defer func() { _ = closeDB() }()
-			tasks, err := project.Load(ctx, backend, paths.TasksJSON())
-			if err != nil {
-				return withExitCode(1, err)
-			}
-			e, err := projectEstimate(ctx, backend, paths, cfg, tasks, only, maxTasks)
+			e, err := projectEstimate(ctx, p.Backend, p.Paths, p.Config, tasks, only, maxTasks)
 			if err != nil {
 				return withExitCode(1, err)
 			}

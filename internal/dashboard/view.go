@@ -67,7 +67,7 @@ func (s *Server) loadView(ctx context.Context) (projectView, error) {
 		return v, errNoBackend
 	}
 
-	f, err := model.LoadTasksFile(s.paths.TasksJSON())
+	f, err := project.Definitions(s.paths.TasksJSON())
 	if err != nil {
 		return v, fmt.Errorf("reading %s: %w", s.paths.TasksJSON(), err)
 	}

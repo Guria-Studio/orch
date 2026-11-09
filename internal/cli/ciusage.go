@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
@@ -70,16 +69,12 @@ type ciUsage struct {
 // remainingTasks counts the tasks not done and not in the backlog, with their
 // status from the database; -1 when there is no orch project to read.
 func remainingTasks(cmd *cobra.Command, flags *projectFlags) int {
-	paths, cfg, err := loadProjectConfig(flags)
+	p, err := openProject(cmd.Context(), flags)
 	if err != nil {
 		return -1
 	}
-	backend, closeDB, err := openBackend(cmd.Context(), paths, cfg)
-	if err != nil {
-		return -1
-	}
-	defer func() { _ = closeDB() }()
-	tasks, err := project.Load(cmd.Context(), backend, paths.TasksJSON())
+	defer func() { _ = p.Close() }()
+	tasks, err := p.Tasks(cmd.Context())
 	if err != nil {
 		return -1
 	}

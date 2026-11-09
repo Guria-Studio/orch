@@ -5,7 +5,6 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/explain"
-	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -36,29 +35,25 @@ func newExplainCmd(flags *projectFlags) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 
-			paths, cfg, err := loadProjectConfig(flags)
-			if err != nil {
-				return err
-			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := openProject(ctx, flags)
 			if err != nil {
 				return err
 			}
 			// Discarded like every other command's: the process is exiting and
 			// the handle is read-only here.
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
 
-			tasks, err := project.Load(ctx, backend, paths.TasksJSON())
+			tasks, err := p.Tasks(ctx)
 			if err != nil {
 				return err
 			}
 
 			overview, err := explain.Gather(ctx, explain.Options{
-				ProjectID:   paths.ID,
-				ProjectRoot: paths.Root,
-				SpecRoot:    cfg.SpecRoot,
+				ProjectID:   p.Paths.ID,
+				ProjectRoot: p.Paths.Root,
+				SpecRoot:    p.Config.SpecRoot,
 				Tasks:       tasks,
-				Budget:      budgetReporter(paths, cfg, backend),
+				Budget:      budgetReporter(p.Paths, p.Config, p.Backend),
 			})
 			if err != nil {
 				return err

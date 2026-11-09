@@ -55,6 +55,17 @@ func loadProjectConfig(f *projectFlags) (config.Paths, config.Config, error) {
 	return paths, res.Config, nil
 }
 
+// openProject resolves and validates the project, then opens it through
+// project.Open: config, database, and tasks hydrated with the live status.
+// The caller closes it.
+func openProject(ctx context.Context, f *projectFlags) (*project.Project, error) {
+	paths, err := resolveAndValidate(f)
+	if err != nil {
+		return nil, err
+	}
+	return project.Open(ctx, paths)
+}
+
 // openBackend opens the project's database and returns a Backend, plus a
 // close func the caller must run once done. Kept separate from
 // loadProjectConfig so `orch logs` — which never touches the database — can
@@ -74,7 +85,7 @@ func openBackend(ctx context.Context, paths config.Paths, cfg config.Config) (st
 // our problem" (orchestrator/observability.py). Runtime status lives in the
 // database, not here, since F-12.
 func loadDAG(paths config.Paths) []model.Task {
-	tf, err := model.LoadTasksFile(paths.TasksJSON())
+	tf, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return nil
 	}

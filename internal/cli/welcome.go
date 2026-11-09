@@ -175,7 +175,7 @@ func (f *welcomeFlow) State() any {
 		if merged, diff, parse, err := previewSpecs(paths, cfg); err == nil && len(diff.NewTasks)+len(diff.Updated) > 0 {
 			s.Diff = atomize.RenderDiff(diff, parse)
 			s.Tasks = welcomeTasks(merged.Tasks)
-		} else if tf, err := model.LoadTasksFile(paths.TasksJSON()); err == nil && !scaffold.OnlySampleTask(tf.Tasks) {
+		} else if tf, err := project.Definitions(paths.TasksJSON()); err == nil && !scaffold.OnlySampleTask(tf.Tasks) {
 			s.Tasks = welcomeTasks(tf.Tasks)
 		}
 	}
@@ -377,7 +377,7 @@ func (f *welcomeFlow) Apply(ctx context.Context) error {
 		}
 		f.say("✓ tasks.json: %s added, %d updated", plural(len(diff.NewTasks), "task"), len(diff.Updated))
 	}
-	tf, err := model.LoadTasksFile(paths.TasksJSON())
+	tf, err := project.Definitions(paths.TasksJSON())
 	if err != nil {
 		return err
 	}
