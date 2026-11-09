@@ -21,53 +21,55 @@ import (
 // visible, not shouting. The default matters more than the entries: a new
 // event type added by a newer orch still renders.
 var severityByEvent = map[string]string{
-	"success":           "ok",
-	"fail":              "err",
-	"timeout":           "err",
-	"retry":             "warn",
-	"block":             "block",
-	"dispatch":          "info",
-	"escalate":          "warn",
-	"resume_adopt":      "info",
-	"resume_revert":     "warn",
-	"id_spoof_detected": "err",
-	"flock_contention":  "err",
-	"reconciled":        "info",
-	"verify_failed":     "warn",
-	"verify_passed":     "info",
-	"e2e_report":        "info",
-	"agent_stalled":     "warn",
-	"agent_resumed":     "info",
-	"agent_waiting":     "info",
-	"agent_looping":     "warn",
-	"files_overlap":     "warn",
-	"branch_conflict":   "warn",
+	"success":            "ok",
+	"fail":               "err",
+	"timeout":            "err",
+	"retry":              "warn",
+	"block":              "block",
+	"dispatch":           "info",
+	"escalate":           "warn",
+	"resume_adopt":       "info",
+	"resume_revert":      "warn",
+	"id_spoof_detected":  "err",
+	"flock_contention":   "err",
+	"reconciled":         "info",
+	"verify_failed":      "warn",
+	"verify_passed":      "info",
+	"e2e_report":         "info",
+	"agent_stalled":      "warn",
+	"agent_resumed":      "info",
+	"agent_waiting":      "info",
+	"agent_looping":      "warn",
+	"files_overlap":      "warn",
+	"branch_conflict":    "warn",
+	"semantic_collision": "warn",
 }
 
 // iconByEvent is the short marker at the head of the human line. ASCII on
 // purpose: this string goes to a terminal as often as to a browser.
 var iconByEvent = map[string]string{
-	"success":           "OK",
-	"fail":              "FAIL",
-	"timeout":           "TIMEOUT",
-	"retry":             "RETRY",
-	"block":             "BLOCK",
-	"dispatch":          "->",
-	"escalate":          "ESC",
-	"resume_adopt":      "ADOPT",
-	"resume_revert":     "REVERT",
-	"id_spoof_detected": "SPOOF",
-	"flock_contention":  "LOCK",
-	"reconciled":        "RECON",
-	"verify_failed":     "VERIFY",
-	"verify_passed":     "VERIFY",
-	"e2e_report":        "E2E",
-	"agent_stalled":     "WATCH",
-	"agent_resumed":     "WATCH",
-	"agent_waiting":     "WATCH",
-	"agent_looping":     "WATCH",
-	"files_overlap":     "RADAR",
-	"branch_conflict":   "RADAR",
+	"success":            "OK",
+	"fail":               "FAIL",
+	"timeout":            "TIMEOUT",
+	"retry":              "RETRY",
+	"block":              "BLOCK",
+	"dispatch":           "->",
+	"escalate":           "ESC",
+	"resume_adopt":       "ADOPT",
+	"resume_revert":      "REVERT",
+	"id_spoof_detected":  "SPOOF",
+	"flock_contention":   "LOCK",
+	"reconciled":         "RECON",
+	"verify_failed":      "VERIFY",
+	"verify_passed":      "VERIFY",
+	"e2e_report":         "E2E",
+	"agent_stalled":      "WATCH",
+	"agent_resumed":      "WATCH",
+	"agent_waiting":      "WATCH",
+	"agent_looping":      "WATCH",
+	"files_overlap":      "RADAR",
+	"branch_conflict":    "RADAR",
+	"semantic_collision": "COLLIDE",
 }
 
 // eventPayload is one formatted event.
@@ -163,6 +165,11 @@ func eventTail(etype string, extra map[string]any) string {
 	case "files_overlap", "branch_conflict":
 		if w := extraString(extra, "with"); w != "" {
 			return " (with " + w + ")"
+		}
+		return ""
+	case "semantic_collision":
+		if r := extraString(extra, "reason"); r != "" {
+			return " (" + r + ")"
 		}
 		return ""
 	case "success":

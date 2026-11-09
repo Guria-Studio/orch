@@ -68,7 +68,7 @@ func (s *Scheduler) supervise(pid int, task model.Task, d Dispatch, sp *Spawned,
 	}
 	s.reportedDoneOutcome(d, &out)
 	s.silentExitOutcome(d, &out)
-	s.verifyOutcome(task, d, attempt, &out)
+	s.verifyOutcome(task, d, attempt, &out, false)
 	s.guardOutcome(d, &out)
 
 	s.done <- completion{pid: pid, outcome: out}
@@ -147,6 +147,9 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 		// Not one of ours. Python skips a stray pid the same way.
 		return nil
 	}
+	if s.reverifyBeforeLand(ctx, c, entry) {
+		return nil
+	}
 	delete(s.inFlight, c.pid)
 
 	out := c.outcome
@@ -197,7 +200,7 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	}
 	entry.VerifyNote = verifyNote(out.Verify)
 	if !stopped && !agentBlocked && out.Result.Success {
-		s.recordVerify(ctx, entry, out.Verify, sendBack)
+		s.recordVerify(ctx, entry, out.Verify, out.VerifyBaseMoved, sendBack)
 	}
 	tidyOut := out
 	if agentBlocked || verifyFailed || guardBlocked {
@@ -380,6 +383,7 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 		s.logger().Error("recording the pr_created event failed", "task", task.ID, "err", err)
 	}
 	s.radarPRs(ctx, entry)
+	s.semanticPRs(ctx, entry)
 	return ""
 }
 
@@ -400,6 +404,10 @@ type localLand struct {
 func (s *Scheduler) landLocally(ctx context.Context, entry *InFlight) localLand {
 	id, base := entry.Task.ID, s.baseBranch()
 	s.commitWork(ctx, id, entry.Dispatch.Cwd)
+	if reason := s.landCollisions(ctx, entry); reason != "" {
+		s.removeWorktree(ctx, id)
+		return localLand{block: reason}
+	}
 	title, body := s.prText(ctx, entry.Task)
 	res, err := s.Worktree.LandLocally(ctx, id, base, title+"\n\n"+body)
 	if err != nil {

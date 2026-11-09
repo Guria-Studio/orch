@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/Guria-Studio/orch/internal/collide"
 )
 
 // Landing is what LandLocally did: the squash commit now at the tip of the
@@ -107,6 +109,67 @@ func (m *Manager) LandLocally(taskID, baseBranch, message string) (Landing, erro
 func (m *Manager) BranchConflicts(taskID, otherID string) ([]string, error) {
 	_, conflicts, err := m.mergeTree(taskID, m.BranchName(otherID), m.BranchName(taskID))
 	return conflicts, err
+}
+
+// Collisions runs the semantic collision rules (#522) over what taskID's
+// branch adds, against the base — origin's, freshly fetched, with push
+// enabled — and against what each of others' branches adds. Another task
+// whose branch is not in this repository is skipped.
+func (m *Manager) Collisions(ctx context.Context, taskID, baseBranch string, rules []collide.Rule, others []string) ([]collide.Collision, error) {
+	ref := "refs/heads/" + baseBranch
+	if m.pushEnabled {
+		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
+			return nil, fmt.Errorf("worktree: fetching %s: %w", baseBranch, err)
+		}
+		ref = "refs/remotes/origin/" + baseBranch
+	}
+	var branches []collide.Branch
+	for _, id := range others {
+		b := m.BranchName(id)
+		if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+b); err == nil {
+			branches = append(branches, collide.Branch{Label: id, Ref: "refs/heads/" + b})
+		}
+	}
+	return collide.Check(ctx, m.root, rules, collide.Branch{Label: baseBranch, Ref: ref}, "refs/heads/"+m.BranchName(taskID), branches)
+}
+
+// BehindBase reports whether baseBranch has commits taskID's branch lacks —
+// the base moved since the branch was cut or last caught up — and, if so, the
+// files on which merging it in would conflict, without touching any checkout
+// (#522). While it is not behind, landing the branch lands exactly the tree
+// that was verified. With push enabled the base is origin's, freshly fetched.
+func (m *Manager) BehindBase(taskID, baseBranch string) (behind bool, conflicts []string, err error) {
+	ref := "refs/heads/" + baseBranch
+	if m.pushEnabled {
+		if _, err := m.run(taskID, "git", "fetch", "origin", baseBranch); err != nil {
+			return false, nil, fmt.Errorf("worktree: fetching %s: %w", baseBranch, err)
+		}
+		ref = "refs/remotes/origin/" + baseBranch
+	}
+	base, err := m.run(taskID, "git", "rev-parse", "--verify", ref+"^{commit}")
+	if err != nil {
+		return false, nil, fmt.Errorf("worktree: reading the base %s: %w", baseBranch, err)
+	}
+	base = strings.TrimSpace(base)
+	branch := m.BranchName(taskID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
+	// #nosec G204 -- fixed git subcommand; base is a hash, branch orch/<task id>.
+	cmd := exec.CommandContext(ctx, "git", "merge-base", "--is-ancestor", base, branch)
+	cmd.Dir = m.root
+	var exit *exec.ExitError
+	switch runErr := cmd.Run(); {
+	case runErr == nil:
+		return false, nil, nil
+	case !errors.As(runErr, &exit) || exit.ExitCode() != 1:
+		return false, nil, fmt.Errorf("worktree: is %s in %s: %w", baseBranch, branch, runErr)
+	}
+	_, conflicts, err = m.mergeTree(taskID, base, branch)
+	if err != nil {
+		return true, nil, err
+	}
+	return true, conflicts, nil
 }
 
 // mergeTree merges branch into base without a checkout, returning the merged

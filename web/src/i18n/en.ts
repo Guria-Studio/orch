@@ -307,6 +307,7 @@ export const en = {
   "task.ev.verify_passed": "passed",
   "task.ev.files_overlap": "flags files this task shares with a running one",
   "task.ev.branch_conflict": "flags that this PR conflicts with another open one",
+  "task.ev.semantic_collision": "flags a semantic collision (e.g. a migration number already taken)",
   "task.ev.agent_stalled": "says the agent looks stuck: its log went silent",
   "task.ev.agent_looping": "says the agent looks stuck: it repeats the same call",
   "task.ev.model_mismatch": "ran something other than its route asked for",

@@ -52,6 +52,21 @@ func TestVerifyReportsTheFailingCommandWithItsOutput(t *testing.T) {
 	}
 }
 
+// A command that fails without printing anything still tells the agent so,
+// rather than handing it an empty code block to puzzle over (#598).
+func TestVerifySaysWhenTheFailingCommandPrintedNothing(t *testing.T) {
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"exit 4"}, TimeoutS: 10}}
+	got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure
+	if strings.Contains(got, "```\n\n```") {
+		t.Errorf("Verify = %q, an empty code block", got)
+	}
+	for _, want := range []string{"`exit 4`", "exit status 4", "printed nothing"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Verify = %q, want it to contain %q", got, want)
+		}
+	}
+}
+
 // A configured command that is not found (sh's exit 127, a typo such as
 // `tue`) is the operator's config, not the agent's work: it is skipped, and
 // so is the E2E an app that cannot be started was for (#433).
@@ -179,6 +194,20 @@ func TestVerifyReturnsEveryFindingStructured(t *testing.T) {
 	}
 	if res.Reviewer != "claude" || res.ReviewModel != "opus" {
 		t.Errorf("reviewer = %q/%q, want claude/opus", res.Reviewer, res.ReviewModel)
+	}
+}
+
+// TestVerifySkipsTheReviewWhenAskedTo (#522): the re-verify after the base
+// moved runs the checks again but not the LLM review — that read the agent's
+// diff already, and the base's commits are not the agent's work.
+func TestVerifySkipsTheReviewWhenAskedTo(t *testing.T) {
+	dir := branchWithWork(t)
+	fakeReviewer(t, "0", readFixture(t, "claude", "2.1.272", "review-verdict.json"))
+	v := verify.Verifier{Cfg: config.Verify{Commands: []string{"true"}, Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", Once: engine.OneShot{}}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir, SkipReview: true})
+	if res.Failure != "" || res.Reviewer != "" || len(res.Commands) != 1 {
+		t.Errorf("Verify = %+v, want the checks run and no review", res)
 	}
 }
 

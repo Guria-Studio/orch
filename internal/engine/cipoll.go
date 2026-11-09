@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -139,6 +140,14 @@ type CIPoller struct {
 	// ponytail: in memory, so a restarted run grants retry.conflict again;
 	// a tasks_runtime column if that ever matters.
 	conflictAttempts map[string]int
+	// semanticWarned is the tasks whose warn-mode semantic collisions were
+	// recorded at the merge already, so a merge retry does not repeat them.
+	semanticWarned map[string]bool
+	// reverifying is the local verify running on each conflicting PR whose
+	// base merged cleanly, before the push (#522).
+	reverifying map[string]*pendingReverify
+	// spawn runs a re-verify; nil starts a goroutine. Tests run it inline.
+	spawn func(func())
 }
 
 // Poll asks CI about every task waiting on it, if enough time has passed.
@@ -320,6 +329,7 @@ func (p *CIPoller) maxRetries() int {
 // the task anyway, as before, with the PR open and the reason recorded.
 func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.TaskRuntime) bool {
 	if !p.AutoMerge {
+		p.semanticBlocked(ctx, s, row) // records only: a person merges
 		p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
 		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
 		return true
@@ -328,6 +338,10 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 	m := p.mergeRetryFor(row.ID)
 	if now.Before(m.nextAt) {
 		return false
+	}
+	if p.semanticBlocked(ctx, s, row) {
+		delete(p.merges, row.ID)
+		return true
 	}
 	err := p.Provider.MergePR(row.PRURL, p.Squash, p.MergeWhenPassing)
 	if err == nil {
@@ -584,7 +598,7 @@ func (p *CIPoller) redispatch(ctx context.Context, s *Scheduler, row state.TaskR
 			"task", row.ID, "err", err)
 		return false
 	}
-	if err := writeCIFeedback(wtPath, ciLogs); err != nil {
+	if err := writeCIFeedback(wtPath, row.PRURL, ciLogs); err != nil {
 		// The retry is still worth doing with a stale or missing file —
 		// Python logs and carries on here too.
 		s.logger().Warn("CI re-dispatch: writing the feedback file failed",
@@ -648,6 +662,9 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 	if s.inFlightIDs()[row.ID] || s.retryQueueIDs()[row.ID] || s.Draining() {
 		return false
 	}
+	if _, running := p.reverifying[row.ID]; running {
+		return p.collectReverify(ctx, s, row)
+	}
 	if p.Worktree == nil {
 		p.block(ctx, s, row, conflictBlockReason, false)
 		return true
@@ -666,26 +683,25 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 	}
 
 	if len(merge.Conflicts) == 0 {
-		defer p.dropWorktree(ctx, s, row.ID)
 		if p.ConflictRetries <= 0 {
 			// retry.conflict off: nothing is pushed, as before #438.
+			p.dropWorktree(ctx, s, row.ID)
 			p.block(ctx, s, row, conflictBlockReason, false)
 			return true
 		}
 		if !merge.Moved {
 			// The branch already holds the base: the forge has not yet
 			// recomputed the PR since the last push. Ask again next poll.
+			p.dropWorktree(ctx, s, row.ID)
 			return false
 		}
-		if err := p.Worktree.Push(ctx, row.ID); err != nil {
-			s.logger().Warn("conflict retry: pushing the merged base failed; will retry next poll", "task", row.ID, "err", err)
-			return false
+		if s.verifies() {
+			// What git merged cleanly can still break the task's checks
+			// (#522): verify the combination before publishing it.
+			p.startReverify(ctx, s, row, wtPath, base)
+			return p.collectReverify(ctx, s, row)
 		}
-		s.logger().Info("the PR conflicted with its base; merged it cleanly and pushed", "task", row.ID, "pr", row.PRURL)
-		p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{
-			"pr_url": row.PRURL, "agent": false, "reason": "merged " + base + " cleanly and pushed",
-		})
-		return true
+		return p.pushMerged(ctx, s, row, base, false)
 	}
 
 	files := strings.Join(merge.Conflicts, ", ")
@@ -717,6 +733,104 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 	return true
 }
 
+// pendingReverify is a local verify running on a PR's branch with its base
+// merged in, and where (#522).
+type pendingReverify struct {
+	result chan VerifyResult
+	wtPath string
+	base   string
+}
+
+// startReverify runs the local verify on the worktree the base was just
+// merged into, off the run loop: checks and E2E take minutes. The LLM review
+// is not repeated (#522 decision 5): it read the agent's diff already.
+func (p *CIPoller) startReverify(ctx context.Context, s *Scheduler, row state.TaskRuntime, wtPath, base string) {
+	task, _ := s.Queue.Task(row.ID)
+	attempt := p.conflictAttempts[row.ID] + 1
+	req := VerifyRequest{
+		TaskID: row.ID, Attempt: attempt, Writer: model.Backend(row.LastBackend), Dir: wtPath,
+		Env:   withEnv(childEnv(os.Environ(), s.Opts.Cwd, s.Opts.ProjectID), s.taskEnv(row.ID)),
+		Title: task.Title, Description: task.Description, SpecRef: task.SpecRef,
+		ArtifactsDir: E2EArtifactsDir(s.Opts.StateDir, s.Opts.RunID, row.ID, attempt),
+		SkipReview:   true,
+	}
+	pending := &pendingReverify{result: make(chan VerifyResult, 1), wtPath: wtPath, base: base}
+	if p.reverifying == nil {
+		p.reverifying = map[string]*pendingReverify{}
+	}
+	p.reverifying[row.ID] = pending
+	s.logger().Info("the PR's base merged cleanly; verifying the merge before the push", "task", row.ID, "pr", row.PRURL)
+	verifier, vctx := s.Verifier, context.WithoutCancel(ctx)
+	run := p.spawn
+	if run == nil {
+		run = func(f func()) { go f() }
+	}
+	run(func() { pending.result <- verifier.Verify(vctx, req) })
+}
+
+// collectReverify acts on a finished re-verify: a pass is pushed, a failure
+// goes to the agent like a conflict, within retry.conflict, and blocks the
+// task past it. One still running is asked again next poll.
+func (p *CIPoller) collectReverify(ctx context.Context, s *Scheduler, row state.TaskRuntime) bool {
+	pending := p.reverifying[row.ID]
+	var res VerifyResult
+	select {
+	case res = <-pending.result:
+		delete(p.reverifying, row.ID)
+	default:
+		return false
+	}
+	if res.Failure == "" {
+		return p.pushMerged(ctx, s, row, pending.base, true)
+	}
+	first, _, _ := strings.Cut(strings.TrimSpace(res.Failure), "\n")
+	if p.conflictAttempts[row.ID] >= p.ConflictRetries {
+		p.dropWorktree(ctx, s, row.ID)
+		p.block(ctx, s, row, truncateReason("merging "+pending.base+" into the PR broke the local verify: "+first), false)
+		return true
+	}
+	task, ok := s.Queue.Task(row.ID)
+	route, routed := s.Routes[task.Model]
+	if !ok || !routed {
+		s.logger().Warn("re-verify: the task or its route is not in this run", "task", row.ID)
+		p.dropWorktree(ctx, s, row.ID)
+		return false
+	}
+	if err := writeFeedback(pending.wtPath, "Local verify failed after merging "+pending.base+" — please fix", res.Failure); err != nil {
+		s.logger().Error("writing the verify feedback failed; the retry runs without it", "task", row.ID, "err", err)
+	}
+	if !requeueOnPR(ctx, s, row, task, route, pending.wtPath, "merging the base broke the local verify; sent to the agent") {
+		p.dropWorktree(ctx, s, row.ID)
+		return false
+	}
+	if p.conflictAttempts == nil {
+		p.conflictAttempts = map[string]int{}
+	}
+	p.conflictAttempts[row.ID]++
+	p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{
+		"pr_url": row.PRURL, "agent": true, "attempt": p.conflictAttempts[row.ID], "verify_failed": true,
+		"reason": truncateReason("merged " + pending.base + " cleanly but the local verify failed (" + first + "); sent to the agent"),
+	})
+	return true
+}
+
+// pushMerged publishes the base merged cleanly into the PR's branch, and
+// polls CI again; verified says the local verify passed on it first.
+func (p *CIPoller) pushMerged(ctx context.Context, s *Scheduler, row state.TaskRuntime, base string, verified bool) bool {
+	defer p.dropWorktree(ctx, s, row.ID)
+	if err := p.Worktree.Push(ctx, row.ID); err != nil {
+		s.logger().Warn("conflict retry: pushing the merged base failed; will retry next poll", "task", row.ID, "err", err)
+		return false
+	}
+	reason := "merged " + base + " cleanly and pushed"
+	if verified {
+		reason = "merged " + base + " cleanly, verified and pushed"
+	}
+	s.logger().Info("the PR conflicted with its base; merged it cleanly and pushed", "task", row.ID, "pr", row.PRURL, "verified", verified)
+	p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{"pr_url": row.PRURL, "agent": false, "reason": reason})
+	return true
+}
+
 // dropWorktree removes a worktree the poller rebuilt and no agent will use.
 func (p *CIPoller) dropWorktree(ctx context.Context, s *Scheduler, taskID string) {
 	if err := p.Worktree.Remove(ctx, taskID); err != nil {
@@ -728,8 +842,17 @@ func (p *CIPoller) dropWorktree(ctx context.Context, s *Scheduler, taskID string
 // its own worktree (project.CIFeedbackFile, which Accept also leaves out).
 const CIFeedbackFile = project.CIFeedbackFile
 
-func writeCIFeedback(worktreePath, ciLogs string) error {
-	return writeFeedback(worktreePath, "CI Failure — Please fix", "```\n"+ciLogs+"\n```\n")
+// writeCIFeedback names the PR, then shows what the provider found. A
+// provider that found nothing to show gets a sentence saying so, never an
+// empty code block the agent can only guess at (#598).
+func writeCIFeedback(worktreePath, prURL, ciLogs string) error {
+	body := "PR: " + prURL + "\n\n"
+	if strings.TrimSpace(ciLogs) == "" {
+		body += "orch saw this PR's CI fail but could not read which check failed. " + vcs.NoCILogNote + "\n"
+	} else {
+		body += "```\n" + ciLogs + "\n```\n"
+	}
+	return writeFeedback(worktreePath, "CI Failure — Please fix", body)
 }
 
 // transitionThroughTodo moves a task to `to`, hopping through `todo` first

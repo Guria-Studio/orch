@@ -109,8 +109,9 @@ var goOnlyEventTypes = map[string]bool{
 	"agent_waiting": true,
 	// The conflict radar's: overlapping files before dispatch, conflicting
 	// task PRs after (#482).
-	"files_overlap":   true,
-	"branch_conflict": true,
+	"files_overlap":      true,
+	"branch_conflict":    true,
+	"semantic_collision": true,
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,

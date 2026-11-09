@@ -126,3 +126,63 @@ func TestBranchConflicts(t *testing.T) {
 		t.Error("BranchConflicts against a branch that does not exist: want an error")
 	}
 }
+
+// TestBehindBase (#522): whether the base moved past a task's branch since it
+// was cut or last caught up, and whether bringing it in would conflict. The
+// verified tree is the landed one only while the answer is "not behind".
+func TestBehindBase(t *testing.T) {
+	root := newTestRepo(t)
+	m := NewManager(root, false)
+	work := func(id, file, body string) {
+		t.Helper()
+		wt, err := m.Create(id, "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(wt, file), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.CommitPending(id, id+" work"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commitOnMain := func(file, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, file), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runGit(t, root, "add", "-A")
+		runGit(t, root, "commit", "-q", "-m", "on main: "+file)
+	}
+	check := func(id string, wantBehind bool, wantConflicts []string) {
+		t.Helper()
+		behind, conflicts, err := m.BehindBase(id, "main")
+		if err != nil {
+			t.Fatalf("BehindBase(%s): %v", id, err)
+		}
+		if behind != wantBehind || strings.Join(conflicts, ",") != strings.Join(wantConflicts, ",") {
+			t.Errorf("BehindBase(%s) = %v, %v; want %v, %v", id, behind, conflicts, wantBehind, wantConflicts)
+		}
+	}
+
+	work("T1", "a.txt", "one\n")
+	check("T1", false, nil)
+
+	commitOnMain("other.txt", "x\n")
+	check("T1", true, nil)
+
+	if res, err := m.MergeBase("T1", "main"); err != nil || len(res.Conflicts) != 0 || !res.Moved {
+		t.Fatalf("MergeBase(T1) = %+v, %v; want a clean merge", res, err)
+	}
+	check("T1", false, nil)
+
+	work("T2", "README.md", "from T2\n")
+	commitOnMain("README.md", "from main\n")
+	check("T2", true, []string{"README.md"})
+	if _, err := os.Stat(filepath.Join(m.WorktreePath("T2"), ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if out := runGit(t, m.WorktreePath("T2"), "status", "--porcelain"); strings.TrimSpace(out) != "" {
+		t.Errorf("BehindBase touched T2's worktree: %q", out)
+	}
+}

@@ -410,6 +410,9 @@ func TestCIFailureRedispatchesWithTheLogs(t *testing.T) {
 	if !strings.Contains(string(body), "CI Failure") {
 		t.Errorf("the feedback file lost its heading:\n%s", body)
 	}
+	if !strings.Contains(string(body), "https://github.com/o/r/pull/1") {
+		t.Errorf("the feedback file does not name the PR:\n%s", body)
+	}
 
 	if got := f.ci.incremented(); !equalStrings(got, []string{"C-1"}) {
 		t.Errorf("incremented = %v, want C-1", got)
@@ -501,6 +504,34 @@ func TestCINotStartedBlocksWithoutARetry(t *testing.T) {
 		}
 	}
 	t.Errorf("no ci_blocked event naming the reason; events = %v", f.backend.eventTypes("C-1"))
+}
+
+// TestCIFailureWithNoLogsSaysSo: a provider that hands back no log at all
+// must not leave the agent an empty code block (#598): the file names the PR
+// and says that nothing was captured, and what to do about it.
+func TestCIFailureWithNoLogsSaysSo(t *testing.T) {
+	f := newCIFixture(t, pendingRow("C-1", "https://github.com/o/r/pull/1", 0))
+	f.vcs.status["https://github.com/o/r/pull/1"] = vcs.CIFailure
+	f.vcs.logs = "  \n"
+
+	if _, err := f.poller.Poll(context.Background(), f.s); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if len(f.s.RetryQueue()) != 1 {
+		t.Fatal("want the retry queued")
+	}
+	body, err := os.ReadFile(filepath.Join(f.wt.dir, "C-1", CIFeedbackFile)) // #nosec G304 -- a temp dir this test made
+	if err != nil {
+		t.Fatalf("reading the feedback file: %v", err)
+	}
+	if strings.Contains(string(body), "```") {
+		t.Errorf("the feedback file holds a code block with nothing to show:\n%s", body)
+	}
+	for _, want := range []string{"CI Failure", "https://github.com/o/r/pull/1", vcs.NoCILogNote} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the feedback file lacks %q:\n%s", want, body)
+		}
+	}
 }
 
 // TestCIFailureWithUnreadableLogsStillRetries: a placeholder beats skipping
