@@ -352,7 +352,9 @@ attached, then `blocked`. A red that GitHub caused by never starting the
 job (Actions billing, the spending limit) is blocked at once with that
 reason, no retry spent. A PR that conflicts with its base is brought up to
 date in the task's kept work: orch merges the base in and pushes when it
-merges cleanly, with no agent; otherwise the agent gets the conflicting files
+merges cleanly, with no agent — after re-running the local verify's checks on
+the merge when `verify.enabled` is on, so a clean merge that breaks a test
+goes back to the agent instead of to the PR; otherwise the agent gets the conflicting files
 and the base commits behind them to resolve, `retry.conflict` times (1 in a
 new project; a config without the key keeps the old block) before the task is
 blocked naming the files. A run that opens a PR exits before polling that
@@ -425,7 +427,10 @@ is only dispatched once its dependencies are on the base, so it starts from
 their work. Nothing is pushed and `gh` is never run. A task whose work
 conflicts with the base gets the base merged into its worktree and goes back to
 its agent to resolve the conflict, `retry.conflict` times, then blocks naming
-the files (its work stays on `orch/<task-id>`). If the base branch is checked
+the files (its work stays on `orch/<task-id>`). With the local verify on, a
+base that moved while the task worked is merged into its worktree before the
+verify (and again, re-running the checks, if it moves during it), so what lands
+is what was verified. If the base branch is checked
 out with uncommitted changes to the same files, the merge is refused and the
 task blocks: commit or stash, then `orch task-status <id> todo`.
 
@@ -942,6 +947,7 @@ none of them is required to start. [`CLI.md`](CLI.md) has every flag.
 |---|---|
 | `orch sync issues` | Turns the client's labelled GitHub issues into tasks (`gh-<number>`), adding only what is new on each run. |
 | `orch atomize --from-issues label:orch --model M` | Turns each open GitHub issue the search matches into a spec (`specs/issue-<n>-<slug>.md`) and its tasks; preview by default, `--apply` writes. A re-run imports nothing twice. The task's PR closes the issue on merge (`Closes`); with `vcs.provider: local` orch closes it with a comment once its last task lands. |
+| `orch atomize --from spec-kit --model M` (or `--from openspec`) | Turns each spec-kit feature's `specs/<feature>/tasks.md` (or each OpenSpec change's `openspec/changes/<change>/tasks.md`) into a spec, `specs/speckit-<feature>.md` / `specs/openspec-<change>.md`, and its tasks: phases, `[P]` runs and `depends on` become dependencies, checked tasks are left out. Preview by default, `--apply` writes; a re-run with an unchanged `tasks.md` changes nothing ([`SPEC-IMPORT.md`](SPEC-IMPORT.md)). |
 | `orch export clickup` | Mirrors the plan into a ClickUp Folder for a client who tracks work there; re-run it and statuses follow. |
 | `orch export multica` | Creates the plan as Multica issues, one parent per phase. |
 | `orch ci setup` / `ci review` / `ci usage` | Writes the CI pipeline the repository calls for, runs an AI review of each PR inside CI, and adds up the billed Actions minutes. |
