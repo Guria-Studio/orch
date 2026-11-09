@@ -24,6 +24,8 @@
 // the check that the two loaders still agree.
 package config
 
+import "github.com/Guria-Studio/orch/internal/collide"
+
 // Config is the whole of `config.yaml` after defaults are applied.
 //
 // Every field carries a yaml tag even when it matches the field name, so the
@@ -64,6 +66,12 @@ type Config struct {
 	// other finishes, off does neither — and whether a new PR is checked for
 	// conflicts with the other open ones (any value but off).
 	Radar string `yaml:"radar"`
+	// SemanticChecks are the semantic collision rules (#522): identities a
+	// branch adds that the base or another open branch already claims —
+	// two migrations numbered 005 — which git merges without a conflict.
+	// Checked when a PR opens (always a warning), before an auto-merge and
+	// before a local land (each rule's mode). Empty by default.
+	SemanticChecks []collide.Rule `yaml:"semantic_checks"`
 }
 
 // Guard checks a task's diff after its agent exits cleanly and before orch
