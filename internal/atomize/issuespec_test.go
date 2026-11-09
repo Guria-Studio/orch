@@ -155,3 +155,16 @@ func TestMergeCarriesSourceIssue(t *testing.T) {
 		t.Errorf("updated = %+v, want F0.12.T2 changed in sourceIssue only", diff.Updated)
 	}
 }
+
+// A source_issue that is not a string is dropped with a warning, never
+// written onto a task.
+func TestSourceIssueFrontmatterMustBeAString(t *testing.T) {
+	text := "---\ntype: spec\nsource_issue: [1, 2]\n---\n\n# F0 — x\n\n### F0.1.T1 — t\n\n- **Model**: m\n"
+	res := ParseText(text, "/s/x.md", "/s", "")
+	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "source_issue debe ser string") {
+		t.Errorf("warnings = %v, want the source_issue one", res.Warnings)
+	}
+	if len(res.Tasks) != 1 || res.Tasks[0].SourceIssue != "" {
+		t.Errorf("tasks = %+v, want one with no sourceIssue", res.Tasks)
+	}
+}

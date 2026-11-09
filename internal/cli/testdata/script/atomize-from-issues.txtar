@@ -22,6 +22,12 @@ stderr 'claude-sonnet-4-6'
 ! exec orch atomize --from-issues label:orch --file x.md --model claude-sonnet-4-6 --project-root ip --project-id ip
 stderr '--from-issues and --file'
 
+# ---- --model and --all-authors mean nothing without --from-issues ----------
+! exec orch atomize --model claude-sonnet-4-6 --project-root ip --project-id ip
+stderr '--model and --all-authors only apply with --from-issues'
+! exec orch atomize --all-authors --project-root ip --project-id ip
+stderr '--model and --all-authors only apply with --from-issues'
+
 # ---- dry run by default: the plan and the diff, nothing written -------------
 exec orch atomize --from-issues label:orch --model claude-sonnet-4-6 --project-root ip --project-id ip
 stdout 'Would write 2 spec\(s\) from issues matching "label:orch":'
