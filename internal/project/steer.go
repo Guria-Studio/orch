@@ -130,7 +130,7 @@ func (s Steer) Stop(ctx context.Context, taskID string, hold bool, note string) 
 		if err := s.Backend.AppendEvent(ctx, "", state.Event{
 			EventType: EventOperatorStop,
 			TaskID:    taskID,
-			TS:        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+			TS:        state.FormatTS(time.Now()),
 			// pid is the requester's, so two requests in one second both
 			// land.
 			Extra: map[string]any{"hold": hold, "requested_by": s.Source, "pid": os.Getpid()},

@@ -289,7 +289,7 @@ func truncateReason(msg string) string {
 // and state.SQLite all do: second precision, always UTC, `Z` suffix. Shared
 // with `scripts/task-*.sh`, so it is a contract rather than a preference.
 func utcSecond(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05Z")
+	return state.FormatTS(t)
 }
 
 // compile-time reminder that the engine only ever names backends through

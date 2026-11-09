@@ -612,7 +612,8 @@ func TestEventsReadsAPythonEventLog(t *testing.T) {
 	})
 
 	// Every event, oldest first — the four rows the fixture's README
-	// enumerates, in the order Python wrote them.
+	// enumerates, in the order Python wrote them. Python spelled them
+	// `+00:00`; migration 015 (#550) rewrote them to the canonical `Z`.
 	var all eventsOut
 	call(t, cs, "orch_events", map[string]any{"limit": 0}, &all)
 	type row struct{ typ, task, ts string }
@@ -621,10 +622,10 @@ func TestEventsReadsAPythonEventLog(t *testing.T) {
 		got = append(got, row{e.EventType, e.TaskID, e.TS})
 	}
 	want := []row{
-		{"dispatch", "F0.T1", "2026-09-01T09:00:00+00:00"},
-		{"success", "F0.T1", "2026-09-01T10:30:00+00:00"},
-		{"dispatch", "F1.T1", "2026-09-02T11:15:00+00:00"},
-		{"block", "F1.T2", "2026-09-03T14:45:00+00:00"},
+		{"dispatch", "F0.T1", "2026-09-01T09:00:00Z"},
+		{"success", "F0.T1", "2026-09-01T10:30:00Z"},
+		{"dispatch", "F1.T1", "2026-09-02T11:15:00Z"},
+		{"block", "F1.T2", "2026-09-03T14:45:00Z"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v\nwant     %+v", got, want)

@@ -61,7 +61,7 @@ func (b *SQLite) RecordAttempt(ctx context.Context, a Attempt) error {
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.projectID, a.RunID, a.TaskID, a.Attempt, a.Backend, a.Model, a.Tier, a.Result,
 		a.FailureClass, a.Reason, a.TokensIn, a.TokensOut, a.CostUSD, a.DurationS,
-		a.Verify, a.Review, a.Reviewer, string(fj), a.FinishedAt)
+		a.Verify, a.Review, a.Reviewer, string(fj), canonicalTS(a.FinishedAt))
 	if err != nil {
 		return fmt.Errorf("record attempt of %q: %w", a.TaskID, err)
 	}
