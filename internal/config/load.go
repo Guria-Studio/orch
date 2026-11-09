@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Guria-Studio/orch/internal/collide"
 )
 
 // ErrFileBackend is returned when a config still asks for the JSONL file
@@ -254,6 +256,15 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("radar: %q is not one of warn, serialize, off", cfg.Radar)
 	}
+	for i := range cfg.SemanticChecks {
+		r := &cfg.SemanticChecks[i]
+		if r.Mode = strings.ToLower(strings.TrimSpace(r.Mode)); r.Mode == "" {
+			r.Mode = collide.ModeWarn
+		}
+		if err := r.Validate(); err != nil {
+			return fmt.Errorf("semantic_checks[%d]: %w", i, err)
+		}
+	}
 
 	if cfg.SpecRoot == "" {
 		cfg.SpecRoot = "specs"
@@ -388,7 +399,7 @@ var knownKeys = map[string]bool{
 	"gate.critical_paths": true,
 	"watch.enabled":       true, "watch.stall_after_s": true,
 	"watch.liveness": true, "watch.data_dirs": true, "watch.min_cpu_pct": true,
-	"radar": true,
+	"radar": true, "semantic_checks": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

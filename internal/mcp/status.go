@@ -164,7 +164,7 @@ func (s *server) move(ctx context.Context, taskID, rawStatus, note, author strin
 	if author == "" {
 		author = defaultAuthor
 	}
-	err = project.SetStatus(ctx, s.opts.Backend, taskID, status, project.Note{Author: author, Body: note})
+	err = project.SetStatus(ctx, s.opts.Project.Backend, taskID, status, project.Note{Author: author, Body: note})
 	switch {
 	case err == nil:
 		return nil, setStatusOut{
@@ -237,12 +237,12 @@ func refuse(out setStatusOut) (*mcpsdk.CallToolResult, setStatusOut, error) {
 // happens on the miss path only: the common case is one read of an existing
 // row, and Bootstrap never overwrites a runtime status anyway.
 func (s *server) currentStatus(ctx context.Context, taskID string) (model.Status, error) {
-	st, err := project.TaskStatus(ctx, s.opts.Backend, taskID)
+	st, err := project.TaskStatus(ctx, s.opts.Project.Backend, taskID)
 	if !errors.Is(err, project.ErrTaskNotFound) {
 		return st, err
 	}
 
-	tasks, loadErr := project.Load(ctx, s.opts.Backend, s.opts.TasksJSON)
+	tasks, loadErr := project.Load(ctx, s.opts.Project.Backend, s.opts.TasksJSON)
 	if loadErr != nil {
 		if s.opts.TasksJSON == "" {
 			// No manifest to consult, so nothing was learned: the task is
@@ -259,8 +259,8 @@ func (s *server) currentStatus(ctx context.Context, taskID string) (model.Status
 	if _, ok := findTask(tasks, taskID); !ok {
 		return "", err
 	}
-	if bootErr := s.opts.Backend.Bootstrap(ctx, tasks); bootErr != nil {
+	if bootErr := s.opts.Project.Backend.Bootstrap(ctx, tasks); bootErr != nil {
 		return "", fmt.Errorf("seed the project from %s: %w", s.opts.TasksJSON, bootErr)
 	}
-	return project.TaskStatus(ctx, s.opts.Backend, taskID)
+	return project.TaskStatus(ctx, s.opts.Project.Backend, taskID)
 }

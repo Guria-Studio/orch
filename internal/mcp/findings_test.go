@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
@@ -100,7 +102,7 @@ func TestReportFinding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root, backend := newTestProject(t)
 			fake := &fakeFindings{existing: tt.existing}
-			opts := Options{Backend: backend, ProjectRoot: root, Version: "v-test"}
+			opts := Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectRoot: root, Version: "v-test"}
 			if !tt.disabled {
 				opts.Findings = fake
 			}
@@ -138,7 +140,7 @@ func TestReportFinding(t *testing.T) {
 func TestReportFindingQueuesARedactedReport(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{}
-	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Version: "v0.12.0", Findings: fake})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectRoot: root, Version: "v0.12.0", Findings: fake})
 	home, _ := os.UserHomeDir()
 
 	call(t, cs, "orch_report_finding", map[string]any{
@@ -178,7 +180,7 @@ func TestReportFindingQueuesARedactedReport(t *testing.T) {
 func TestReportFindingDoesNotQueueTwice(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{} // search finds nothing, as it did then
-	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Version: "v0.24.0", Findings: fake})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectRoot: root, Version: "v0.24.0", Findings: fake})
 	reports := []map[string]any{
 		{"type": "bug", "title": `Local verify ran a nonexistent command "tue"`,
 			"summary": "A task was rejected because local verify ran `\"tue\"` (sh: tue: not found, exit 127)."},
@@ -209,7 +211,7 @@ func TestReportFindingAnswersAnOpenDuplicate(t *testing.T) {
 	root, backend := newTestProject(t)
 	fake := &fakeFindings{existing: []vcs.Issue{{Number: 433, Title: `Local verify ran a nonexistent command "tue"`, State: "OPEN",
 		URL: "https://github.com/Guria-Studio/orch/issues/433"}}}
-	cs := connect(t, Options{Backend: backend, ProjectRoot: root, Findings: fake})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectRoot: root, Findings: fake})
 	var out reportFindingOut
 	call(t, cs, "orch_report_finding", map[string]any{"type": "bug",
 		"title": `Local verify ran a bogus command ("tue") and rejected a task`, "summary": "exit 127"}, &out)

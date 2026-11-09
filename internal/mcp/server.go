@@ -7,7 +7,7 @@
 // words. That works, but it is a one-way pipe — the agent can *write* a status
 // and nothing else. It cannot ask what its dependencies decided, what its own
 // spec ref is, how much budget is left, or what the run has been doing. Every
-// one of those answers already exists behind `state.Backend`; the scripts just
+// one of those answers already exists in the project's database; the scripts just
 // have no way to ask for them.
 //
 // These tools are that surface. The three the scripts already cover
@@ -26,7 +26,7 @@
 //
 // # One backend, no second source of truth
 //
-// The server shares `state.Backend` with the engine rather than opening its
+// The server shares the project's database with the engine rather than opening its
 // own view of the project. It has to: an agent asking "am I still
 // in-progress?" while the run loop is reaping dispatches must get the run
 // loop's answer. Every write goes through `Backend.Transition`, which is the
@@ -49,7 +49,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Guria-Studio/orch/internal/explain"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // ServerName is the name the server reports in `initialize`. It is what an
@@ -68,14 +68,15 @@ type BudgetReporter = explain.BudgetReporter
 
 // Options is everything the tools read.
 //
-// Backend is the only required field. The rest degrade: no TasksJSON means
+// Project is the only required field. The rest degrade: no TasksJSON means
 // the DAG-shaped fields (title, description, files, spec ref, dependencies)
 // come back empty rather than the server refusing to start, which is the
 // right call for a tool whose whole job is answering questions about a
 // project that may be mid-scaffold.
 type Options struct {
-	// Backend is the project's state, shared with the engine.
-	Backend state.Backend
+	// Project is the opened project; every read and write goes through it
+	// (internal/project, #587), to the database shared with the engine.
+	Project *project.Project
 	// TasksJSON is the path to tasks.json, read for the DAG's shape.
 	TasksJSON string
 	// ProjectID and ProjectRoot identify the project in `orch_context`.
@@ -107,8 +108,8 @@ type server struct {
 
 // NewServer builds the MCP server with every tool registered.
 func NewServer(opts Options) (*mcpsdk.Server, error) {
-	if opts.Backend == nil {
-		return nil, fmt.Errorf("mcp: Options.Backend is required")
+	if opts.Project == nil || opts.Project.Backend == nil {
+		return nil, fmt.Errorf("mcp: Options.Project is required")
 	}
 	s := &server{opts: opts}
 

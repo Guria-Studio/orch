@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/pricing"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // The Usage page's views of the spend rows: a period, a per-backend day
@@ -46,7 +46,7 @@ type backendDayStats struct {
 
 // metricsByBackendDay is metricsByDay split by backend, newest day first, at
 // most `days` distinct days; backends sorted by name within a day.
-func metricsByBackendDay(spends []state.Spend, table pricing.Table, days int) []backendDayStats {
+func metricsByBackendDay(spends []project.Spend, table pricing.Table, days int) []backendDayStats {
 	type key struct{ date, backend string }
 	buckets := map[key]*backendDayStats{}
 	for _, s := range spends {
@@ -102,8 +102,8 @@ type recentSpend struct {
 
 // recentSpends is the newest n rows. Timestamps are parsed, never compared
 // as strings: one orch.db holds both +00:00 and Z spellings.
-func recentSpends(spends []state.Spend, table pricing.Table, n int) []recentSpend {
-	sorted := append([]state.Spend(nil), spends...)
+func recentSpends(spends []project.Spend, table pricing.Table, n int) []recentSpend {
+	sorted := append([]project.Spend(nil), spends...)
 	sort.SliceStable(sorted, func(i, j int) bool { return parseTS(sorted[i].TS).After(parseTS(sorted[j].TS)) })
 	if len(sorted) > n {
 		sorted = sorted[:n]
@@ -146,7 +146,7 @@ type modelSource struct {
 // modelSources names each model's provider (the backend of its rows; a model
 // two providers ran lists the first seen) and whether any of its rows was
 // unpriced by the CLI, sorted by model.
-func modelSources(spends []state.Spend) []modelSource {
+func modelSources(spends []project.Spend) []modelSource {
 	byModel := map[string]*modelSource{}
 	for _, s := range spends {
 		m := modelOrUnknown(s.Model)

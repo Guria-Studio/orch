@@ -313,13 +313,25 @@ vcs:
 Needs `gh` (or `glab`) authenticated. Without it, PRs are skipped with a
 warning; worktrees still work.
 
+A red PR goes back to its agent with `.orch-ci-feedback.md` in the worktree:
+the PR URL, then (GitHub) the head commit, each failing check with its verdict
+and URL, and the end of the failed jobs' `gh run view --log-failed` output.
+When no log can be captured (a cancelled, timed-out or infra-failed job, or
+`gh` refusing) the file says so and asks the agent to note in its status if the
+failure is unrelated to its change, rather than showing an empty block (#598).
+
 `provider: local` (#455) is for a repository with no remote or no `gh`: with
 `dispatch.worktree_mode` on, each task that finishes and passes the local
 verify is squash-merged into `dispatch.base_branch` in the repository itself,
 one at a time, and its branch deleted — nothing is pushed, no PR is opened,
 `auto_pr`, `host` and the `ci_*` keys are ignored. A task whose work conflicts
 with the base goes back to its agent with the base merged in
-(`retry.conflict`), then blocks naming the files. `orch init` writes `local`
+(`retry.conflict`), then blocks naming the files. With `verify.enabled`, a base
+that moved cleanly while the task worked is merged into its worktree before
+the verify, and one that moves during the verify (another task landed) is
+merged in and the checks run again, without the LLM review, before anything
+lands (#522): what lands is what was verified. A failure there is a normal
+verify send-back, its `verify_failed` event marked `base_moved`. `orch init` writes `local`
 when the repository has no remote or `gh` is not on PATH; a project without
 the key keeps `github`. Moving to GitHub later: push the base branch, set
 `provider: github`. See the manual's "Starting without GitHub".
@@ -397,7 +409,13 @@ retry:
 On a conflict orch rebuilds the task's worktree from its PR branch (its work
 kept) and merges the freshly fetched `dispatch.base_branch` into it — a merge,
 not a rebase, since orch squash-merges PRs. A clean merge is pushed and CI is
-polled again, with no agent and without spending an attempt. A merge that stops
+polled again, with no agent and without spending an attempt. With
+`verify.enabled` the clean merge is verified first (#522): the checks and the
+E2E run on the merged worktree, off the run loop and without the LLM review,
+which already read the agent's diff; a pass is pushed, a failure goes to the
+agent with the failure in its feedback file — an attempt of this budget, the
+`ci_conflict_retry` event carrying `verify_failed: true` — and past
+`max_attempts` blocks the task naming the failing check. A merge that stops
 on conflicts dispatches the agent in that worktree, its prompt listing the
 conflicting files and the base commits that touched them; local verify runs as
 usual before the push to the same PR. Past `max_attempts` the task is blocked
@@ -1189,6 +1207,49 @@ before the merge does.
   Nothing is held or blocked by this.
 
 `off` turns both off. The events show in `orch events` and on the task page.
+
+### `semantic_checks` — new (#522)
+
+```yaml
+semantic_checks:                # default: none
+  - name: migrations
+    kind: sequence              # the only kind so far
+    paths: ["db/migrations/*.sql"]   # globs, repo-relative; ** crosses directories
+    key: '^(\d+)_'             # regex over the file NAME; group 1 is the identity
+    contiguous: true            # new numbers must follow the base's highest, no gap
+    mode: block                 # block | warn (default) | off
+```
+
+Collisions git cannot see: two tasks that each add migration `005` under
+different file names merge cleanly and break the database after both are in.
+A `sequence` rule reads an identity from the name of every file a branch
+**adds** under `paths` (relative to where it left the base; files the base
+already has at the same path are not the branch's), and reports one that the
+base already uses, one another open branch also adds, and — with
+`contiguous` — a number that does not follow the base's highest. Files that
+were already there never fire a rule.
+
+Where it runs:
+
+- **When a PR opens**: against the base and the branches of the other task PRs
+  waiting on CI. Always a warning: a `semantic_collision` event naming the
+  rule, the key, both files and the other task's PR (`at: pr_open`).
+- **Before orch auto-merges a green PR** (`github.auto_merge`): against the base
+  as it is now. A `block` rule keeps the PR open and sends the task back to
+  its agent — the base merged into its kept work, the collisions in its
+  feedback file — as a `retry.conflict` attempt; past `max_attempts` the task
+  is blocked naming the collision. `warn` records the event (once) and merges.
+  Without auto-merge every collision is a warning: a person merges.
+- **Before a local land** (`vcs.provider: local`): against the base; `block`
+  blocks the task with the reason, its work kept on `orch/<task-id>` (renumber,
+  then `orch task-status <id> todo`).
+
+A rule that is unusable (no name, an unknown kind or mode, no `paths`, a `key`
+that does not compile or has no group) is refused when the config loads. A
+check that cannot run (a branch missing, git failing) is logged and finds
+nothing. `unique_key` (endpoints, config keys), `command`, and the default
+`migrations` rule `orch init` will write for known stacks are later phases of
+#522.
 
 ### Misc
 

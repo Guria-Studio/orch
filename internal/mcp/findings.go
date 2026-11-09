@@ -12,7 +12,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Guria-Studio/orch/internal/findings"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/vcs"
 )
 
@@ -87,16 +87,16 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 	// What this project filed or queued comes first: GitHub's search
 	// indexes a new issue only after a while, and #433-#435 were reported
 	// within a minute.
-	filed, err := s.opts.Backend.FiledFindings(ctx)
+	filed, err := s.opts.Project.Backend.FiledFindings(ctx)
 	if err != nil {
 		return nil, reportFindingOut{}, fmt.Errorf("reading the findings this project filed: %w", err)
 	}
-	queue, err := s.opts.Backend.QueuedFindings(ctx)
+	queue, err := s.opts.Project.Backend.QueuedFindings(ctx)
 	if err != nil {
 		return nil, reportFindingOut{}, fmt.Errorf("reading the findings queue: %w", err)
 	}
 	for _, q := range queue {
-		if q.Status == state.FindingQueued && likelyDuplicate(in.Title, in.Title+"\n"+in.Summary, q.Title, q.Title+"\n"+q.Summary) {
+		if q.Status == project.FindingQueued && likelyDuplicate(in.Title, in.Title+"\n"+in.Summary, q.Title, q.Title+"\n"+q.Summary) {
 			return nil, reportFindingOut{Duplicate: &findingIssue{Title: q.Title, State: "QUEUED"},
 				Message: fmt.Sprintf("already waiting in the operator's queue as #%d (%q); nothing queued", q.ID, q.Title)}, nil
 		}
@@ -145,7 +145,7 @@ func (s *server) reportFinding(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 				"call again with confirm_new: true."}, nil
 	}
 
-	id, err := s.opts.Backend.QueueFinding(ctx, state.QueuedFinding{
+	id, err := s.opts.Project.Backend.QueueFinding(ctx, project.QueuedFinding{
 		Title:    s.redact(in.Title),
 		Body:     s.redact(findingBody(in, s.opts.Version, time.Now())),
 		Summary:  s.redact(in.Summary),

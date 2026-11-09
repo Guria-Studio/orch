@@ -12,7 +12,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // taskSummary is one row of orch_list_tasks.
@@ -176,23 +175,23 @@ func (s *server) getTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in getT
 // Both halves are needed: `project.Hydrate` overwrites `Status` and nothing
 // else, so attempts, the PR URL and the milestone still have to come from the
 // rows themselves.
-func (s *server) load(ctx context.Context) ([]model.Task, map[string]state.TaskRuntime, error) {
-	tasks, err := project.Load(ctx, s.opts.Backend, s.opts.TasksJSON)
+func (s *server) load(ctx context.Context) ([]model.Task, map[string]project.TaskRuntime, error) {
+	tasks, err := project.Load(ctx, s.opts.Project.Backend, s.opts.TasksJSON)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", s.opts.TasksJSON, err)
 	}
-	rows, err := s.opts.Backend.Tasks(ctx, state.TaskFilter{})
+	rows, err := project.Runtime(ctx, s.opts.Project.Backend)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read task runtime: %w", err)
 	}
-	byID := make(map[string]state.TaskRuntime, len(rows))
+	byID := make(map[string]project.TaskRuntime, len(rows))
 	for _, r := range rows {
 		byID[r.ID] = r
 	}
 	return tasks, byID, nil
 }
 
-func summarize(t model.Task, runtime map[string]state.TaskRuntime) taskSummary {
+func summarize(t model.Task, runtime map[string]project.TaskRuntime) taskSummary {
 	rt := runtime[t.ID]
 	return taskSummary{
 		ID:           t.ID,

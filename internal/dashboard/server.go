@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Guria-Studio/orch/internal/doctor"
-	"github.com/Guria-Studio/orch/internal/update"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -18,11 +16,12 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/config"
+	"github.com/Guria-Studio/orch/internal/doctor"
 	"github.com/Guria-Studio/orch/internal/knowledge"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/publish/snapshot"
-	"github.com/Guria-Studio/orch/internal/state"
 	"github.com/Guria-Studio/orch/internal/tunnel"
+	"github.com/Guria-Studio/orch/internal/update"
 )
 
 // Server is the dashboard's HTTP surface.
@@ -96,49 +95,50 @@ type Server struct {
 // through the same functions as the CLI commands, never through this
 // interface and never by driving the engine (CHECKLIST rule 13).
 type StateReader interface {
-	// Tasks is the live status of every task, which every task-shaped view
-	// overlays on tasks.json. Filtered queries exist on the backend; the
-	// dashboard filters in memory because it needs the unfiltered totals in
-	// the same response.
-	Tasks(ctx context.Context, filter state.TaskFilter) ([]state.TaskRuntime, error)
+	// StatusReader is the live status of every task, which every task-shaped
+	// view overlays on tasks.json (project.Hydrate). The dashboard asks it
+	// through project (Runtime, RuntimeOf, DoneRuntime) and filters in
+	// memory where it needs the unfiltered totals in the same response.
+	project.StatusReader
 	// AllEvents is the event log across every task, oldest first. n <= 0
 	// means all of it. The log view reads the tail; the per-task figures
 	// (hours spent, last updated) are derived from the whole thing.
-	AllEvents(ctx context.Context, n int) ([]state.Event, error)
+	AllEvents(ctx context.Context, n int) ([]project.Event, error)
 	// AllSpend is every spend row newer than `since`, across every backend.
 	// The metrics page asks for all of history; the budget summary asks for
 	// today.
-	AllSpend(ctx context.Context, since time.Time) ([]state.Spend, error)
+	AllSpend(ctx context.Context, since time.Time) ([]project.Spend, error)
 	// SpendSince is one provider's rolling window, and it is here because
 	// `budget.Gate` takes exactly this method: the dashboard reports the same
 	// numbers the dispatch guardrail enforces by asking the same gate, rather
 	// than by recomputing a window that could drift from it.
-	SpendSince(ctx context.Context, backend string, since time.Time) ([]state.Spend, error)
+	SpendSince(ctx context.Context, backend string, since time.Time) ([]project.Spend, error)
 
 	// CountDoneLastNDays is the numerator of velocity: tasks that finished
 	// inside the window.
 	CountDoneLastNDays(ctx context.Context, days int) (int, error)
 	// ProviderStates is which providers the operator turned off, for the
 	// Providers and quota page.
-	ProviderStates(ctx context.Context) ([]state.ProviderState, error)
+	ProviderStates(ctx context.Context) ([]project.ProviderState, error)
 	// LastEventByTask is the newest event per task id, which is how a blocked
 	// task explains itself. The sprint panel asks only about the blocked ones.
-	LastEventByTask(ctx context.Context, taskIDs []string) (map[string]state.Event, error)
+	LastEventByTask(ctx context.Context, taskIDs []string) (map[string]project.Event, error)
 
 	// LatestEventID is where a live tail starts, so it carries only what
 	// happens after the client connected.
 	LatestEventID(ctx context.Context) (int64, error)
 	// EventsSince is what that tail polls, keyed on the row id rather than on
 	// a timestamp — see state.EventsSince for why.
-	EventsSince(ctx context.Context, afterID int64, limit int) ([]state.Event, error)
+	EventsSince(ctx context.Context, afterID int64, limit int) ([]project.Event, error)
 
-	// LatestRun and InFlightDispatches are what /api/now shows as the run and
-	// the agents working in it. ErrNoRuns means the project never ran.
-	LatestRun(ctx context.Context) (state.Run, error)
-	InFlightDispatches(ctx context.Context) ([]state.Dispatch, error)
+	// RunReader (LatestRun) and InFlightDispatches are what /api/now shows as
+	// the run and the agents working in it; project.LatestRun says whether
+	// the project ever ran.
+	project.RunReader
+	InFlightDispatches(ctx context.Context) ([]project.Dispatch, error)
 
 	// Attempts is every finished attempt, for /api/agent-metrics (#538).
-	Attempts(ctx context.Context) ([]state.Attempt, error)
+	Attempts(ctx context.Context) ([]project.Attempt, error)
 
 	// StakeholderToken is this project's rotated stakeholder token hash, if
 	// any (G8.2/F3.3) — resolved fresh on every gated request (see

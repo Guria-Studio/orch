@@ -28,38 +28,18 @@ var frontEnds = []string{"cli", "dashboard", "mcp"}
 const statePkg = "github.com/Guria-Studio/orch/internal/state"
 const modelPkg = "github.com/Guria-Studio/orch/internal/model"
 
-// stateImportAllowed: files that still import internal/state directly.
+// stateImportAllowed: files that still import internal/state directly, each
+// with the reason it owns the database rather than going through project.
+// Everything else — opening, filtering, the rows, the sentinels — has a
+// project name since #587; a new entry needs a reason as strong as these.
 var stateImportAllowed = map[string]string{
-	"cli/doctorsmoke.go":             "uses state.Backend, state.Spend",
-	"cli/eventjson.go":               "uses state.Backend, state.Event",
-	"cli/events.go":                  "uses state.Event",
-	"cli/findings.go":                "uses state.Backend, state.FindingQueued, state.QueuedFinding",
-	"cli/knowledge.go":               "uses state.Backend, state.ParseTS, state.TaskFilter, ...",
-	"cli/knowledgecurate.go":         "uses state.Backend, state.ParseTS, state.TaskFilter",
-	"cli/migrate.go":                 "imports Python-era databases: state.Open, state.NewSQLite, state.Event, ...",
-	"cli/notify.go":                  "uses state.Backend, state.Spend",
-	"cli/onboarding.go":              "uses state.SQLite",
-	"cli/project.go":                 "opens the backend: state.Open, state.NewSQLite",
-	"cli/report_summary.go":          "uses state.SummarySpendID",
-	"cli/status.go":                  "uses state.Backend, state.ErrNoRuns, state.Run",
-	"cli/tui.go":                     "uses state.Backend, state.ErrNoRuns, state.ParseTS, ...",
-	"dashboard/events.go":            "uses state.Event",
-	"dashboard/findingsroutes.go":    "uses state.FindingDismissed, state.FindingSent",
-	"dashboard/knowledgeroutes.go":   "uses state.AllEvents, state.TaskFilter, state.Tasks",
-	"dashboard/metricroutes.go":      "uses state.AllSpend, state.Attempts, state.LastEventByTask, ...",
-	"dashboard/metrics.go":           "uses state.Spend",
-	"dashboard/nowroutes.go":         "uses state.CountDoneLastNDays, state.Dispatch, state.ErrNoRuns, ...",
-	"dashboard/readroutes.go":        "uses state.AllEvents, state.TaskFilter, state.Tasks",
-	"dashboard/reviewroutes.go":      "uses state.TaskFilter, state.Tasks",
-	"dashboard/server.go":            "uses state.Attempt, state.Dispatch, state.Event, ...",
-	"dashboard/sprint.go":            "uses state.Event",
-	"dashboard/stakeholderroutes.go": "uses state.AllEvents, state.AllSpend, state.CountDoneLastNDays, ...",
-	"dashboard/usage.go":             "uses state.Spend",
-	"dashboard/view.go":              "uses state.AllEvents, state.Event, state.TaskFilter, ...",
-	"mcp/findings.go":                "uses state.FindingQueued, state.QueuedFinding",
-	"mcp/readtools.go":               "uses state.Event",
-	"mcp/server.go":                  "uses state.Backend",
-	"mcp/tasks.go":                   "uses state.TaskFilter, state.TaskRuntime",
+	// `orch migrate` imports a Python-era project: it reaches MigratedAt and
+	// MarkMigrated, which are deliberately not on state.Backend (only the
+	// importer may call them), and replays the old JSONL logs as raw
+	// state.Event / state.Spend rows with their original timestamps,
+	// skipping on state.ErrUnknownEventType. That is a schema-level import,
+	// not a front end reading a project.
+	"cli/migrate.go": "imports Python-era databases: needs *state.SQLite (MigratedAt, MarkMigrated), raw Event/Spend rows, ErrUnknownEventType",
 }
 
 // tasksLoadAllowed: files that still read tasks.json themselves — through

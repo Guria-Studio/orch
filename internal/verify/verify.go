@@ -97,7 +97,7 @@ func (v Verifier) Verify(ctx context.Context, req contract.VerifyRequest) contra
 	}
 	res := v.e2e(ctx, req, timeout)
 	res.Commands = append(ran, res.Commands...)
-	if res.Failure != "" || !v.Cfg.Review {
+	if res.Failure != "" || !v.Cfg.Review || req.SkipReview {
 		return res
 	}
 	res.Failure = v.review(ctx, req, timeout, &res, v.rules(req.TaskID, req.Dir, changed))
@@ -116,6 +116,11 @@ func timed(ran *[]contract.VerifyCommand, command string, f func() (string, erro
 }
 
 func commandFailed(command string, err error, out, context string) string {
+	if strings.TrimSpace(out) == "" {
+		// No empty code block for the agent to puzzle over (#598).
+		return fmt.Sprintf("orch's local verify ran `%s` in your working dir%s and it failed (%v); the command printed nothing.\n",
+			command, context, err)
+	}
 	return fmt.Sprintf("orch's local verify ran `%s` in your working dir%s and it failed (%v):\n\n```\n%s\n```\n",
 		command, context, err, tail(out))
 }

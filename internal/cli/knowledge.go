@@ -11,8 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/knowledge"
-	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newKnowledgeCmd wires `orch knowledge` — the project's lessons under
@@ -38,7 +37,7 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 		ed := knowledge.Editor{Root: paths.Root, Source: "cli"}
 		_, cfg, err := loadProjectConfig(flags)
 		if err == nil {
-			var backend state.Backend
+			var backend project.Backend
 			var closeDB func() error
 			if backend, closeDB, err = openBackend(cmd.Context(), paths, cfg); err == nil {
 				ed.Events = backend
@@ -184,7 +183,7 @@ func newKnowledgeCmd(flags *projectFlags) *cobra.Command {
 				return err
 			}
 			defer func() { _ = closeDB() }()
-			done, err := backend.Tasks(cmd.Context(), state.TaskFilter{Statuses: []model.Status{model.StatusDone}})
+			done, err := project.DoneRuntime(cmd.Context(), backend)
 			if err != nil {
 				return err
 			}
@@ -219,7 +218,7 @@ type knowledgeStatsOut struct {
 // knowledgeStats splits the done tasks at the first lesson's date: a task
 // that finished on its first dispatch with no CI retry is a first-try
 // success, and every further dispatch or CI retry is a retry.
-func knowledgeStats(lessons []knowledge.Lesson, done []state.TaskRuntime) knowledgeStatsOut {
+func knowledgeStats(lessons []knowledge.Lesson, done []project.TaskRuntime) knowledgeStatsOut {
 	out := knowledgeStatsOut{Lessons: len(lessons), BySource: map[string]int{}}
 	var first time.Time
 	for _, l := range lessons {
@@ -233,7 +232,7 @@ func knowledgeStats(lessons []knowledge.Lesson, done []state.TaskRuntime) knowle
 	}
 	retries := [2]int{}
 	for _, t := range done {
-		finished, ok := state.ParseTS(t.FinishedAt)
+		finished, ok := project.ParseTS(t.FinishedAt)
 		bucket, i := &out.Before, 0
 		if !first.IsZero() && ok && !finished.Before(first) {
 			bucket, i = &out.Since, 1

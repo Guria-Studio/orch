@@ -6,17 +6,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // filterAndTail applies `--run` and `--tail` the way Python's
 // `iter_events(run_id=..., task_id=..., limit=...)` does: the run filter
 // narrows the set BEFORE tail takes the last N of what's left, and 0 (or
 // negative) means "no cap".
-func filterAndTail(evs []state.Event, runID string, tail int) []state.Event {
+func filterAndTail(evs []project.Event, runID string, tail int) []project.Event {
 	filtered := evs
 	if runID != "" {
-		filtered = make([]state.Event, 0, len(evs))
+		filtered = make([]project.Event, 0, len(evs))
 		for _, e := range evs {
 			if e.RunID == runID {
 				filtered = append(filtered, e)
@@ -70,7 +70,7 @@ func newEventsCmd(flags *projectFlags) *cobra.Command {
 			// Fetch everything (0 = no cap) so --run can narrow the set
 			// before --tail takes the last N of what's left — the Backend
 			// interface has no run-id filter of its own.
-			var all []state.Event
+			var all []project.Event
 			if taskID == "" {
 				all, err = backend.AllEvents(ctx, 0)
 			} else {

@@ -99,7 +99,7 @@ func (s *server) knowledgeSearch(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	if err != nil {
 		return nil, knowledgeSearchOut{}, fmt.Errorf("reading the lessons: %w", err)
 	}
-	ranker, _ := s.opts.Backend.(knowledge.Ranker)
+	ranker, _ := s.opts.Project.Backend.(knowledge.Ranker)
 	found, err := knowledge.Search(ctx, ranker, lessons, in.Query, limit)
 	if err != nil {
 		return nil, knowledgeSearchOut{}, fmt.Errorf("searching the lessons: %w", err)
