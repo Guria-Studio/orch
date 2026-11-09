@@ -381,6 +381,7 @@ var knownKeys = map[string]bool{
 	"verify.app.start": true, "verify.app.url": true, "verify.app.stop": true,
 	"verify.app.ready_timeout_s": true, "verify.app.probes": true,
 	"evidence.pr_comment": true, "evidence.keep_attempts": true, "evidence.max_bytes_per_task": true,
+	"evidence.publish.video": true, "evidence.publish.max_video_bytes": true, "evidence.video": true,
 	"update.check_clis": true,
 	"knowledge.enabled": true, "knowledge.max_in_prompt": true, "knowledge.auto_capture": true,
 	"knowledge.curate_every": true,

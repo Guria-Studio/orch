@@ -239,5 +239,9 @@ func buildStakeholderSnapshot(ctx context.Context, p *project.Project, now time.
 		Documents:            documents,
 		Gates:                gates,
 		CI:                   taskCI,
+		// How each done deliverable was checked (#520).
+		Evidence:      stakeholderEvidence(paths),
+		EvidenceMedia: cfg.Evidence.Publish.Video,
+		MaxVideoBytes: cfg.Evidence.Publish.MaxVideo(),
 	}), nil
 }

@@ -5,7 +5,8 @@ import { AlertTriangle, ArrowLeft, ChevronRight, Circle, CircleCheck, CircleDot,
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { t as tr, useLanguage } from "@/i18n"
-import { apiClient } from "@/lib/api"
+import { API_BASE_URL, apiClient, getToken } from "@/lib/api"
+import { DeliverableEvidence } from "@/stakeholder/Evidence"
 import { cn } from "@/lib/utils"
 import {
   copy,
@@ -23,6 +24,14 @@ import {
   type PhaseState,
 } from "@/stakeholder/portal"
 import type { DeliverableStatus, StakeholderMilestone, StakeholderSnapshot } from "@/stakeholder/types"
+
+// portalMedia is where the dashboard serves an evidence video or poster the
+// snapshot names (#520): under /stakeholder/, with the session's token,
+// which a <video> cannot send as a header.
+function portalMedia(path: string): string {
+  const token = getToken()
+  return `${API_BASE_URL}/stakeholder/${path}${token ? `?token=${encodeURIComponent(token)}` : ""}`
+}
 
 // How many recent deliveries the overview lists before "show all": the
 // newest few are the news; the rest is history the roadmap already holds.
@@ -329,7 +338,10 @@ function PhaseRow({ m, state, lang, last }: { m: StakeholderMilestone; state: Ph
                 {p.deliverables.map((d, j) => (
                   <li key={`${d.title}-${j}`} className="flex items-start gap-2">
                     <StatusIcon status={d.status} lang={lang} />
-                    <span className={d.status === "done" ? "text-muted-foreground" : ""}>{d.title}</span>
+                    <span className={d.status === "done" ? "text-muted-foreground" : ""}>
+                      {d.title}
+                      {d.status === "done" && d.evidence ? <DeliverableEvidence evidence={d.evidence} lang={lang} mediaSrc={portalMedia} /> : null}
+                    </span>
                   </li>
                 ))}
               </ul>

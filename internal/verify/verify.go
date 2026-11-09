@@ -63,6 +63,10 @@ type Verifier struct {
 	// recorded under state.ReviewSpendID, with its Gate a reviewer over its budget
 	// window is refused before it spawns, and the review is skipped (#470).
 	Once contract.Runner
+	// E2EVideo is evidence.video, exported to the E2E commands as
+	// ORCH_E2E_VIDEO for the project's Playwright config to read (#520):
+	// on, retain-on-failure (the default), off.
+	E2EVideo string
 }
 
 // Verify checks the work in dir, a task's worktree with the agent's work
@@ -187,6 +191,11 @@ func (v Verifier) e2e(ctx context.Context, req contract.VerifyRequest, timeout t
 		report = filepath.Join(req.Dir, filepath.FromSlash(v.Cfg.E2EReport))
 		_ = os.Remove(report)
 	}
+	video := v.E2EVideo
+	if video == "" {
+		video = "retain-on-failure"
+	}
+	env = withVar(env, "ORCH_E2E_VIDEO="+video)
 	res := contract.VerifyResult{Probes: probes}
 	for _, c := range v.Cfg.E2E {
 		if out, err := timed(&res.Commands, c, kindE2E, func() (string, error) { return run(ctx, req.Dir, env, c, timeout) }); notFound(err) {

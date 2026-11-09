@@ -20,8 +20,10 @@ import {
   type PhaseState,
   type Tab,
   qualityLine,
+  mediaURL,
 } from "./portal"
 import "./portal.css"
+import { DeliverableEvidence } from "./Evidence"
 import type { DeliverableStatus, StakeholderDocument, StakeholderMilestone, StakeholderSnapshot } from "./types"
 
 declare global {
@@ -453,6 +455,7 @@ function PhaseRow({ m, state, lang, last }: { m: StakeholderMilestone; state: Ph
                     <span className={d.status === "done" ? "text-[var(--portal-muted)]" : ""}>
                       {d.title}
                       {d.waiting ? <span className="block text-sm text-[var(--portal-muted)]">{d.waiting}</span> : null}
+                      {d.status === "done" && d.evidence ? <DeliverableEvidence evidence={d.evidence} lang={lang} mediaSrc={(p) => mediaURL(p, window.location.search, savedToken())} /> : null}
                     </span>
                     {d.issue_url ? (
                       <a
@@ -487,6 +490,16 @@ function StatusIcon({ status, lang }: { status: DeliverableStatus; lang: Lang })
       return <CirclePause className={`${common} text-[var(--portal-hold)]`} aria-label={t.blocked} />
     default:
       return <Circle className={`${common} text-[var(--portal-muted)]`} aria-label={t.pending} />
+  }
+}
+
+// savedToken is the token this browser keeps for the portal, for media
+// URLs on a live dashboard; null when storage is unavailable.
+function savedToken(): string | null {
+  try {
+    return window.localStorage.getItem("orch_token")
+  } catch {
+    return null
   }
 }
 

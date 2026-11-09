@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { currentPhase, deliveriesSince, formatDay, langOf, parseRoute, phaseName, phaseState, qualityLine, relativeTime, rememberLinkToken, renderMarkdown, snapshotURL, statusLine } from "@/stakeholder/portal"
+import { currentPhase, deliveriesSince, formatDay, langOf, parseRoute, phaseName, phaseState, qualityLine, relativeTime, rememberLinkToken, renderMarkdown, snapshotURL, statusLine, evidenceLine, mediaURL } from "@/stakeholder/portal"
 import type { StakeholderMilestone, StakeholderSnapshot } from "@/stakeholder/types"
 
 function milestone(phase: number, name: string, done: number, total: number, extra: Partial<StakeholderMilestone> = {}): StakeholderMilestone {
@@ -210,5 +210,25 @@ describe("qualityLine", () => {
   it("says nothing before anything is delivered, or without the block", () => {
     expect(qualityLine({ ...q, gates: [...q.gates], delivered: 0, verified: 0, first_pass: 0 }, "es")).toBe("")
     expect(qualityLine(undefined, "en")).toBe("")
+  })
+})
+
+describe("evidenceLine / mediaURL (#520)", () => {
+  const evidence = { checked: ["tests", "lint", "e2e"], reviewed: true, e2e: { passed: 4, total: 5 } }
+
+  it("says how a delivery was checked, in the client's words", () => {
+    expect(evidenceLine(evidence, "en")).toBe("Checked: automated tests, code style checks, 4 of 5 walk-throughs passed. Reviewed by a second model.")
+    expect(evidenceLine(evidence, "es")).toBe("Verificado: pruebas automáticas, revisión de estilo del código, 4 de 5 recorridos pasaron. Revisado por un segundo modelo.")
+    expect(evidenceLine({ checked: ["build"], reviewed: false }, "pt")).toBe("Verificado: build completo.")
+  })
+
+  it("is empty when there is nothing to say", () => {
+    expect(evidenceLine({ reviewed: false }, "en")).toBe("")
+  })
+
+  it("forwards the link's token to a video, as the data has it", () => {
+    expect(mediaURL("evidence/ab12/video.webm", "?token=t%201", null)).toBe("./evidence/ab12/video.webm?token=t%201")
+    expect(mediaURL("evidence/ab12/video.webm", "", "saved")).toBe("./evidence/ab12/video.webm?token=saved")
+    expect(mediaURL("evidence/ab12/video.webm", "", null)).toBe("./evidence/ab12/video.webm")
   })
 })

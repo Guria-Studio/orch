@@ -193,6 +193,33 @@ type Evidence struct {
 	// MaxBytesPerTask caps a task's kept E2E files, oldest attempts going
 	// first; 0 means 200 MiB, below 0 no cap.
 	MaxBytesPerTask int64 `yaml:"max_bytes_per_task"`
+	// Video is ORCH_E2E_VIDEO for the E2E commands — Playwright's video
+	// mode (on, retain-on-failure, on-first-retry, off) for a config that
+	// reads it; "" means retain-on-failure. orch never edits the project's
+	// Playwright config.
+	Video string `yaml:"video"`
+	// Publish is what of the evidence reaches the client page.
+	Publish EvidencePublish `yaml:"publish"`
+}
+
+// EvidencePublish is what `orch publish` and the dashboard's client page
+// show of the evidence (#520 §3.4).
+type EvidencePublish struct {
+	// Video shows the @evidence walk-through's video and screenshot on the
+	// client page. Off by default: a video cannot be scanned for what it
+	// shows, so publishing it is the operator's decision.
+	Video bool `yaml:"video"`
+	// MaxVideoBytes leaves a bigger video out (its screenshot still
+	// shows); 0 means 4 MiB.
+	MaxVideoBytes int64 `yaml:"max_video_bytes"`
+}
+
+// MaxVideo is evidence.publish.max_video_bytes with its default.
+func (p EvidencePublish) MaxVideo() int64 {
+	if p.MaxVideoBytes <= 0 {
+		return 4 << 20
+	}
+	return p.MaxVideoBytes
 }
 
 // Keep is evidence.keep_attempts with its default.

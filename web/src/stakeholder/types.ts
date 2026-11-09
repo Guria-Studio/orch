@@ -52,6 +52,21 @@ export interface StakeholderDeliverable {
   waiting?: string
   /** The GitHub issue the deliverable came from, when it was imported from one. */
   issue_url?: string
+  /** How a done deliverable was checked (#520); absent otherwise. */
+  evidence?: StakeholderEvidence
+}
+
+/** A done deliverable's evidence, in the client's terms (docs/SNAPSHOT-SCHEMA.md). */
+export interface StakeholderEvidence {
+  /** Kinds of check it passed: tests, typecheck, lint, build, e2e. */
+  checked?: string[]
+  reviewed: boolean
+  e2e?: { passed: number; total: number }
+  /** The @evidence test's step titles, as the tests wrote them. */
+  steps?: string[]
+  /** Site paths, only when the operator publishes the media. */
+  video?: string
+  poster?: string
 }
 
 export interface StakeholderDelivery {

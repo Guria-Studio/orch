@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/engine"
 	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -192,5 +193,39 @@ func TestTaskEvidenceIsServed(t *testing.T) {
 	gated := newGatedServer(t, &fakeState{})
 	if resp := get(t, gated, "/api/tests/evidence/C-1?token=test-token-stakeholder"); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("as a stakeholder: %d, want 403", resp.StatusCode)
+	}
+}
+
+// The client portal's evidence video (#520 §3.4) is served at the path the
+// snapshot names, to a stakeholder with the token, from wherever the
+// resolver says it is; nothing the resolver does not know.
+func TestPortalServesTheEvidenceMedia(t *testing.T) {
+	video := filepath.Join(t.TempDir(), "video.webm")
+	if err := os.WriteFile(video, []byte("0123456789"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := writeProject(t, "spec_root: specs\n", testTasksJSON)
+	s, err := New(cfg(ProfileStakeholder, "test-token-stakeholder"), Options{
+		Static: spaHandler(t),
+		State:  &fakeState{},
+		Paths:  config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")},
+		EvidenceMedia: func(site string) (string, bool) {
+			return video, site == "evidence/0123abcd/video.webm"
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := get(t, s, "/stakeholder/evidence/0123abcd/video.webm?token=test-token-stakeholder")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "0123456789" || resp.Header.Get("Content-Type") != "video/webm" {
+		t.Errorf("video: %d %q %q", resp.StatusCode, resp.Header.Get("Content-Type"), body)
+	}
+	if resp := get(t, s, "/stakeholder/evidence/0123abcd/video.webm"); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("without the token: %d, want 401", resp.StatusCode)
+	}
+	if resp := get(t, s, "/stakeholder/evidence/ffff/video.webm?token=test-token-stakeholder"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("an unknown path: %d, want 404", resp.StatusCode)
 	}
 }

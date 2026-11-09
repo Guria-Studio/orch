@@ -944,7 +944,9 @@ export default defineConfig({
   reporter: [['line'], ['json', { outputFile: 'e2e-report.json' }]],
   use: {
     baseURL: process.env.ORCH_APP_URL,
-    screenshot: 'only-on-failure', video: 'retain-on-failure', trace: 'retain-on-failure',
+    screenshot: 'only-on-failure', trace: 'retain-on-failure',
+    // orch sets ORCH_E2E_VIDEO from evidence.video (#520); it never edits this file.
+    video: (process.env.ORCH_E2E_VIDEO ?? 'retain-on-failure') as 'on' | 'off' | 'retain-on-failure' | 'on-first-retry',
   },
 });
 ```
@@ -995,12 +997,33 @@ Without the block, or with `enabled: false`, a clean exit is pushed as before.
 ```yaml
 evidence:
   pr_comment: true          # default; false = no comment on the PR
+  video: retain-on-failure  # default; ORCH_E2E_VIDEO for the E2E: on | retain-on-failure | on-first-retry | off
   keep_attempts: 3          # default; verified attempts kept per task
   max_bytes_per_task: 0     # 0 = 200 MiB of E2E files per task; < 0 = no cap
+  publish:
+    video: false            # default; true shows the walk-through video on the client page
+    max_video_bytes: 0      # 0 = 4 MiB; a bigger video is left out, its screenshot shows
 ```
 
 What the local verify proved about a task is kept as its evidence manifest
 (see *Evidence* under `verify`).
+
+**On the client page.** Each `done` deliverable with evidence shows how it
+was checked, in the client's language: the kinds of check, whether another
+model reviewed it, how many walk-throughs passed, and the steps of its first
+passing E2E test tagged `@evidence` (`test.step` titles, written in the
+client's language; orch does not translate them). Tag the one or two tests
+that tell the story, not all of them. With `publish.video: true` the page
+also plays that test's video (and shows its screenshot as the poster):
+`orch publish --to dir|git` copies them into the site under
+`evidence/<hash>/`, and the dashboard serves them to the stakeholder token.
+Off by default: a video cannot be scanned for what it shows, so use seeded
+test data, never real customer data. `--to cloud` publishes the steps without
+the media for now. Recording needs Playwright's `video` on for that test; see
+the Playwright recipe under `verify` (*E2E results*): orch exports
+`ORCH_E2E_VIDEO` from `evidence.video` to every `verify.e2e` command, and a
+config that reads it records video for passing tests too with
+`video: on`.
 
 **Retention.** When `orch run` ends, each task keeps its `keep_attempts`
 newest verified attempts (manifest in `history/` and E2E directory under

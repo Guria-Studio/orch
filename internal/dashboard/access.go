@@ -64,10 +64,13 @@ const StakeholderPathPrefix = "/stakeholder"
 //     not inventory, so a docs route registered under them is the client's
 //     by design, and a name with no route opens nothing. Removing them is
 //     the owner's call, not a cleanup.
+//   - stakeholder_evidence_media — the walk-through videos the portal shows
+//     (#520), served only when the operator opted in (evidence.publish.video).
 //   - spa — the static shell and every client-side route under it.
 var DefaultStakeholderRoutes = []string{
 	"stakeholder_summary_json",
 	"stakeholder_snapshot_json",
+	"stakeholder_evidence_media",
 	"api_tunnel_capabilities",
 	"api_whoami",
 	"api_docs_list",

@@ -230,6 +230,10 @@ summary. Client page reads `/stakeholder/data.json`, gated by the token
 by the same function `orch publish` uses, with `refresh_interval_s: 30`, so
 the open page refreshes itself.
 
+With `evidence.publish.video: true` the evidence videos and posters the
+snapshot names are served at `/stakeholder/evidence/<hash>/<file>`, gated by
+the same token (`stakeholder_evidence_media` on the default allow-list, #520).
+
 The exported portal itself stays at `/stakeholder/`: its files are ungated
 (they are code, like the SPA's) and it reads the same `data.json`. The
 operator opens Client page to see what a client sees.

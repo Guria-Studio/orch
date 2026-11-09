@@ -353,3 +353,28 @@ func TestExportNeverServesTheDevFixture(t *testing.T) {
 		t.Errorf("the export does not carry the real snapshot:\n%s", got)
 	}
 }
+
+// The export carries the evidence media the snapshot shows (#520 §3.4),
+// from where the verify kept them, and refuses a site path that would leave
+// the site's evidence directory.
+func TestExportCopiesTheEvidenceMedia(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "video.webm")
+	if err := os.WriteFile(src, []byte("webm bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	res, err := exportFrom(fakeBundle(), dir, testSnapshot(), Options{Media: map[string]string{"evidence/0123abcd/video.webm": src}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(res.Dir, "evidence", "0123abcd", "video.webm")) // #nosec G304 -- the test's temp dir
+	if err != nil || string(got) != "webm bytes" {
+		t.Errorf("exported video = %q, %v", got, err)
+	}
+
+	for _, bad := range []string{"../escape.webm", "evidence/../../x", "/abs/video.webm", "assets/stakeholder.js", "evidence/a/b/c.webm"} {
+		if _, err := exportFrom(fakeBundle(), t.TempDir(), testSnapshot(), Options{Media: map[string]string{bad: src}}); err == nil {
+			t.Errorf("site path %q was accepted", bad)
+		}
+	}
+}

@@ -53,3 +53,29 @@ func TestRunPrunesTheEvidenceWhenItEnds(t *testing.T) {
 		t.Errorf("output = %q, want a note of what was pruned", got)
 	}
 }
+
+// publishMedia maps each evidence video and poster the snapshot shows to its
+// file under the state dir (#520 §3.4); nothing without the opt-in.
+func TestPublishMediaFollowsTheSnapshot(t *testing.T) {
+	paths := config.Paths{Root: t.TempDir(), ID: "p"}
+	m := evidence.Manifest{Version: evidence.Version, TaskID: "F1", RunID: "run-1", Attempt: 1, Verdict: evidence.VerdictPassed,
+		E2E: &evidence.E2E{Passed: 1, Dir: "e2e/run-1/F1/attempt-1",
+			Media:        []evidence.Media{{Test: "w", Kind: "video", Path: "t001/video.webm", Bytes: 10}},
+			Walkthroughs: []evidence.Walkthrough{{Title: "w", Status: "passed", Video: "t001/video.webm"}}}}
+	var cfg config.Config
+	cfg.Evidence.Publish.Video = true
+	all := map[string]evidence.Manifest{"F1": m}
+	site := evidence.ForClient(m, true, cfg.Evidence.Publish.MaxVideo()).Video
+
+	got := publishMedia(paths, cfg, all, []string{site})
+	if want := filepath.Join(paths.StateDir(), "e2e", "run-1", "F1", "attempt-1", "t001", "video.webm"); got[site] != want || len(got) != 1 {
+		t.Errorf("publishMedia = %v, want %s -> %s", got, site, want)
+	}
+	if got := publishMedia(paths, cfg, all, nil); len(got) != 0 {
+		t.Errorf("media the snapshot does not show = %v", got)
+	}
+	cfg.Evidence.Publish.Video = false
+	if got := publishMedia(paths, cfg, all, []string{site}); len(got) != 0 {
+		t.Errorf("without the opt-in = %v", got)
+	}
+}

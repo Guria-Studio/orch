@@ -55,6 +55,12 @@ type Options struct {
 	// Index overrides the landing page's filename. Empty means index.html,
 	// which is what every static host serves for a bare directory.
 	Index string
+
+	// Media are the evidence videos and posters the snapshot shows (#520),
+	// by their path in the site (evidence/<hash>/<name>) to the file under
+	// the state directory. Only what the operator opted in to publish
+	// (evidence.publish.video) is ever here.
+	Media map[string]string
 }
 
 // Result describes what an Export wrote.
@@ -177,6 +183,13 @@ func exportFrom(bundle fs.FS, dir string, snap snapshot.Snapshot, opts Options) 
 		return Result{}, err
 	}
 	res.Files += n
+
+	for sitePath, src := range opts.Media {
+		if err := copyMedia(site, sitePath, src); err != nil {
+			return Result{}, err
+		}
+		res.Files++
+	}
 
 	if err := writeFile(filepath.Join(site, dataJSONName), data); err != nil {
 		return Result{}, err
@@ -339,4 +352,35 @@ func copyTree(src, dst string) error {
 		}
 		return out.Close()
 	})
+}
+
+// copyMedia copies one evidence file to sitePath under site. sitePath must
+// be evidence/<dir>/<name>, nothing else: the page reads them there, and
+// nothing in the snapshot may write elsewhere in the site.
+func copyMedia(site, sitePath, src string) error {
+	parts := strings.Split(sitePath, "/")
+	if len(parts) != 3 || parts[0] != "evidence" || path.Clean(sitePath) != sitePath ||
+		parts[1] == "" || parts[2] == "" || parts[1] == ".." || parts[2] == ".." || strings.Contains(sitePath, `\`) {
+		return fmt.Errorf("evidence media path %q is not evidence/<dir>/<name>", sitePath)
+	}
+	in, err := os.Open(src) // #nosec G304 -- a file the verify kept under orch's state dir
+	if err != nil {
+		return fmt.Errorf("reading evidence media: %w", err)
+	}
+	defer func() { _ = in.Close() }()
+	dst := filepath.Join(site, filepath.FromSlash(sitePath))
+	// #nosec G301 -- a public static site, as above
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(dst), err)
+	}
+	// #nosec G302 G304 -- a public static site's file, under the export dir
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("writing %s: %w", dst, err)
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return fmt.Errorf("writing %s: %w", dst, err)
+	}
+	return out.Close()
 }

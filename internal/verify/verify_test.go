@@ -927,3 +927,15 @@ func TestVerifyProbesPassAndDefaultToBelow400(t *testing.T) {
 		t.Errorf("Verify = %q, want the 404 probe failed", got)
 	}
 }
+
+// The E2E commands are told whether to record video (#520 §3.4):
+// ORCH_E2E_VIDEO, which the Playwright recipe reads, is evidence.video,
+// retain-on-failure when unset.
+func TestVerifyTellsTheE2EWhetherToRecordVideo(t *testing.T) {
+	for _, tc := range []struct{ video, want string }{{"", "retain-on-failure"}, {"on", "on"}} {
+		v := verify.Verifier{Cfg: config.Verify{TimeoutS: 10, E2E: []string{`test "$ORCH_E2E_VIDEO" = ` + tc.want}}, E2EVideo: tc.video}
+		if got := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: t.TempDir()}).Failure; got != "" {
+			t.Errorf("E2EVideo %q: %s", tc.video, got)
+		}
+	}
+}

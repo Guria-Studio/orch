@@ -52,8 +52,9 @@ type Server struct {
 	// static is the SPA handler, mounted at "/" and deliberately NOT gated.
 	static http.Handler
 	// portal and snapshot are Options.Portal and Options.Snapshot.
-	portal   fs.FS
-	snapshot func(ctx context.Context) (snapshot.Snapshot, error)
+	portal        fs.FS
+	snapshot      func(ctx context.Context) (snapshot.Snapshot, error)
+	evidenceMedia func(sitePath string) (string, bool)
 	// version and releases are Options.Version and Options.Releases.
 	version  string
 	releases func(ctx context.Context) ([]update.Release, error)
@@ -181,6 +182,9 @@ type Options struct {
 	// /stakeholder/data.json — the same builder `orch publish` uses, passed
 	// in so this package never assembles one of its own.
 	Snapshot func(ctx context.Context) (snapshot.Snapshot, error)
+	// EvidenceMedia finds the file behind an evidence video or poster the
+	// snapshot names (evidence/<hash>/<name>, #520); nil serves none.
+	EvidenceMedia func(sitePath string) (string, bool)
 	// Version is the running orch's; Releases lists orch's releases for the
 	// What's new page (update.Check behind the CLI). nil Releases: update
 	// checks are off.
@@ -238,16 +242,17 @@ func New(cfg Config, opts Options) (*Server, error) {
 		static: opts.Static,
 		portal: opts.Portal,
 
-		snapshot:  opts.Snapshot,
-		version:   opts.Version,
-		releases:  opts.Releases,
-		cliLatest: opts.CLILatest,
-		steer:     opts.Steer,
-		editor:    opts.Editor,
-		knowledge: opts.Knowledge,
-		curate:    opts.Curate,
-		findings:  opts.Findings,
-		flow:      opts.Flow,
+		snapshot:      opts.Snapshot,
+		evidenceMedia: opts.EvidenceMedia,
+		version:       opts.Version,
+		releases:      opts.Releases,
+		cliLatest:     opts.CLILatest,
+		steer:         opts.Steer,
+		editor:        opts.Editor,
+		knowledge:     opts.Knowledge,
+		curate:        opts.Curate,
+		findings:      opts.Findings,
+		flow:          opts.Flow,
 		tunnel: tunnelDeps{
 			Command:          opts.Tunnel.Command,
 			URLParseTimeoutS: opts.Tunnel.URLParseTimeoutS,

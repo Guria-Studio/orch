@@ -233,7 +233,7 @@ func (r *ProjectRun) Start(ctx context.Context) (code int, err error) {
 		if opts.Verifier != nil {
 			scheduler.Verifier = opts.Verifier
 		} else if cfg.Verify.Enabled {
-			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, RequireTests: cfg.Dispatch.TDD, Rules: cfg.Knowledge.Enabled, SpecRoot: cfg.SpecRoot,
+			scheduler.Verifier = verify.Verifier{Cfg: cfg.Verify, Base: cfg.Dispatch.BaseBranch, E2EVideo: cfg.Evidence.Video, RequireTests: cfg.Dispatch.TDD, Rules: cfg.Knowledge.Enabled, SpecRoot: cfg.SpecRoot,
 				Once: OneShot{State: backend, Gate: budgetGate}}
 		}
 	} else if cfg.Verify.Enabled {

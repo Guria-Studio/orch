@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Guria-Studio/orch/internal/evidence"
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
@@ -89,6 +90,13 @@ type Input struct {
 	// task's pull-request CI result, by id. Together they make Quality.
 	Gates []string
 	CI    map[string]TaskCI
+	// Evidence is each task's evidence manifest (#520), by id; nil when
+	// none. EvidenceMedia is evidence.publish.video: whether a done
+	// deliverable shows its walk-through's video and poster, the video only
+	// up to MaxVideoBytes.
+	Evidence      map[string]evidence.Manifest
+	EvidenceMedia bool
+	MaxVideoBytes int64
 }
 
 // VelocityWindowDays is the window DoneInVelocityWindow is counted over —
@@ -170,6 +178,9 @@ type Deliverable struct {
 	// (`orch atomize --from-issues`, #525), so the client can follow it back
 	// to what they asked for. Absent for every other task.
 	IssueURL string `json:"issue_url,omitempty"`
+	// Evidence is how a done deliverable was checked (#520), omitted for
+	// everything else.
+	Evidence *DeliverableEvidence `json:"evidence,omitempty"`
 }
 
 // Summary is the header bar — the same seven figures
@@ -257,7 +268,8 @@ func Build(in Input) Snapshot {
 	projection := graph.ProjectCompletion(remainingTasks(in.Tasks), in.DoneInVelocityWindow, VelocityWindowDays, in.Now)
 
 	milestones := PhaseMilestones(in.Tasks, in.Phases, in.PhaseTitles)
-	addPackages(milestones, in.Tasks, in.PackageTitles, in.FinishedAt, waitingByTask(in.Tasks, in.Events, lang))
+	addPackages(milestones, in.Tasks, in.PackageTitles, in.FinishedAt, waitingByTask(in.Tasks, in.Events, lang),
+		func(t model.Task) *DeliverableEvidence { return deliverableEvidence(t, in) })
 	blockers := buildBlockers(in.Tasks, in.Events, lang)
 
 	var spendUSD *float64
@@ -333,7 +345,8 @@ func projectionConfidence(p *graph.Projection) string {
 }
 
 // addPackages groups each phase's tasks into packages, in task-id order.
-func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]string, finishedAt map[string]string, waiting map[string]string) {
+func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]string, finishedAt map[string]string, waiting map[string]string,
+	evidenceOf func(model.Task) *DeliverableEvidence) {
 	byPhase := map[int][]model.Task{}
 	for _, t := range tasks {
 		byPhase[t.Phase] = append(byPhase[t.Phase], t)
@@ -358,7 +371,8 @@ func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]s
 				index[name] = pi
 				packages = append(packages, Package{Name: name})
 			}
-			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), Waiting: waiting[t.ID], IssueURL: t.SourceIssue}
+			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), Waiting: waiting[t.ID], IssueURL: t.SourceIssue,
+				Evidence: evidenceOf(t)}
 			if t.Status == model.StatusDone {
 				d.FinishedAt = finishedAt[t.ID]
 				packages[pi].Done++
