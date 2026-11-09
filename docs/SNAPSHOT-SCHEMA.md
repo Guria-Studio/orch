@@ -117,7 +117,10 @@ task id, file or spec path — which is what the client page's roadmap reads.
 Each `deliverables[]` entry is `title`, `status` — `done`, `in_progress`,
 `blocked` or `pending` (backlog and todo are one state to a client: not
 started) — and `finished_at` (RFC 3339) on a done deliverable whose finish
-time is recorded.
+time is recorded. **Optional** (additive, schema 1): `waiting`, on an
+`in_progress` deliverable whose agent is silent but working (`watch.liveness`,
+#524) — one fixed phrase per activity in the snapshot's language, e.g.
+`"esperando: descargando datos"`; never the operator's evidence line.
 
 ## `documents[]`
 

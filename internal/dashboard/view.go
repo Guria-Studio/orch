@@ -59,6 +59,9 @@ type projectView struct {
 	// Stalled is the running tasks whose last event is agent_stalled: the
 	// watch saw their log go silent and nothing has happened since (#533).
 	Stalled map[string]bool
+	// Waiting is the running tasks whose last event is agent_waiting: silent,
+	// but their processes or files show work (#524).
+	Waiting map[string]*waitingPayload
 }
 
 func (s *Server) loadView(ctx context.Context) (projectView, error) {
@@ -104,7 +107,7 @@ func (s *Server) loadView(ctx context.Context) (projectView, error) {
 			v.MergedLocally[e.TaskID] = true
 		}
 	}
-	v.Stalled = stalledTasks(tasks, events)
+	v.Stalled, v.Waiting = agentWatchStates(tasks, events)
 
 	v.Parallelizable = map[string]bool{}
 	for _, t := range graph.Parallelizable(tasks) {
@@ -329,20 +332,46 @@ func (v projectView) graph() graphPayload {
 	return out
 }
 
-// stalledTasks is the running tasks whose last event is agent_stalled. The
-// watch records agent_resumed when a stalled log grows again, and any other
-// event (a retry, a stop, a finish) moves the task on, so the last event is
-// the answer. events come in timeline order.
-func stalledTasks(tasks []model.Task, events []state.Event) map[string]bool {
-	last := map[string]string{}
+// waitingPayload is an agent silent but working (#524), as the watch's
+// agent_waiting event recorded it: what it is doing in one word, the figures,
+// and the evidence as one English line for whatever does not translate it.
+type waitingPayload struct {
+	// Activity is download | write | read | compute | edit.
+	Activity   string `json:"activity"`
+	FilesBytes int    `json:"files_bytes"`
+	ReadBytes  int    `json:"read_bytes"`
+	CPUS       int    `json:"cpu_s"`
+	WindowS    int    `json:"window_s"`
+	Evidence   string `json:"evidence"`
+	Since      string `json:"since"`
+}
+
+// agentWatchStates is the running tasks whose last event is agent_stalled,
+// and those whose last is agent_waiting. The watch records agent_resumed when
+// the log grows again, and any other event (a retry, a stop, a finish) moves
+// the task on, so the last event is the answer. events come in timeline
+// order.
+func agentWatchStates(tasks []model.Task, events []state.Event) (map[string]bool, map[string]*waitingPayload) {
+	last := map[string]state.Event{}
 	for _, e := range events {
-		last[e.TaskID] = e.EventType
+		last[e.TaskID] = e
 	}
-	out := map[string]bool{}
+	stalled, waiting := map[string]bool{}, map[string]*waitingPayload{}
 	for _, t := range tasks {
-		if t.Status == model.StatusInProgress && last[t.ID] == "agent_stalled" {
-			out[t.ID] = true
+		if t.Status != model.StatusInProgress {
+			continue
+		}
+		switch e := last[t.ID]; e.EventType {
+		case "agent_stalled":
+			stalled[t.ID] = true
+		case "agent_waiting":
+			w := &waitingPayload{Activity: extraString(e.Extra, "activity"), Evidence: extraString(e.Extra, "reason"), Since: e.TS}
+			w.FilesBytes, _ = extraInt(e.Extra, "files_bytes")
+			w.ReadBytes, _ = extraInt(e.Extra, "read_bytes")
+			w.CPUS, _ = extraInt(e.Extra, "cpu_s")
+			w.WindowS, _ = extraInt(e.Extra, "window_s")
+			waiting[t.ID] = w
 		}
 	}
-	return out
+	return stalled, waiting
 }

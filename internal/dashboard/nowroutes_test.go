@@ -163,6 +163,50 @@ func TestAStalledAgentIsShownWhereTheOperatorLooks(t *testing.T) {
 	}
 }
 
+// TestASilentButWorkingAgentIsWaitingOnNow (#524): an agent whose last
+// event is agent_waiting is shown working with the evidence, not stalled and
+// not under attention; an agent_resumed after it clears the wait.
+func TestASilentButWorkingAgentIsWaitingOnNow(t *testing.T) {
+	waiting := event("agent_waiting", "2026-09-16T11:05:00Z", map[string]any{
+		"activity": "download", "files_bytes": 163000000, "read_bytes": 170000000, "cpu_s": 40, "window_s": 3600,
+		"reason": "downloading data: +163 MB in 1h0m0s",
+	})
+	for _, tt := range []struct {
+		name   string
+		events []state.Event
+		want   *waitingPayload
+	}{
+		{"waiting last", []state.Event{event("dispatch", "2026-09-16T10:05:00Z", nil), waiting},
+			&waitingPayload{Activity: "download", FilesBytes: 163000000, ReadBytes: 170000000, CPUS: 40, WindowS: 3600,
+				Evidence: "downloading data: +163 MB in 1h0m0s", Since: "2026-09-16T11:05:00Z"}},
+		{"resumed after", []state.Event{waiting, event("agent_resumed", "2026-09-16T11:10:00Z", nil)}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := range tt.events {
+				tt.events[i].TaskID = "T-1"
+			}
+			f := &fakeState{
+				tasks:    []state.TaskRuntime{{ID: "T-1", Status: model.StatusInProgress}},
+				events:   tt.events,
+				runs:     []state.Run{{RunID: "run-1", StartedAt: "2026-09-16T10:00:00Z", Mode: "run", Status: "live"}},
+				inFlight: []state.Dispatch{{RunID: "run-1", TaskID: "T-1", Backend: "claude", StartedAt: "2026-09-16T10:05:00Z", Attempt: 1}},
+			}
+			var now nowPayload
+			decode(t, get(t, newReadServer(t, f), "/api/now"), &now)
+			if len(now.Working) != 1 {
+				t.Fatalf("working = %+v, want T-1", now.Working)
+			}
+			d := now.Working[0]
+			if d.Stalled {
+				t.Error("a waiting agent is shown stalled")
+			}
+			if (d.Waiting == nil) != (tt.want == nil) || (d.Waiting != nil && *d.Waiting != *tt.want) {
+				t.Errorf("waiting = %+v, want %+v", d.Waiting, tt.want)
+			}
+		})
+	}
+}
+
 // holdRunLock takes the exclusive flock `orch run` holds, for the test.
 func holdRunLock(t *testing.T, stateDir string) {
 	t.Helper()

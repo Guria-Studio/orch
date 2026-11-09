@@ -48,6 +48,8 @@ export interface StakeholderDeliverable {
   title: string
   status: DeliverableStatus
   finished_at?: string
+  /** A running deliverable whose agent is silent but working, in the snapshot's language (#524). */
+  waiting?: string
 }
 
 export interface StakeholderDelivery {

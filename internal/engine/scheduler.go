@@ -217,6 +217,9 @@ type Scheduler struct {
 	// watches and lastWatch are the agent watch's (#487), see WatchAgents.
 	watches   map[int]*agentWatch
 	lastWatch time.Time
+	// procProbe reads an agent's process group for the watch's liveness
+	// (#524); nil is readProcGroup. Tests swap it.
+	procProbe func(pgid int) (procStats, error)
 	// retryWorktree is the worktree a retry runs in, by task, with the
 	// feedback file saying what failed: the one the poller rebuilt for a CI
 	// retry, or the one a failed local verify kept.

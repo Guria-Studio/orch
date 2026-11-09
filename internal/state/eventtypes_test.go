@@ -101,6 +101,10 @@ var goOnlyEventTypes = map[string]bool{
 	// The agent watch's warnings about a running attempt (#487).
 	"agent_stalled": true,
 	"agent_looping": true,
+	// A stalled or waiting agent writing again (#533), and one silent but
+	// working, with the evidence (#524).
+	"agent_resumed": true,
+	"agent_waiting": true,
 	// The conflict radar's: overlapping files before dispatch, conflicting
 	// task PRs after (#482).
 	"files_overlap":   true,

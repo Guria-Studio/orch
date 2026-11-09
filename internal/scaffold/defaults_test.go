@@ -67,6 +67,8 @@ var leftOutOfScaffold = map[string]string{ // #nosec G101 -- config key names an
 	"guard.protected":                "safe default (block); advanced",
 	"watch.enabled":                  "advanced",
 	"watch.stall_after_s":            "advanced",
+	"watch.liveness":                 "advanced",
+	"watch.min_cpu_pct":              "advanced",
 	"radar":                          "advanced",
 }
 
