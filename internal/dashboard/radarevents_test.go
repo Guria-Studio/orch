@@ -29,3 +29,12 @@ func TestAgentWaitingReadsInTheLog(t *testing.T) {
 		t.Errorf("agent_waiting = %q %q, want %q info", got.Human, got.Severity, want)
 	}
 }
+
+// semantic_collision (#522) reads as a warning with the rule's reason.
+func TestSemanticCollisionReadsInTheLog(t *testing.T) {
+	got := formatEvent(state.Event{EventType: "semantic_collision", TaskID: "B", TS: "2026-10-22T20:00:00Z",
+		Extra: map[string]any{"with": "base", "key": "005", "reason": "migrations: db/005_b.sql adds 005, which main already has as db/005_a.sql"}})
+	if want := "[20:00:00] COLLIDE B semantic_collision (migrations: db/005_b.sql adds 005, which main already has as db/005_a.sql)"; got.Human != want || got.Severity != "warn" {
+		t.Errorf("semantic_collision = %q %q, want %q warn", got.Human, got.Severity, want)
+	}
+}

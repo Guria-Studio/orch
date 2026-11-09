@@ -17,7 +17,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // resolveAndValidate resolves the project's paths and checks it looks like
@@ -72,13 +71,15 @@ func openProject(ctx context.Context, f *projectFlags) (*project.Project, error)
 // close func the caller must run once done. Kept separate from
 // loadProjectConfig so `orch logs` — which never touches the database — can
 // skip it entirely.
-func openBackend(ctx context.Context, paths config.Paths, cfg config.Config) (state.Backend, func() error, error) {
-	dbPath := paths.SQLitePath(cfg)
-	db, _, err := state.Open(ctx, dbPath)
+//
+// It is project.OpenWith (same database, same "open <path>: …" error) for the
+// commands that hand the backend on rather than the project.
+func openBackend(ctx context.Context, paths config.Paths, cfg config.Config) (project.Backend, func() error, error) {
+	p, err := project.OpenWith(ctx, paths, cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open %s: %w", dbPath, err)
+		return nil, nil, err
 	}
-	return state.NewSQLite(db, paths.ID, paths.Root), db.Close, nil
+	return p.Backend, p.Close, nil
 }
 
 // loadDAG reads tasks.json for its shape (phase, title, model,
@@ -125,7 +126,7 @@ var knownBackends = []model.Backend{
 // pricing.yaml beside it (pricing.Sum, the dashboard's rule, #578). The
 // project-wide totals `orch status` reports are this map's own values summed —
 // not a second, separately computed number — so the two can never disagree.
-func computeCostByTask(ctx context.Context, backend state.Backend, table pricing.Table) (map[string]pricing.Sum, error) {
+func computeCostByTask(ctx context.Context, backend project.Backend, table pricing.Table) (map[string]pricing.Sum, error) {
 	out := map[string]pricing.Sum{}
 	for _, b := range knownBackends {
 		spend, err := backend.SpendSince(ctx, string(b), time.Time{})
@@ -211,7 +212,7 @@ type statusRow struct {
 // task order (declaration order), NOT Backend.Tasks' `ORDER BY task_id` —
 // that's a different consumer's convention; Python's row order comes from
 // iterating tasks.json directly.
-func buildStatusRows(ctx context.Context, backend state.Backend, projectID string, tasks []model.Task, rtr router.Router, costByTask map[string]pricing.Sum) ([]statusRow, error) {
+func buildStatusRows(ctx context.Context, backend project.Backend, projectID string, tasks []model.Task, rtr router.Router, costByTask map[string]pricing.Sum) ([]statusRow, error) {
 	// One query for every task's live status, not one per task. `project` is
 	// where that overlay lives now: the dashboard needs the same answer, and
 	// two copies of "which status is the real one" is exactly the kind of
@@ -297,7 +298,7 @@ type effectiveJSON struct {
 
 // latestEffective is what each task's latest attempt reported running; a
 // task whose latest attempt reported nothing has no entry.
-func latestEffective(ctx context.Context, backend state.Backend) (map[string]*effectiveJSON, error) {
+func latestEffective(ctx context.Context, backend project.Backend) (map[string]*effectiveJSON, error) {
 	attempts, err := backend.Attempts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read attempts: %w", err)

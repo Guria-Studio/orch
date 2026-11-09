@@ -190,7 +190,7 @@ var eventTypes = map[string]bool{
 	"provider_skip": true, "ci_conflict_retry": true, "merged_locally": true,
 	"agent_stalled": true, "agent_looping": true,
 	"agent_resumed": true, "agent_waiting": true,
-	"files_overlap": true, "branch_conflict": true,
+	"files_overlap": true, "branch_conflict": true, "semantic_collision": true,
 	// The project knowledge (#453): an operator's edit, and the lessons a prompt carried.
 	"knowledge_edited": true, "knowledge_used": true,
 	// An attempt that ran another model, effort or tier than its route (#580).

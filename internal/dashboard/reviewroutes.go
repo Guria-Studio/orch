@@ -12,7 +12,6 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The task page's Changes tab (#454): what the task's branch changed against
@@ -57,7 +56,7 @@ type taskDiff struct {
 
 func (s *Server) handleTaskDiff(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	rows, err := s.state.Tasks(r.Context(), state.TaskFilter{IDs: []string{id}})
+	rows, err := project.RuntimeOf(r.Context(), s.state, id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorPayload{Detail: err.Error()})
 		return

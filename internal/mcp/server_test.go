@@ -12,7 +12,9 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Guria-Studio/orch/internal/budget"
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/prompt"
 	"github.com/Guria-Studio/orch/internal/scaffold"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -92,7 +94,7 @@ func newTestSession(t *testing.T) (*mcpsdk.ClientSession, string, state.Backend)
 	t.Helper()
 	root, backend := newTestProject(t)
 	cs := connect(t, Options{
-		Backend:     backend,
+		Project:     project.New(config.Paths{}, config.Config{}, backend),
 		TasksJSON:   filepath.Join(root, "tasks.json"),
 		ProjectID:   "proj",
 		ProjectRoot: root,
@@ -606,7 +608,7 @@ func TestEventsReadsAPythonEventLog(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	cs := connect(t, Options{
-		Backend:   state.NewSQLite(db, "billing-api", t.TempDir()),
+		Project:   project.New(config.Paths{}, config.Config{}, state.NewSQLite(db, "billing-api", t.TempDir())),
 		ProjectID: "billing-api",
 		Version:   "v-test",
 	})
@@ -684,7 +686,7 @@ func TestBudgetReportsTheShippedPreset(t *testing.T) {
 		t.Fatalf("load the shipped budgets.yaml: %v", err)
 	}
 	cs := connect(t, Options{
-		Backend:   backend,
+		Project:   project.New(config.Paths{}, config.Config{}, backend),
 		ProjectID: "billing-api",
 		Budget:    budget.NewGate(backend, cfg),
 		Version:   "v-test",
@@ -723,7 +725,7 @@ func TestAnUnreadableTasksFileIsReportedAsItself(t *testing.T) {
 		t.Fatalf("corrupt tasks.json: %v", err)
 	}
 	cs := connect(t, Options{
-		Backend: backend, TasksJSON: broken, ProjectID: "proj",
+		Project: project.New(config.Paths{}, config.Config{}, backend), TasksJSON: broken, ProjectID: "proj",
 		ProjectRoot: root, Version: "v-test",
 	})
 

@@ -387,6 +387,7 @@ func (s *Scheduler) openPR(ctx context.Context, entry *InFlight, existing string
 		s.logger().Error("recording the pr_created event failed", "task", task.ID, "err", err)
 	}
 	s.radarPRs(ctx, entry)
+	s.semanticPRs(ctx, entry)
 	return ""
 }
 
@@ -407,6 +408,10 @@ type localLand struct {
 func (s *Scheduler) landLocally(ctx context.Context, entry *InFlight) localLand {
 	id, base := entry.Task.ID, s.baseBranch()
 	s.commitWork(ctx, id, entry.Dispatch.Cwd)
+	if reason := s.landCollisions(ctx, entry); reason != "" {
+		s.removeWorktree(ctx, id)
+		return localLand{block: reason}
+	}
 	title, body := s.prText(ctx, entry.Task)
 	res, err := s.Worktree.LandLocally(ctx, id, base, title+"\n\n"+body)
 	if err != nil {

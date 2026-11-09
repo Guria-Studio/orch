@@ -9,7 +9,9 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/knowledge"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/worktree"
 )
 
@@ -22,7 +24,7 @@ func TestLearnWritesIntoTheTaskWorktreeAndSearchFindsIt(t *testing.T) {
 	if err := os.MkdirAll(wt, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectID: "proj", ProjectRoot: root, Knowledge: true})
 
 	var learned learnOut
 	res := call(t, cs, "orch_learn", map[string]any{"task_id": "F0.T1", "title": "Health checks need a JSON body",
@@ -73,7 +75,7 @@ func TestLearnIgnoresATaskIDThatWalksOutOfTheWorktrees(t *testing.T) {
 	if err := os.MkdirAll(outside, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectID: "proj", ProjectRoot: root, Knowledge: true})
 	var out learnOut
 	call(t, cs, "orch_learn", map[string]any{"task_id": "../elsewhere", "title": "t", "lesson": "l"}, &out)
 	if got, _ := knowledge.Load(outside); len(got) != 0 {
@@ -87,7 +89,7 @@ func TestLearnIgnoresATaskIDThatWalksOutOfTheWorktrees(t *testing.T) {
 // A lesson is a few lines: past 20 orch_learn refuses it and writes nothing.
 func TestLearnRefusesALessonOverTwentyLines(t *testing.T) {
 	root, backend := newTestProject(t)
-	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectID: "proj", ProjectRoot: root, Knowledge: true})
 	for _, tc := range []struct {
 		lines  int
 		refuse bool
@@ -116,7 +118,7 @@ func TestKnowledgeSearchSaysWhatItCouldNotRead(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, knowledge.Dir, "broken.md"), []byte("no front matter\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectID: "proj", ProjectRoot: root, Knowledge: true})
 	res, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "orch_knowledge_search",
 		Arguments: map[string]any{"query": "anything"}})
 	msg := ""
@@ -137,7 +139,7 @@ func TestKnowledgeSearchSaysWhatItCouldNotRead(t *testing.T) {
 // orch_learn cannot write a rule: that is the operator's (#505).
 func TestLearnRefusesARule(t *testing.T) {
 	root, backend := newTestProject(t)
-	cs := connect(t, Options{Backend: backend, ProjectID: "proj", ProjectRoot: root, Knowledge: true})
+	cs := connect(t, Options{Project: project.New(config.Paths{}, config.Config{}, backend), ProjectID: "proj", ProjectRoot: root, Knowledge: true})
 	var learned learnOut
 	res := call(t, cs, "orch_learn", map[string]any{"task_id": "F0.T1", "title": "Layering",
 		"lesson": "Controllers call services.", "area": []string{"app/"}, "kind": "rule"}, &learned)
