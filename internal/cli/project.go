@@ -13,6 +13,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/budget"
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
+	"github.com/Guria-Studio/orch/internal/pricing"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/state"
@@ -116,21 +117,24 @@ var knownBackends = []model.Backend{
 	model.BackendGemini, model.BackendAgy, model.BackendMuse,
 }
 
-// computeCostByTask sums cost_usd per task id across every backend and all
-// of history (since = the zero Time), mirroring Python's
+// computeCostByTask sums each task's spend across every backend and all of
+// history (since = the zero Time), mirroring Python's
 // `for row in backend.iter_all_spend(): cost_by_task[tid] += cost`
-// (orchestrator/observability.py). The project-wide total `orch status`
-// reports is this map's own values summed — not a second, separately
-// computed number — so the two can never disagree.
-func computeCostByTask(ctx context.Context, backend state.Backend) (map[string]float64, error) {
-	out := map[string]float64{}
+// (orchestrator/observability.py), with the rows nobody billed priced from
+// pricing.yaml beside it (pricing.Sum, the dashboard's rule, #578). The
+// project-wide totals `orch status` reports are this map's own values summed —
+// not a second, separately computed number — so the two can never disagree.
+func computeCostByTask(ctx context.Context, backend state.Backend, table pricing.Table) (map[string]pricing.Sum, error) {
+	out := map[string]pricing.Sum{}
 	for _, b := range knownBackends {
 		spend, err := backend.SpendSince(ctx, string(b), time.Time{})
 		if err != nil {
 			return nil, fmt.Errorf("read spend for %q: %w", b, err)
 		}
 		for _, s := range spend {
-			out[s.TaskID] += s.CostUSD
+			sum := out[s.TaskID]
+			sum.Add(table, s.CostUSD, s.Model, s.Tokens())
+			out[s.TaskID] = sum
 		}
 	}
 	return out, nil
@@ -168,25 +172,33 @@ func formatPyFloat(v float64) json.RawMessage {
 // order (json.dumps preserves dict insertion order, so this order is part
 // of the compatibility contract, not cosmetic).
 type statusRow struct {
-	ID             string          `json:"id"`
-	Phase          int             `json:"phase"`
-	Title          string          `json:"title"`
-	Status         model.Status    `json:"status"`
-	Backend        string          `json:"backend"`
-	CLIModel       string          `json:"cli_model"`
-	Model          string          `json:"model"`
-	Tier           *string         `json:"tier"`
-	Dependencies   []string        `json:"dependencies"`
-	CostUSD        json.RawMessage `json:"cost_usd"`
-	LastEvent      *eventJSON      `json:"last_event"`
-	LastEventHuman *string         `json:"last_event_human"`
-	DeferReason    *string         `json:"defer_reason"`
+	ID           string       `json:"id"`
+	Phase        int          `json:"phase"`
+	Title        string       `json:"title"`
+	Status       model.Status `json:"status"`
+	Backend      string       `json:"backend"`
+	CLIModel     string       `json:"cli_model"`
+	Model        string       `json:"model"`
+	Tier         *string      `json:"tier"`
+	Dependencies []string     `json:"dependencies"`
+	// CostUSD is what the CLIs billed, as before #578. CostSource and
+	// EstimatedCostUSD say what it is: "reported", "estimated" (nothing
+	// billed; EstimatedCostUSD is the pricing.yaml price of the tokens),
+	// "no_data" (it ran, nothing to price) or "none" (it never ran) — the
+	// dashboard budget summary's words. EstimatedCostUSD is never part of
+	// CostUSD.
+	CostUSD          json.RawMessage `json:"cost_usd"`
+	CostSource       string          `json:"cost_source"`
+	EstimatedCostUSD json.RawMessage `json:"estimated_cost_usd"`
+	LastEvent        *eventJSON      `json:"last_event"`
+	LastEventHuman   *string         `json:"last_event_human"`
+	DeferReason      *string         `json:"defer_reason"`
 
-	// costUSDValue is the same value as CostUSD, kept as a real float64 for
-	// buildSnapshot's filtered_total_usd sum — parsing CostUSD's
-	// json.RawMessage back out just to add it up would be a strange way to
-	// avoid storing the number twice.
-	costUSDValue float64
+	// cost is the sum behind CostUSD/CostSource/EstimatedCostUSD, kept for
+	// buildSnapshot's filtered totals and the table's COST column —
+	// parsing the json.RawMessage fields back out just to add them up would
+	// be a strange way to avoid storing the numbers twice.
+	cost pricing.Sum
 }
 
 // buildStatusRows joins tasks.json's DAG shape with the database's runtime
@@ -194,7 +206,7 @@ type statusRow struct {
 // task order (declaration order), NOT Backend.Tasks' `ORDER BY task_id` —
 // that's a different consumer's convention; Python's row order comes from
 // iterating tasks.json directly.
-func buildStatusRows(ctx context.Context, backend state.Backend, projectID string, tasks []model.Task, rtr router.Router, costByTask map[string]float64) ([]statusRow, error) {
+func buildStatusRows(ctx context.Context, backend state.Backend, projectID string, tasks []model.Task, rtr router.Router, costByTask map[string]pricing.Sum) ([]statusRow, error) {
 	// One query for every task's live status, not one per task. `project` is
 	// where that overlay lives now: the dashboard needs the same answer, and
 	// two copies of "which status is the real one" is exactly the kind of
@@ -230,23 +242,25 @@ func buildStatusRows(ctx context.Context, backend state.Backend, projectID strin
 			tier = &tierStr
 		}
 
-		cost := round4(costByTask[t.ID])
+		cost := costByTask[t.ID]
 
 		rows = append(rows, statusRow{
-			ID:             t.ID,
-			Phase:          t.Phase,
-			Title:          t.Title,
-			Status:         status,
-			Backend:        backendName,
-			CLIModel:       cliModel,
-			Model:          t.Model,
-			Tier:           tier,
-			Dependencies:   nonNilStrings(t.Dependencies),
-			CostUSD:        formatPyFloat(cost),
-			LastEvent:      lastEvent,
-			LastEventHuman: lastEventHuman,
-			DeferReason:    deferReason,
-			costUSDValue:   cost,
+			ID:               t.ID,
+			Phase:            t.Phase,
+			Title:            t.Title,
+			Status:           status,
+			Backend:          backendName,
+			CLIModel:         cliModel,
+			Model:            t.Model,
+			Tier:             tier,
+			Dependencies:     nonNilStrings(t.Dependencies),
+			CostUSD:          formatPyFloat(round4(cost.Reported)),
+			CostSource:       cost.Source(),
+			EstimatedCostUSD: formatPyFloat(round4(cost.Estimated)),
+			LastEvent:        lastEvent,
+			LastEventHuman:   lastEventHuman,
+			DeferReason:      deferReason,
+			cost:             cost,
 		})
 	}
 	return rows, nil

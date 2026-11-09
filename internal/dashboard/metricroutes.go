@@ -241,9 +241,9 @@ func (s *Server) handleBudgetSummary(w http.ResponseWriter, r *http.Request) {
 			OverThreshold:    pb.TokenBudget > 0 && float64(pct) >= pb.ThresholdPct,
 			WindowHours:      pb.WindowHours,
 			ResetAt:          snap.ResetAt,
-			CostUSD:          round4(c.recorded),
-			CostSource:       c.source(),
-			EstimatedCostUSD: round4(c.estimated),
+			CostUSD:          round4(c.Reported),
+			CostSource:       c.Source(),
+			EstimatedCostUSD: round4(c.Estimated),
 		})
 	}
 	out.Available = true
@@ -254,26 +254,6 @@ func (s *Server) handleBudgetSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
-}
-
-// providerCost is one provider's spend since midnight UTC.
-type providerCost struct {
-	rows      int
-	recorded  float64
-	estimated float64
-}
-
-func (c providerCost) source() string {
-	switch {
-	case c.rows == 0:
-		return "none"
-	case c.recorded > 0:
-		return "reported"
-	case c.estimated > 0:
-		return "estimated"
-	default:
-		return "no_data"
-	}
 }
 
 // todaysCostByProvider sums what each backend has cost since midnight UTC.
@@ -287,23 +267,20 @@ func (c providerCost) source() string {
 // budget, and inventing dollars for a backend that does not bill would make
 // that column read as spend. A row with tokens and no price gets its
 // pricing.yaml estimate in its own field instead, labelled as such.
-func (s *Server) todaysCostByProvider(r *http.Request) (map[string]providerCost, error) {
+//
+// The split and the source words are pricing.Sum's, the same rule `orch
+// status` applies per task.
+func (s *Server) todaysCostByProvider(r *http.Request) (map[string]pricing.Sum, error) {
 	midnight := time.Now().UTC().Truncate(24 * time.Hour)
 	spends, err := s.state.AllSpend(r.Context(), midnight)
 	if err != nil {
 		return nil, err
 	}
 	table := s.pricing()
-	out := map[string]providerCost{}
+	out := map[string]pricing.Sum{}
 	for _, sp := range spends {
 		c := out[sp.Backend]
-		c.rows++
-		switch {
-		case sp.CostUSD > 0:
-			c.recorded += sp.CostUSD
-		case sp.TokensIn+sp.TokensOut > 0:
-			c.estimated += table.EstimateCost(sp.Model, sp.Tokens())
-		}
+		c.Add(table, sp.CostUSD, sp.Model, sp.Tokens())
 		out[sp.Backend] = c
 	}
 	return out, nil
