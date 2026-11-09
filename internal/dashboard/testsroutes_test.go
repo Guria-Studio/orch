@@ -218,7 +218,10 @@ func TestPortalServesTheEvidenceMedia(t *testing.T) {
 	}
 
 	resp := get(t, s, "/stakeholder/evidence/0123abcd/video.webm?token=test-token-stakeholder")
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusOK || string(body) != "0123456789" || resp.Header.Get("Content-Type") != "video/webm" {
 		t.Errorf("video: %d %q %q", resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	}

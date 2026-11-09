@@ -53,7 +53,11 @@ func (s *Server) handlePortalEvidence(w http.ResponseWriter, r *http.Request) {
 		handleAPINotFound(w, r)
 		return
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.log.Debug("closing an evidence file failed", "file", src, "err", err)
+		}
+	}()
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
 		handleAPINotFound(w, r)
