@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // newTaskStatusCmd ports `orch task-status` (orchestrator/orch.py's
@@ -41,29 +41,29 @@ func newTaskStatusCmd(flags *projectFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			backend, closeDB, err := openBackend(ctx, paths, cfg)
+			p, err := project.OpenWith(ctx, paths, cfg)
 			if err != nil {
 				return err
 			}
-			defer func() { _ = closeDB() }()
+			defer func() { _ = p.Close() }()
 
 			// A task-status call against a project that was never
 			// `orch status`'d yet still has to find its row — bootstrap is
 			// idempotent (INSERT OR IGNORE), so the only way this fails is
 			// a real database problem, which is exactly what the caller
 			// needs to see rather than a confusing "task not found" from
-			// the Transition call right below.
-			if err := backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
+			// the SetStatus call right below.
+			if err := p.Backend.Bootstrap(ctx, loadDAG(paths)); err != nil {
 				return fmt.Errorf("bootstrap: %w", err)
 			}
 
-			err = backend.Transition(ctx, taskID, status, state.Note{Author: author, Body: note})
+			err = p.SetStatus(ctx, taskID, status, project.Note{Author: author, Body: note})
 			switch {
 			case err == nil:
 				return nil
-			case errors.Is(err, state.ErrTaskNotFound):
+			case errors.Is(err, project.ErrTaskNotFound):
 				return withExitCode(2, fmt.Errorf("unknown task id: %q", taskID))
-			case errors.Is(err, state.ErrIllegalTransition):
+			case errors.Is(err, project.ErrIllegalTransition):
 				return withExitCode(3, fmt.Errorf("illegal transition: %w", err))
 			default:
 				return err

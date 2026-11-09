@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/Guria-Studio/orch/internal/project"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // The operator's stop and note controls (#356). The dashboard stays read-only
@@ -70,9 +69,9 @@ func (s *Server) operatorWrite(w http.ResponseWriter, r *http.Request, on bool, 
 // steerFailed answers a refused or failed write.
 func (s *Server) steerFailed(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, state.ErrTaskNotFound):
+	case errors.Is(err, project.ErrTaskNotFound):
 		writeJSON(w, http.StatusNotFound, errorPayload{Detail: err.Error()})
-	case errors.Is(err, state.ErrIllegalTransition), errors.Is(err, project.ErrRunOwnsTask):
+	case errors.Is(err, project.ErrIllegalTransition), errors.Is(err, project.ErrRunOwnsTask):
 		writeJSON(w, http.StatusConflict, errorPayload{Detail: err.Error()})
 	default:
 		s.log.Error("dashboard steer failed", "err", err)

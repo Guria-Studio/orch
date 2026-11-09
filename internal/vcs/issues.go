@@ -50,9 +50,12 @@ func (i Issue) LabelNames() []string {
 
 // IssueQuery narrows what ListIssues asks for.
 type IssueQuery struct {
-	// Label is required. A sync with no label would ingest an entire issue
-	// tracker, which is never what anyone means.
+	// Label is required unless Search is set. A sync with no label would
+	// ingest an entire issue tracker, which is never what anyone means.
 	Label string
+	// Search is a GitHub issue search (`label:orch milestone:v1`), passed to
+	// gh's --search; what `orch atomize --from-issues` asks with (#525).
+	Search string
 	// State is "open" (the default), "closed" or "all", matching gh's own
 	// vocabulary so an operator who knows gh needs no translation.
 	State string
@@ -81,8 +84,8 @@ func (p *GitHubProvider) ListIssues(q IssueQuery) ([]Issue, error) {
 	if err := checkBinary("gh"); err != nil {
 		return nil, err
 	}
-	if q.Label == "" {
-		return nil, fmt.Errorf("vcs: listing issues needs a label")
+	if q.Label == "" && strings.TrimSpace(q.Search) == "" {
+		return nil, fmt.Errorf("vcs: listing issues needs a label or a search")
 	}
 	state := q.State
 	if state == "" {
@@ -93,11 +96,19 @@ func (p *GitHubProvider) ListIssues(q IssueQuery) ([]Issue, error) {
 		limit = defaultIssueLimit
 	}
 
-	out, err := runIn(q.Dir, "gh", nil, "issue", "list",
-		"--label", q.Label,
-		"--state", state,
+	args := []string{"issue", "list"}
+	asked := fmt.Sprintf("--label %q", q.Label)
+	if q.Label != "" {
+		args = append(args, "--label", q.Label)
+	}
+	if q.Search != "" {
+		args = append(args, "--search", q.Search)
+		asked = fmt.Sprintf("--search %q", q.Search)
+	}
+	args = append(args, "--state", state,
 		"--limit", fmt.Sprintf("%d", limit),
 		"--json", issueListFields)
+	out, err := runIn(q.Dir, "gh", nil, args...)
 	if err != nil {
 		// Naming the directory is not decoration: gh reads the repository
 		// from the git remote of its working directory, so "not a git
@@ -107,7 +118,7 @@ func (p *GitHubProvider) ListIssues(q IssueQuery) ([]Issue, error) {
 		if where == "" {
 			where = "the current directory"
 		}
-		return nil, fmt.Errorf("gh issue list --label %q in %s: %w", q.Label, where, err)
+		return nil, fmt.Errorf("gh issue list %s in %s: %w", asked, where, err)
 	}
 
 	var issues []Issue
@@ -197,4 +208,22 @@ func (p *GitHubProvider) CreateIssue(repo, title, body string, labels []string) 
 		return "", fmt.Errorf("gh issue create --repo %s printed no URL", repo)
 	}
 	return url, nil
+}
+
+// CloseIssue closes the issue at issueURL with comment as its closing
+// comment, in one `gh issue close <url> --comment <comment>`: the evidence
+// and the close land together or not at all. The URL names the repository,
+// so gh's working directory does not matter. A failure carries gh's own
+// stderr; a missing or unauthenticated gh is a *CLIError.
+func (p *GitHubProvider) CloseIssue(issueURL, comment string) error {
+	if err := checkBinary("gh"); err != nil {
+		return err
+	}
+	if _, err := run("gh", nil, "issue", "close", issueURL, "--comment", comment); err != nil {
+		if authErr := checkAuth("gh", nil); authErr != nil {
+			return authErr
+		}
+		return fmt.Errorf("gh issue close %s: %s", issueURL, mergeDetail(err))
+	}
+	return nil
 }

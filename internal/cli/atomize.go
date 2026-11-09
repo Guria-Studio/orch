@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Guria-Studio/orch/internal/atomize"
+	"github.com/Guria-Studio/orch/internal/estimate"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/pyfmt"
@@ -40,6 +43,8 @@ import (
 func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 	var specsDir, file, tasksJSONPath string
 	var listMode, apply, noBackup bool
+	var fromIssues, issuesModel string
+	var allAuthors bool
 	cmd := &cobra.Command{
 		Use:   "atomize",
 		Short: "Parse markdown specs and merge them into tasks.json (read-only unless --apply)",
@@ -62,6 +67,20 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("resolve --tasks-json: %w", err)
 				}
+			}
+
+			if fromIssues != "" {
+				if file != "" {
+					return withExitCode(2, errFromIssuesWithFile)
+				}
+				return runAtomizeFromIssues(cmd, flags, atomizeIssuesOpts{
+					query: fromIssues, model: issuesModel, allAuthors: allAuthors,
+					specsRoot: specsRoot, tasksPath: tasksPath,
+					apply: apply, noBackup: noBackup, list: listMode,
+				})
+			}
+			if issuesModel != "" || allAuthors {
+				return withExitCode(2, errors.New("--model and --all-authors only apply with --from-issues"))
 			}
 
 			var specFiles []string
@@ -123,6 +142,12 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 			}
 
 			if !apply {
+				// Where they will land, and what that means for a run (#579).
+				if len(diff.NewTasks) > 0 {
+					_, err := fmt.Fprintln(out, "New tasks are written in backlog, which orch run does not dispatch: "+
+						"after --apply, promote the ones to run with orch task set --id <ID> --status todo.")
+					return err
+				}
 				return nil
 			}
 			if len(diff.NewTasks) == 0 && len(diff.Updated) == 0 {
@@ -132,8 +157,9 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 
 			// Merged again under the task editor's lock, onto tasks.json as it is
 			// now: an edit that landed since the preview is kept (#531).
+			var written atomize.MergeDiff
 			backupPath, err := project.MutateTasks(paths.StateDir(), tasksPath, !noBackup, func(tf *model.TasksFile) error {
-				*tf, _ = atomize.MergeTasks(*tf, parse.Tasks)
+				*tf, written = atomize.MergeTasks(*tf, parse.Tasks)
 				return nil
 			})
 			if err != nil {
@@ -147,7 +173,7 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 					return err
 				}
 			}
-			return nil
+			return noteNewInBacklog(out, written.NewTasks)
 		},
 	}
 	cmd.Flags().StringVar(&specsDir, "specs-dir", "",
@@ -162,7 +188,33 @@ func newAtomizeCmd(flags *projectFlags) *cobra.Command {
 		"Escribí tasks.json (con backup). Sin este flag es read-only.")
 	cmd.Flags().BoolVar(&noBackup, "no-backup", false,
 		"No crear backup .bak-<ts> al escribir (default: sí crea)")
+	cmd.Flags().StringVar(&fromIssues, "from-issues", "",
+		"GitHub issue search (e.g. label:orch): each open issue becomes specs/issue-<n>-<slug>.md, then tasks")
+	cmd.Flags().StringVar(&issuesModel, "model", "",
+		"With --from-issues: model for the imported tasks; must be one model_router.yaml resolves (required)")
+	cmd.Flags().BoolVar(&allAuthors, "all-authors", false,
+		"With --from-issues: import issues by anyone, not only the repo's collaborators")
 	return cmd
+}
+
+// noteNewInBacklog says that the tasks --apply just added are in backlog,
+// which `orch run` never dispatches, and the command that promotes them
+// (#579): a run right after used to report only that nothing was ready.
+func noteNewInBacklog(w io.Writer, added []model.Task) error {
+	if len(added) == 0 {
+		return nil
+	}
+	ids := make([]string, len(added))
+	for i, t := range added {
+		ids[i] = t.ID
+	}
+	noun, pronoun := "task is", "it"
+	if len(ids) > 1 {
+		noun, pronoun = "tasks are", "them"
+	}
+	_, err := fmt.Fprintf(w, "%d new %s in backlog, which orch run does not dispatch — promote %s with: %s\n",
+		len(ids), noun, pronoun, estimate.PromoteCommand(ids))
+	return err
 }
 
 // renderAtomizeList is `--list`'s renderer, porting `render_list`'s content

@@ -193,6 +193,9 @@ var eventTypes = map[string]bool{
 	"files_overlap": true, "branch_conflict": true,
 	// The project knowledge (#453): an operator's edit, and the lessons a prompt carried.
 	"knowledge_edited": true, "knowledge_used": true,
+	// A GitHub issue closed by orch once its last task landed locally, or
+	// the close that failed (#525).
+	"issue_closed": true, "issue_close_failed": true,
 }
 
 // OrphanRows reports rows whose project_id has no row in `projects`, keyed by

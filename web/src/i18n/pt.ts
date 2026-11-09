@@ -327,6 +327,8 @@ export const pt = {
   "task.ev.task_added": "adicionou a tarefa",
   "task.ev.task_edited": "editou a tarefa",
   "task.ev.salvage_accepted": "aceitou o trabalho da tentativa anterior",
+  "task.ev.issue_closed": "fechou a issue do GitHub",
+  "task.ev.issue_close_failed": "não conseguiu fechar a issue do GitHub",
   "task.hide_properties": "Ocultar as propriedades",
   "task.show_properties": "Mostrar as propriedades",
   "task.properties": "Propriedades",

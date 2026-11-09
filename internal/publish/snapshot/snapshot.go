@@ -166,6 +166,10 @@ type Deliverable struct {
 	// working is doing, in the snapshot's language ("esperando: descargando
 	// datos", #524). Omitted otherwise.
 	Waiting string `json:"waiting,omitempty"`
+	// IssueURL is the GitHub issue the deliverable was imported from
+	// (`orch atomize --from-issues`, #525), so the client can follow it back
+	// to what they asked for. Absent for every other task.
+	IssueURL string `json:"issue_url,omitempty"`
 }
 
 // Summary is the header bar — the same seven figures
@@ -354,7 +358,7 @@ func addPackages(milestones []Milestone, tasks []model.Task, titles map[string]s
 				index[name] = pi
 				packages = append(packages, Package{Name: name})
 			}
-			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), Waiting: waiting[t.ID]}
+			d := Deliverable{Title: t.Title, Status: clientStatus(t.Status), Waiting: waiting[t.ID], IssueURL: t.SourceIssue}
 			if t.Status == model.StatusDone {
 				d.FinishedAt = finishedAt[t.ID]
 				packages[pi].Done++

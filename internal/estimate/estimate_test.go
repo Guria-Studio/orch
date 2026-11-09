@@ -199,3 +199,85 @@ func TestComputeWithNothingToRunEncodesAnEmptyList(t *testing.T) {
 		})
 	}
 }
+
+// A task in backlog never dispatches, and `orch run` used to say only that
+// nothing was ready (#579): the operator who just ran `orch atomize --apply`
+// had no way to know the new tasks were waiting to be promoted, nor how.
+func TestBacklogNote(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      Input
+		backlog []string
+		line2   string
+	}{
+		{
+			name:    "one backlog task, nothing else: its exact command",
+			in:      Input{Tasks: []model.Task{task("F0.1.T1", model.StatusBacklog, "sonnet")}, Only: "F0.1.T1"},
+			backlog: []string{"F0.1.T1"},
+			line2:   "1 task in backlog is not dispatched — promote it with: orch task set --id F0.1.T1 --status todo",
+		},
+		{
+			name: "several, narrowed by --only, in dispatch order: one command for all",
+			in: Input{Tasks: []model.Task{
+				task("F0.1.T2", model.StatusBacklog, "sonnet", "F0.1.T1"),
+				task("F0.1.T1", model.StatusBacklog, "sonnet"),
+				task("F1.1.T1", model.StatusBacklog, "sonnet"),
+				task("F0.1.T0", model.StatusDone, "sonnet"),
+			}, Only: "F0.1.*"},
+			backlog: []string{"F0.1.T1", "F0.1.T2"},
+			line2: `2 tasks in backlog are not dispatched — promote them with: ` +
+				`for id in F0.1.T1 F0.1.T2; do orch task set --id "$id" --status todo; done`,
+		},
+		{
+			name:    "an id the shell would split is quoted",
+			in:      Input{Tasks: []model.Task{task("odd id", model.StatusBacklog, "sonnet")}},
+			backlog: []string{"odd id"},
+			line2:   "1 task in backlog is not dispatched — promote it with: orch task set --id 'odd id' --status todo",
+		},
+		{
+			name:    "nothing in backlog: no note",
+			in:      Input{Tasks: []model.Task{task("A", model.StatusBlocked, "sonnet")}},
+			backlog: []string{},
+			line2:   "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.in.Routes = routes
+			e := Compute(tc.in)
+			if !reflect.DeepEqual(e.Backlog, tc.backlog) {
+				t.Errorf("Backlog = %#v, want %#v", e.Backlog, tc.backlog)
+			}
+			if got := e.BacklogNote(); got != tc.line2 {
+				t.Errorf("BacklogNote() = %q\nwant           %q", got, tc.line2)
+			}
+			l := e.Lines()
+			if l[0] != "≈ 0 tasks: nothing is ready to run, nor becomes ready during a run" || l[1] != tc.line2 {
+				t.Errorf("Lines() = %q, want the zero line then %q", l, tc.line2)
+			}
+		})
+	}
+}
+
+// With something to dispatch, backlog is the operator's choice (orch-tasks
+// leaves later work there on purpose): the estimate lists it but says
+// nothing about it.
+func TestBacklogBesideReadyWorkIsListedNotNoted(t *testing.T) {
+	e := Compute(Input{Routes: routes, Tasks: []model.Task{
+		task("A", model.StatusTodo, "sonnet"),
+		task("B", model.StatusBacklog, "sonnet"),
+	}})
+	if !reflect.DeepEqual(e.Backlog, []string{"B"}) {
+		t.Errorf("Backlog = %#v, want [B]", e.Backlog)
+	}
+	if l := e.Lines(); strings.Contains(l[1], "backlog") {
+		t.Errorf("Lines()[1] = %q, want no backlog note while A runs", l[1])
+	}
+	raw, err := json.Marshal(Compute(Input{Tasks: []model.Task{task("A", model.StatusDone, "sonnet")}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"backlog":[]`) {
+		t.Errorf("estimate = %s, want \"backlog\":[]", raw)
+	}
+}

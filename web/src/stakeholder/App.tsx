@@ -454,6 +454,16 @@ function PhaseRow({ m, state, lang, last }: { m: StakeholderMilestone; state: Ph
                       {d.title}
                       {d.waiting ? <span className="block text-sm text-[var(--portal-muted)]">{d.waiting}</span> : null}
                     </span>
+                    {d.issue_url ? (
+                      <a
+                        href={d.issue_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-sm text-[var(--portal-muted)] underline"
+                      >
+                        {t.openIssue}
+                      </a>
+                    ) : null}
                   </li>
                 ))}
               </ul>
