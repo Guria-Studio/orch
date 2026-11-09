@@ -255,6 +255,14 @@ no dispatch, não é aceita em silêncio; blocos de código cercados num spec
 são ignorados pelo parser (assim um spec de exemplo dentro de
 `specs/README.md` não é importado como tarefas reais).
 
+**As tarefas novas ficam em `backlog`**, e o `orch run` nunca despacha uma
+tarefa em backlog. O `--apply` termina dizendo isso, com o comando que as
+promove — `orch task set --id F1.1.T1 --status todo` para uma, um loop
+`for id in …; do …; done` sobre o mesmo comando para várias. Promova as que
+você quer rodar. Se esquecer, o `orch run` (e o `orch estimate`) dizem
+quantas tarefas continuam em backlog e imprimem o mesmo comando, em vez de só
+"nothing is ready".
+
 ---
 
 ## 4. Revisar o plano antes de rodar
