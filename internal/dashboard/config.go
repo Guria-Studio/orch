@@ -123,6 +123,15 @@ func (c Config) Validate() error {
 				"would be refused, including the SPA's own token form",
 			ProfileStakeholder)
 	}
+	// Beyond loopback the operator surface wants a token from anyone not on
+	// this machine (#537); with none set every remote request would be
+	// refused, and the operator would not know why.
+	if !loopbackBind(c.Host) && c.TokenHash == "" {
+		return fmt.Errorf(
+			"dashboard host %s is reachable beyond this machine but no token is set — "+
+				"pass --token (or set dashboard.token, or run `orch dashboard token rotate`), "+
+				"or bind 127.0.0.1", c.Host)
+	}
 	// Port 0 is legal and means "any free one" — `net.Listen` picks it, and
 	// it is how a test or an ephemeral instance binds without racing another
 	// process for a fixed number.

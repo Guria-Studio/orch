@@ -114,6 +114,19 @@ func (b *fakeBackend) Transition(_ context.Context, taskID string, to model.Stat
 	return nil
 }
 
+// extraOf is the extras of a task's first event of eventType, printed; ""
+// when there is none.
+func (b *fakeBackend) extraOf(taskID, eventType string) string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, e := range b.events {
+		if e.taskID == taskID && e.eventType == eventType {
+			return fmt.Sprint(e.extra)
+		}
+	}
+	return ""
+}
+
 // eventTypes returns the recorded event types for one task, in order.
 func (b *fakeBackend) eventTypes(taskID string) []string {
 	b.mu.Lock()

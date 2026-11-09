@@ -149,6 +149,63 @@ func TestGeminiExtractCostIsAlwaysZero(t *testing.T) {
 	}
 }
 
+// With StreamJSON (a gemini that has --output-format stream-json, which the
+// engine probes for), the argv asks for it; without, it stays the plain-text
+// argv an older gemini accepts (#543).
+func TestGeminiArgvStreamJSON(t *testing.T) {
+	argv := GeminiProvider{}.Argv(Request{Route: geminiRoute("gemini-2.5-flash"), PromptText: "p", StreamJSON: true})
+	want := "gemini -p p --model gemini-2.5-flash --output-format stream-json"
+	if got := strings.Join(argv, " "); got != want {
+		t.Errorf("argv = %q, want %q", got, want)
+	}
+}
+
+// A real gemini 0.59.0 stream-json run, stdout and stderr merged as the engine
+// captures them: the tokens are the CLI's own, the cache reads are counted
+// apart, and the thoughts gemini bills as output are the reasoning (#543).
+func TestGeminiParseRealStreamSuccess(t *testing.T) {
+	out := readFixture(t, "gemini", "0.59.0", "stream-success.jsonl")
+	res := GeminiProvider{}.Parse(0, out)
+
+	if !res.Success || res.ErrorMessage != "" {
+		t.Fatalf("want success, got %q", res.ErrorMessage)
+	}
+	// stats: total 14244, input_tokens 13844 (cached 11773 of them), output 170.
+	if res.TokensIn != 13844 || res.CacheReadTokens != 11773 {
+		t.Errorf("in = %d (cache read %d), want 13844 (11773)", res.TokensIn, res.CacheReadTokens)
+	}
+	if res.TokensOut != 400 || res.ReasoningTokens != 230 {
+		t.Errorf("out = %d (reasoning %d), want 400 (230): the total less the input", res.TokensOut, res.ReasoningTokens)
+	}
+	if res.Estimated {
+		t.Error("Estimated = true; the run reported its usage")
+	}
+	if !strings.HasPrefix(res.Text, "1\n2\n3\n") || !strings.HasSuffix(res.Text, "59\n60") {
+		t.Errorf("Text = %q, want the assistant's deltas joined", res.Text)
+	}
+	// The merged stderr is in the capture; it must not break the parse.
+	if !strings.Contains(string(out), "Ripgrep is not available") {
+		t.Error("the stderr preamble is gone from the fixture; this test now proves less")
+	}
+}
+
+// A failed stream-json run reports its reason in the result event; the merged
+// stderr after it is a stack trace whose last line says nothing useful.
+func TestGeminiParseRealStreamUnknownModel(t *testing.T) {
+	out := readFixture(t, "gemini", "0.59.0", "stream-unknown-model.jsonl")
+	res := GeminiProvider{}.Parse(1, out)
+
+	if res.Success {
+		t.Fatal("want failure")
+	}
+	if !strings.Contains(res.ErrorMessage, "models/no-such-model-xyz is not found") {
+		t.Errorf("ErrorMessage = %q, want the result event's error", res.ErrorMessage)
+	}
+	if res.Estimated || res.TokensIn != 0 {
+		t.Errorf("Estimated = %v, in = %d; the run reported zero usage, which is a report", res.Estimated, res.TokensIn)
+	}
+}
+
 func TestLastNonEmptyLine(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"", ""},

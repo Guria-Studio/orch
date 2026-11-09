@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/model"
@@ -70,6 +71,7 @@ func RecordStart(ctx context.Context, b state.Backend, runID string, d Dispatch,
 		LogPath:    d.LogPath,
 		OutputPath: d.Req.OutputPath,
 		Attempt:    attempt,
+		ProcStart:  project.ProcStart(sp.PID),
 	}); err != nil {
 		return fmt.Errorf("record dispatch for %s: %w", d.Req.TaskID, err)
 	}
@@ -125,6 +127,10 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 		return fmt.Errorf("append outcome event for %s: %w", d.Req.TaskID, err)
 	}
 
+	if err := b.RecordAttempt(ctx, attemptRow(runID, d, o, ts, attempt)); err != nil {
+		return fmt.Errorf("record attempt for %s: %w", d.Req.TaskID, err)
+	}
+
 	if err := b.ClearDispatch(ctx, runID, d.Req.TaskID); err != nil {
 		return fmt.Errorf("clear dispatch for %s: %w", d.Req.TaskID, err)
 	}
@@ -132,14 +138,27 @@ func RecordFinish(ctx context.Context, b state.Backend, runID string, d Dispatch
 }
 
 // spendRow is a finished dispatch's cost row.
+//
+// A run whose CLI reported no usage at all (gemini without stream-json, a
+// silent opencode) gets tokens estimated from the size of its prompt and
+// output, still marked Estimated (#543): zero would price it at nothing and
+// let the budget gate weigh it only as a typical dispatch.
 func spendRow(d Dispatch, o Outcome, attempt int) state.Spend {
+	in, out := o.Result.TokensIn, o.Result.TokensOut
+	if o.Result.Estimated && in == 0 && out == 0 {
+		prompt := int64(len(d.Req.PromptText))
+		if fi, err := os.Stat(d.PromptPath); err == nil {
+			prompt = fi.Size()
+		}
+		in, out = estimateTokens(prompt), estimateTokens(int64(len(o.Result.Stdout)))
+	}
 	return state.Spend{
 		TS:                  utcSecond(o.StartedAt.Add(o.Duration)),
 		TaskID:              d.Req.TaskID,
 		Backend:             string(d.Req.Route.Backend),
 		Model:               d.Req.Route.CLIModel,
-		TokensIn:            o.Result.TokensIn,
-		TokensOut:           o.Result.TokensOut,
+		TokensIn:            in,
+		TokensOut:           out,
 		CacheReadTokens:     o.Result.CacheReadTokens,
 		CacheCreationTokens: o.Result.CacheCreationTokens,
 		ReasoningTokens:     o.Result.ReasoningTokens,
@@ -148,6 +167,49 @@ func spendRow(d Dispatch, o Outcome, attempt int) state.Spend {
 		DurationS:           o.Duration.Seconds(),
 		Estimated:           o.Result.Estimated,
 	}
+}
+
+// attemptRow is a finished attempt for `orch metrics` (#538).
+func attemptRow(runID string, d Dispatch, o Outcome, ts string, attempt int) state.Attempt {
+	a := state.Attempt{
+		RunID: runID, TaskID: d.Req.TaskID, Attempt: attempt,
+		Backend: string(d.Req.Route.Backend), Model: d.Req.Route.CLIModel, Tier: string(d.Req.Route.Tier),
+		Result:   "fail",
+		TokensIn: o.Result.TokensIn, TokensOut: o.Result.TokensOut,
+		CostUSD: o.Result.CostUSD, DurationS: o.Duration.Seconds(), FinishedAt: ts,
+	}
+	switch {
+	case o.Stopped:
+		a.Result = "stopped"
+	case o.Result.Success:
+		a.Result = "success"
+	default:
+		if o.TimedOut {
+			a.Result = "timeout"
+		}
+		a.FailureClass, a.Reason = string(o.Failure), truncateReason(o.Result.ErrorMessage)
+	}
+	if v := o.Verify; v != nil {
+		a.Verify = "pass"
+		if v.Failure != "" {
+			a.Verify = "fail"
+		}
+		if v.Reviewer != "" {
+			// The review runs last, only on work the checks passed, so a
+			// failure with a reviewer is the review's.
+			a.Review, a.Reviewer = "pass", v.Reviewer
+			if v.Failure != "" {
+				a.Review = "blocks"
+			}
+		}
+		if v.ReviewUnavailable != "" {
+			a.Review = "unavailable"
+		}
+		for _, f := range v.Findings {
+			a.Findings = append(a.Findings, state.AttemptFinding{Severity: f.Severity, File: f.File, Line: f.Line, Title: f.Title})
+		}
+	}
+	return a
 }
 
 // outcomeEvent builds the event for a finished dispatch.

@@ -29,6 +29,7 @@ type fakeState struct {
 	spendErr   error
 	done7d     int
 	lastEvents map[string]state.Event
+	attempts   []state.Attempt
 
 	latestErr error
 	sinceErr  error
@@ -195,6 +196,8 @@ func (f *fakeState) ProviderStates(context.Context) ([]state.ProviderState, erro
 
 func (f *fakeState) FiledFindings(context.Context) ([]state.FiledFinding, error) { return nil, nil }
 
+func (f *fakeState) Attempts(context.Context) ([]state.Attempt, error) { return f.attempts, nil }
+
 func (f *fakeState) RecordFiledFinding(context.Context, state.FiledFinding) error { return nil }
 
 func (f *fakeState) StakeholderToken(context.Context) (string, time.Time, bool, error) {
@@ -216,8 +219,14 @@ const testTasksJSON = `{
 
 func newReadServer(t *testing.T, st StateReader) *Server {
 	t.Helper()
+	return newReadServerWith(t, cfg(ProfileOperator, ""), st)
+}
+
+// newReadServerWith is newReadServer with its own Config.
+func newReadServerWith(t *testing.T, c Config, st StateReader) *Server {
+	t.Helper()
 	root := writeProject(t, "spec_root: specs\n", testTasksJSON)
-	s, err := New(cfg(ProfileOperator, ""), Options{
+	s, err := New(c, Options{
 		Static: spaHandler(t),
 		State:  st,
 		Paths:  config.Paths{Root: root, ID: "demo", ConfigYAML: filepath.Join(root, "config.yaml")},

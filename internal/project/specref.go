@@ -146,6 +146,45 @@ func HasAnchor(markdown, anchor string) bool {
 	return false
 }
 
+// SpecSection is the part of the spec specRef points at, read under dir as
+// CheckSpecRef resolves it: the anchor's heading down to the next heading of
+// the same level or higher, or the whole file without an anchor. "" when the
+// file or the anchor is not there (#539: what the reviewer is shown).
+func SpecSection(dir, specRoot, specRef string) (string, error) {
+	file, anchor, _ := strings.Cut(specRef, "#")
+	if file == "" {
+		return "", nil
+	}
+	data, _, found, err := readSpec(dir, specRoot, file)
+	if err != nil || !found {
+		return "", err
+	}
+	if strings.TrimSpace(anchor) == "" {
+		return string(data), nil
+	}
+	var out []string
+	level, inFence := 0, false
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+		}
+		if !inFence && headingLine.MatchString(line) {
+			n := len(trimmed) - len(strings.TrimLeft(trimmed, "#"))
+			switch {
+			case level > 0 && n <= level:
+				return strings.Join(out, "\n"), nil
+			case level == 0 && HasAnchor(line, anchor):
+				level = n
+			}
+		}
+		if level > 0 {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n"), nil
+}
+
 // continuesID says the text right after a matched prefix is still part of the
 // same identifier: `F1.1.T1` followed by `0`, or by `.2`.
 func continuesID(rest string) bool {

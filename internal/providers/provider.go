@@ -91,6 +91,12 @@ type Request struct {
 	// report its task done or blocked (#387). Only codex sandboxes writes
 	// to its workspace; it gets one --add-dir per entry.
 	WritableDirs []string
+
+	// StreamJSON asks the CLI for its structured output. Only gemini reads
+	// it (`--output-format stream-json`, #543): a gemini that predates the
+	// flag rejects it, so the engine sets this from a probe of the installed
+	// CLI (engine.GeminiStreamJSON) rather than always.
+	StreamJSON bool
 }
 
 // Result is the terminal state of one dispatch. Ported from
@@ -127,9 +133,9 @@ type Result struct {
 
 	// Text is the model's final answer, as the CLI reports it: claude's
 	// `result`, codex's last `agent_message`, opencode's text parts of the
-	// last message, agy's `response`, and gemini's whole stdout on success
-	// (gemini prints plain text, so nothing separates the answer from the
-	// CLI's own notices). Empty when the CLI reported none. The engine does
+	// last message, agy's `response`, and gemini's assistant messages (its
+	// whole stdout on success when it ran without stream-json: plain text,
+	// so nothing separates the answer from the CLI's own notices). Empty when the CLI reported none. The engine does
 	// not read it; `orch ci review` parses a verdict out of it.
 	Text string
 
@@ -141,7 +147,9 @@ type Result struct {
 	// Estimated marks a run whose backend reported activity but no token
 	// usage, so downstream spend rows can tell missing telemetry apart from
 	// genuinely zero-cost work. opencode sets it when a run reported no
-	// numbers (Issue #8); gemini always does, having no usage to report.
+	// numbers (Issue #8); gemini does when it ran without stream-json and
+	// printed no usage at all (#543). The engine then estimates the tokens
+	// from the prompt and output size (engine.spendRow).
 	Estimated bool
 
 	// PermissionDenials are the tool calls the CLI refused without asking,

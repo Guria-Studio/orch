@@ -4,13 +4,21 @@
 
 # orch
 
-**Run AI agents as a team. Show clients a live page — not a Slack thread.**
+**Run AI agents as a team. Show your client a live page, not a status thread.**
 
 Site: **[tryorch.us](https://tryorch.us)** — [try a spec in your browser](https://tryorch.us/playground/).
 
-orch is a local task orchestrator for freelancers and agencies building with AI.
-You define the work as a DAG (`tasks.json`) and dispatch each task to the CLI you
-route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in parallel.
+orch is a local orchestrator for freelancers and agencies building with AI. It
+splits the work into a graph of tasks and runs each one on the coding agent CLI
+you route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in
+parallel, and keeps a page your client can open to see where the work stands.
+No client? The same page is your own status board.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
+cd my-project                        # a git repository
+orch start "what you want to build"
+```
 
 - **Your client stops asking how it is going.** One page — phases, blockers in
   plain language, hours left — published as a static site or served live behind
@@ -30,34 +38,27 @@ route it to — `claude`, `codex`, `opencode`, `gemini`, `agy` or `muse` — in 
 ## How it works
 
 ```
-1. orch atomize --apply   # spec.md → tasks.json → SQLite
-2. orch run               # dispatch tasks to AI agents in parallel
-3. orch publish           # a page for your client; --tunnel to serve it live
-```
-
----
-
-## Quick start
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
-orch dashboard            # outside a project: the welcome page walks you through it
-```
-
-Run outside a project, `orch dashboard` opens a welcome page: it checks your AI
-CLIs, sets up a folder, lets claude plan your idea, shows the tasks and their
-estimate, and runs the first ones. In a terminal the same path is:
-
-```bash
-orch dashboard --demo     # a full synthetic project; touches nothing of yours
-cd my-project             # a git repository
-orch start "what you want to build"
+1. orch start "idea"      # set up, plan the idea with claude, estimate, run the first tasks
+2. orch run               # dispatch every ready task to its agent, in parallel
+3. orch dashboard         # watch the agents, review their work, share a live link
+4. orch publish           # write the client page as a static site
 ```
 
 `orch start` sets the project up with the CLIs it finds, lets claude plan the
 idea with you (`/orch-plan`), checks and estimates the plan, and runs the first
-two tasks with the dashboard open. `orch init` + `orch run` is the same path
-step by step; `orch dashboard --tunnel` gives your client a tokenized link.
+two tasks with the dashboard open. From then on `orch run` carries on with the
+rest.
+
+Other ways in, once you know the first one:
+
+- `orch dashboard` run outside a project opens a welcome page that walks the
+  same path in the browser: it checks your AI CLIs, sets up a folder, lets
+  claude plan your idea, shows the tasks and their estimate, and runs the first
+  ones.
+- `orch dashboard --demo` opens a full synthetic project, so you can look
+  around before you run anything. It touches nothing of yours.
+- `orch init --template <name>` + `orch run` is the same path step by step,
+  from one of five project templates or your own specs.
 
 `orch` is a single Go binary — no Python, no venv, no `pip`. See
 [Install](#install) below for the manual download, and the
@@ -116,7 +117,7 @@ builders in that space actually reach for today.
 | Mobile app | ✅ iOS | ❌ | ❌ | ❌ | ❌ |
 | Cloud-hosted option | ✅ multica.ai | ❌ (shut down w/ Bloop) | ❌ | ❌ | ❌ |
 | Single binary | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Read-only stakeholder view | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Read-only client page | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Per-provider budget guardrail (blocks dispatch) | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Spec → tasks pipeline | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Deterministic executive summary | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -155,7 +156,7 @@ dashboard:
     refresh_interval_s: 10
 
 tunnel:
-  enabled: false          # flip to share a link with your client (Cloudflare quick tunnel)
+  enabled: false          # flip to share a live link with your client (Cloudflare quick tunnel or Tailscale)
 
 github:
   test_command: pytest    # CI workflow orch generates for you
@@ -172,13 +173,17 @@ Optional overrides drop in as their own files at the project root: `budgets.yaml
 ## What your client sees
 
 With `tunnel: enabled: true` in `config.yaml`, `orch dashboard --tunnel` (or
-the **Start** button on the dashboard's Tunnel page) opens a Cloudflare quick
+the **Start** button on the dashboard's Share page) opens a Cloudflare quick
 tunnel — no Cloudflare account needed, just `cloudflared`, whose install steps
-the page shows — and gives you a client-portal link with a token in it. Send
+the page shows — and gives you a client page link with a token in it. The
+Share page can share through Tailscale instead (`tailscale serve` inside your
+tailnet, or Funnel for the public internet). Or skip the live link: `orch
+publish` writes the same page as a static site, to a folder or a `gh-pages`
+branch. Send
 it; the numbers update themselves, and stopping the tunnel revokes the link.
 The client gets:
 
-![The stakeholder view — executive summary, phase timeline, ETA and blockers](docs/media/stakeholder.png)
+![The client page — executive summary, phase timeline, ETA and blockers](docs/media/stakeholder.png)
 
 - **Executive summary** in plain business language, recomputed on every page load — no LLM call, so it is free and always says the same thing twice.
 - **Phase timeline** — progress per phase, bar width proportional to estimated effort, with the blocked phase called out.
@@ -198,12 +203,12 @@ line, a prompt, a diff, or a per-model cost breakdown.
 **Shipped** — worktrees, a pull request and CI watch per task, the budget window
 per provider, the client page and its PDF, the guided `orch init` wizard with
 five templates, the operator dashboard (Now, ⌘K, run receipts) in English,
-Spanish and Portuguese, `orch dashboard --demo`, and a Cloudflare quick tunnel
-that requires a token. The [releases](https://github.com/Guria-Studio/orch/releases)
+Spanish and Portuguese, `orch dashboard --demo`, `orch dashboard --portfolio`
+for agencies running several clients at once, and a live client link over a
+Cloudflare quick tunnel or Tailscale that requires a token. The [releases](https://github.com/Guria-Studio/orch/releases)
 are the living list.
 
-**Next** — a DAG visual editor, a VS Code extension, and `orch dashboard
---portfolio` for agencies running several clients at once.
+**Next** — a DAG visual editor and a VS Code extension.
 
 Every pull request here is reviewed in CI by an AI against a written checklist
 before a human merges it — see [`docs/CI-REVIEW.md`](docs/CI-REVIEW.md).
@@ -226,8 +231,8 @@ it. [Releases](https://github.com/Guria-Studio/orch/releases) ·
 - [English manual](docs/MANUAL.en.md)
 - [Manual en español](docs/MANUAL.es.md)
 - [Manual em português](docs/MANUAL.pt.md)
-- [CLI reference (flags, parity with Python)](docs/CLI.md)
-- [Dashboard / stakeholder guide](docs/DELIVERING-TO-STAKEHOLDERS.md)
+- [CLI reference (every command and flag)](docs/CLI.md)
+- [Sharing the client page](docs/DELIVERING-TO-STAKEHOLDERS.md)
 - [Release process / tag scheme](docs/RELEASING.md)
 - [Developer notes](docs/README-dev.md)
 - [Roadmap (living doc)](docs/brainstorm/next-sprints.md)

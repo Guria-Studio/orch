@@ -1,17 +1,12 @@
 import type { Portfolio } from "@/lib/types"
 
 /**
- * EXAMPLE — matches opus-2's proposed `/api/portfolio` shape (G8.5's
- * server half), agreed on but not yet landed on `main` as of when this
- * file was written. Not imported by any production code path (test
- * files are the one exception — PortfolioPage.test.tsx renders against
- * it) — it exists so PortfolioPage's layout was written and eyeballed
- * against a real five-project screenful before a real server existed to
- * ask, and as a reference the moment the real endpoint's shape needs
- * comparing against what this page actually expects. Delete this file
- * once `docs/brainstorm/go-migration-notes/sonnet-2.md`'s coordination
- * note is resolved and the real endpoint has shipped a few times
- * without its shape moving.
+ * EXAMPLE — a five-project `/api/portfolio` answer, the shape
+ * `orch dashboard --portfolio` serves (internal/dashboard/portfolio.go,
+ * shipped in G8.5). Written before that endpoint existed, so
+ * PortfolioPage's layout could be built against a real screenful; now
+ * only PortfolioPage.test.tsx imports it, as the fixture it renders.
+ * Keep it in step with internal/dashboard/portfolio.go's payload.
  */
 export const EXAMPLE_PORTFOLIO: Portfolio = {
   generated_at: "2026-09-12T04:40:00Z",

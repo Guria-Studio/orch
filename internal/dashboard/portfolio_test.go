@@ -67,7 +67,7 @@ func newPortfolio(t *testing.T, opts PortfolioOptions) *Portfolio {
 func getPortfolio(t *testing.T, p *Portfolio) portfolioPayload {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	p.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/portfolio", nil))
+	p.Handler().ServeHTTP(rec, localRequest("/api/portfolio"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/api/portfolio = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -105,7 +105,7 @@ func TestPortfolioRowUsesTheSameNumbersAsTheProject(t *testing.T) {
 	row := getPortfolio(t, p).Projects[0]
 
 	rec := httptest.NewRecorder()
-	p.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/p/demo/api/sprint", nil))
+	p.Handler().ServeHTTP(rec, localRequest("/p/demo/api/sprint"))
 	var sprint sprintPayload
 	if err := json.Unmarshal(rec.Body.Bytes(), &sprint); err != nil {
 		t.Fatalf("decode /p/demo/api/sprint: %v\n%s", err, rec.Body.String())
@@ -245,6 +245,7 @@ func TestEachProjectKeepsItsOwnAccessModel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Host = "127.0.0.1:7420"
 			if tc.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tc.token)
 			}
@@ -262,7 +263,7 @@ func TestUnknownProjectIs404NotTheSPA(t *testing.T) {
 		Projects: []PortfolioProject{{ID: "demo", Server: portfolioServer(t, "demo", ProfileOperator, "", &fakeState{})}},
 	})
 	rec := httptest.NewRecorder()
-	p.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/p/ghost/api/tasks", nil))
+	p.Handler().ServeHTTP(rec, localRequest("/p/ghost/api/tasks"))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown project = %d, want 404", rec.Code)
 	}
@@ -278,7 +279,7 @@ func TestProjectRootRedirectsToItsSlash(t *testing.T) {
 		Projects: []PortfolioProject{{ID: "demo", Server: portfolioServer(t, "demo", ProfileOperator, "", &fakeState{})}},
 	})
 	rec := httptest.NewRecorder()
-	p.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/p/demo", nil))
+	p.Handler().ServeHTTP(rec, localRequest("/p/demo"))
 	if rec.Code != http.StatusMovedPermanently {
 		t.Fatalf("/p/demo = %d, want 301", rec.Code)
 	}
@@ -350,7 +351,7 @@ func TestSingleProjectDashboardRefusesPortfolio(t *testing.T) {
 	s := portfolioServer(t, "demo", ProfileOperator, "", &fakeState{})
 
 	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/portfolio", nil))
+	s.Handler().ServeHTTP(rec, localRequest("/api/portfolio"))
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("/api/portfolio on a single-project dashboard = %d, want 404 "+
@@ -383,7 +384,7 @@ func TestPortfolioRefusalIsNotGated(t *testing.T) {
 	s := portfolioServer(t, "demo", ProfileStakeholder, testToken, &fakeState{})
 
 	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/portfolio", nil))
+	s.Handler().ServeHTTP(rec, localRequest("/api/portfolio"))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("/api/portfolio with no token = %d, want 404 — the absence of a "+
 			"feature is not a thing to authenticate", rec.Code)

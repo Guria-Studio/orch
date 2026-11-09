@@ -8,6 +8,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
+	"github.com/Guria-Studio/orch/internal/project"
 	"github.com/Guria-Studio/orch/internal/state"
 )
 
@@ -25,7 +26,30 @@ func (s *Server) metricRoutes() []route {
 		{pattern: "GET /api/metrics", name: "api_metrics", handler: s.handleMetrics},
 		{pattern: "GET /api/budget/summary", name: "api_budget_summary", handler: s.handleBudgetSummary},
 		{pattern: "GET /api/config", name: "api_config", handler: s.handleConfig},
+		{pattern: "GET /api/agent-metrics", name: "api_agent_metrics", handler: s.handleAgentMetrics},
 	}
+}
+
+// handleAgentMetrics is `orch metrics` as JSON (#538): first-attempt rate,
+// retries and cost per done task, verify send-backs, review findings and CI
+// after verify, by route and tier. An operator route: the stakeholder
+// allow-list does not name it.
+func (s *Server) handleAgentMetrics(w http.ResponseWriter, r *http.Request) {
+	if s.state == nil {
+		writeJSON(w, http.StatusOK, project.ComputeMetrics(nil, nil))
+		return
+	}
+	attempts, err := s.state.Attempts(r.Context())
+	if err != nil {
+		s.failRead(w, "attempts", err)
+		return
+	}
+	tasks, err := s.state.Tasks(r.Context(), state.TaskFilter{})
+	if err != nil {
+		s.failRead(w, "tasks", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, project.ComputeMetrics(attempts, tasks))
 }
 
 // metricsPayload is `/api/metrics`'s body.

@@ -8,6 +8,24 @@
 > is the source of truth this manual is kept in sync with. Looking for the
 > old Python `orch`? See [Python legacy](#python-legacy) at the bottom.
 
+**orch runs AI agents as a team and shows your client a live page, not a
+status thread.** It is for freelancers and agencies building with AI: it splits
+the work into a graph of tasks, runs each one on the coding agent CLI you route
+it to, in parallel, and keeps a page your client can open to see where the work
+stands. No client? The same page is your own status board.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Guria-Studio/orch/main/scripts/install.sh | sh
+cd my-project                        # a git repository
+orch start "what you want to build"
+```
+
+`orch start` sets the project up with the AI CLIs it finds, lets claude plan the
+idea with you, estimates the plan and runs the first tasks with the dashboard
+open. The rest of this manual is that same path step by step, and what comes
+after it: `orch run` for the remaining tasks, `orch dashboard` to watch and
+review the work, and `orch publish` for the client page.
+
 **Total setup time**: ~2 minutes (one `curl | sh`, no Python, no venv).
 **Per-feature time**: a few minutes of spec-writing + unattended execution.
 
@@ -26,7 +44,7 @@
 9. [The model router](#9-the-model-router)
 10. [Inspecting config](#10-inspecting-config)
 11. [MCP — letting an agent drive orch directly](#11-mcp--letting-an-agent-drive-orch-directly)
-12. [Installing orch's Claude Code skill](#12-installing-orchs-claude-code-skill)
+12. [Installing orch's skills](#12-installing-orchs-skills)
 13. [When something fails](#13-when-something-fails)
 14. [Updating orch](#14-updating-orch)
 15. [Python legacy](#python-legacy)
@@ -58,10 +76,13 @@ orch --version
 orch --help
 ```
 
+`orch --help` lists the commands by layer: *Start a project*, *Run tasks*,
+*Follow progress*, *Deliver results*, *Integrations*, *Advanced*.
+
 ### AI CLIs you need
 
 At least **one** of these on your `PATH`, authenticated with a
-subscription or API key. orch dispatches to all five, and one project can
+subscription or API key. orch dispatches to all six, and one project can
 mix them — each task goes to the CLI its model routes to
 ([§9](#9-the-model-router)):
 
@@ -69,7 +90,7 @@ mix them — each task goes to the CLI its model routes to
 - **`codex`** — Codex CLI (OpenAI)
 - **`gemini`** — Gemini CLI (Google)
 - **`opencode`** — OpenCode (any provider it is configured for)
-- **`agy`** — Antigravity (Google's multi-model gateway)
+- **`agy`** — Antigravity CLI (Google; several model families behind one CLI)
 - **`muse`** — Muse Code (Meta). orch runs it with approvals and its sandbox
   off (`--approval-mode never --disable-sandbox`), so the agent can report
   its task done
@@ -111,7 +132,7 @@ Flags:
       --force                 Overwrite an existing project's files
   -h, --help                  help for init
       --no-permissions        Do not allow orch's agent rules in the settings of the CLIs the project uses; orch claude-permissions / orch agy-permissions add them later
-      --no-report-findings    Write report_findings.enabled: false and never offer it (it is off by default; the first run that finishes a task offers it)
+      --no-report-findings    Write report_findings.enabled: false (it is on by default: agents queue the bugs they find in orch, and you review each before it is sent)
       --project-name string   Name used in generated files; default = the directory name
       --sdd                   Also scaffold the openspec/ layout
       --template string       Project template (chatbot-whatsapp, data-pipeline, expo-mobile, nextjs-saas, python-api); omit for a blank project
@@ -151,11 +172,13 @@ codex, opencode and muse need nothing written; `orch doctor` reports each CLI
 task runs in a fresh worktree, so orch sets `GEMINI_CLI_TRUST_WORKSPACE=true` on
 each gemini dispatch; set it to `false` in your environment to keep the gate.
 
-A new project has `report_findings.enabled: false`. Agents may file
-**public** issues about orch itself on Guria-Studio/orch under your `gh`
-login ([`DOGFOODING.md`](DOGFOODING.md)), and that is not the first thing to
-ask: the first `orch run` that finishes a task offers it, once.
-`--no-report-findings` means no outright, and is never offered.
+A new project has `report_findings.enabled: true`: the wizard and `orch start`
+ask once, yes by default. Agents that hit a bug in orch itself **queue** a
+report; nothing is filed on their own. You read each one, title and body as
+they would be posted on Guria-Studio/orch under your `gh` login, with
+`orch findings` or the dashboard's System › Findings page, and send it
+(`orch findings send ID`) or dismiss it. `orch run` and Now say how many wait.
+`--no-report-findings` turns it off. See [`DOGFOODING.md`](DOGFOODING.md).
 
 A blank project starts with **one sample task**, `F0.T1` ("Add a Getting
 started section to README.md"), on the cheapest model of an installed CLI, so
@@ -226,7 +249,7 @@ tasks).
 
 ## 4. Check the plan before running
 
-The Go binary's `run` command has **no `--dry-run` flag yet** — that's a
+The Go binary's `run` command has **no `--dry-run` flag** — that's a
 known, documented gap versus Python (see `run`'s row in
 [`CLI.md`](CLI.md)). Preview what a run would do with the read-only
 commands instead:
@@ -240,6 +263,9 @@ orch tasks --status todo
 
 # The dependency graph, as Graphviz DOT
 orch graph | dot -Tpng -o plan.png
+
+# What the next run would dispatch, and what it would cost and take
+orch estimate
 ```
 
 `orch validate` runs the same checks Python's preflight did that have a
@@ -391,9 +417,13 @@ merges. `orch doctor` does not ask for a remote or `gh`.
 $ orch dashboard --help
 Serve the operator dashboard on a local HTTP port.
 
-Reads the project's state and shows it; it never writes. The
-stakeholder profile gates every data route behind a token and an
-allow-list — see `profile` and `token` under `dashboard:` in
+Shows the project's state. From this machine the operator can also
+act on it — edit and steer tasks, accept or send back their work,
+change config, budgets and lessons — through the same functions as
+the CLI commands; it never drives orch run. The
+client profile (`stakeholder` in config) gates every data route
+behind a token and an allow-list, so your client sees only the
+client page — see `profile` and `token` under `dashboard:` in
 config.yaml, which the flags below override.
 
 Usage:
@@ -401,10 +431,10 @@ Usage:
 
 Flags:
   -h, --help             help for dashboard
-      --host string      Address to bind; 0.0.0.0 exposes it beyond localhost (default "127.0.0.1")
+      --host string      Address to bind; beyond localhost (0.0.0.0) every remote request needs the token (default "127.0.0.1")
       --port int         Port to listen on; 0 picks any free one (default 7420)
       --profile string   Access profile: operator, stakeholder or both (default: config.yaml)
-      --token string     Shared token a stakeholder session must present (default: config.yaml)
+      --token string     Shared token a client session must present (default: config.yaml)
       --tunnel           Also start the Cloudflare quick tunnel (needs tunnel.enabled and cloudflared), and stop it on exit
 
 Global Flags:
@@ -431,22 +461,25 @@ orch report summary
 
 # A link to hand a client, over a Cloudflare quick tunnel (needs
 # `tunnel: enabled: true` in config.yaml and cloudflared on PATH — the
-# Tunnel page shows how to install it). Prints the client-portal link, with
+# Share page shows how to install it). Prints the client page link, with
 # the token every request through the tunnel needs; Ctrl+C revokes it.
+# The Share page can also share through Tailscale (serve or Funnel).
 orch dashboard --tunnel
 ```
 
-The operator dashboard has four destinations. **Now** is the first screen:
+The dashboard has four destinations, plus **System** (tools, providers and
+quota, skills, knowledge, findings, settings) listed apart. **Now** is the first screen:
 the run, each agent at work with a running clock, the blocked tasks and the
-ones waiting on a budget window (with the `orch task set` command that
-unblocks each — the dashboard only reads), phases and the budget window;
+ones waiting on a budget window (with the command that unblocks each,
+and from this machine the buttons that do it), phases and the budget window;
 once a run has finished, its receipt with the run in plain words under it —
 why each blocked task stopped and the next steps with their commands.
 **Work** holds List, Kanban, Graph, Phases and Pace as tabs sharing one set of
-filters in the URL; **Cost** holds Budget and Metrics; **Delivery** holds the
-client summary, CI, Tests (each E2E run the local verify made, with what a
-failing test left: error, step, screenshot, video, trace) and Share (the
-tunnel). **Logs** opens as a panel over any
+filters in the URL; **Usage** holds tokens and spend by model, task and
+attempt, and the budget; **Delivery** holds the
+client page, the client summary, CI, Tests (each E2E run the local verify made, with what a
+failing test left: error, step, screenshot, video, trace) and Share (a
+Cloudflare quick tunnel or Tailscale). **Logs** opens as a panel over any
 page. Old addresses (`/kanban`, `/budget`, `/tunnel`…) redirect to their new
 place. **⌘K** (Ctrl+K) searches pages, tasks and filters and copies CLI
 commands; `g` then `n`/`w`/`c`/`d` changes destination, `/` searches the task
@@ -465,8 +498,8 @@ from there: **Accept** squash-merges the task's PR (`orch task accept`),
 (`vcs.provider: local`) there is no PR: Accept commits what the task left in
 its worktree and squash-merges `orch/<id>` into the base here, as the run
 does, then marks the task done; if the work conflicts with the base nothing
-changes and the error names the files, for you to send it back. A stakeholder
-does not get the tab unless `api_task_diff` is in
+changes and the error names the files, for you to send it back. A client
+session does not get the tab unless `api_task_diff` is in
 `dashboard.stakeholder_routes`.
 
 **System › Knowledge** lists the project's lessons (`.orch/knowledge/`) with
@@ -480,18 +513,19 @@ operator adds, edits and deletes lessons there through the same function as
 the file is yours to commit. **Curate now** runs
 `orch knowledge curate` (#452): a dialog shows what the curation would do and
 cost, and **Confirm** dispatches its one task in the background; the page then
-links to that task, which the run shows like any other. One curation at a time. A stakeholder never gets the page.
+links to that task, which the run shows like any other. One curation at a time. A client session never gets the page.
 
 The dashboard speaks English, Spanish and Portuguese (Brazil). It starts in
 your browser's language and falls back to English; the language button at the
 bottom of the sidebar (or ⌘K → *Change language*) switches it and this browser
 remembers the choice. `dashboard.language` in `config.yaml` is a different
-setting: it picks what the **client** reads (portal, executive summary, PDF),
+setting: it picks what the **client** reads (client page, executive summary, PDF),
 not the operator's screens. Commands, flags and config keys stay in English.
 
 `--profile operator` (the default) shows everything: tasks, spend per
-model, logs. `--profile stakeholder` gates every data route behind the
-`--token` and an allow-list of stakeholder-safe routes — no log lines, no
+model, logs. `--profile stakeholder` — the client profile; the name is a
+config alias — gates every data route behind the `--token` and an allow-list
+of client-safe routes — no log lines, no
 prompts, no per-model cost breakdown unless `dashboard.show_spend_to_stakeholder`
 is on. See [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md) for the access
 model in full and [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
@@ -529,7 +563,7 @@ steps. `↑`/`↓` (or `j`/`k`) select a task, `f` cycles the status filter,
 
 ```bash
 $ orch status --help
-Project status: tasks, costs, last events, run summary
+The quick check: task counts, costs, last events, run summary (--json for scripts)
 
 Flags:
   -h, --help            help for status
@@ -546,13 +580,12 @@ Flags:
 # Move a task's status directly (illegal transitions exit 3)
 orch task-status F1.1.T5 todo --note "re-queued after manual fix"
 
-# Same thing, via the newer `task set` surface — also where a future
-# model/backend override will land once state.Backend supports writing
-# them (today those two flags are registered but return a clear "not
-# implemented yet" error rather than silently doing nothing). There is no
-# milestone flag: a milestone is a phase, and a task's phase lives in
-# tasks.json
+# Same thing, via the newer `task set` surface. There is no milestone flag:
+# a milestone is a phase, and a task's phase lives in tasks.json
 orch task set --id F1.1.T5 --status todo
+
+# Route a task to another model: a model_router.yaml key, written to tasks.json
+orch task set --id F1.1.T5 --model codex/gpt-5.4
 
 # See which in-progress tasks look stuck, without touching anything
 orch reset
@@ -563,14 +596,13 @@ orch reset --requeue --only 'F1.*'
 
 ```bash
 $ orch task set --help
-Set a task's status (model and backend overrides are not implemented)
+Set a task's status, or its model
 
 Flags:
-      --backend string   Override the backend for this task (not implemented yet)
-  -h, --help             help for set
-      --id string        Task ID, e.g. F1.1.T3
-      --model string     Override the model for this task (not implemented yet)
-      --status string    Set the task status (e.g. done, in-progress, blocked)
+  -h, --help            help for set
+      --id string       Task ID, e.g. F1.1.T3
+      --model string    Set the task's model in tasks.json: a model_router.yaml key, which names the backend
+      --status string   Set the task status (e.g. done, in-progress, blocked)
 ```
 
 `reset` reads the **real** runtime status from the state backend, not
@@ -705,11 +737,11 @@ model that can retry).
 
 ---
 
-## 12. Installing orch's Claude Code skill
+## 12. Installing orch's skills
 
 ```bash
 $ orch install-skills --help
-Install orch's Claude Code skill(s) into one or more agent CLIs
+Install orch's skills (the orch manual, the planning pipeline, TDD, E2E) into claude, codex, opencode or cursor
 
 Flags:
       --all              Install every embedded skill (default when --skill is omitted)
@@ -865,7 +897,7 @@ namespace, split by a `-py` suffix rather than a separate branch prefix.
 - Spec markdown format: [`SPEC-FORMAT.md`](SPEC-FORMAT.md)
 - MCP server / tools: [`MCP.md`](MCP.md)
 - Dashboard access model: [`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md)
-- Sharing the dashboard with a client: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
+- Sharing the client page: [`DELIVERING-TO-STAKEHOLDERS.md`](DELIVERING-TO-STAKEHOLDERS.md)
 - Release process / tag scheme: [`RELEASING.md`](RELEASING.md)
 
 ## Feedback

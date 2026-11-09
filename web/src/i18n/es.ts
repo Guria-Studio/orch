@@ -20,7 +20,7 @@ export const es = {
   "nav.more": "Más",
   "shell.search": "Buscar o ejecutar…",
   "shell.in_flight": "{count} en vuelo",
-  "shell.client_notice": "Vista de cliente · solo lectura.",
+  "shell.client_notice": "Página del cliente · solo lectura.",
   "shell.tools_missing": { one: "Falta {count} herramienta", other: "Faltan {count} herramientas" },
   "shell.run_live": "run activo",
   "shell.operator": "Operador",
@@ -53,7 +53,7 @@ export const es = {
   "nav.pace": "Ritmo",
   "nav.plan": "Planear",
   "nav.budget": "Presupuesto",
-  "nav.client": "Vista cliente",
+  "nav.client": "Página del cliente",
   "client.kpi.done": "Completado",
   "client.kpi.phase": "Fase actual",
   "client.kpi.eta": "Entrega estimada",
@@ -511,7 +511,7 @@ export const es = {
   "summary.refresh": "Se actualiza cada {seconds} s",
   "summary.export_pdf": "Exportar PDF",
   "summary.view_as_client": "Ver como cliente",
-  "summary.spend_note": "Gasto diario · visible para el cliente si show_spend_to_stakeholder está activo",
+  "summary.spend_note": "Gasto diario · el cliente lo ve solo si compartes el gasto con él en config.yaml",
   "summary.unavailable": "Resumen no disponible",
   "summary.unavailable_detail": "Este dashboard todavía no sirve el resumen para el cliente.",
   "summary.load_failed": "No se pudo cargar el resumen",
@@ -544,11 +544,11 @@ export const es = {
   "portfolio.no_eta": "Sin fecha estimada",
   "portfolio.spend_hidden": "Gasto oculto",
 
-  "login.title": "Backoffice de orch",
+  "login.title": "Dashboard de orch",
   "login.paste": "Pega el token con el que se inició este dashboard:",
   "login.token": "Token",
   "login.placeholder": "Token de orch dashboard --token",
-  "login.enter": "Abrir el backoffice",
+  "login.enter": "Abrir el dashboard",
   "login.link_hint": "Si llegaste con un enlace compartido, el token ya viene en la URL y esta pantalla no aparece.",
 
   "welcome.title": "Bienvenido a orch",
@@ -606,7 +606,7 @@ export const es = {
   "config.strict_files": "Fases con archivos estrictos",
 
   "milestones.title": "Hitos",
-  "milestones.intro": "Cada hito es una fase de tasks.json: el mismo avance que tu cliente ve en el portal.",
+  "milestones.intro": "Cada hito es una fase de tasks.json: el mismo avance que tu cliente ve en su página.",
   "milestones.load_failed": "No se pudieron cargar los hitos",
   "milestones.none": "Todavía no hay tareas",
   "milestones.none_before": "Los hitos aparecen cuando tasks.json tiene tareas. Escribe una spec y ejecuta",
@@ -906,7 +906,7 @@ export const es = {
   "share.client_link": "Enlace para el cliente (solo lectura)",
   "share.operator_link": "Enlace de operador (solo para ti, control total)",
   "share.all_tools": "Ver todas las herramientas",
-  "share.footer": "Mismo backoffice para el cliente: el token decide qué ve. Lo que no está en su allow-list no aparece.",
+  "share.footer": "Mismo dashboard para el cliente: el token decide qué ve. Lo que no está en su allow-list no aparece.",
   "share.intro": "Envía a un cliente un enlace de solo lectura a este proyecto, o ábrelo tú desde otro dispositivo. Quien abra un enlace necesita el token que viene en él.",
   "share.repo": "Repositorio",
   "share.no_repo": "Sin remote origin",
@@ -931,7 +931,7 @@ export const es = {
   "tunnel.caps_failed": "No se pudo consultar el túnel al dashboard",
   "tunnel.disabled_title": "El túnel está apagado para este proyecto",
   "tunnel.profile_title": "Solo el dashboard del operador puede compartirse",
-  "tunnel.profile_before": "Este dashboard corre con el perfil stakeholder. Inicia el túnel desde el dashboard del operador",
+  "tunnel.profile_before": "Este dashboard corre con el perfil de cliente. Inicia el túnel desde el dashboard del operador",
   "tunnel.profile_without": "sin",
   "tunnel.host_title": "Abre esta página en la máquina donde corre orch",
   "tunnel.host_detail":
@@ -944,7 +944,7 @@ export const es = {
   "tunnel.starting": "Iniciando…",
   "tunnel.stop": "Detener túnel",
   "tunnel.stopping": "Deteniendo…",
-  "tunnel.link.portal_copy": "Copiar el enlace del portal del cliente",
+  "tunnel.link.portal_copy": "Copiar el enlace de la página del cliente",
   "tunnel.link.dashboard_copy": "Copiar el enlace del dashboard completo",
   "tunnel.orphan":
     "Este túnel ({url}) lo inició un proceso anterior del dashboard, así que no hay enlace con token para él. Detenlo y vuelve a iniciarlo para obtener uno.",
@@ -1148,5 +1148,13 @@ export const esGlossary: Record<GlossaryTerm, GlossaryEntry> = {
     computed:
       "orch ejecuta cloudflared tunnel --url contra el puerto del dashboard. La dirección es aleatoria, cambia en cada inicio, no transmite streams en vivo y admite 200 peticiones simultáneas.",
     source: "cloudflared, supervisado por orch dashboard (internal/tunnel)",
+  },
+  client: {
+    title: "Cliente",
+    definition:
+      "La persona para quien es el trabajo. Lee la página del cliente: avance por fase, bloqueos en palabras simples y la fecha estimada de entrega; nunca un log, un prompt ni el costo por modelo.",
+    computed:
+      "No es una cifra. La página del cliente se arma con una instantánea del proyecto, que escribe orch publish o que el dashboard sirve en vivo detrás de un token.",
+    source: "internal/publish/snapshot, que leen orch publish y el perfil de cliente del dashboard",
   },
 }

@@ -5,9 +5,17 @@ description: Use when the user's cwd contains .orchestrator/ or tasks.json (a pr
 
 # Orch — task orchestrator operating manual
 
-`orch` is a local CLI that walks a `tasks.json` DAG and dispatches each task
-to Claude / Codex / OpenCode / Gemini in parallel, opens a PR per task, polls
-CI, and shows the whole thing on a stakeholder dashboard.
+orch runs AI agents as a team and shows the client a live page instead of a
+status thread. It is a local CLI that walks a `tasks.json` DAG, dispatches
+each task to the CLI it routes to (claude, codex, opencode, gemini, agy,
+muse) in parallel, opens a PR per task and polls CI. The operator watches it
+in the dashboard (`orch dashboard`); the client reads the client page
+(`orch publish`, or the dashboard behind a token).
+
+**A new project starts with one command**, in a git repository:
+`orch start "what you want to build"` — it scaffolds, plans the idea through
+`/orch-plan`, estimates, and runs the first tasks. Suggest that before
+`orch init` when the user has no project yet.
 
 **Getting `orch` on this machine:** it is a single static binary (Linux and
 macOS, `amd64`/`arm64`). Check `orch --version` first; if it is missing, ask
@@ -196,14 +204,15 @@ orch migrate               # import + backs up the old state dir first
 `orch migrate` is deprecated the day it ships — it exists only to carry
 history forward once, not as a command you run repeatedly.
 
-## When the user asks about the dashboard / stakeholder view
+## When the user asks about the dashboard / client page
 
 ```bash
 orch dashboard                              # local read-only server
-orch dashboard --profile stakeholder        # curated client view
+orch dashboard --profile stakeholder        # the client page only, behind a token
 orch dashboard --tunnel                     # Cloudflare quick tunnel; prints token links
 orch notify test                            # verify Slack/Discord webhook
-orch notify digest                          # print stakeholder digest (cron this)
+orch notify digest                          # print the client digest (cron this)
+orch publish --to dir                       # write the client page as a static site
 ```
 
 ## Provider concurrency + budget

@@ -70,6 +70,15 @@ Now:
 - `http://127.0.0.1:7420/` — operator dashboard (no auth, full data).
 - `http://127.0.0.1:7420/stakeholder?token=<TOKEN>` — curated view.
 
+Bound beyond loopback (`--host 0.0.0.0`, a LAN address), **every data route
+wants the token from anyone not on this machine**, the operator surface
+included (#537): `http://<lan-ip>:7420/?token=<TOKEN>`. With no token set,
+`orch dashboard` refuses to start rather than serve the operator surface to
+the network. Bound to loopback (the default), a request whose `Host` is not
+`127.0.0.1`, `localhost` or `::1` is refused with 403, so a page on a domain
+that rebinds to 127.0.0.1 cannot read the dashboard through your browser. A
+request through `orch dashboard --tunnel` is judged by the tunnel's own rule.
+
 If you're binding to `0.0.0.0`, you almost certainly want to put the
 process behind a tunnel or reverse proxy. Read on.
 
@@ -208,22 +217,22 @@ matters for your setup, do not bind the portfolio beyond localhost.
 token would suggest a shared one exists, and a tunnel is configured per project
 — there is no single project here to take one from.
 
-### What a stakeholder session sees: the backoffice, filtered
+### What a stakeholder session sees: the dashboard, filtered
 
 Every dashboard serves the SPA at `/`, a stakeholder's too, so a link shared
-as `/?token=…` opens the backoffice. `/api/whoami` returns the session's
+as `/?token=…` opens the dashboard. `/api/whoami` returns the session's
 allow-list (`routes`) and the SPA shows only the pages whose data route is
-on it. With the default list that is **Delivery › Client view** — what the
-client portal showed: the status in a sentence, what arrived since the last
+on it. With the default list that is **Delivery › Client page** — what the
+client page showed: the status in a sentence, what arrived since the last
 visit, the roadmap by name and the shared documents — and the client
-summary. Client view reads `/stakeholder/data.json`, gated by the token
+summary. Client page reads `/stakeholder/data.json`, gated by the token
 (`stakeholder_snapshot_json` on the default allow-list) and built per request
 by the same function `orch publish` uses, with `refresh_interval_s: 30`, so
 the open page refreshes itself.
 
 The exported portal itself stays at `/stakeholder/`: its files are ungated
 (they are code, like the SPA's) and it reads the same `data.json`. The
-operator opens Client view to see what a client sees.
+operator opens Client page to see what a client sees.
 
 ### `/stakeholder/summary`
 
@@ -388,7 +397,7 @@ public; see [`CONFIG.md`](CONFIG.md#tunnel)), and shows one of:
   machine, each with a copy button, and **Check again** (no restart needed).
 - **Sharing** — **Generate links** / **Stop sharing**, the state and uptime,
   and once the provider assigns the address, two links, each with its own
-  token: the **client** link (what to send a client: the backoffice with the
+  token: the **client** link (what to send a client: the dashboard with the
   client's pages only) and the **full dashboard** (for yourself or your
   team). When the provider fails, its own last lines are shown.
 
@@ -636,7 +645,7 @@ appears as at least `$0.50`.
 → orch dashboard isn't running on the port your `~/.cloudflared/config.yml`
 points at. Confirm with `curl -sI http://127.0.0.1:7420/`.
 
-**The stakeholder view says `ETA: —`.**
+**The client page says `ETA: —`.**
 → ETA needs at least one done task with recorded human hours to compute
 the plan-vs-actual ratio. Before that we deliberately show `—` instead
 of a misleading raw estimate.

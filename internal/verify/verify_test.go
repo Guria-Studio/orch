@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -201,6 +202,150 @@ func TestVerifyPassesWhenTheReviewCannotComplete(t *testing.T) {
 	}
 }
 
+// recordReviews has the fake reviewer copy each prompt it is given to
+// <dir>/prompt-N.md, and returns dir. With swapTo set, the answer becomes
+// swapTo's content after the first review.
+func recordReviews(t *testing.T, swapTo string) string {
+	t.Helper()
+	seen := t.TempDir()
+	fake := os.Getenv(engine.FakeProviderEnv)
+	out := filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".out")
+	script := `n=$(ls "` + seen + `" | wc -l); cp ../prompt.md "` + seen + `/prompt-$((n+1)).md"` + "\n"
+	if swapTo != "" {
+		script += `cp "` + swapTo + `" "` + out + `"` + "\n"
+	}
+	write(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"), script)
+	return seen
+}
+
+func reviews(t *testing.T, seen string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(seen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join(seen, e.Name())) // #nosec G304 -- the test's own temp dir
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, string(b))
+	}
+	return out
+}
+
+const approveAnswer = `{"type":"result","subtype":"success","is_error":false,"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}"}`
+
+// #539: the reviewer reads what the task asked for — its title, description
+// and its section of the spec, Done when included — not only the diff.
+func TestVerifyReviewSeesTheTask(t *testing.T) {
+	dir := branchWithWork(t)
+	write(t, filepath.Join(dir, "specs", "f1.md"), "# F1\n\n### F1.1.T1 — Store\n\nDone when: Load reads the saved rows.\n\n### F1.1.T2 — Other\n\nnot this task\n")
+	fakeReviewer(t, "0", []byte(approveAnswer))
+	seen := recordReviews(t, "")
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main", SpecRoot: "specs"}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir,
+		Title: "Add the store", Description: "Persist the rows between runs", SpecRef: "f1.md#F1.1.T1"})
+	if res.Failure != "" {
+		t.Fatalf("Verify = %q, want a pass", res.Failure)
+	}
+	got := reviews(t, seen)
+	if len(got) != 1 {
+		t.Fatalf("reviews = %d, want 1", len(got))
+	}
+	for _, want := range []string{"Add the store", "Persist the rows between runs", "Done when: Load reads the saved rows."} {
+		if !strings.Contains(got[0], want) {
+			t.Errorf("the review's prompt lacks %q:\n%s", want, got[0])
+		}
+	}
+	if strings.Contains(got[0], "not this task") {
+		t.Errorf("the review's prompt carries another task's section:\n%s", got[0])
+	}
+}
+
+// #539: an answer that does not parse is asked again once; a second one that
+// does not either is "review unavailable", said in the result, never an
+// approval.
+func TestVerifyUnparseableReviewIsUnavailableNotApproved(t *testing.T) {
+	dir := branchWithWork(t)
+	fakeReviewer(t, "0", []byte(`{"type":"result","subtype":"success","is_error":false,"result":"looks good to me!"}`))
+	seen := recordReviews(t, "")
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
+	if n := len(reviews(t, seen)); n != 2 {
+		t.Errorf("reviews = %d, want a retry (2)", n)
+	}
+	if res.ReviewUnavailable == "" || res.Reviewer != "" {
+		t.Errorf("Verify = %+v, want the review marked unavailable and no reviewer credited", res)
+	}
+}
+
+// #539: a review that fails once and answers on the retry counts.
+func TestVerifyRetriesAFailedReview(t *testing.T) {
+	dir := branchWithWork(t)
+	fakeReviewer(t, "1", []byte(`{"type":"result","subtype":"error","is_error":true,"terminal_reason":"api_error"}`))
+	good := filepath.Join(t.TempDir(), "approve.out")
+	write(t, good, approveAnswer)
+	fake := os.Getenv(engine.FakeProviderEnv)
+	write(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".exit"), "1")
+	seen := recordReviews(t, good)
+	// The exit code file is read before the script runs, so the retry's
+	// exit is set by a second canned file the script swaps in too.
+	write(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"),
+		readFile(t, filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".sh"))+
+			`echo 0 > "`+filepath.Join(fake, "claude", state.ReviewSpendID("T-1", 0)+".exit")+`"`+"\n")
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendCodex, Dir: dir})
+	if n := len(reviews(t, seen)); n != 2 {
+		t.Errorf("reviews = %d, want 2", n)
+	}
+	if res.ReviewUnavailable != "" || res.Reviewer != "claude" || res.Failure != "" {
+		t.Errorf("Verify = %+v, want the retry's approval", res)
+	}
+}
+
+// #539: a configured reviewer that wrote the task does not review it: another
+// installed provider does, and with none the review is unavailable.
+func TestConfiguredReviewerNeverReviewsItsOwnWork(t *testing.T) {
+	dir := branchWithWork(t)
+	bin := t.TempDir()
+	for _, b := range []string{"claude", "gemini"} {
+		write(t, filepath.Join(bin, b), "#!/bin/sh\n")
+		if err := os.Chmod(filepath.Join(bin, b), 0o700); err != nil { // #nosec G302 -- an executable stub in the test's temp dir
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+	v := Verifier{Cfg: config.Verify{Review: true, Reviewer: "claude", TimeoutS: 30}, Base: "main"}
+	if got := v.reviewer(model.BackendClaude); got != model.BackendGemini {
+		t.Errorf("reviewer of claude's work with verify.reviewer claude = %q, want gemini", got)
+	}
+	if err := os.Remove(filepath.Join(bin, "gemini")); err != nil {
+		t.Fatal(err)
+	}
+	if got := v.reviewer(model.BackendClaude); got != "" {
+		t.Errorf("reviewer with no other provider = %q, want none", got)
+	}
+
+	res := v.Verify(context.Background(), engine.VerifyRequest{TaskID: "T-1", Writer: model.BackendClaude, Dir: dir})
+	if res.ReviewUnavailable == "" {
+		t.Errorf("Verify = %+v, want the review unavailable", res)
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path) // #nosec G304 G703 -- the test's own temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 // approveWithUsage is claude approving, having spent 1200+300 tokens.
 const approveWithUsage = `{"type":"result","subtype":"success","is_error":false,` +
 	`"result":"{\"verdict\":\"approve\",\"summary\":\"fine\",\"findings\":[]}",` +
@@ -281,7 +426,7 @@ func TestReviewerIsNeverTheWriterByDefault(t *testing.T) {
 		t.Errorf("reviewer for codex's work = %q, want claude", got)
 	}
 	v.Cfg.Reviewer = "claude"
-	if got := v.reviewer(model.BackendClaude); got != model.BackendClaude {
+	if got := v.reviewer(model.BackendCodex); got != model.BackendClaude {
 		t.Errorf("configured reviewer = %q, want claude", got)
 	}
 }
@@ -357,7 +502,7 @@ func readFixture(t *testing.T, parts ...string) []byte {
 
 func write(t *testing.T, path, body string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil { // #nosec G703 -- paths under the test's own temp dirs
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- paths under the test's own temp dirs
@@ -601,5 +746,36 @@ func TestVerifyReviewCarriesTheRulesForTheChange(t *testing.T) {
 	}
 	if off := (Verifier{}).rules("T-1", dir, []string{"src/app/pay.ts"}); off != nil {
 		t.Errorf("rules with knowledge off = %v", off)
+	}
+}
+
+// TestRunKillsTheWholeGroupOnTimeout (#541): a check that times out takes
+// its children with it — a server verify.app.start left running, a test
+// runner's workers — not only the sh orch started.
+func TestRunKillsTheWholeGroupOnTimeout(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Now()
+	_, err := run(context.Background(), dir, nil, `sleep 30 & echo $! > child.pid; wait`, 500*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("run = %v, want a timeout", err)
+	}
+	if took := time.Since(start); took > 4*time.Second {
+		t.Errorf("run took %s: it waited on the orphaned child's output", took)
+	}
+	raw, rerr := os.ReadFile(filepath.Join(dir, "child.pid")) // #nosec G304 -- the test's own temp dir
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	pid, perr := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatalf("the check's child %d outlived the timeout", pid)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

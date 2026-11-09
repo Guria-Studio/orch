@@ -158,7 +158,7 @@ describe("AppLayout", () => {
     whoami = { profile: "stakeholder", routes: ["stakeholder_summary_json", "stakeholder_snapshot_json", "api_whoami", "spa"] }
     try {
       renderAt("/delivery/client")
-      expect(within(screen.getByRole("complementary")).getByText("Client view · read-only.")).toBeInTheDocument()
+      expect(within(screen.getByRole("complementary")).getByText("Client page · read-only.")).toBeInTheDocument()
     } finally {
       whoami = { profile: "operator" }
     }
