@@ -3,13 +3,14 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { useWhoami } from "@/hooks/useWhoami"
 import { t } from "@/i18n"
-import { noteTask, stopTask } from "@/lib/api"
+import { moveTask, noteTask, stopTask } from "@/lib/api"
 import { statusKey } from "@/lib/status"
 import type { Task } from "@/lib/types"
 
 /**
  * The operator's controls on one task (#356): a note for its next attempt,
- * and — while it runs — stop and hold, or stop and redirect with the note.
+ * while it runs, stop and hold, or stop and retry with the note; and once
+ * held (blocked), unblock it back to todo (#549).
  * The local operator only; the server refuses anyone else anyway.
  */
 export function TaskSteer({ task }: { task: Task }) {
@@ -22,6 +23,7 @@ export function TaskSteer({ task }: { task: Task }) {
 
   if (whoami?.profile !== "operator") return null
   const running = statusKey(task.status) === "in_progress"
+  const held = statusKey(task.status) === "blocked"
 
   async function run(action: () => Promise<string>) {
     setBusy(true)
@@ -71,6 +73,11 @@ export function TaskSteer({ task }: { task: Task }) {
                 {t("steer.redirect")}
               </Button>
             </>
+          ) : null}
+          {held ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => run(async () => (await moveTask(task.id, "todo", note)).message)}>
+              {t("steer.unblock")}
+            </Button>
           ) : null}
           <Button size="sm" disabled={busy || note.trim() === ""} onClick={() => run(async () => (await noteTask(task.id, note), t("steer.noted")))}>
             {t("steer.note")}

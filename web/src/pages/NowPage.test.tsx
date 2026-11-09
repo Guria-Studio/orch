@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Estimate, Now } from "@/hooks/useNow"
@@ -34,6 +34,8 @@ vi.mock("@/hooks/useFlow", () => ({
   useFlow: () => ({ data: flow.state, refetch: vi.fn() }),
   flowStep: (...a: unknown[]) => flow.step(...a),
 }))
+const moveTask = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), moveTask }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ status: "open", lastEventAt: null }) }))
 let findingsPending = 0
 vi.mock("@/hooks/useFindings", () => ({ useFindings: () => ({ data: { findings: [], pending: findingsPending, can_send: true, repo: "Guria-Studio/orch" } }) }))
@@ -131,14 +133,23 @@ describe("NowPage", () => {
     expect(activityCalls[0]).toEqual(["F2.T2", true])
   })
 
-  it("lists blocked and budget-waiting tasks, and unblocking shows the command instead of doing it", () => {
+  // #549: Unblock used to show a command only ("the dashboard only reads");
+  // it moves the task back to todo, as that command does.
+  it("lists blocked and budget-waiting tasks, and unblocks one back to todo", async () => {
+    moveTask.mockResolvedValue({ message: "F2.T3: blocked → todo" })
     renderPage()
     const attention = screen.getByRole("heading", { name: "Needs your attention" }).closest("section")!
     expect(within(attention).getByText(/needs a product decision/)).toBeInTheDocument()
     expect(within(attention).getByText("Cursor pagination")).toBeInTheDocument()
     expect(within(attention).getByText(/Waiting for codex's budget window, resets in 2 hours/)).toBeInTheDocument()
-    fireEvent.click(within(attention).getByRole("button", { name: "Unblock" }))
-    expect(screen.getByText("orch task set --id F2.T3 --status todo")).toBeInTheDocument()
+    const unblock = within(attention).getByRole("button", { name: "Unblock" })
+    // The command it runs the equivalent of stays one hover away.
+    expect(unblock).toHaveAttribute("title", "orch task set --id F2.T3 --status todo")
+    await act(async () => {
+      fireEvent.click(unblock)
+    })
+    expect(moveTask).toHaveBeenCalledWith("F2.T3", "todo")
+    expect(within(attention).getByRole("status")).toHaveTextContent("F2.T3: blocked → todo")
   })
 
   // #533: a stalled agent only coloured a dot on its task's timeline.

@@ -115,7 +115,7 @@ Metrics, Logs. Live SSE event stream updates the UI without polling.
 
 ### Tunnel manager
 A Cloudflare quick tunnel (`cloudflared`) supervised by the dashboard — no Cloudflare
-account needed. Start / stop from the Tunnel page or `orch dashboard --tunnel`; the page
+account needed. Start / stop from the Share panel or `orch dashboard --tunnel`; the page
 walks through installing cloudflared when it is missing. Two links per start, each with
 its own token: the client page (stakeholder allow-list only) and the full dashboard.
 Stops with the dashboard.

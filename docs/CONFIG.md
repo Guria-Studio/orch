@@ -688,7 +688,7 @@ Cloudflare caps a quick tunnel at 200 concurrent requests and offers it for
 testing, not production; it does not carry server-sent events, so a
 dashboard opened through it refreshes every 15 s instead of live; and a
 `config.yml`/`config.yaml` in `~/.cloudflared/` (or `/etc/cloudflared/`)
-stops it from starting — `orch doctor` and the Tunnel page say so. For a
+stops it from starting — `orch doctor` and the Share panel say so. For a
 stable address, run a named Cloudflare Tunnel yourself
 ([`DASHBOARD-PROFILES.md`](DASHBOARD-PROFILES.md)).
 

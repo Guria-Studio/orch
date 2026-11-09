@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -11,6 +11,8 @@ const useMetrics = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/useMetrics", () => ({ useMetrics }))
 const useRouterSuggest = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/useRouterSuggest", () => ({ useRouterSuggest }))
+const useUsage = vi.hoisted(() => vi.fn((): { data?: unknown } => ({ data: undefined })))
+vi.mock("@/hooks/useUsage", () => ({ useUsage }))
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: () => ({ lastEventAt: null }) }))
 
 const data: MetricsResponse = {
@@ -73,5 +75,34 @@ describe("UsagePage", () => {
     expect(screen.getByText(/Suggested: claude\/claude-sonnet/)).toBeInTheDocument()
     expect(screen.getByText("first-try success as good or within 5 points (90% vs 88%) at 50% of the cost.")).toBeInTheDocument()
     expect(screen.getByText("orch router suggest --apply")).toBeInTheDocument()
+  })
+
+  // #549: /api/usage (#417) split tokens by task and attempt, and nothing
+  // showed it. The heaviest tasks and what their retries used, here.
+  it("shows each task's tokens and what its retries used", () => {
+    useMetrics.mockReturnValue({ data, isLoading: false, isError: false })
+    useRouterSuggest.mockReturnValue({ data: { period: "7d", min_sample: 5, kinds: [] } })
+    const tok = (n: number) => ({ dispatches: 1, input: n, cached_input: 0, cache_write: 0, output: 0, reasoning: 0, cost_usd: n / 1000, estimated: false })
+    useUsage.mockReturnValue({
+      data: {
+        total: { ...tok(12000), dispatches: 3 },
+        retry_tokens: 4000,
+        by_model: [],
+        by_task: [{ task_id: "F2.T1", retry_tokens: 4000, attempts: [{ attempt: 1, ...tok(8000) }, { attempt: 2, ...tok(4000) }], ...tok(12000) }],
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <UsagePage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    const section = screen.getByRole("heading", { name: "By task, all time" }).closest("section")!
+    expect(within(section).getByText("Tokens spent on retries")).toBeInTheDocument()
+    expect(within(section).getByText("33% of all tokens")).toBeInTheDocument()
+    expect(within(section).getByRole("link", { name: "F2.T1" })).toHaveAttribute("href", "/work/tasks/F2.T1")
+    expect(within(section).getByText("12,000")).toBeInTheDocument()
+    expect(within(section).getAllByText("4,000")).toHaveLength(2)
   })
 })

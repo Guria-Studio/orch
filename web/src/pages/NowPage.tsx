@@ -5,7 +5,6 @@ import { ActivityFeed } from "@/components/ActivityFeed"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CopyCommand } from "@/components/CopyCommand"
 import { Explain } from "@/components/Explain"
@@ -19,6 +18,7 @@ import { useMilestones } from "@/hooks/useMilestones"
 import { useEstimate, useNow, useTicker, type Estimate, type NowDispatch } from "@/hooks/useNow"
 import { useTasks } from "@/hooks/useTasks"
 import { fmt, t } from "@/i18n"
+import { moveTask } from "@/lib/api"
 import { describeLoadError } from "@/lib/errors"
 import { taskPath } from "@/lib/nav"
 import { formatDuration, formatElapsed, formatRelative } from "@/lib/time"
@@ -103,6 +103,19 @@ function WorkingRow({ d, now }: { d: NowDispatch; now: number }) {
 }
 
 function BlockedRow({ b, now }: { b: SprintBlocker; now: number }) {
+  const [result, setResult] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  // The same move as `orch task set --status todo` (#549); the next run picks it up.
+  const unblock = async () => {
+    setBusy(true)
+    try {
+      setResult((await moveTask(b.task_id, "todo")).message)
+    } catch (err) {
+      setResult(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <li className={cn(rowGrid, "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]")}>
       <Link to={taskPath(b.task_id)} className="hidden font-mono text-xs text-muted-foreground hover:text-foreground sm:block">
@@ -114,19 +127,22 @@ function BlockedRow({ b, now }: { b: SprintBlocker; now: number }) {
           {b.blocked_at ? `${t("now.blocked_since", { time: formatRelative(b.blocked_at, now) })} · ` : null}
           {b.reason}
         </span>
+        {result ? (
+          <span className="block truncate text-xs" role="status">
+            {result}
+          </span>
+        ) : null}
       </span>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button type="button" size="sm" variant="outline">
-            {t("now.unblock")}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-[22rem]">
-          <p className="font-medium">{t("now.unblock_title", { id: b.task_id })}</p>
-          <p className="mt-1 text-muted-foreground">{t("now.unblock_detail")}</p>
-          <CopyCommand command={`orch task set --id ${b.task_id} --status todo`} />
-        </PopoverContent>
-      </Popover>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        title={`orch task set --id ${b.task_id} --status todo`}
+        onClick={() => void unblock()}
+      >
+        {t("now.unblock")}
+      </Button>
     </li>
   )
 }

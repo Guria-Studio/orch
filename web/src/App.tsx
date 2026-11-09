@@ -5,7 +5,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "rea
 import { AppLayout } from "@/components/AppLayout"
 import { useLanguage } from "@/i18n"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
-import { LEGACY_REDIRECTS } from "@/lib/nav"
+import { DESTINATIONS, LEGACY_REDIRECTS } from "@/lib/nav"
 import { BudgetPage } from "@/pages/BudgetPage"
 import { CIPage } from "@/pages/CIPage"
 import { TestsPage } from "@/pages/TestsPage"
@@ -31,7 +31,7 @@ import { FindingsPage } from "@/pages/FindingsPage"
 import { ToolsPage } from "@/pages/ToolsPage"
 import { UsagePage } from "@/pages/UsagePage"
 import { WelcomePage } from "@/pages/WelcomePage"
-import { TunnelPage } from "@/pages/TunnelPage"
+import { SharePage } from "@/pages/SharePage"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,7 +59,7 @@ const PAGES: Record<string, ReactNode> = {
   "/delivery/summary": <StakeholderSummaryPage />,
   "/delivery/ci": <CIPage />,
   "/delivery/tests": <TestsPage />,
-  "/delivery/share": <TunnelPage />,
+  "/delivery/share": <SharePage />,
   "/system/providers": <QuotaPage />,
   "/system/tools": <ToolsPage />,
   "/system/skills": <SkillsPage />,
@@ -104,10 +104,10 @@ export function AppRoutes() {
         <Route key={from} path={from} element={<Redirect to={to} />} />
       ))}
       {/* A destination's own address opens its first page; logs open over any page. */}
-      <Route path="/now" element={<Redirect to="/" />} />
-      <Route path="/work" element={<Redirect to="/work/list" />} />
-      <Route path="/cost" element={<Redirect to="/cost/budget" />} />
-      <Route path="/delivery" element={<Redirect to="/delivery/summary" />} />
+      {/* Derived from the nav, so the redirect and the first tab cannot drift apart (#549). */}
+      {DESTINATIONS.map((d) => (
+        <Route key={d.id} path={`/${d.id}`} element={<Redirect to={d.tabs[0].to} />} />
+      ))}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

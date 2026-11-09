@@ -59,7 +59,11 @@ const StakeholderPathPrefix = "/stakeholder"
 //   - api_whoami — the SPA hides operator-only nav from the profile. The
 //     profile is not a secret; the token is.
 //   - api_docs_list / api_docs_content — PRD and spec markdown are project
-//     artefacts a stakeholder is meant to read.
+//     artefacts a stakeholder is meant to read. No route has these names
+//     today (Python's /api/docs was not ported; #549): the list is policy,
+//     not inventory, so a docs route registered under them is the client's
+//     by design, and a name with no route opens nothing. Removing them is
+//     the owner's call, not a cleanup.
 //   - spa — the static shell and every client-side route under it.
 var DefaultStakeholderRoutes = []string{
 	"stakeholder_summary_json",

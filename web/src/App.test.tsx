@@ -26,7 +26,9 @@ vi.mock("@/pages/NowPage", () => ({ NowPage: Where }))
 vi.mock("@/pages/PacePage", () => ({ PacePage: Where }))
 vi.mock("@/pages/PortfolioPage", () => ({ PortfolioPage: Where }))
 vi.mock("@/pages/StakeholderSummaryPage", () => ({ StakeholderSummaryPage: Where }))
-vi.mock("@/pages/TunnelPage", () => ({ TunnelPage: Where }))
+vi.mock("@/pages/SharePage", () => ({ SharePage: Where }))
+vi.mock("@/pages/ClientPage", () => ({ ClientPage: Where }))
+vi.mock("@/pages/QuotaPage", () => ({ QuotaPage: Where }))
 
 function landing(path: string) {
   render(
@@ -52,6 +54,10 @@ describe("routes", () => {
     ["/tunnel", "/delivery/share"],
     ["/logs", "/system/logs"],
     ["/work", "/work/list"],
+    // #549: each destination's own address opens its first tab, as the nav orders them.
+    ["/cost", "/cost/usage"],
+    ["/delivery", "/delivery/client"],
+    ["/system", "/system/providers"],
     ["/nowhere", "/"],
   ])("sends the old address %s to %s", (from, to) => {
     expect(landing(from)).toBe(to)

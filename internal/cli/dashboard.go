@@ -235,9 +235,9 @@ func newDashboardCmd(flags *projectFlags) *cobra.Command {
 				}()
 			}
 
-			// A project with no tasks.json still serves — the SPA's setup
-			// wizard is the whole point of `/api/config/status` — but saying
-			// so up front beats an empty board the operator has to interpret.
+			// A project with no tasks.json still serves — Work › Plan writes
+			// one (#548) — but saying so up front beats an empty board the
+			// operator has to interpret.
 			if _, statErr := os.Stat(paths.TasksJSON()); statErr != nil {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 					"[warn] %s does not exist — the dashboard will show 0 tasks.\n",

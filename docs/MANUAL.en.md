@@ -462,9 +462,9 @@ orch report summary
 
 # A link to hand a client, over a Cloudflare quick tunnel (needs
 # `tunnel: enabled: true` in config.yaml and cloudflared on PATH — the
-# Share page shows how to install it). Prints the client page link, with
+# Share panel shows how to install it). Prints the client page link, with
 # the token every request through the tunnel needs; Ctrl+C revokes it.
-# The Share page can also share through Tailscale (serve or Funnel).
+# The Share panel can also share through Tailscale (serve or Funnel).
 orch dashboard --tunnel
 ```
 
