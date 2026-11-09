@@ -16,6 +16,7 @@
 #   pr merge ...                         FAKE_GH_MERGE_STDOUT / _EXIT / _STDERR
 #   pr update-branch ...                 FAKE_GH_UPDATE_EXIT / _STDERR
 #   issue create ...                     FAKE_GH_ISSUE_CREATE_STDOUT / _EXIT
+#   issue close ...                      FAKE_GH_ISSUE_CLOSE_EXIT / _STDERR
 #   issue list ...                       FAKE_GH_ISSUES_STDOUT / _EXIT,
 #                                        or FAKE_GH_ISSUES_FILE to serve a
 #                                        captured fixture too big for an env var.
@@ -66,6 +67,10 @@ case "$1 $2" in
   "issue create")
     printf '%s' "${FAKE_GH_ISSUE_CREATE_STDOUT:-}"
     exit "${FAKE_GH_ISSUE_CREATE_EXIT:-0}"
+    ;;
+  "issue close")
+    printf '%s' "${FAKE_GH_ISSUE_CLOSE_STDERR:-}" >&2
+    exit "${FAKE_GH_ISSUE_CLOSE_EXIT:-0}"
     ;;
   "pr merge")
     printf '%s' "${FAKE_GH_MERGE_STDOUT:-}"

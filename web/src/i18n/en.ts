@@ -315,6 +315,8 @@ export const en = {
   "task.ev.task_added": "added the task",
   "task.ev.task_edited": "edited the task",
   "task.ev.salvage_accepted": "accepted the earlier attempt's work",
+  "task.ev.issue_closed": "closed the GitHub issue",
+  "task.ev.issue_close_failed": "could not close the GitHub issue",
   "task.hide_properties": "Hide the properties",
   "task.show_properties": "Show the properties",
   "task.properties": "Properties",

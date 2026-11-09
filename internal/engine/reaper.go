@@ -192,6 +192,7 @@ func (s *Scheduler) finish(ctx context.Context, c completion) error {
 	if out.Verify != nil {
 		entry.ReviewUnavailable = out.Verify.ReviewUnavailable
 	}
+	entry.VerifyNote = verifyNote(out.Verify)
 	if !stopped && !agentBlocked && out.Result.Success {
 		s.recordVerify(ctx, entry, out.Verify, sendBack)
 	}
@@ -469,6 +470,7 @@ func (s *Scheduler) markLanded(ctx context.Context, entry *InFlight, commit stri
 			s.logger().Error("recording the local merge failed", "task", entry.Task.ID, "err", err)
 		}
 	}
+	s.closeSourceIssue(ctx, entry, commit)
 	return nil
 }
 
@@ -723,7 +725,7 @@ func (s *Scheduler) SpentUSD(taskID string) float64 { return s.spentUSD[taskID] 
 // prText is a task's PR title and body, and its local squash commit's message.
 func (s *Scheduler) prText(ctx context.Context, task model.Task) (title, body string) {
 	title, body = project.PRText(task)
-	return title, body + s.scopeSection(ctx, task)
+	return title, body + s.scopeSection(ctx, task) + s.issueSection(task)
 }
 
 // scopeSection names, for the PR body, the files the agent changed outside

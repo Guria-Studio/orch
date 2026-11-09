@@ -58,8 +58,10 @@ type ParsedTask struct {
 	Dependencies  []string
 	Files         []string
 	SpecRef       string
-	SourceFile    string
-	Line          int
+	// SourceIssue comes from the spec's `source_issue` frontmatter (#525).
+	SourceIssue string
+	SourceFile  string
+	Line        int
 }
 
 // ParseResult bundles what parsing one or more spec files produced —
@@ -261,8 +263,9 @@ func ParseText(text, sourcePath, docsRoot, expectedProjectID string) ParseResult
 			currentTask = &ParsedTask{
 				ID: tid, Phase: tPhase, Package: tPkg, TaskNum: tNum, Title: title,
 				Dependencies: []string{}, Files: []string{},
-				SpecRef:    fmt.Sprintf("%s#%s", relRef, tid),
-				SourceFile: sourcePath, Line: lineno,
+				SpecRef:     fmt.Sprintf("%s#%s", relRef, tid),
+				SourceIssue: fm.SourceIssue,
+				SourceFile:  sourcePath, Line: lineno,
 			}
 			taskState = "desc"
 			continue

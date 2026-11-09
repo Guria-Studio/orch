@@ -82,14 +82,26 @@ func taskFromIssue(issue vcs.Issue, modelName string) model.Task {
 // the agents by opening an issue and waiting for someone to label it. Asked
 // once per login; a check that fails fails the sync rather than skipping.
 func collaboratorIssues(issues []vcs.Issue, isCollab func(login string) (bool, error)) ([]vcs.Issue, []string, error) {
-	known := map[string]bool{}
-	var kept []vcs.Issue
+	kept, strangers, err := splitByCollaborator(issues, isCollab)
+	if err != nil {
+		return nil, nil, err
+	}
 	var skipped []string
+	for _, issue := range strangers {
+		skipped = append(skipped, fmt.Sprintf("%s (@%s)", issueTaskID(issue.Number), issue.Author.Login))
+	}
+	return kept, skipped, nil
+}
+
+// splitByCollaborator is collaboratorIssues without the naming: the issues
+// whose author is a collaborator, and the rest, each in the order given.
+// `orch atomize --from-issues` names the rest by issue number instead.
+func splitByCollaborator(issues []vcs.Issue, isCollab func(login string) (bool, error)) (kept, strangers []vcs.Issue, err error) {
+	known := map[string]bool{}
 	for _, issue := range issues {
 		login := issue.Author.Login
 		ok, seen := known[login]
 		if !seen {
-			var err error
 			if ok, err = isCollab(login); err != nil {
 				return nil, nil, err
 			}
@@ -98,10 +110,10 @@ func collaboratorIssues(issues []vcs.Issue, isCollab func(login string) (bool, e
 		if ok {
 			kept = append(kept, issue)
 		} else {
-			skipped = append(skipped, fmt.Sprintf("%s (@%s)", issueTaskID(issue.Number), login))
+			strangers = append(strangers, issue)
 		}
 	}
-	return kept, skipped, nil
+	return kept, strangers, nil
 }
 
 // syncPlan is what a sync would do, worked out before anything is written.

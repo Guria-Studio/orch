@@ -240,6 +240,12 @@ func (r *ProjectRun) Start(ctx context.Context) (code int, err error) {
 		_, _ = fmt.Fprintln(r.stderr, "note: verify.enabled needs dispatch.worktree_mode; the work is not verified before it is published")
 	}
 
+	// With no PR, nothing carries a `Closes` keyword to GitHub: the last
+	// task of an imported issue to land closes it through gh (#525).
+	if r.localMerge {
+		scheduler.Issues = vcs.NewGitHubProvider()
+	}
+
 	var provider vcs.Provider
 	if r.autoPR {
 		if wtManager == nil {
