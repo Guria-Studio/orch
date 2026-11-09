@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/Guria-Studio/orch/internal/findings"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // FindingsDesk is what the Findings page reads the queue from and sends
@@ -79,9 +79,9 @@ func (s *Server) handleFindingDecision(send bool) http.HandlerFunc {
 			writeJSON(w, http.StatusBadRequest, errorPayload{Detail: "not a finding id"})
 			return
 		}
-		status, url := state.FindingDismissed, ""
+		status, url := project.FindingDismissed, ""
 		if send {
-			status = state.FindingSent
+			status = project.FindingSent
 			url, err = findings.Send(r.Context(), s.findings.Store, s.findings.Filer, id)
 		} else {
 			err = findings.Dismiss(r.Context(), s.findings.Store, id)

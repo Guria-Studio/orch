@@ -4,7 +4,7 @@ import (
 	"sort"
 
 	"github.com/Guria-Studio/orch/internal/pricing"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // Spend aggregation for the metrics page, ported from the per-model and
@@ -41,7 +41,7 @@ type spendBucket struct {
 	taskIDs   map[string]bool
 }
 
-func (b *spendBucket) add(s state.Spend, cost float64) {
+func (b *spendBucket) add(s project.Spend, cost float64) {
 	b.tokensIn += s.TokensIn
 	b.tokensOut += s.TokensOut
 	b.cost += cost
@@ -63,7 +63,7 @@ func (b *spendBucket) add(s state.Spend, cost float64) {
 // A row with no model is grouped under "unknown" — Python's string, and worth
 // keeping: it makes a data-quality problem visible in the table instead of
 // folding it into the default price row silently.
-func metricsByModel(spends []state.Spend, table pricing.Table) []modelStats {
+func metricsByModel(spends []project.Spend, table pricing.Table) []modelStats {
 	buckets := map[string]*spendBucket{}
 	for _, s := range spends {
 		model := s.Model
@@ -101,7 +101,7 @@ func metricsByModel(spends []state.Spend, table pricing.Table) []modelStats {
 // A day with no spend does not appear. Python's comment is explicit that this
 // is a choice rather than an oversight: the table reads better without runs of
 // zero rows, and a chart that wants them can zero-fill from the dates it got.
-func metricsByDay(spends []state.Spend, table pricing.Table, days int) []dayStats {
+func metricsByDay(spends []project.Spend, table pricing.Table, days int) []dayStats {
 	buckets := map[string]*spendBucket{}
 	for _, s := range spends {
 		// The first ten characters of an ISO timestamp are its date. A
@@ -142,7 +142,7 @@ func metricsByDay(spends []state.Spend, table pricing.Table, days int) []dayStat
 // It is computed from the same rows the tables are, not from adding the tables
 // up: the by-day table is truncated to 14 rows and the by-model one rounds
 // each row, so either would give a different — and quietly wrong — total.
-func totalCost(spends []state.Spend, table pricing.Table) float64 {
+func totalCost(spends []project.Spend, table pricing.Table) float64 {
 	total := 0.0
 	for _, s := range spends {
 		model := s.Model
@@ -160,8 +160,8 @@ func totalCost(spends []state.Spend, table pricing.Table) float64 {
 
 // estimatedCost is the part of totalCost priced from pricing.yaml: the rows
 // with no recorded cost, resolved the same way totalCost resolves them.
-func estimatedCost(spends []state.Spend, table pricing.Table) float64 {
-	var unbilled []state.Spend
+func estimatedCost(spends []project.Spend, table pricing.Table) float64 {
+	var unbilled []project.Spend
 	for _, s := range spends {
 		if s.CostUSD <= 0 {
 			unbilled = append(unbilled, s)

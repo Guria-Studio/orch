@@ -25,7 +25,6 @@ import (
 	"github.com/Guria-Studio/orch/internal/providers"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/scaffold"
-	"github.com/Guria-Studio/orch/internal/state"
 )
 
 // smokeCapUSD is each smoke dispatch's spend cap. claude enforces it
@@ -306,8 +305,8 @@ func smokeGit(root string, args ...string) error {
 
 // smokeEvidence reads one backend's smoke task back out of the database and
 // its log, and checks it.
-func smokeEvidence(ctx context.Context, db state.Backend, stateDir, root string, b model.Backend,
-	r smokeRoute, nonce string, spend []state.Spend, prices pricing.Table) (smokeRow, error) {
+func smokeEvidence(ctx context.Context, db project.Backend, stateDir, root string, b model.Backend,
+	r smokeRoute, nonce string, spend []project.Spend, prices pricing.Table) (smokeRow, error) {
 	id := smokeTaskID(b)
 	e := doctor.SmokeEvidence{
 		Nonce: nonce, Route: r.Entry,

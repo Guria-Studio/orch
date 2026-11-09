@@ -8,7 +8,7 @@ import (
 
 	"github.com/Guria-Studio/orch/internal/graph"
 	"github.com/Guria-Studio/orch/internal/model"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // Sprint health and milestone projection, ported from the F-5 and G-3 half of
@@ -68,7 +68,7 @@ const blockerReasonLimit = 300
 //
 // `now` is a parameter for the same reason: an ETA is a date, and a function
 // that reads the clock itself can only be tested by the clock.
-func sprintHealth(tasks []model.Task, done7d int, lastEvents map[string]state.Event, now time.Time) sprintPayload {
+func sprintHealth(tasks []model.Task, done7d int, lastEvents map[string]project.Event, now time.Time) sprintPayload {
 	var (
 		doneCount      int
 		remainingTasks int
@@ -124,7 +124,7 @@ func sprintHealth(tasks []model.Task, done7d int, lastEvents map[string]state.Ev
 // one, otherwise the event type, otherwise "unknown". A task blocked with no
 // event at all still appears — it is blocked, and saying so with "unknown" is
 // more use than leaving it off the list.
-func blockers(blocked []model.Task, lastEvents map[string]state.Event) []blockerRow {
+func blockers(blocked []model.Task, lastEvents map[string]project.Event) []blockerRow {
 	sort.SliceStable(blocked, func(i, j int) bool { return blocked[i].Phase < blocked[j].Phase })
 
 	out := make([]blockerRow, 0, len(blocked))

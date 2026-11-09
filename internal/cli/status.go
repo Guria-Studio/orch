@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -16,7 +15,7 @@ import (
 	"github.com/Guria-Studio/orch/internal/config"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/pricing"
-	"github.com/Guria-Studio/orch/internal/state"
+	"github.com/Guria-Studio/orch/internal/project"
 )
 
 // projectJSON is `status --json`'s `project` object.
@@ -93,7 +92,7 @@ type runJSON struct {
 	DeferredCount  int    `json:"deferred_count"`
 }
 
-func toRunJSON(r state.Run) runJSON {
+func toRunJSON(r project.Run) runJSON {
 	return runJSON{
 		RunID: r.RunID, StartedAt: r.StartedAt, UpdatedAt: r.UpdatedAt,
 		Mode: r.Mode, Status: r.Status, ParentPID: r.ParentPID,
@@ -124,7 +123,7 @@ type statusSnapshot struct {
 // build_status_snapshot then trims columns). only/statusFilter are applied
 // AFTER totals are computed, so `--only`/`--status` narrow the tasks shown
 // without lying about the project's real totals.
-func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backend, tasks []model.Task, only string, statusFilter map[string]bool) (statusSnapshot, error) {
+func buildSnapshot(ctx context.Context, paths config.Paths, backend project.Backend, tasks []model.Task, only string, statusFilter map[string]bool) (statusSnapshot, error) {
 	if err := backend.Bootstrap(ctx, tasks); err != nil {
 		return statusSnapshot{}, fmt.Errorf("bootstrap: %w", err)
 	}
@@ -168,14 +167,12 @@ func buildSnapshot(ctx context.Context, paths config.Paths, backend state.Backen
 	}
 
 	var latestRun any
-	run, err := backend.LatestRun(ctx)
+	run, ran, err := project.LatestRun(ctx, backend)
 	switch {
-	case err == nil:
-		latestRun = toRunJSON(run)
-	case errors.Is(err, state.ErrNoRuns):
-		latestRun = nil
-	default:
+	case err != nil:
 		return statusSnapshot{}, fmt.Errorf("read latest run: %w", err)
+	case ran:
+		latestRun = toRunJSON(run)
 	}
 
 	var onlyPtr *string
