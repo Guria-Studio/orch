@@ -374,6 +374,15 @@ arquivos. Uma execução que abre um PR termina antes de acompanhar o CI desse
 PR — uma execução que termina verde é percebida no *próximo* `orch run`, igual
 ao Python.
 
+**Quão bem o radar de conflitos prevê** (`radar: warn`, o padrão): `orch radar
+report` conta, nos últimos 30 dias (`--since 7d`, `72h`, `all`), os avisos do
+radar (duas tarefas que declaram os mesmos arquivos, dois PRs abertos que
+conflitam) e as colisões que aconteceram de fato (um PR ou um land local em
+conflito com a base, um merge limpo da base que quebrou o verify local, uma
+checagem semântica que barrou um merge), e quais delas tiveram um aviso antes:
+acerto (colisões previstas) e precisão (pares avisados que colidiram mesmo),
+com cada colisão e o que a previu; `--json` para scripts.
+
 **Conhecimento do projeto** (`knowledge.enabled`, ligado num projeto novo): o
 que uma tarefa aprende chega às tarefas seguintes. As lições são arquivos
 markdown curtos em `.orch/knowledge/`, commitados e revisados como qualquer
