@@ -726,10 +726,14 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 		p.conflictAttempts = map[string]int{}
 	}
 	p.conflictAttempts[row.ID]++
-	p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{
+	extra := map[string]any{
 		"pr_url": row.PRURL, "agent": true, "attempt": p.conflictAttempts[row.ID],
 		"files": merge.Conflicts, "reason": "conflicts in " + files + "; sent to the agent",
-	})
+	}
+	if by := s.conflictCausedBy(ctx, row.ID, merge.Commits); len(by) > 0 {
+		extra["caused_by"] = by
+	}
+	p.emit(ctx, s, EventCIConflictRetry, row, extra)
 	return true
 }
 

@@ -361,6 +361,15 @@ blocked naming the files. A run that opens a PR exits before polling that
 PR's CI — a run finishing green is noticed on the *next* `orch run`, same
 as Python.
 
+**How well the conflict radar predicts** (`radar: warn`, the default): `orch
+radar report` counts, over the last 30 days (`--since 7d`, `72h`, `all`), the
+radar's warnings (two tasks declaring the same files, two open PRs that
+conflict) and the collisions that really happened (a PR or a local land that
+conflicted with the base, a clean base merge that broke the local verify, a
+semantic check that stopped a merge), and which collisions a warning came
+before: recall (collisions predicted) and precision (warned pairs that did
+collide), with each collision and what predicted it; `--json` for scripts.
+
 **Project knowledge** (`knowledge.enabled`, on in a new project): what one task
 learns reaches the tasks after it. Lessons are short markdown files under
 `.orch/knowledge/`, committed and reviewed like any other file. An agent
