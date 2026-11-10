@@ -1309,23 +1309,56 @@ before the merge does.
 ### `semantic_checks` — new (#522)
 
 ```yaml
-semantic_checks:                # default: none
+semantic_checks:                # default: none (orch init writes migration rules, below)
   - name: migrations
-    kind: sequence              # the only kind so far
+    kind: sequence              # identity from the NAME of each file a branch adds
     paths: ["db/migrations/*.sql"]   # globs, repo-relative; ** crosses directories
     key: '^(\d+)_'             # regex over the file NAME; group 1 is the identity
     contiguous: true            # new numbers must follow the base's highest, no gap
     mode: block                 # block | warn (default) | off
+  - name: endpoints
+    kind: unique_key            # identity from each LINE a branch adds
+    paths: ["internal/**/*.go"]
+    pattern: '"(?:GET|POST|PUT|PATCH|DELETE) (/[^"]*)"'   # group 1 is the identity
+    mode: warn
+  - name: custom
+    kind: command               # your own check
+    run: scripts/check-collisions.sh
+    mode: block
 ```
 
 Collisions git cannot see: two tasks that each add migration `005` under
-different file names merge cleanly and break the database after both are in.
-A `sequence` rule reads an identity from the name of every file a branch
-**adds** under `paths` (relative to where it left the base; files the base
-already has at the same path are not the branch's), and reports one that the
-base already uses, one another open branch also adds, and — with
-`contiguous` — a number that does not follow the base's highest. Files that
-were already there never fire a rule.
+different file names merge cleanly and break the database after both are in;
+two tasks that each register `GET /api/tests` compile and route to whichever
+wins. Only what a branch **adds** is looked at (relative to where it left the
+base), so what was already there never fires a rule.
+
+- **`sequence`** reads an identity from the name of every file a branch adds
+  under `paths` (files the base already has at the same path are not the
+  branch's), and reports one the base already uses, one another open branch
+  also adds, and — with `contiguous` — a number that does not follow the
+  base's highest.
+- **`unique_key`** runs `pattern` over every line the branch adds to a file
+  under `paths` and reports an identity the base already has on a line of a
+  file under `paths` (found with `git grep` in the base's tree), or that
+  another open branch also adds. A key the branch also removes — a line moved
+  or edited in place — is not new and never fires. Regexes over code have
+  false positives: start with `warn`.
+- **`command`** runs `run` with `sh -c` in the repository, with
+  `ORCH_BASE_SHA`, `ORCH_HEAD_SHA` and `ORCH_OTHER_HEADS` (the other open
+  branches' SHAs, space-separated) set. A non-zero exit is one collision whose
+  reason is what it printed (500 characters at most); exit 0 is none. 5-minute
+  limit. `paths` is not used.
+
+**Migration rules `orch init` writes.** A new project whose repository already
+has migrations gets a `semantic_checks` block for its stack, `mode: block`:
+Alembic (`alembic.ini`'s `script_location`, else `alembic/`) as a `unique_key`
+over `versions/*.py` keyed on `down_revision` — two new migrations naming the
+same parent are two heads; Django, one `sequence` per `<app>/migrations`
+(`^(\d{4})_`, `contiguous`); Supabase (`supabase/migrations/*.sql`); and
+numbered SQL in `db/migrations/` or `migrations/`. A repository with none
+(most often one scaffolded before its code exists) gets no block; add one when
+the migrations appear.
 
 Where it runs:
 
@@ -1342,12 +1375,11 @@ Where it runs:
   blocks the task with the reason, its work kept on `orch/<task-id>` (renumber,
   then `orch task-status <id> todo`).
 
-A rule that is unusable (no name, an unknown kind or mode, no `paths`, a `key`
-that does not compile or has no group) is refused when the config loads. A
-check that cannot run (a branch missing, git failing) is logged and finds
-nothing. `unique_key` (endpoints, config keys), `command`, and the default
-`migrations` rule `orch init` will write for known stacks are later phases of
-#522.
+A rule that is unusable (no name, an unknown kind or mode, no `paths` for
+`sequence`/`unique_key`, a `key`/`pattern` that does not compile or has no
+group, a `command` without `run`) is refused when the config loads. A check
+that cannot run (a branch missing, git failing, a command that cannot start
+or runs past its limit) is logged and finds nothing.
 
 ### Misc
 

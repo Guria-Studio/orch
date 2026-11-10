@@ -383,6 +383,15 @@ checagem semântica que barrou um merge), e quais delas tiveram um aviso antes:
 acerto (colisões previstas) e precisão (pares avisados que colidiram mesmo),
 com cada colisão e o que a previu; `--json` para scripts.
 
+**Colisões que o git não vê** (`semantic_checks`, #522): duas tarefas que
+adicionam cada uma a migração `005`, ou registram cada uma `GET /api/tests`,
+fazem merge limpo e quebram a `main` juntas. Regras no `config.yaml` as pegam —
+`sequence` (nomes de arquivo), `unique_key` (linhas adicionadas) ou `command`
+(seu script) — quando o PR abre (aviso) e antes de o orch fazer o merge ou o
+land (`mode: block` devolve a tarefa ao agente). O `orch init` escreve a regra
+de migrações do stack que encontra (Alembic, Django, Supabase, SQL numerado).
+Veja `semantic_checks` em `docs/CONFIG.md`.
+
 **Conhecimento do projeto** (`knowledge.enabled`, ligado num projeto novo): o
 que uma tarefa aprende chega às tarefas seguintes. As lições são arquivos
 markdown curtos em `.orch/knowledge/`, commitados e revisados como qualquer

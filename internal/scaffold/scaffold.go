@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/Guria-Studio/orch/internal/ci"
+	"github.com/Guria-Studio/orch/internal/collide"
 	"github.com/Guria-Studio/orch/internal/model"
 	"github.com/Guria-Studio/orch/internal/router"
 	"github.com/Guria-Studio/orch/internal/templates"
@@ -203,6 +204,7 @@ func Run(opts Options) (Result, error) {
 	w.verify()
 	w.ensureBlock(reRetryBlock, conflictRetryBlock, "retry.conflict")
 	w.ensureBlock(reKnowledgeBlock, knowledgeBlock, "knowledge")
+	w.semanticChecks()
 	w.stampTaskMeta(opts)
 	if opts.Template == "" && !opts.NoSampleTask {
 		res.SampleTask = w.sampleTask(opts.TierDefaults)
@@ -694,6 +696,48 @@ func (w *writer) verify() {
 }
 
 var reVerifyBlock = regexp.MustCompile(`(?m)^verify:`)
+
+var reSemanticChecks = regexp.MustCompile(`(?m)^semantic_checks:`)
+
+// semanticChecks gives a new project the migration rules for the stacks its
+// repository already shows (#522 decision 4: Alembic by down_revision,
+// Django per app, Supabase, numbered SQL), so two tasks adding the same
+// migration number are caught before the second merges. Nothing when the
+// repository shows none, or the config already has semantic_checks.
+func (w *writer) semanticChecks() {
+	if w.err != nil {
+		return
+	}
+	rules := collide.DefaultRules(w.root)
+	if len(rules) == 0 {
+		return
+	}
+	var b strings.Builder
+	b.WriteString("# Semantic collision checks (#522), from the migrations this repository\n" +
+		"# already had at `orch init`: two tasks adding the same migration merge\n" +
+		"# cleanly in git and break the database. block sends the second one back to\n" +
+		"# its agent before it merges. See docs/CONFIG.md, semantic_checks.\n" +
+		"semantic_checks:\n")
+	for _, r := range rules {
+		fmt.Fprintf(&b, "  - name: %s\n    kind: %s\n    paths: [%s]\n", r.Name, r.Kind, strconv.Quote(r.Paths[0]))
+		if r.Key != "" {
+			fmt.Fprintf(&b, "    key: %s\n", yamlSingle(r.Key))
+		}
+		if r.Pattern != "" {
+			fmt.Fprintf(&b, "    pattern: %s\n", yamlSingle(r.Pattern))
+		}
+		if r.Contiguous {
+			b.WriteString("    contiguous: true\n")
+		}
+		fmt.Fprintf(&b, "    mode: %s\n", r.Mode)
+	}
+	w.ensureBlock(reSemanticChecks, b.String(), "semantic_checks")
+}
+
+// yamlSingle is s as a single-quoted YAML scalar: no escapes but ” for '.
+func yamlSingle(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
 
 // ensureBlock gives a template project, whose config.yaml.tmpl is partial,
 // a block a blank one gets from the packaged default: retry.conflict (#438),
