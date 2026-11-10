@@ -31,10 +31,30 @@ export interface CiWorkflow {
   parse_error?: string
 }
 
+// The merge queue (#522): queued entries in merge order (position 1 is
+// next), then the last ones that left it.
+export interface CiQueueEntry {
+  task_id: string
+  pr_url: string
+  state: "queued" | "merged" | "ejected"
+  position?: number
+  requeues: number
+  reason?: string
+  enqueued_at: string
+  updated_at: string
+}
+
+export interface CiMergeQueue {
+  enabled: boolean
+  reverify: string
+  entries: CiQueueEntry[]
+}
+
 export interface CiResponse {
   config: CiConfig
   workflows: CiWorkflow[]
   warnings: string[]
+  merge_queue?: CiMergeQueue
 }
 
 // The engine's defaults when config.yaml leaves a value at zero

@@ -59,6 +59,7 @@ var leftOutOfScaffold = map[string]string{ // #nosec G101 -- config key names an
 	"publish.git_branch":             "orch publish has its own flags",
 	"sync.issues_label":              "orch sync issues has --label",
 	"portal.documents":               "the planning pipeline's documents; advanced",
+	"merge_queue.reverify":           "only read with merge_queue.enabled, which is off (#522); docs/CONFIG.md",
 	"verify.max_attempts":            "advanced",
 	"verify.timeout_s":               "advanced",
 	"verify.app.ready_timeout_s":     "advanced: the app block itself is commented out",

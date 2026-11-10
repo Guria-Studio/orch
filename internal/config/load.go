@@ -86,14 +86,15 @@ func Defaults() Config {
 			"blocked":     "Bloqueado",
 			"skipped":     "Omitido",
 		}},
-		Publish: Publish{IntervalS: 60, To: "dir", Dir: "public", GitBranch: "gh-pages"},
-		Sync:    Sync{IssuesLabel: DefaultSyncIssuesLabel},
-		Portal:  Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
-		Verify:  Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
-		Update:  Update{CheckCLIs: true},
-		Guard:   Guard{Secrets: "block", Debug: "warn", Protected: "block"},
-		Watch:   Watch{Enabled: true, StallAfterS: 600, Liveness: true, MinCPUPct: 2},
-		Radar:   "warn",
+		Publish:    Publish{IntervalS: 60, To: "dir", Dir: "public", GitBranch: "gh-pages"},
+		Sync:       Sync{IssuesLabel: DefaultSyncIssuesLabel},
+		Portal:     Portal{Documents: append([]string(nil), DefaultPortalDocuments...)},
+		Verify:     Verify{Review: true, MaxAttempts: 2, TimeoutS: 600, App: VerifyApp{ReadyTimeoutS: 120}},
+		Update:     Update{CheckCLIs: true},
+		Guard:      Guard{Secrets: "block", Debug: "warn", Protected: "block"},
+		Watch:      Watch{Enabled: true, StallAfterS: 600, Liveness: true, MinCPUPct: 2},
+		Radar:      "warn",
+		MergeQueue: MergeQueue{Reverify: "when_base_moved"},
 	}
 }
 
@@ -256,6 +257,13 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("radar: %q is not one of warn, serialize, off", cfg.Radar)
 	}
+	switch cfg.MergeQueue.Reverify = strings.ToLower(strings.TrimSpace(cfg.MergeQueue.Reverify)); cfg.MergeQueue.Reverify {
+	case "":
+		cfg.MergeQueue.Reverify = "when_base_moved"
+	case "when_base_moved", "never":
+	default:
+		return fmt.Errorf("merge_queue.reverify: %q is not one of when_base_moved, never", cfg.MergeQueue.Reverify)
+	}
 	for i := range cfg.SemanticChecks {
 		r := &cfg.SemanticChecks[i]
 		if r.Mode = strings.ToLower(strings.TrimSpace(r.Mode)); r.Mode == "" {
@@ -402,6 +410,7 @@ var knownKeys = map[string]bool{
 	"watch.enabled":       true, "watch.stall_after_s": true,
 	"watch.liveness": true, "watch.data_dirs": true, "watch.min_cpu_pct": true,
 	"radar": true, "semantic_checks": true,
+	"merge_queue.enabled": true, "merge_queue.reverify": true,
 }
 
 // droppedKeys explains the keys a pre-Go config is most likely to carry, so

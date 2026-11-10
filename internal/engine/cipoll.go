@@ -128,6 +128,14 @@ type CIPoller struct {
 	// terminal (#232).
 	Squash           bool
 	MergeWhenPassing bool
+	// MergeQueue merges green PRs through orch's queue (#522,
+	// merge_queue.enabled): one at a time, in order, each brought up to date
+	// with the base and re-verified first. Needs AutoMerge and a Queue store.
+	MergeQueue bool
+	// Reverify is merge_queue.reverify: when_base_moved or never.
+	Reverify string
+	// Queue keeps the queue across runs; state.SQLite is one.
+	Queue MergeQueueStore
 
 	lastPoll time.Time
 	// noChecksSince is when each task's PR was first seen with no checks.
@@ -148,6 +156,9 @@ type CIPoller struct {
 	reverifying map[string]*pendingReverify
 	// spawn runs a re-verify; nil starts a goroutine. Tests run it inline.
 	spawn func(func())
+	// queueDelegated caches whether the base branch has GitHub's merge
+	// queue on (nil: not asked yet); orch then leaves the order to it.
+	queueDelegated *bool
 }
 
 // Poll asks CI about every task waiting on it, if enough time has passed.
@@ -173,6 +184,7 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 	}
 
 	acted := 0
+	green := map[string]state.TaskRuntime{}
 	for _, row := range pending {
 		if row.PRURL == "" {
 			// Defensive: a row with no PR has no CI to ask about, and
@@ -202,6 +214,7 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 		}
 		switch state {
 		case vcs.CISuccess:
+			green[row.ID] = row
 			if p.ciSucceeded(ctx, s, row) {
 				acted++
 			}
@@ -229,6 +242,9 @@ func (p *CIPoller) Poll(ctx context.Context, s *Scheduler) (int, error) {
 		case vcs.CIPending:
 			// Nothing to do yet.
 		}
+	}
+	if p.queueOn() {
+		acted += p.processQueue(ctx, s, pending, green)
 	}
 	return acted, nil
 }
@@ -334,14 +350,27 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
 		return true
 	}
+	if p.queueing(ctx, s, row) {
+		// The queue merges it in its turn (processQueue, after this sweep).
+		p.enqueue(ctx, s, row)
+		return false
+	}
+	acted, _ := p.mergeGreen(ctx, s, row)
+	return acted
+}
+
+// mergeGreen merges a green PR now, retrying a merge the forge refused for
+// a while, and finishes its task. Reports whether it acted and whether the
+// PR merged.
+func (p *CIPoller) mergeGreen(ctx context.Context, s *Scheduler, row state.TaskRuntime) (acted, merged bool) {
 	now := s.now()
 	m := p.mergeRetryFor(row.ID)
 	if now.Before(m.nextAt) {
-		return false
+		return false, false
 	}
 	if p.semanticBlocked(ctx, s, row) {
 		delete(p.merges, row.ID)
-		return true
+		return true, false
 	}
 	err := p.Provider.MergePR(row.PRURL, p.Squash, p.MergeWhenPassing)
 	if err == nil {
@@ -349,7 +378,7 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 		p.finishTask(ctx, s, row, CIStatusSuccess, "CI passed")
 		p.emit(ctx, s, EventCISuccess, row, map[string]any{"pr_url": row.PRURL})
 		p.emit(ctx, s, EventPRAutoMerged, row, map[string]any{"pr_url": row.PRURL})
-		return true
+		return true, true
 	}
 
 	var me *vcs.MergeError
@@ -368,7 +397,7 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 		}
 		s.logger().Info(msg, "task", row.ID, "pr", row.PRURL,
 			"attempt", m.attempts, "branch_updates", m.updates, "next_in", wait, "err", err)
-		return false
+		return false, false
 	}
 
 	// Out of attempts, or a failure no wait can fix: the existing outcome —
@@ -385,7 +414,7 @@ func (p *CIPoller) ciSucceeded(ctx context.Context, s *Scheduler, row state.Task
 	p.emit(ctx, s, EventPRAutoMergeFailed, row, map[string]any{
 		"pr_url": row.PRURL, "attempts": tries, "error": err.Error(),
 	})
-	return true
+	return true, false
 }
 
 // Auto-merge retry policy (#347). Five attempts with the waits below span
@@ -701,7 +730,7 @@ func (p *CIPoller) ciConflict(ctx context.Context, s *Scheduler, row state.TaskR
 			p.startReverify(ctx, s, row, wtPath, base)
 			return p.collectReverify(ctx, s, row)
 		}
-		return p.pushMerged(ctx, s, row, base, false)
+		return p.pushMerged(ctx, s, row, base, false, false)
 	}
 
 	files := strings.Join(merge.Conflicts, ", ")
@@ -743,6 +772,8 @@ type pendingReverify struct {
 	result chan VerifyResult
 	wtPath string
 	base   string
+	// queue: the merge queue started it, not a conflict.
+	queue bool
 }
 
 // startReverify runs the local verify on the worktree the base was just
@@ -785,7 +816,7 @@ func (p *CIPoller) collectReverify(ctx context.Context, s *Scheduler, row state.
 		return false
 	}
 	if res.Failure == "" {
-		return p.pushMerged(ctx, s, row, pending.base, true)
+		return p.pushMerged(ctx, s, row, pending.base, true, pending.queue)
 	}
 	first, _, _ := strings.Cut(strings.TrimSpace(res.Failure), "\n")
 	if p.conflictAttempts[row.ID] >= p.ConflictRetries {
@@ -820,7 +851,7 @@ func (p *CIPoller) collectReverify(ctx context.Context, s *Scheduler, row state.
 
 // pushMerged publishes the base merged cleanly into the PR's branch, and
 // polls CI again; verified says the local verify passed on it first.
-func (p *CIPoller) pushMerged(ctx context.Context, s *Scheduler, row state.TaskRuntime, base string, verified bool) bool {
+func (p *CIPoller) pushMerged(ctx context.Context, s *Scheduler, row state.TaskRuntime, base string, verified, queue bool) bool {
 	defer p.dropWorktree(ctx, s, row.ID)
 	if err := p.Worktree.Push(ctx, row.ID); err != nil {
 		s.logger().Warn("conflict retry: pushing the merged base failed; will retry next poll", "task", row.ID, "err", err)
@@ -830,8 +861,16 @@ func (p *CIPoller) pushMerged(ctx context.Context, s *Scheduler, row state.TaskR
 	if verified {
 		reason = "merged " + base + " cleanly, verified and pushed"
 	}
+	extra := map[string]any{"pr_url": row.PRURL, "agent": false, "reason": reason}
+	if queue {
+		// Not a conflict: the merge queue brought its head up to date.
+		s.logger().Info("merge queue: brought the PR up to date with its base and pushed", "task", row.ID, "pr", row.PRURL, "verified", verified)
+		extra["queue"] = true
+		p.emit(ctx, s, EventCIConflictRetry, row, extra)
+		return true
+	}
 	s.logger().Info("the PR conflicted with its base; merged it cleanly and pushed", "task", row.ID, "pr", row.PRURL, "verified", verified)
-	p.emit(ctx, s, EventCIConflictRetry, row, map[string]any{"pr_url": row.PRURL, "agent": false, "reason": reason})
+	p.emit(ctx, s, EventCIConflictRetry, row, extra)
 	return true
 }
 

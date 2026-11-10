@@ -5,7 +5,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCI } from "@/hooks/useCI"
 import { useTasks } from "@/hooks/useTasks"
-import { maxRetries, pipelineStages, prLabel, prTasks, type CiWorkflow, type Stage, type StageState } from "@/lib/ci"
+import {
+  maxRetries,
+  pipelineStages,
+  prLabel,
+  prTasks,
+  type CiMergeQueue,
+  type CiQueueEntry,
+  type CiWorkflow,
+  type Stage,
+  type StageState,
+} from "@/lib/ci"
 import { describeLoadError } from "@/lib/errors"
 import { taskPath } from "@/lib/nav"
 import { t } from "@/i18n"
@@ -89,6 +99,8 @@ export function CIPage() {
           <PrTable tasks={tasks.data.tasks} retries={ci.data ? maxRetries(ci.data.config) : undefined} />
         ) : null}
       </section>
+
+      {ci.data?.merge_queue ? <MergeQueueSection queue={ci.data.merge_queue} tasks={tasks.data?.tasks ?? []} /> : null}
 
       <section aria-labelledby="workflows-heading" className="flex flex-col gap-2">
         <h2 id="workflows-heading" className="font-medium">
@@ -217,6 +229,54 @@ function PrTable({ tasks, retries }: { tasks: Task[]; retries?: number }) {
         })}
       </div>
     </div>
+  )
+}
+
+const QUEUE_STATE: Record<CiQueueEntry["state"], { label: "ci.queue.state.queued" | "ci.queue.state.merged" | "ci.queue.state.ejected"; tone: string }> = {
+  queued: { label: "ci.queue.state.queued", tone: "text-status-running" },
+  merged: { label: "ci.queue.state.merged", tone: "text-status-done" },
+  ejected: { label: "ci.queue.state.ejected", tone: "text-status-blocked" },
+}
+
+// The merge queue (#522): what waits to merge, in the order it will, and
+// what left it last.
+function MergeQueueSection({ queue, tasks }: { queue: CiMergeQueue; tasks: Task[] }) {
+  const titles = new Map(tasks.map((task) => [task.id, task.title]))
+  return (
+    <section aria-labelledby="queue-heading" className="flex flex-col gap-2">
+      <h2 id="queue-heading" className="font-medium">
+        {t("ci.queue")}
+      </h2>
+      <p className="max-w-[720px] leading-5 text-muted-foreground">
+        {queue.enabled ? t("ci.queue.on", { reverify: queue.reverify === "never" ? "" : t("ci.queue.reverify") }) : t("ci.queue.off")}
+      </p>
+      {queue.entries.length === 0 ? (
+        queue.enabled ? <p className="rounded-lg border border-dashed p-5 text-muted-foreground">{t("ci.queue.empty")}</p> : null
+      ) : (
+        <ol aria-label={t("ci.queue")} className="divide-y rounded-lg border">
+          {queue.entries.map((e) => {
+            const st = QUEUE_STATE[e.state]
+            return (
+              <li key={e.task_id} className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2">
+                <span className="w-20 font-mono text-xs text-muted-foreground tabular-nums">
+                  {e.position ? (e.position === 1 ? t("ci.queue.next") : `#${e.position}`) : ""}
+                </span>
+                <Link to={taskPath(e.task_id)} className="flex min-w-0 flex-1 gap-2.5 hover:underline">
+                  <span className="font-mono text-xs text-muted-foreground">{e.task_id}</span>
+                  <span className="truncate">{titles.get(e.task_id) ?? ""}</span>
+                </Link>
+                <span className={cn("text-xs", st.tone)}>{t(st.label)}</span>
+                {e.requeues > 0 ? <span className="text-xs text-muted-foreground">{t("ci.queue.requeues", { n: e.requeues })}</span> : null}
+                {e.reason ? <span className="text-xs text-muted-foreground">{e.reason}</span> : null}
+                <a href={e.pr_url} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-brand hover:underline">
+                  {prLabel(e.pr_url)}
+                </a>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </section>
   )
 }
 

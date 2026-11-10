@@ -77,6 +77,9 @@ const DOT: Record<string, string> = {
   files_overlap: "bg-status-blocked",
   branch_conflict: "bg-status-blocked",
   semantic_collision: "bg-status-blocked",
+  queue_enqueued: "bg-status-running",
+  queue_merged: "bg-status-done",
+  queue_ejected: "bg-status-blocked",
   issue_closed: "bg-status-done",
   issue_close_failed: "bg-status-blocked",
 }

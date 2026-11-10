@@ -43,6 +43,9 @@ var severityByEvent = map[string]string{
 	"files_overlap":      "warn",
 	"branch_conflict":    "warn",
 	"semantic_collision": "warn",
+	"queue_enqueued":     "info",
+	"queue_merged":       "info",
+	"queue_ejected":      "warn",
 }
 
 // iconByEvent is the short marker at the head of the human line. ASCII on
@@ -70,6 +73,9 @@ var iconByEvent = map[string]string{
 	"files_overlap":      "RADAR",
 	"branch_conflict":    "RADAR",
 	"semantic_collision": "COLLIDE",
+	"queue_enqueued":     "QUEUE",
+	"queue_merged":       "QUEUE",
+	"queue_ejected":      "QUEUE",
 }
 
 // eventPayload is one formatted event.
@@ -167,7 +173,7 @@ func eventTail(etype string, extra map[string]any) string {
 			return " (with " + w + ")"
 		}
 		return ""
-	case "semantic_collision":
+	case "semantic_collision", "queue_ejected":
 		if r := extraString(extra, "reason"); r != "" {
 			return " (" + r + ")"
 		}

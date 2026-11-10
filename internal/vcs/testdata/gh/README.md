@@ -119,3 +119,11 @@ For `orch sync issues` importing only collaborators' issues by default (#542):
 |---|---|
 | `issue-list.json` | `gh issue list --repo Guria-Studio/orch --state closed --limit 3 --json number,title,body,state,url,createdAt,labels,author` — three real issues, each with its `author` object (`login`, `is_bot`, …) |
 | `api-collaborator-404.stdout` / `.stderr` | `gh api repos/Guria-Studio/orch/collaborators/torvalds` — someone who is not a collaborator: exit 1, the JSON body on stdout and `gh: Not Found (HTTP 404)` on stderr. A collaborator is exit 0 with no output (HTTP 204) |
+
+For the merge queue (#522), whether a base branch has GitHub's merge queue on,
+`gh api graphql -f query='query($owner:String!,$name:String!,$branch:String!){repository(owner:$owner,name:$name){mergeQueue(branch:$branch){id url}}}'`:
+
+| file | what it is |
+|---|---|
+| `graphql-merge-queue-active.json` | `github/docs`, branch `main`: a public repository with the merge queue on |
+| `graphql-merge-queue-none.json` | this repository's `main`: no merge queue, `"mergeQueue":null` |

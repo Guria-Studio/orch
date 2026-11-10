@@ -361,6 +361,15 @@ blocked naming the files. A run that opens a PR exits before polling that
 PR's CI — a run finishing green is noticed on the *next* `orch run`, same
 as Python.
 
+**Merge queue** (`merge_queue.enabled`, off by default, needs
+`github.auto_merge`): green PRs merge one at a time — by phase, then by how
+many tasks depend on each — and each is first brought up to date with `main`
+and, when that changed it, re-verified (checks and E2E, not the LLM review)
+and pushed so CI runs on what will actually merge. A conflict, a failing
+re-verify or a blocking semantic check sends the task back to its agent. If the
+branch has GitHub's merge queue on, orch leaves the order to it. The queue is
+on the dashboard's CI page. See `merge_queue` in `docs/CONFIG.md`.
+
 **How well the conflict radar predicts** (`radar: warn`, the default): `orch
 radar report` counts, over the last 30 days (`--since 7d`, `72h`, `all`), the
 radar's warnings (two tasks declaring the same files, two open PRs that
