@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -294,6 +295,14 @@ func (r *ProjectRun) Start(ctx context.Context) (code int, err error) {
 			// refuses to merge non-interactively (#232).
 			Squash:           true,
 			MergeWhenPassing: true,
+			MergeQueue:       cfg.MergeQueue.Enabled,
+			Reverify:         cfg.MergeQueue.Reverify,
+		}
+		if q, ok := backend.(MergeQueueStore); ok {
+			runner.CI.Queue = q
+		}
+		if cfg.MergeQueue.Enabled && !cfg.GitHub.AutoMerge {
+			slog.Warn("merge_queue.enabled is on but github.auto_merge is off: orch merges nothing, so there is no queue")
 		}
 	}
 	if budgetGate != nil {

@@ -73,6 +73,20 @@ type Config struct {
 	// Checked when a PR opens (always a warning), before an auto-merge and
 	// before a local land (each rule's mode). Empty by default.
 	SemanticChecks []collide.Rule `yaml:"semantic_checks"`
+	// MergeQueue merges green task PRs one at a time, in order, each brought
+	// up to date with the base and re-verified first (#522).
+	MergeQueue MergeQueue `yaml:"merge_queue"`
+}
+
+// MergeQueue is the merge_queue section (#522). Off by default: orch merges
+// each green PR as its CI passes, as before. On, it needs github.auto_merge.
+type MergeQueue struct {
+	Enabled bool `yaml:"enabled"`
+	// Reverify is when_base_moved (the default: a PR whose base moved since
+	// it was verified gets the base merged in and the local verify run again,
+	// without the LLM review) or never (the base is merged in and CI alone
+	// judges the result).
+	Reverify string `yaml:"reverify"`
 }
 
 // Guard checks a task's diff after its agent exits cleanly and before orch

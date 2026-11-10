@@ -374,6 +374,16 @@ arquivos. Uma execução que abre um PR termina antes de acompanhar o CI desse
 PR — uma execução que termina verde é percebida no *próximo* `orch run`, igual
 ao Python.
 
+**Fila de merge** (`merge_queue.enabled`, desligada por padrão, precisa de
+`github.auto_merge`): os PRs verdes fazem merge um por vez — por fase e depois
+por quantas tarefas dependem de cada um — e cada um antes é atualizado com a
+`main` e, se isso o mudou, verificado de novo (checks e E2E, não a revisão
+LLM) e enviado, para o CI rodar sobre o que vai de fato para a `main`. Um
+conflito, um re-verify que falha ou uma checagem semântica em modo bloqueio
+devolve a tarefa ao agente. Se a branch tem a merge queue do GitHub ligada, o
+orch deixa a ordem com ela. A fila aparece na página CI do dashboard. Veja
+`merge_queue` em `docs/CONFIG.md`.
+
 **Quão bem o radar de conflitos prevê** (`radar: warn`, o padrão): `orch radar
 report` conta, nos últimos 30 dias (`--since 7d`, `72h`, `all`), os avisos do
 radar (duas tarefas que declaram os mesmos arquivos, dois PRs abertos que

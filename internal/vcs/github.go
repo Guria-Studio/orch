@@ -405,6 +405,42 @@ func isAllDigits(s string) bool {
 	return err == nil
 }
 
+// mergeQueueQuery asks whether a branch has GitHub's merge queue on.
+const mergeQueueQuery = `query($owner:String!,$name:String!,$branch:String!){repository(owner:$owner,name:$name){mergeQueue(branch:$branch){id url}}}`
+
+var reGitHubRepo = regexp.MustCompile(`^https://[^/]+/([^/]+)/([^/]+)/pull/\d+`)
+
+// MergeQueueActive reports whether the base branch of prURL's repository has
+// GitHub's merge queue on (#522): orch then leaves the order to GitHub and
+// only runs its semantic checks. testdata/gh/2.101.0/graphql-merge-queue-*.json.
+func (p *GitHubProvider) MergeQueueActive(prURL, baseBranch string) (bool, error) {
+	if err := checkBinary("gh"); err != nil {
+		return false, err
+	}
+	m := reGitHubRepo.FindStringSubmatch(prURL)
+	if m == nil {
+		return false, fmt.Errorf("merge queue: %q is not a GitHub pull request URL", prURL)
+	}
+	out, err := run("gh", nil, "api", "graphql", "-f", "query="+mergeQueueQuery,
+		"-F", "owner="+m[1], "-F", "name="+m[2], "-F", "branch="+baseBranch)
+	if err != nil {
+		return false, fmt.Errorf("gh api graphql (merge queue of %s/%s %s): %w", m[1], m[2], baseBranch, err)
+	}
+	var resp struct {
+		Data struct {
+			Repository struct {
+				MergeQueue *struct {
+					ID string `json:"id"`
+				} `json:"mergeQueue"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return false, fmt.Errorf("parsing the merge queue of %s/%s: %w", m[1], m[2], err)
+	}
+	return resp.Data.Repository.MergeQueue != nil, nil
+}
+
 func (p *GitHubProvider) MergePR(prURL string, squash, auto bool) error {
 	if err := checkBinary("gh"); err != nil {
 		return err

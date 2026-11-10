@@ -1306,6 +1306,51 @@ before the merge does.
 
 `off` turns both off. The events show in `orch events` and on the task page.
 
+### `merge_queue` — new (#522)
+
+```yaml
+merge_queue:
+  enabled: false                # default: each green PR merges as its CI passes
+  reverify: when_base_moved     # when_base_moved (default) | never
+```
+
+Two green PRs can each pass `verify` and CI against the base they started
+from and still break `main` together. With `enabled: true` (and
+`github.auto_merge` on — without it orch merges nothing and the dashboard's CI
+page says so) a green PR does not merge at once: it enters a queue, and orch
+merges the queue **one PR at a time**:
+
+- **Order**: phase first, then how many tasks depend on the task, directly or
+  not (more first: it unblocks more work), then when it entered the queue.
+  There is no priority field (#522 decision 1).
+- **The head is brought up to date**: orch merges the current base into its
+  branch. If that changes the branch (the base moved since the PR was last
+  verified), the local verify runs again on the result — its checks and E2E,
+  **not** the LLM review, which already read the agent's diff (decision 5) —
+  and the merged branch is pushed; CI runs again and the PR merges at a later
+  poll, against the base it was verified on. With `reverify: never`, or
+  without `verify.enabled`, the merge is pushed and CI alone judges it.
+- **Serial**: while the head's CI runs again, nothing behind it merges.
+- **Out of the queue**: a head whose base merge conflicts goes the
+  `retry.conflict` way (#438); a re-verify that fails, or a `semantic_checks`
+  rule in `block` mode, sends the task back to its agent (spending a
+  `retry.conflict` attempt; past `max_attempts` it is blocked). It enters
+  again, at the back, once its PR is green again.
+- **Survives restarts**: the queue is a table in `orch.db` (migration 017), so
+  a new `orch run` keeps the order.
+- **GitHub's own merge queue**: if the base branch has it on, orch detects it
+  (once per run) and leaves the order to GitHub (`gh pr merge --auto` puts the
+  PR in GitHub's queue); orch only runs its semantic checks before (decision 3).
+
+Events: `queue_enqueued`, `queue_merged`, `queue_ejected` (with the reason);
+the head brought up to date is a `ci_conflict_retry` with `queue: true`. The
+dashboard's **Delivery → CI** page lists the queue in merge order and the
+last PRs that left it. `vcs.provider: local` does not use it: a local land
+already re-verifies against a base that moved (#602).
+
+ponytail: a merge made outside orch between orch's last check and its `gh pr
+merge` is not seen; GitHub's "require branches to be up to date" closes that.
+
 ### `semantic_checks` — new (#522)
 
 ```yaml

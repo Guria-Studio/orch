@@ -8,11 +8,13 @@ async function fetchCI(): Promise<CiResponse> {
 }
 
 // /api/ci (operator only): the pipeline as config.yaml and the repo's
-// workflows set it up. It changes when a file is edited, not during a run.
+// workflows set it up, and the merge queue, which moves during a run.
 export function useCI() {
   return useQuery<CiResponse, Error>({
     queryKey: ["ci"],
     queryFn: fetchCI,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    // The merge queue on this page moves during a run.
+    refetchInterval: 15_000,
   })
 }

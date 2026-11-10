@@ -112,6 +112,7 @@ var goOnlyEventTypes = map[string]bool{
 	"files_overlap":      true,
 	"branch_conflict":    true,
 	"semantic_collision": true,
+	"queue_enqueued":     true, "queue_merged": true, "queue_ejected": true,
 	// An operator's edit of a lesson, and the lessons a prompt carried (#453).
 	"knowledge_edited": true,
 	"knowledge_used":   true,

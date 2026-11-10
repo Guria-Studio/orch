@@ -372,6 +372,16 @@ bloquee nombrando los archivos. Una corrida que abre un PR termina antes de
 consultar el CI de ese PR: una corrida que termina en verde se nota en el
 *siguiente* `orch run`, igual que en Python.
 
+**Cola de merge** (`merge_queue.enabled`, apagada por defecto, requiere
+`github.auto_merge`): los PRs en verde se mergean de a uno — por fase y después
+por cuántas tareas dependen de cada uno — y cada uno primero se pone al día con
+`main` y, si eso lo cambió, se vuelve a verificar (checks y E2E, no la
+revisión LLM) y se empuja, para que el CI corra sobre lo que de verdad se va a
+mergear. Un conflicto, un re-verify que falla o un chequeo semántico en modo
+bloqueo devuelve la tarea a su agente. Si la rama tiene la merge queue de
+GitHub activa, orch le deja el orden. La cola se ve en la página CI del
+dashboard. Ver `merge_queue` en `docs/CONFIG.md`.
+
 **Qué tan bien predice el radar de conflictos** (`radar: warn`, el valor por
 defecto): `orch radar report` cuenta, en los últimos 30 días (`--since 7d`,
 `72h`, `all`), los avisos del radar (dos tareas que declaran los mismos
