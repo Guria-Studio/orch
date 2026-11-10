@@ -177,12 +177,6 @@ func (s *Server) handleCurate(w http.ResponseWriter, r *http.Request) {
 	}
 	first := make(chan step, 1)
 	go func() {
-		defer func() {
-			s.curating.Store(false)
-			if s.curated != nil {
-				s.curated()
-			}
-		}()
 		var out bytes.Buffer
 		dispatched := false
 		// ponytail: outlives the request but not the process — Ctrl+C on the
@@ -192,6 +186,13 @@ func (s *Server) handleCurate(w http.ResponseWriter, r *http.Request) {
 			first <- step{started: &curatePayload{Task: id, Estimate: out.String()}}
 			return true
 		})
+		// Release before answering: a curation that never started must not
+		// still hold the flag when its refusal reaches the operator, or the
+		// retry they send right after it gets "already running" (#611).
+		s.curating.Store(false)
+		if s.curated != nil {
+			s.curated()
+		}
 		if !dispatched {
 			first <- step{err: err, out: out.String()}
 		} else if err != nil {

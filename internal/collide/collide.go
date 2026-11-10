@@ -25,9 +25,20 @@ import (
 	"time"
 )
 
-// Rule kinds. KindSequence is the only one so far; unique_key and command
-// are the spec's next ones (docs/design/issue-522-merge-queue.md §3.3).
-const KindSequence = "sequence"
+// Rule kinds (docs/design/issue-522-merge-queue.md §3.3).
+const (
+	// KindSequence reads an identity from the NAME of each file a branch
+	// adds: migration numbers.
+	KindSequence = "sequence"
+	// KindUniqueKey reads an identity from each LINE a branch adds to a
+	// watched file: endpoint paths, config keys, Alembic down_revisions.
+	KindUniqueKey = "unique_key"
+	// KindCommand runs a project script; a non-zero exit is a collision.
+	KindCommand = "command"
+)
+
+// commandTimeout bounds a command rule's script.
+const commandTimeout = 5 * time.Minute
 
 // Modes: block stops a merge, warn records the collision, off skips the rule.
 const (
@@ -53,6 +64,13 @@ type Rule struct {
 	// Contiguous also requires a sequence's new numbers to follow the base's
 	// highest one with no gap.
 	Contiguous bool `yaml:"contiguous"`
+	// Pattern is a unique_key rule's regular expression over each added
+	// line; its first group is the identity.
+	Pattern string `yaml:"pattern"`
+	// Run is a command rule's shell command, run in the repository with
+	// ORCH_BASE_SHA, ORCH_HEAD_SHA and ORCH_OTHER_HEADS (space-separated)
+	// set; a non-zero exit is a collision, its output the detail.
+	Run string `yaml:"run"`
 	// Mode is block, warn or off; empty is warn.
 	Mode string `yaml:"mode"`
 }
@@ -62,23 +80,44 @@ func (r Rule) Validate() error {
 	if strings.TrimSpace(r.Name) == "" {
 		return errors.New("a rule needs a name")
 	}
-	if r.Kind != KindSequence {
-		return fmt.Errorf("%s: kind %q is not one of: %s", r.Name, r.Kind, KindSequence)
+	switch r.Kind {
+	case KindSequence:
+		if err := needGroup(r.Name, "key", r.Key); err != nil {
+			return err
+		}
+	case KindUniqueKey:
+		if err := needGroup(r.Name, "pattern", r.Pattern); err != nil {
+			return err
+		}
+	case KindCommand:
+		if strings.TrimSpace(r.Run) == "" {
+			return fmt.Errorf("%s: a command rule needs run", r.Name)
+		}
+	default:
+		return fmt.Errorf("%s: kind %q is not one of: %s, %s, %s", r.Name, r.Kind, KindSequence, KindUniqueKey, KindCommand)
 	}
-	if len(r.Paths) == 0 {
+	if r.Kind != KindCommand && len(r.Paths) == 0 {
 		return fmt.Errorf("%s: paths is empty, so the rule watches nothing", r.Name)
-	}
-	re, err := regexp.Compile(r.Key)
-	if err != nil {
-		return fmt.Errorf("%s: key: %w", r.Name, err)
-	}
-	if re.NumSubexp() < 1 {
-		return fmt.Errorf("%s: key %q has no group; its first group is the identity", r.Name, r.Key)
 	}
 	switch r.Mode {
 	case "", ModeBlock, ModeWarn, ModeOff:
 	default:
 		return fmt.Errorf("%s: mode %q is not one of block, warn, off", r.Name, r.Mode)
+	}
+	return nil
+}
+
+// needGroup checks that expr, the rule's field, compiles and has a group.
+func needGroup(name, field, expr string) error {
+	if expr == "" {
+		return fmt.Errorf("%s: %s is empty; its first group is the identity", name, field)
+	}
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		return fmt.Errorf("%s: %s: %w", name, field, err)
+	}
+	if re.NumSubexp() < 1 {
+		return fmt.Errorf("%s: %s %q has no group; its first group is the identity", name, field, expr)
 	}
 	return nil
 }
@@ -160,7 +199,22 @@ func Check(ctx context.Context, repo string, rules []Rule, base Branch, head str
 
 	var out []Collision
 	for _, r := range active {
-		out = append(out, r.sequence(base.Label, baseFiles, headAdded, others, othersAdded)...)
+		switch r.Kind {
+		case KindSequence:
+			out = append(out, r.sequence(base.Label, baseFiles, headAdded, others, othersAdded)...)
+		case KindUniqueKey:
+			found, err := r.uniqueKey(ctx, repo, base, head, others)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, found...)
+		case KindCommand:
+			found, err := r.command(ctx, repo, base, head, others)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, found...)
+		}
 	}
 	return out, nil
 }
