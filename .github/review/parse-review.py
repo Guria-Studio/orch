@@ -10,7 +10,20 @@ finding missing `rule`, is a parse failure — and a parse failure means a
 Usage:
     parse-review.py --raw raw.txt --out review.json [--comment comment.md]
                     [--eligible true|false] [--eligible-reason "..."]
-                    [--pr 12] [--run-url https://...]
+                    [--run-url https://...] [--checklist CHECKLIST.md]
+
+Two calibrations from the #521 measurement (docs/analysis/
+code-review-measurement-2026-11.md) happen here, after validation:
+
+- A minor finding that only says the rule "cannot be verified from the diff"
+  is not a finding about the code (42 of 97 measured, 3 of them useful). They
+  are collapsed into one "not checkable" line and kept in review.json under
+  `unverifiable`.
+- A blocking finding whose rule is not merge-blocking is moved to `minor`.
+  The merge-blocking rule numbers are read from the checklist's
+  `<!-- merge-blocking-rules: ... -->` line, the one source of truth that the
+  reviewer reads too (docs/CI-REVIEW.md, "When the review blocks a merge").
+  A finding whose rule carries no number stays where the reviewer put it.
 
 Exit status:
     0  valid verdict written to --out
@@ -25,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 
@@ -41,6 +55,60 @@ TOOL_CALL_RE = re.compile(r"^\s*[‹<]call:[A-Za-z_]+")
 
 # Where a finding points when it is about the PR rather than a file.
 PR_LEVEL = "(PR)"
+
+
+# "cannot be verified from the diff", "not visible in the diff", "the test is
+# truncated", "outside the diff" — the shapes the measured NV findings took.
+UNVERIFIABLE_RE = re.compile(
+    r"\b(?:cannot|can't|can not|could not|couldn't|unable to|impossible to)\s+"
+    r"(?:be\s+)?(?:verif|check|confirm|see|determin|assess|tell)"
+    r"|\bnot\s+(?:visible|verifiable|checkable|shown|included)\b"
+    r"|\btruncated\b"
+    r"|\b(?:outside|beyond|absent from|missing from)\s+(?:of\s+)?the\s+(?:provided\s+)?diff\b"
+    r"|\bfrom the diff alone\b",
+    re.IGNORECASE,
+)
+
+# `19. Errors are wrapped`, `Rule 19`, `#19 — ...`, `19 (errors)`.
+RULE_NUMBER_RE = re.compile(r"^\s*(?:rule\s*)?#?(\d{1,2})\b", re.IGNORECASE)
+
+BLOCKING_MARKER_RE = re.compile(r"<!--\s*merge-blocking-rules:\s*([\d\s,]+?)\s*-->")
+
+
+def rule_number(rule: str) -> int | None:
+    m = RULE_NUMBER_RE.match(rule)
+    return int(m.group(1)) if m else None
+
+
+def merge_blocking_rules(checklist_text: str) -> set[int] | None:
+    """The rule numbers that may block a merge, or None when the checklist
+    does not say (then nothing is demoted)."""
+    m = BLOCKING_MARKER_RE.search(checklist_text)
+    if not m:
+        return None
+    return {int(n) for n in re.findall(r"\d+", m.group(1))}
+
+
+def calibrate(review: dict, blocking_rules: set[int] | None) -> dict:
+    """Demote non-blocking rules and set aside the unverifiable minors."""
+    blocking, minor = [], list(review["minor"])
+    for f in review["blocking"]:
+        n = rule_number(f["rule"])
+        if blocking_rules is not None and n is not None and n not in blocking_rules:
+            minor.append(dict(f, demoted=True))
+        else:
+            blocking.append(f)
+    kept, unverifiable = [], []
+    for f in minor:
+        (unverifiable if UNVERIFIABLE_RE.search(f["why"]) else kept).append(f)
+
+    verdict = review["verdict"]
+    if blocking:
+        verdict = "request_changes"
+    elif verdict == "request_changes":
+        # Everything blocking was demoted: the minors remain.
+        verdict = "comment"
+    return dict(review, verdict=verdict, blocking=blocking, minor=kept, unverifiable=unverifiable)
 
 
 class EmptyReview(ValueError):
@@ -204,7 +272,8 @@ def render_findings(title: str, findings: list[dict]) -> list[str]:
     lines = [f"**{title}**", ""]
     for f in findings:
         where = f["file"] + (f":{f['line']}" if "line" in f else "")
-        lines.append(f"- `{where}` — **{f['rule']}**: {f['why']}")
+        note = " _(not merge-blocking: moved from Blocking)_" if f.get("demoted") else ""
+        lines.append(f"- `{where}` — **{f['rule']}**: {f['why']}{note}")
     lines.append("")
     return lines
 
@@ -233,6 +302,19 @@ def render_comment(
     ]
     lines += render_findings("Blocking", review["blocking"])
     lines += render_findings("Minor", review["minor"])
+
+    unverifiable = review.get("unverifiable") or []
+    if unverifiable:
+        rules = []
+        for f in unverifiable:
+            if f["rule"] not in rules:
+                rules.append(f["rule"])
+        lines += [
+            f"_Not checkable from the diff ({len(unverifiable)}): "
+            + "; ".join(rules)
+            + ". Not findings — answer them in the PR body if they matter._",
+            "",
+        ]
 
     if eligible is not None:
         if eligible == "true":
@@ -263,7 +345,18 @@ def main() -> int:
     ap.add_argument("--eligible", choices=["true", "false"])
     ap.add_argument("--eligible-reason", default="")
     ap.add_argument("--run-url", default="")
+    ap.add_argument(
+        "--checklist",
+        default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "CHECKLIST.md"),
+    )
     args = ap.parse_args()
+
+    blocking_rules = None
+    try:
+        with open(args.checklist, encoding="utf-8") as fh:
+            blocking_rules = merge_blocking_rules(fh.read())
+    except OSError as exc:
+        print(f"parse-review: no checklist ({exc}); nothing is demoted", file=sys.stderr)
 
     try:
         with open(args.raw, encoding="utf-8") as fh:
@@ -273,7 +366,7 @@ def main() -> int:
         return 1
 
     try:
-        review = validate(extract_json(raw))
+        review = calibrate(validate(extract_json(raw)), blocking_rules)
     except EmptyReview as exc:
         # Exit 2, not 1: the caller can retry this one.
         print(f"parse-review: {exc}", file=sys.stderr)

@@ -8,6 +8,31 @@ Every rule is phrased so that a violation is a fact about the diff, not a
 matter of taste. If you find yourself wanting to add "prefer X over Y", it
 does not belong here.
 
+### Which rules block a merge
+
+Only these rules may go in `blocking`; a finding under any other rule is
+`minor`, however sure you are. The workflow enforces it: a blocking finding
+under another rule is moved to minor before the check is published. The
+threshold and why it is this list are in `docs/CI-REVIEW.md` ("When the
+review blocks a merge"), measured over 50 PRs in #521.
+
+<!-- merge-blocking-rules: 0 1 2 3 4 5 6 7 8 16 17 18 19 22 31 -->
+
+Rules **0–8, 16–19, 22 and 31**, each within its own wording below: rule 8
+only when the untested branch changes state or output, rule 19 only on a path
+that writes state or decides a result.
+
+---
+
+## Spec
+
+0. **The diff does what the linked issue asks.** The prompt carries, under
+   `SPEC`, the issues the PR closes or refers to (`Closes #N`, `Refs #N`).
+   An acceptance criterion the diff visibly fails, or a behaviour the issue
+   rules out that the diff adds, is blocking. A criterion the PR body says
+   is left for a later PR is not, and neither is one you cannot see either
+   way from the diff. No `SPEC` section: skip this rule.
+
 ---
 
 ## General
@@ -39,8 +64,19 @@ the migration:
 5. **No secrets.** API keys, tokens, passwords, private URLs — in code, in
    tests, in fixtures, in docs, in example config. A string that looks like a
    credential is blocking even if it is expired or fake.
-6. **No personal paths.** `/Users/<name>`, `/home/<name>`, `C:\Users\...`,
-   or a hostname specific to one machine. Blocking.
+
+   Two declared exceptions, both measured false positives (#510, #488):
+   - **The tests of a secret scanner or redactor** (`internal/guard`,
+     `internal/findings`, anything whose job is to find or mask secrets) need
+     credential-shaped strings to test against. A fake one there is fine;
+     prefer one assembled from pieces so it never matches as a whole.
+   - **A URL to a public repository or site** is not a secret. Private means
+     it needs credentials to open, not that you do not recognise it.
+6. **No personal paths.** A path or hostname that names a real person or one
+   machine — a home directory under `/Users/`, `/home/` or `C:\Users\` that
+   carries someone's actual login, or one laptop's hostname. Blocking. An evident placeholder in docs or an
+   example (`/home/you/project`, `/home/<name>`, `/Users/me`) is minor at most:
+   it names nobody (#496, #591).
 7. **No third-party URLs** added as a runtime dependency — an endpoint the
    tool calls, a script piped into a shell, a CDN the dashboard loads from.
    Links in prose and docs are fine. Blocking when it is a runtime call.
@@ -48,8 +84,11 @@ the migration:
 ### Hygiene
 
 8. **New behaviour has a test.** A new function, branch or error path with no
-   test is blocking. A refactor that keeps behaviour identical does not need
-   a new test. A bug fix needs a test that fails without the fix.
+   test is blocking when that branch changes state or output (what is
+   written, returned, printed or decided); an untested log line or message
+   wording is minor. A refactor that keeps behaviour identical does not need
+   a new test. A bug fix needs a test that fails without the fix. A test you
+   cannot see in the diff is not a missing test.
 9. **Docs follow commands.** If a PR adds, removes or changes a command, a
    flag, or a config key, the corresponding doc under `docs/` must change in
    the same PR. Blocking.
@@ -104,9 +143,21 @@ These apply to files under `cmd/` and `internal/`.
     under a context with a timeout.** Without the process group, a killed
     agent leaves orphans; without the timeout, a hung CLI blocks the slot
     forever. Either one missing is blocking.
-19. **Errors are wrapped with context** (`fmt.Errorf("...: %w", err)`) and
-    never silently dropped. A bare `_ = err` on a path that can fail is
-    blocking.
+19. **Errors are not dropped where they decide something.** An error
+    discarded (`_ = err`, an unchecked return) on a path that **writes state**
+    (the database, `tasks.json`, a file the project keeps, a remote) or
+    **decides a result** (an exit code, a task status, a verdict, a value the
+    caller acts on) is blocking.
+
+    Not blocking — minor at most, and usually not worth a finding (#489, #560:
+    every one of these blocked a PR and none was a defect):
+    - `defer func() { _ = f.Close() }()` on a file or handle that was only
+      read, and the `defer func() { _ = closeDB() }()` idiom of a CLI command.
+    - An `os.*` error returned as it came: its `*PathError` already names the
+      operation and the path.
+    - `%v` where `%w` would do, when no caller inspects the error.
+    - A best-effort read whose error is skipped on purpose with a comment
+      (a log tail, an optional file).
 
 ### Tests
 
@@ -119,6 +170,13 @@ These apply to files under `cmd/` and `internal/`.
     that is exactly the test that passes while the real CLI breaks.
 22. **No `time.Sleep` in tests** to wait for a goroutine. Blocking — use a
     channel, a `sync.WaitGroup`, or an injected clock.
+
+    Same rule, other face: **no wall-clock assertion without slack.** A test
+    that asserts elapsed real time (`elapsed < 500*time.Millisecond`) fails
+    under `-race` on a loaded runner; #488's scanner test did, at 575 ms, the
+    day after it merged (#492). Blocking unless the bound has a margin that
+    survives `-race` and a busy machine (an order of magnitude, not 20 %), or
+    the clock is injected.
 23. **A test that normalises before comparing must justify each
     normalisation.** Lower-casing, trimming, sorting, dereferencing a pointer
     to a zero value, `or`-ing two acceptable spellings — each one is a
@@ -235,6 +293,13 @@ touch, however tempting.
 Flag something as missing **only when a rule above requires it** — a missing
 test for new behaviour (rule 8), a missing doc change for a changed command
 (rule 9). Do not invent requirements.
+
+**Report only what you can see.** "Cannot be verified from the diff" is not a
+finding: a test that is not in the diff may well exist. If the diff was
+truncated, say so once in `summary` and leave the missing files alone.
+
+**Start every finding's `rule` with the rule's number** (`19. Errors are not
+dropped`). That number decides whether the finding may block.
 
 **Do not suggest style refactors.** Naming, file organisation, "this could be
 a helper", "consider using X instead of Y" — all out of scope. `gofmt` and
