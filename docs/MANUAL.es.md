@@ -382,6 +382,15 @@ cuáles los precedió un aviso: acierto (choques predichos) y precisión (pares
 avisados que sí chocaron), con cada choque y qué lo predijo; `--json` para
 scripts.
 
+**Choques que git no ve** (`semantic_checks`, #522): dos tareas que agregan
+cada una la migración `005`, o registran cada una `GET /api/tests`, se mergean
+limpio y rompen `main` juntas. Las reglas en `config.yaml` las atrapan —
+`sequence` (nombres de archivo), `unique_key` (líneas agregadas) o `command`
+(tu script) — al abrir el PR (aviso) y antes de que orch lo mergee o aterrice
+(`mode: block` devuelve la tarea a su agente). `orch init` escribe la regla de
+migraciones del stack que encuentra (Alembic, Django, Supabase, SQL numerado).
+Ver `semantic_checks` en `docs/CONFIG.md`.
+
 **Conocimiento del proyecto** (`knowledge.enabled`, activo en un proyecto
 nuevo): lo que aprende una tarea llega a las que vienen después. Las lecciones
 son archivos markdown cortos bajo `.orch/knowledge/`, que se commitean y se

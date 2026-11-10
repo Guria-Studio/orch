@@ -370,6 +370,15 @@ semantic check that stopped a merge), and which collisions a warning came
 before: recall (collisions predicted) and precision (warned pairs that did
 collide), with each collision and what predicted it; `--json` for scripts.
 
+**Collisions git does not see** (`semantic_checks`, #522): two tasks that each
+add migration `005`, or each register `GET /api/tests`, merge cleanly and break
+`main` together. Rules in `config.yaml` catch them — `sequence` (file names),
+`unique_key` (added lines) or `command` (your script) — when a PR opens (a
+warning) and before orch merges or lands it (`mode: block` sends the task back
+to its agent). `orch init` writes the migration rule for the stack it finds
+(Alembic, Django, Supabase, numbered SQL). See `semantic_checks` in
+`docs/CONFIG.md`.
+
 **Project knowledge** (`knowledge.enabled`, on in a new project): what one task
 learns reaches the tasks after it. Lessons are short markdown files under
 `.orch/knowledge/`, committed and reviewed like any other file. An agent
