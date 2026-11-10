@@ -186,6 +186,83 @@ check_comment "reports ineligibility"      "Not auto-merge eligible"
 check_comment "says nothing auto-merges"   "nothing merges automatically yet"
 check_comment "links the run"              "https://example.invalid/run/1"
 
+# ---- calibration (#521) ----------------------------------------------------
+#
+# The merge-blocking rules come from the checklist's marker line. A fixture
+# checklist keeps these tests independent of the real one's list; the last
+# test reads the real one.
+
+printf '# c\n<!-- merge-blocking-rules: 0 2 19 22 -->\n' > "$TMP/checklist.md"
+
+# calibrated <name> <raw> <expected-verdict> <jq-check>
+calibrated() {
+  local name="$1" raw="$2" want="$3" check="$4"
+  printf '%s' "$raw" > "$TMP/raw.txt"
+  local got
+  if ! got="$(python3 "$PARSE" --raw "$TMP/raw.txt" --out "$TMP/out.json" \
+      --comment "$TMP/c.md" --checklist "$TMP/checklist.md" 2>"$TMP/err")"; then
+    echo "FAIL $name — parse error: $(cat "$TMP/err")"; FAIL=$((FAIL + 1)); return
+  fi
+  if [ "$got" != "$want" ]; then
+    echo "FAIL $name — verdict '$got', want '$want'"; FAIL=$((FAIL + 1)); return
+  fi
+  if ! python3 -c "import json,sys; r=json.load(open(sys.argv[1])); sys.exit(0 if ($check) else 1)" "$TMP/out.json"; then
+    echo "FAIL $name — review.json fails: $check"; cat "$TMP/out.json"; FAIL=$((FAIL + 1)); return
+  fi
+  echo "ok   $name"; PASS=$((PASS + 1))
+}
+
+calibrated "a blocking finding under a non-blocking rule becomes minor" \
+  '{"verdict":"request_changes","blocking":[{"file":"a_test.go","rule":"20. Table tests","why":"five near-identical funcs"}],"minor":[],"summary":"x"}' \
+  comment 'not r["blocking"] and r["minor"][0]["rule"].startswith("20") and r["minor"][0]["demoted"]'
+
+calibrated "a blocking finding under a blocking rule stays" \
+  '{"verdict":"request_changes","blocking":[{"file":"a.go","rule":"19. Errors are not dropped","why":"RowsAffected discarded on the write path"},{"file":"b.go","rule":"Rule 20 table tests","why":"x"}],"minor":[],"summary":"x"}' \
+  request_changes 'len(r["blocking"]) == 1 and r["blocking"][0]["file"] == "a.go" and len(r["minor"]) == 1'
+
+calibrated "a blocking finding with no rule number is left alone" \
+  '{"verdict":"request_changes","blocking":[{"file":"a.go","rule":"One writer to SQLite","why":"second writable handle"}],"minor":[],"summary":"x"}' \
+  request_changes 'len(r["blocking"]) == 1'
+
+calibrated "cannot-verify minors are set aside" \
+  '{"verdict":"comment","blocking":[],"minor":[{"file":"a.go","rule":"8. New behaviour has a test","why":"The test cannot be verified from the diff alone."},{"file":"b.go","rule":"24. Seen failing","why":"b_test.go is truncated from the diff"},{"file":"c.go","rule":"20. Table tests","why":"four near-identical funcs"}],"summary":"x"}' \
+  comment 'len(r["minor"]) == 1 and r["minor"][0]["file"] == "c.go" and len(r["unverifiable"]) == 2'
+
+if grep -qF "Not checkable from the diff (2): 8. New behaviour has a test; 24. Seen failing" "$TMP/c.md" \
+   && ! grep -qF "b_test.go is truncated" "$TMP/c.md"; then
+  echo "ok   the unverifiable minors render as one line"; PASS=$((PASS + 1))
+else
+  echo "FAIL the unverifiable minors should collapse into one line:"; cat "$TMP/c.md"; FAIL=$((FAIL + 1))
+fi
+
+calibrated "a concrete minor that mentions the diff is kept" \
+  '{"verdict":"comment","blocking":[],"minor":[{"file":"a.go","rule":"20. Table tests","why":"the diff adds three near-identical tests"}],"summary":"x"}' \
+  comment 'len(r["minor"]) == 1 and r["unverifiable"] == []'
+
+calibrated "request_changes with nothing left blocking reads as comment" \
+  '{"verdict":"request_changes","blocking":[{"file":"a.md","rule":"10. Conventional commit","why":"title"}],"minor":[],"summary":"x"}' \
+  comment 'r["verdict"] == "comment"'
+
+# The real checklist carries the marker, and its list is the one the docs
+# document (docs/CI-REVIEW.md, "When the review blocks a merge").
+REAL=$(python3 - "$HERE/CHECKLIST.md" "$PARSE" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("pr", sys.argv[2])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+print(" ".join(str(n) for n in sorted(mod.merge_blocking_rules(open(sys.argv[1]).read()) or [])))
+PY
+)
+if [ "$REAL" = "0 1 2 3 4 5 6 7 8 16 17 18 19 22 31" ]; then
+  echo "ok   the real checklist lists the documented merge-blocking rules"; PASS=$((PASS + 1))
+else
+  echo "FAIL the real checklist's merge-blocking rules are '$REAL'"; FAIL=$((FAIL + 1))
+fi
+if grep -qF "0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 17, 18, 19, 22 and 31" "$HERE/../../docs/CI-REVIEW.md"; then
+  echo "ok   docs/CI-REVIEW.md names the same rules"; PASS=$((PASS + 1))
+else
+  echo "FAIL docs/CI-REVIEW.md does not list the merge-blocking rules as the checklist does"; FAIL=$((FAIL + 1))
+fi
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

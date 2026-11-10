@@ -118,7 +118,7 @@ func newRootCmd(version string) (*cobra.Command, *projectFlags) {
 	group("follow",
 		newStatusCmd(flags), newExplainCmd(flags), newTasksCmd(flags), newTUICmd(flags),
 		newDashboardCmd(flags), newEventsCmd(flags), newLogsCmd(flags), newGraphCmd(flags),
-		newFindingsCmd(flags), newMetricsCmd(flags))
+		newFindingsCmd(flags), newMetricsCmd(flags), newRadarCmd(flags))
 	group("deliver",
 		newReportCmd(flags), newPublishCmd(flags), newCloudCmd(flags),
 		newSyncCmd(flags), newExportCmd(flags))

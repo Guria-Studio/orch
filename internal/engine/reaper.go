@@ -427,17 +427,21 @@ func (s *Scheduler) landLocally(ctx context.Context, entry *InFlight) localLand 
 	files := strings.Join(res.Conflicts, ", ")
 	if s.landConflicts[id] >= s.Opts.ConflictRetries {
 		s.removeWorktree(ctx, id)
-		return localLand{block: "the work conflicts with " + base + " in " + files + " (kept on " + s.Worktree.BranchName(id) + ")"}
+		return localLand{block: landConflictPrefix + base + " in " + files + " (kept on " + s.Worktree.BranchName(id) + ")"}
 	}
 	merge, err := s.Worktree.MergeBase(ctx, id, base)
 	if err != nil || len(merge.Conflicts) == 0 {
 		// The merge-tree said conflict and the real merge disagrees, or
 		// could not run: nothing for the agent to resolve.
 		s.removeWorktree(ctx, id)
-		return localLand{block: fmt.Sprintf("the work conflicts with %s in %s, and merging %s into its worktree failed: %v", base, files, base, err)}
+		return localLand{block: fmt.Sprintf(landConflictPrefix+"%s in %s, and merging %s into its worktree failed: %v", base, files, base, err)}
 	}
 	return localLand{conflict: &prompt.Conflict{Base: base, Files: merge.Conflicts, Commits: merge.Commits}}
 }
+
+// landConflictPrefix starts the block reason of a local land that conflicts
+// with the base; `orch radar report` counts those as collisions (#522).
+const landConflictPrefix = "the work conflicts with "
 
 func (s *Scheduler) removeWorktree(ctx context.Context, id string) {
 	if err := s.Worktree.Remove(ctx, id); err != nil {
@@ -455,11 +459,15 @@ func (s *Scheduler) resolveLandConflict(ctx context.Context, entry *InFlight, c 
 	s.logger().Warn("the task's work conflicts with the base; sending it back to its agent",
 		"task", id, "files", strings.Join(c.Files, ", "), "attempt", s.landConflicts[id])
 	if s.Backend != nil {
+		extra := map[string]any{
+			"agent": true, "local": true, "attempt": s.landConflicts[id], "files": c.Files,
+			"reason": "conflicts with " + c.Base + " in " + strings.Join(c.Files, ", ") + "; sent to the agent",
+		}
+		if by := s.conflictCausedBy(ctx, id, c.Commits); len(by) > 0 {
+			extra["caused_by"] = by
+		}
 		if err := s.Backend.AppendEngineEvent(ctx, s.Opts.RunID, EventCIConflictRetry, id,
-			string(entry.Route.Backend), map[string]any{
-				"agent": true, "local": true, "attempt": s.landConflicts[id], "files": c.Files,
-				"reason": "conflicts with " + c.Base + " in " + strings.Join(c.Files, ", ") + "; sent to the agent",
-			}); err != nil {
+			string(entry.Route.Backend), extra); err != nil {
 			s.logger().Error("recording the conflict retry failed", "task", id, "err", err)
 		}
 		if err := transitionThroughTodo(ctx, s.Backend, id, model.StatusTodo, "the work conflicts with "+c.Base+"; sent back to its agent"); err != nil {

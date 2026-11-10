@@ -148,8 +148,13 @@ jobs:
           cat err.txt >&2
           # Every known cause is a repository setting, and the raw GraphQL
           # error names none of them. See docs/CI-REVIEW.md.
-          echo "::error title=Could not arm auto-merge::Check that 'Allow auto-merge' is on for the repository and that main has branch protection with required checks — see docs/CI-REVIEW.md"
-          exit 1
+          #
+          # A warning, not a failure (#521). A failed `policy` used to skip
+          # `gemini-review`, which needs it, so the required check never
+          # reported and the PR sat BLOCKED — on all 10 eligible PRs of the
+          # measured period. Not arming only means a human presses merge.
+          echo "::warning title=Could not arm auto-merge::The PR still gets its review; a human merges it. Check that 'Allow auto-merge' is on for the repository, that main has branch protection with required checks, and that this job's token may merge — see docs/CI-REVIEW.md"
+          exit 0
 
       # The switch has to undo, not just stop arming. Two cases reach here
       # with something already armed: ORCH_AUTOMERGE was turned off after the
@@ -190,7 +195,11 @@ jobs:
   # --------------------------------------------------------------------------
   gemini-review:
     name: Gemini review
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Every PR, whatever `policy` did. `needs` is only for its eligibility
+    # outputs; when `policy` fails, they are empty and read as "not eligible".
+    # Without `always()` a failed `policy` skipped this job and the required
+    # `gemini-review` check never arrived (#521).
+    if: always() && needs.policy.result != 'cancelled' && github.event.pull_request.head.repo.full_name == github.repository
     needs: policy
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -206,8 +215,11 @@ jobs:
           # GitHub refuses to serve one (see "diff too large" below).
           fetch-depth: 0
 
-      - name: Self-test the output parser
-        run: bash .github/review/parse-review.test.sh
+      - name: Self-test the parser, the prompt builder and the runner
+        run: |
+          bash .github/review/parse-review.test.sh
+          bash .github/review/build-prompt.test.sh
+          bash .github/review/run-reviewer.test.sh
 
       # A missing key must be loud. Without this the action runs, fails
       # somewhere inside the CLI, and the failure reads like a model problem.
@@ -230,24 +242,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
 
-          # The whole prompt reaches the reviewer action as ONE environment
-          # string (its `prompt` input becomes INPUT_PROMPT), and Linux caps a
-          # single argv/environ string at 128 KiB (MAX_ARG_STRLEN). Run
-          # 34660387091 (#163, a 142 KB diff) died with "Argument list too
-          # long" — and, because the prompt travelled through GITHUB_ENV, so
-          # did every later step, including the one that publishes the
-          # check. So the cap is on the PROMPT, not the diff, and the diff
-          # gets whatever is left after the checklist and the PR header.
-          # Truncating is better than blowing the limit and getting no review
-          # at all — or a confident review of the first half.
-          MAX_PROMPT_BYTES=120000
+          # The prompt reaches the CLI on stdin (run-reviewer.sh), so the old
+          # 120 KB cap — one environment string, MAX_ARG_STRLEN — is gone.
+          # build-prompt.py keeps it under 600 KB, code and tests first.
+          #
           # gh 2.100 refuses to print a diff carrying terminal escapes, even
           # into a file. Real CLI captures under testdata/ keep theirs (run
           # 34710647527, #215: gemini's untrusted-directory.log is red), and
@@ -278,99 +281,66 @@ jobs:
             } > full.diff
             echo "::notice title=Diff built locally::GitHub refused the PR diff (over 20000 lines); reviewing git diff with deleted files listed by name"
           fi
-          DIFF_BYTES=$(wc -c < full.diff)
 
           gh pr view "$PR" --repo "$REPO" --json files \
             --jq '.files[] | "\(.path) (+\(.additions)/-\(.deletions))"' > files.txt
 
-          build_head() {
-            echo "You are reviewing a pull request for the orch repository."
-            echo "Apply the checklist below to the diff below. Nothing else."
-            echo "You have NO tools: do not call, invoke or request any tool,"
-            echo "and do not ask to read or search files. Judge from the diff"
-            echo "alone. If a rule cannot be checked from the diff (a test you"
-            echo "cannot see, a file that is not in it), say so as a minor"
-            echo "finding instead of trying to look it up."
-            echo
-            echo "Respond with a single JSON object and NOTHING ELSE — no prose"
-            echo "before it, no prose after it, no markdown fence. Schema:"
-            echo
-            echo '{'
-            echo '  "verdict": "approve" | "request_changes" | "comment",'
-            echo '  "blocking": [{"file": "path", "line": 12, "rule": "the checklist rule", "why": "one sentence"}],'
-            echo '  "minor":    [{"file": "path", "line": 12, "rule": "the checklist rule", "why": "one sentence"}],'
-            echo '  "summary": "two or three sentences for a human skimming the PR"'
-            echo '}'
-            echo
-            echo 'Use "request_changes" only when `blocking` is non-empty.'
-            echo 'Use "approve" when both lists are empty. "line" is optional.'
-            echo 'Every finding must name the checklist rule it comes from.'
-            echo
-            echo "=== CHECKLIST ==="
-            cat .github/review/CHECKLIST.md
-            echo
-            echo "=== PULL REQUEST ==="
-            echo "Title: ${PR_TITLE}"
-            echo "Body:"
-            echo "${PR_BODY:-(no description)}"
-            echo
-            echo "Files changed:"
-            cat files.txt
-            echo
-            echo "=== DIFF ==="
-          }
-          build_head > head.txt
+          # Title and body read NOW, not from the event payload: a re-run
+          # after editing the PR must see the edit (#517 was reviewed against
+          # a title that had already been fixed).
+          gh pr view "$PR" --repo "$REPO" \
+            --json title,body,closingIssuesReferences > pr.json
 
-          # 200 bytes of slack for the truncation notice and the delimiter.
-          BUDGET=$(( MAX_PROMPT_BYTES - $(wc -c < head.txt) - 200 ))
-          if [ "$DIFF_BYTES" -gt "$BUDGET" ]; then
-            head -c "$BUDGET" full.diff > pr.diff
-            printf '\n\n[diff truncated at %s bytes of %s]\n' "$BUDGET" "$DIFF_BYTES" >> pr.diff
-          else
-            cp full.diff pr.diff
-          fi
+          # The spec: the issues the PR closes or refers to (#521). Read with
+          # this job's token; the reviewer itself never gets one. An issue
+          # that cannot be read (another repo, a PR number, deleted) is
+          # skipped with a notice rather than failing the review.
+          echo '[]' > issues.json
+          for N in $(python3 .github/review/build-prompt.py linked --pr pr.json); do
+            if gh issue view "$N" --repo "$REPO" --json number,title,body > "issue-$N.json" 2> issue.err; then
+              jq -s '.[0] + [.[1]]' issues.json "issue-$N.json" > issues.next && mv issues.next issues.json
+              echo "spec: issue #$N"
+            else
+              echo "::notice title=Linked issue not read::#$N: $(head -c 200 issue.err)"
+            fi
+          done
 
-          cat head.txt pr.diff > prompt.txt
-          echo "prompt is $(wc -c < prompt.txt) bytes (diff $DIFF_BYTES, budget $BUDGET)"
+          python3 .github/review/build-prompt.py build \
+            --pr pr.json --issues issues.json --files files.txt \
+            --diff full.diff --checklist .github/review/CHECKLIST.md \
+            --out prompt.txt
 
-          # Hand it to the action as a step OUTPUT, not through GITHUB_ENV:
-          # an output only reaches the steps that reference it, so a prompt
-          # near the limit cannot take the publish step down with it. The
-          # delimiter is random because the diff is untrusted input and a
-          # fixed one could be closed early by a line inside the patch.
-          DELIM="EOF_$(openssl rand -hex 12)"
-          {
-            echo "prompt<<$DELIM"
-            cat prompt.txt
-            echo "$DELIM"
-          } >> "$GITHUB_OUTPUT"
+      # The CLI itself, not the run-gemini-cli action: the action hands the
+      # prompt over as one environment string and one argv string, both
+      # capped at 128 KiB. Pinned version, installed without the API key.
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          node-version: '22'
+      - name: Install the Gemini CLI
+        if: steps.key.outputs.present == 'true'
+        run: npm install --silent --no-audit --no-fund --global @google/gemini-cli@0.67.0
 
-      # Pinned to a commit SHA: this step is the one that receives the API key.
+      # The only step that receives the API key. run-reviewer.sh runs the CLI
+      # in an empty directory, every tool off, GitHub tokens unset.
       - name: Run the reviewer
         id: gemini
         if: steps.key.outputs.present == 'true'
         continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
         env:
-          # The CLI refuses to run in an untrusted directory and there is no
-          # way to pass `--skip-trust` through the action. Safe here because
-          # every built-in tool is disabled below: there is nothing in the
-          # workspace it can reach. Deliberately NOT setting GITHUB_TOKEN —
-          # the reviewer gets no credentials for this repo.
-          GEMINI_CLI_TRUST_WORKSPACE: 'true'
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          # Empty means "whatever the Gemini CLI defaults to", which is what
-          # the action's own docs do — pinning a model name here is a guess
-          # that goes stale. Override with the GEMINI_REVIEW_MODEL repo
-          # variable to pin one. See docs/CI-REVIEW.md.
-          gemini_model: ${{ vars.GEMINI_REVIEW_MODEL }}
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          settings: |-
-            {
-              "model": { "maxSessionTurns": 3 },
-              "tools": { "core": [] }
-            }
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Empty means "whatever the Gemini CLI defaults to". Pin one with
+          # the GEMINI_REVIEW_MODEL repo variable. See docs/CI-REVIEW.md.
+          GEMINI_MODEL: ${{ vars.GEMINI_REVIEW_MODEL }}
+        run: |
+          set -uo pipefail
+          rc=0
+          bash .github/review/run-reviewer.sh --prompt prompt.txt --out raw.txt --err gemini.err || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::error title=Gemini CLI failed::exit $rc"
+            tail -n 30 gemini.err >&2
+          fi
+          exit "$rc"
 
       # Exit 2 means the reviewer ran and said nothing — observed on run
       # 34638647467, where the model returned `"response": ""` and the action
@@ -384,9 +354,7 @@ jobs:
       # looked). Uploaded before parsing so a parser crash cannot lose it.
       - name: Keep the raw reviewer output
         if: steps.key.outputs.present == 'true'
-        env:
-          RAW: ${{ steps.gemini.outputs.summary }}
-        run: printf '%s' "${RAW:-}" > reviewer-raw.txt
+        run: cp raw.txt reviewer-raw.txt 2>/dev/null || touch reviewer-raw.txt
       - uses: actions/upload-artifact@v4
         if: steps.key.outputs.present == 'true'
         with:
@@ -400,16 +368,11 @@ jobs:
         if: steps.key.outputs.present == 'true'
         continue-on-error: true
         env:
-          RAW: ${{ steps.gemini.outputs.summary }}
-          ERR: ${{ steps.gemini.outputs.error }}
           ELIGIBLE: ${{ needs.policy.outputs.eligible }}
           REASON: ${{ needs.policy.outputs.reason }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          printf '%s' "${RAW:-}" > raw.txt
-          if [ -n "${ERR:-}" ]; then
-            echo "reviewer stderr: $ERR"
-          fi
+          [ -f raw.txt ] || : > raw.txt
           set +e
           python3 .github/review/parse-review.py \
             --raw raw.txt \
@@ -427,37 +390,38 @@ jobs:
         id: gemini_retry
         if: steps.parse.outputs.retryable == 'true'
         continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
         env:
-          GEMINI_CLI_TRUST_WORKSPACE: 'true'
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: ${{ vars.GEMINI_REVIEW_MODEL }}
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          settings: |-
-            {
-              "model": { "maxSessionTurns": 3 },
-              "tools": { "core": [] }
-            }
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_REVIEW_MODEL }}
+        run: bash .github/review/run-reviewer.sh --prompt prompt.txt --out raw-retry.txt --err gemini-retry.err
 
       - name: Parse the retry
         id: parse_retry
         if: steps.parse.outputs.retryable == 'true' && steps.gemini_retry.outcome == 'success'
         continue-on-error: true
         env:
-          RAW: ${{ steps.gemini_retry.outputs.summary }}
           ELIGIBLE: ${{ needs.policy.outputs.eligible }}
           REASON: ${{ needs.policy.outputs.reason }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          printf '%s' "${RAW:-}" > raw.txt
           python3 .github/review/parse-review.py \
-            --raw raw.txt \
+            --raw raw-retry.txt \
             --out review.json \
             --comment comment.md \
             --eligible "${ELIGIBLE:-false}" \
             --eligible-reason "${REASON:-policy did not run}" \
             --run-url "$RUN_URL"
+
+      # The validated verdict, for the next measurement (#521 recommendation
+      # 8): the comment is edited in place and its edit history is not a
+      # dependable record.
+      - uses: actions/upload-artifact@v4
+        if: steps.parse.outcome == 'success' || steps.parse_retry.outcome == 'success'
+        with:
+          name: review-json-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: review.json
+          if-no-files-found: ignore
+          retention-days: 90
 
       # One comment per PR, edited in place. A review that reappears at the
       # bottom of the thread on every push buries the human conversation.
@@ -501,7 +465,6 @@ jobs:
           PARSE_OUTCOME: ${{ steps.parse.outcome }}
           RETRY_PARSE_OUTCOME: ${{ steps.parse_retry.outcome }}
           RETRYABLE: ${{ steps.parse.outputs.retryable }}
-          GEMINI_ERROR: ${{ steps.gemini.outputs.error }}
         run: |
           set -euo pipefail
           if [ "$KEY_PRESENT" != "true" ]; then
@@ -515,7 +478,7 @@ jobs:
             # one is a repository setting, not a review outcome.
             CONCLUSION=failure
             TITLE="Reviewer failed"
-            SUMMARY="The Gemini CLI step did not complete. ${GEMINI_ERROR:-See the run log.} The review did not run; this is not a pass."
+            SUMMARY="The Gemini CLI step did not complete. See the run log. The review did not run; this is not a pass."
           elif [ "$PARSE_OUTCOME" != "success" ] && [ "$RETRY_PARSE_OUTCOME" != "success" ]; then
             CONCLUSION=failure
             if [ "${RETRYABLE:-false}" = "true" ]; then

@@ -372,6 +372,16 @@ bloquee nombrando los archivos. Una corrida que abre un PR termina antes de
 consultar el CI de ese PR: una corrida que termina en verde se nota en el
 *siguiente* `orch run`, igual que en Python.
 
+**Qué tan bien predice el radar de conflictos** (`radar: warn`, el valor por
+defecto): `orch radar report` cuenta, en los últimos 30 días (`--since 7d`,
+`72h`, `all`), los avisos del radar (dos tareas que declaran los mismos
+archivos, dos PRs abiertos que chocan) y los choques que pasaron de verdad (un
+PR o un aterrizaje local en conflicto con la base, un merge limpio de la base
+que rompió el verify local, un chequeo semántico que frenó un merge), y a
+cuáles los precedió un aviso: acierto (choques predichos) y precisión (pares
+avisados que sí chocaron), con cada choque y qué lo predijo; `--json` para
+scripts.
+
 **Conocimiento del proyecto** (`knowledge.enabled`, activo en un proyecto
 nuevo): lo que aprende una tarea llega a las que vienen después. Las lecciones
 son archivos markdown cortos bajo `.orch/knowledge/`, que se commitean y se
