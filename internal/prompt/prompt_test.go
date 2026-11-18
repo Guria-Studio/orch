@@ -544,3 +544,29 @@ func TestComposeLineFollowsIsolation(t *testing.T) {
 		t.Errorf("the compose line is not the only difference:\n%s", with)
 	}
 }
+
+// TestSalvageBranchIsNamedInThePrompt is #620: a restart whose fresh
+// worktree kept an earlier attempt's unpushed commits under a salvage
+// branch never told the agent (or an operator reading the prompt file)
+// that branch existed, so side effects outside git from that attempt (a
+// database migration already applied, say) stayed live with nothing
+// pointing back at why. Off, the prompt is byte-identical to the one
+// without the feature, like every other optional block.
+func TestSalvageBranchIsNamedInThePrompt(t *testing.T) {
+	task := model.Task{ID: "F0.1.T5", Title: "t", Model: "claude/sonnet"}
+	without, _ := Render(task, nil, "specs/a.md", Options{ProjectRoot: "/p"})
+	with, _ := Render(task, nil, "specs/a.md",
+		Options{ProjectRoot: "/p", SalvageBranch: "orch/F0.1.T5-salvage-20261113T183933Z"})
+
+	if strings.Contains(without, "salvage") {
+		t.Errorf("the prompt mentions salvage with no SalvageBranch set:\n%s", without)
+	}
+	for _, want := range []string{
+		"orch/F0.1.T5-salvage-20261113T183933Z",
+		"orch task salvage --id F0.1.T5",
+	} {
+		if !strings.Contains(with, want) {
+			t.Errorf("the prompt is missing %q:\n%s", want, with)
+		}
+	}
+}

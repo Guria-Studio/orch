@@ -193,7 +193,7 @@ func localSteer(t *testing.T, file string) (project.Steer, string) {
 	}
 	gitOut(t, root, "add", "-A")
 	gitOut(t, root, "commit", "-q", "-m", "initial")
-	wt, err := worktree.NewManager(root, false).Create("T-1", "main")
+	wt, _, err := worktree.NewManager(root, false).Create("T-1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}

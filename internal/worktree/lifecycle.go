@@ -47,10 +47,16 @@ func (m *Manager) PurgeOrphanBranch(taskID string) error {
 // A branch a worktree that does exist still has checked out is somebody's
 // work in progress — most likely another `orch run` on the same project
 // (#344) — and is left alone: Create fails, naming where it is checked out.
-func (m *Manager) clearLeftoverBranch(taskID, start string) error {
+//
+// Returns the salvage branch name when it created one, "" otherwise (#620):
+// a Warn log alone never reached the caller, so a restarted task's prompt
+// never named the branch holding its previous attempt's work, and side
+// effects of that attempt (an already-applied DB migration, say) stayed
+// live with nothing pointing back at why.
+func (m *Manager) clearLeftoverBranch(taskID, start string) (string, error) {
 	branch := m.BranchName(taskID)
 	if _, err := m.run(taskID, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
-		return nil // no branch: the ordinary first dispatch
+		return "", nil // no branch: the ordinary first dispatch
 	}
 	prune := []string{"git", "worktree", "prune"}
 	if err := m.runBestEffort(taskID, prune...); err != nil {
@@ -58,10 +64,10 @@ func (m *Manager) clearLeftoverBranch(taskID, start string) error {
 	}
 	list, err := m.run(taskID, "git", "worktree", "list", "--porcelain")
 	if err != nil {
-		return fmt.Errorf("worktree: listing worktrees to check who uses %s: %w", branch, err)
+		return "", fmt.Errorf("worktree: listing worktrees to check who uses %s: %w", branch, err)
 	}
 	if at := worktreeUsing(list, branch); at != "" {
-		return fmt.Errorf("worktree: branch %s is still checked out at %s; another orch run may be working on %s — "+
+		return "", fmt.Errorf("worktree: branch %s is still checked out at %s; another orch run may be working on %s — "+
 			"stop it, or run `git worktree remove %s` if nothing is", branch, at, taskID, at)
 	}
 	// Commits neither the new start nor any remote has are the only copy of
@@ -71,18 +77,18 @@ func (m *Manager) clearLeftoverBranch(taskID, start string) error {
 		if n := strings.TrimSpace(out); n != "" && n != "0" {
 			salvage := branch + SalvageMarker + time.Now().UTC().Format("20060102T150405Z")
 			if _, err := m.run(taskID, "git", "branch", "-m", branch, salvage); err != nil {
-				return fmt.Errorf("worktree: keeping the earlier attempt's work on %s: %w", branch, err)
+				return "", fmt.Errorf("worktree: keeping the earlier attempt's work on %s: %w", branch, err)
 			}
 			slog.Warn("worktree: kept an earlier attempt's unpushed commits instead of deleting them; review them with `orch task salvage`",
 				"task_id", taskID, "commits", n, "branch", salvage)
-			return nil
+			return salvage, nil
 		}
 	}
 	if err := m.PurgeOrphanBranch(taskID); err != nil {
-		return fmt.Errorf("worktree: deleting the leftover branch %s: %w", branch, err)
+		return "", fmt.Errorf("worktree: deleting the leftover branch %s: %w", branch, err)
 	}
 	slog.Info("worktree: deleted a leftover branch from an earlier attempt", "task_id", taskID, "branch", branch)
-	return nil
+	return "", nil
 }
 
 // worktreeUsing returns the path of the worktree in `git worktree list
@@ -132,7 +138,11 @@ func (m *Manager) startPoint(taskID, baseBranch string) string {
 // failing — but its error is not dropped (rule 19): Remove logs it at WARN,
 // and if Create goes on to fail anyway it is folded into the returned error
 // via errors.Join so nothing gets lost on the path that actually matters.
-func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, error) {
+//
+// The second return is the salvage branch clearLeftoverBranch created to
+// keep an earlier attempt's unpushed work, or "" when there was none to
+// salvage (#620) — so a caller rendering this task's prompt can name it.
+func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, string, error) {
 	return m.CreateWithEnv(taskID, baseBranch, nil, deps...)
 }
 
@@ -141,7 +151,7 @@ func (m *Manager) Create(taskID, baseBranch string, deps ...string) (string, err
 // name: the engine hands it the task's COMPOSE_PROJECT_NAME and
 // ORCH_TASK_SLOT (#343), so a setup that starts containers starts the
 // task's own rather than a sibling's.
-func (m *Manager) CreateWithEnv(taskID, baseBranch string, setupEnv []string, deps ...string) (string, error) {
+func (m *Manager) CreateWithEnv(taskID, baseBranch string, setupEnv []string, deps ...string) (string, string, error) {
 	wtPath := m.WorktreePath(taskID)
 	var cleanupErr error
 	if pathExists(wtPath) || pathExists(filepath.Join(LegacyDir(m.root), taskID)) {
@@ -152,46 +162,47 @@ func (m *Manager) CreateWithEnv(taskID, baseBranch string, setupEnv []string, de
 		// saw as present, which "git worktree remove --force" essentially
 		// never does — kept as a hard stop rather than letting `add -b`
 		// collide with it.
-		return "", errors.Join(
+		return "", "", errors.Join(
 			fmt.Errorf("worktree: stale worktree at %s could not be removed", wtPath),
 			cleanupErr,
 		)
 	}
 
 	if _, err := m.worktreesDir(); err != nil {
-		return "", errors.Join(err, cleanupErr)
+		return "", "", errors.Join(err, cleanupErr)
 	}
 
 	start := m.startPoint(taskID, baseBranch)
-	if err := m.clearLeftoverBranch(taskID, start); err != nil {
-		return "", errors.Join(err, cleanupErr)
+	salvage, err := m.clearLeftoverBranch(taskID, start)
+	if err != nil {
+		return "", "", errors.Join(err, cleanupErr)
 	}
 
 	if _, err := m.run(taskID, "git", "worktree", "add", wtPath, "-b", m.BranchName(taskID), start); err != nil {
-		return "", errors.Join(err, cleanupErr)
+		return "", "", errors.Join(err, cleanupErr)
 	}
 	for _, dep := range deps {
 		if err := m.mergeDependency(taskID, wtPath, dep); err != nil {
 			// Leave nothing half-merged behind: the task blocks with the
 			// reason, and its next dispatch starts from a clean slate.
-			return "", errors.Join(err, m.Remove(taskID), cleanupErr)
+			return "", "", errors.Join(err, m.Remove(taskID), cleanupErr)
 		}
 	}
 	if err := m.runSetup(taskID, wtPath, setupEnv); err != nil {
-		return "", errors.Join(err, m.Remove(taskID), cleanupErr)
+		return "", "", errors.Join(err, m.Remove(taskID), cleanupErr)
 	}
 	// Where the agent's own work starts: after the dependency merges, so
 	// ChangedFiles does not count their files as the task's.
 	head, err := m.run(taskID, "git", "-C", wtPath, "rev-parse", "HEAD")
 	if err != nil {
-		return "", errors.Join(err, m.Remove(taskID), cleanupErr)
+		return "", "", errors.Join(err, m.Remove(taskID), cleanupErr)
 	}
 
 	m.mu.Lock()
 	m.active[taskID] = wtPath
 	m.start[taskID] = strings.TrimSpace(head)
 	m.mu.Unlock()
-	return wtPath, nil
+	return wtPath, salvage, nil
 }
 
 // mergeDependency brings dep's branch into taskID's fresh worktree.

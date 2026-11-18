@@ -641,8 +641,9 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 	// edit another's files, which is the whole thing worktree mode exists to
 	// prevent.
 	workdir := s.Opts.Cwd
+	var salvageBranch string
 	if s.Worktree != nil && s.Opts.WorktreeMode {
-		created, err := s.taskWorktree(ctx, task)
+		created, salvaged, err := s.taskWorktree(ctx, task)
 		if err != nil {
 			release()
 			s.logger().Error("creating the worktree failed", "task", task.ID, "err", err)
@@ -650,6 +651,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 			return false, nil
 		}
 		workdir = created
+		salvageBranch = salvaged
 	}
 
 	// The spec preflight (#341, #342): the prompt is about to tell the agent
@@ -687,6 +689,7 @@ func (s *Scheduler) spawnOne(ctx context.Context, task model.Task, route model.R
 		FeedbackFile:   feedbackFileIn(workdir),
 		LastFailure:    s.lastFailure[task.ID],
 		Conflict:       s.conflictRetry[task.ID],
+		SalvageBranch:  salvageBranch,
 		Knowledge:      lessons,
 		Rules:          rules,
 		Learn:          s.Opts.Cfg.Knowledge.Enabled,
@@ -908,14 +911,20 @@ func (s *Scheduler) completedDeps(ctx context.Context, task model.Task) []model.
 // verify kept. A CI retry whose worktree an earlier attempt tidied away is
 // rebuilt again. Create would branch afresh from the base and delete both,
 // sending the agent back in blind to redo the task.
-func (s *Scheduler) taskWorktree(ctx context.Context, task model.Task) (string, error) {
+//
+// The second return is the salvage branch a fresh Create kept the previous
+// attempt's unpushed work under, "" otherwise (#620) — a retried or recreated
+// worktree never salvages anything of its own, since it is the salvage
+// branch's own successor.
+func (s *Scheduler) taskWorktree(ctx context.Context, task model.Task) (string, string, error) {
 	path, ok := s.retryWorktree[task.ID]
 	delete(s.retryWorktree, task.ID)
 	switch {
 	case ok && fileExists(path):
-		return path, nil
+		return path, "", nil
 	case s.ciRetryPR[task.ID] != "":
-		return s.Worktree.Recreate(ctx, task.ID)
+		path, err := s.Worktree.Recreate(ctx, task.ID)
+		return path, "", err
 	}
 	return s.Worktree.Create(ctx, task.ID, s.baseBranch(), s.taskEnv(task.ID), s.depsToMerge(ctx, task)...)
 }

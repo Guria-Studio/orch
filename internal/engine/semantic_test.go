@@ -55,7 +55,7 @@ func semanticCIFixture(t *testing.T, mode string) (*ciFixture, string) {
 	f.poller.Squash = true
 
 	ctx := context.Background()
-	wt, err := wm.Create(ctx, "C-2", "main", nil)
+	wt, _, err := wm.Create(ctx, "C-2", "main", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

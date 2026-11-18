@@ -712,6 +712,8 @@ type recordingWorktree struct {
 	land worktree.Landing
 	// branchConflicts is what BranchConflicts answers, by the other task.
 	branchConflicts map[string][]string
+	// salvageBranch is what Create reports as its salvage branch (#620).
+	salvageBranch string
 }
 
 func (w *recordingWorktree) record(name string) {
@@ -748,7 +750,7 @@ func (w *recordingWorktree) RemoveAll(context.Context) error {
 	w.record("remove_all")
 	return nil
 }
-func (w *recordingWorktree) Create(_ context.Context, taskID, _ string, setupEnv []string, deps ...string) (string, error) {
+func (w *recordingWorktree) Create(_ context.Context, taskID, _ string, setupEnv []string, deps ...string) (string, string, error) {
 	w.record("create")
 	w.mu.Lock()
 	w.setupEnv = append([]string(nil), setupEnv...)
@@ -758,16 +760,16 @@ func (w *recordingWorktree) Create(_ context.Context, taskID, _ string, setupEnv
 	w.deps[taskID] = append([]string{}, deps...)
 	w.mu.Unlock()
 	if w.createErr != nil {
-		return "", w.createErr
+		return "", "", w.createErr
 	}
 	// A real Manager hands back a directory that exists, and the child is
 	// spawned with it as its working directory — so the double has to make
 	// it too, or every dispatch fails on a missing cwd.
 	path := filepath.Join(w.dir, taskID)
 	if err := os.MkdirAll(path, 0o750); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return path, nil
+	return path, w.salvageBranch, nil
 }
 func (w *recordingWorktree) Recreate(_ context.Context, taskID string) (string, error) {
 	w.record("recreate")

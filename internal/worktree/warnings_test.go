@@ -29,7 +29,7 @@ func captureSlogWarnings(t *testing.T) *bytes.Buffer {
 func TestRemoveWarnsButIsNotFatalWhenGitRefusesTheRemoval(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	wtPath, err := m.Create("F2.1.T1", "main")
+	wtPath, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
