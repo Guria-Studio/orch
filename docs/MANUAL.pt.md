@@ -186,8 +186,13 @@ um bug no próprio orch **enfileiram** um relatório; nada é publicado por
 conta própria. Você lê cada um, com o título e o corpo como seriam publicados
 em Guria-Studio/orch com o seu login do `gh`, com `orch findings` ou na página
 System › Findings do dashboard, e envia (`orch findings send ID`) ou descarta.
-O `orch run` e o Now dizem quantos esperam. `--no-report-findings` desliga.
-Veja [`DOGFOODING.md`](DOGFOODING.md).
+Enviar abre uma issue pública com seu login do `gh`, então os botões
+Enviar/Descartar do dashboard só funcionam a partir desta máquina; aberto por
+um túnel ou de outro dispositivo na rede eles ficam desabilitados com esse
+comando como dica (`orch findings send ID`, ou abra o dashboard em
+`http://127.0.0.1:<port>`, por exemplo via `ssh -L`). O `orch run` e o Now
+dizem quantos esperam. `--no-report-findings` desliga. Veja
+[`DOGFOODING.md`](DOGFOODING.md).
 
 Um projeto em branco começa com **uma tarefa de exemplo**, `F0.T1` ("Add a
 Getting started section to README.md"), no modelo mais barato de uma CLI

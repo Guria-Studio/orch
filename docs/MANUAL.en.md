@@ -178,8 +178,13 @@ ask once, yes by default. Agents that hit a bug in orch itself **queue** a
 report; nothing is filed on their own. You read each one, title and body as
 they would be posted on Guria-Studio/orch under your `gh` login, with
 `orch findings` or the dashboard's System › Findings page, and send it
-(`orch findings send ID`) or dismiss it. `orch run` and Now say how many wait.
-`--no-report-findings` turns it off. See [`DOGFOODING.md`](DOGFOODING.md).
+(`orch findings send ID`) or dismiss it. Sending files a public issue with
+your `gh` login, so the dashboard's Send/Dismiss buttons work only from this
+machine; opened over a tunnel or from another device on the network they are
+disabled with that command as the hint (`orch findings send ID`, or open the
+dashboard at `http://127.0.0.1:<port>`, e.g. via `ssh -L`). `orch run` and Now
+say how many wait. `--no-report-findings` turns it off. See
+[`DOGFOODING.md`](DOGFOODING.md).
 
 A blank project starts with **one sample task**, `F0.T1` ("Add a Getting
 started section to README.md"), on the cheapest model of an installed CLI, so

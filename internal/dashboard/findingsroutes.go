@@ -37,15 +37,23 @@ type findingPayload struct {
 type findingsPayload struct {
 	Findings []findingPayload `json:"findings"`
 	Pending  int              `json:"pending"`
-	CanSend  bool             `json:"can_send"`
-	Repo     string           `json:"repo"`
+	// CanSend means a Filer is configured — the server can send at all. It
+	// says nothing about whether THIS request is allowed to: that is Local.
+	CanSend bool   `json:"can_send"`
+	Repo    string `json:"repo"`
+	// Local is isLocalRequest(r) (#617): the operator write gate every
+	// Send/Dismiss goes through. The SPA disables both buttons when this is
+	// false and shows the `orch findings send <id>` hint instead, because a
+	// non-local POST would hit that same gate and get refused regardless of
+	// CanSend.
+	Local bool `json:"is_local"`
 }
 
 // handleFindings is the queue, newest first, with the exact title and body
 // sending would file. An operator route: the stakeholder allow-list does not
 // name it.
 func (s *Server) handleFindings(w http.ResponseWriter, r *http.Request) {
-	out := findingsPayload{Findings: []findingPayload{}, Repo: findings.Repo}
+	out := findingsPayload{Findings: []findingPayload{}, Repo: findings.Repo, Local: isLocalRequest(r)}
 	if s.findings == nil {
 		writeJSON(w, http.StatusOK, out)
 		return
