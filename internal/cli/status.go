@@ -314,7 +314,7 @@ func renderStatusTable(cmd *cobra.Command, snap statusSnapshot, plain bool) erro
 		if e := r.Effective; e != nil && slices.Contains(e.Mismatch, "model") {
 			route += " (ran " + e.Model + ")"
 		}
-		cells[i] = []string{r.ID, fmt.Sprintf("%s", r.Status), route, lastEvent, costCell(r.cost), fmt.Sprintf("%d", r.Phase)}
+		cells[i] = []string{r.ID, string(r.Status), route, lastEvent, costCell(r.cost), fmt.Sprintf("%d", r.Phase)}
 		phases[i] = r.Phase
 	}
 
