@@ -47,7 +47,7 @@ func conflictFixture(t *testing.T, sameLine bool) (*ciFixture, WorktreeManager, 
 	f.poller.ConflictRetries = 1
 
 	ctx := context.Background()
-	wt, err := wm.Create(ctx, "C-2", "main", nil)
+	wt, _, err := wm.Create(ctx, "C-2", "main", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,7 +12,7 @@ func TestLandLocally(t *testing.T) {
 	m := NewManager(root, false)
 	work := func(id, file, body string) {
 		t.Helper()
-		wt, err := m.Create(id, "main")
+		wt, _, err := m.Create(id, "main")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestBranchConflicts(t *testing.T) {
 	m := NewManager(root, false)
 	work := func(id, file, body string) {
 		t.Helper()
-		wt, err := m.Create(id, "main")
+		wt, _, err := m.Create(id, "main")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -135,7 +135,7 @@ func TestBehindBase(t *testing.T) {
 	m := NewManager(root, false)
 	work := func(id, file, body string) {
 		t.Helper()
-		wt, err := m.Create(id, "main")
+		wt, _, err := m.Create(id, "main")
 		if err != nil {
 			t.Fatal(err)
 		}

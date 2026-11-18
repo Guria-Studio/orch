@@ -22,7 +22,9 @@ type WorktreeManager interface {
 	// added to dispatch.worktree_setup's environment: the task's compose
 	// project and slot (#343), so a setup that starts containers starts the
 	// task's own.
-	Create(ctx context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, error)
+	// The second return is the salvage branch Create kept an earlier
+	// attempt's unpushed work under, or "" when there was none (#620).
+	Create(ctx context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, string, error)
 	CommitPending(ctx context.Context, taskID string) error
 	Push(ctx context.Context, taskID string) error
 	Remove(ctx context.Context, taskID string) error
@@ -58,7 +60,7 @@ type managerAdapter struct{ m *worktree.Manager }
 // NewWorktreeManager adapts a worktree.Manager for the engine.
 func NewWorktreeManager(m *worktree.Manager) WorktreeManager { return managerAdapter{m: m} }
 
-func (a managerAdapter) Create(_ context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, error) {
+func (a managerAdapter) Create(_ context.Context, taskID, baseBranch string, setupEnv []string, deps ...string) (string, string, error) {
 	return a.m.CreateWithEnv(taskID, baseBranch, setupEnv, deps...)
 }
 

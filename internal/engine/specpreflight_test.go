@@ -196,13 +196,13 @@ type specWorktree struct {
 	spec string
 }
 
-func (w *specWorktree) Create(ctx context.Context, taskID, base string, setupEnv []string, deps ...string) (string, error) {
-	path, err := w.recordingWorktree.Create(ctx, taskID, base, setupEnv, deps...)
+func (w *specWorktree) Create(ctx context.Context, taskID, base string, setupEnv []string, deps ...string) (string, string, error) {
+	path, salvage, err := w.recordingWorktree.Create(ctx, taskID, base, setupEnv, deps...)
 	if err != nil || w.spec == "" {
-		return path, err
+		return path, salvage, err
 	}
 	if err := os.MkdirAll(filepath.Join(path, "specs"), 0o750); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return path, os.WriteFile(filepath.Join(path, "specs", "f11.md"), []byte(w.spec), 0o600)
+	return path, salvage, os.WriteFile(filepath.Join(path, "specs", "f11.md"), []byte(w.spec), 0o600)
 }

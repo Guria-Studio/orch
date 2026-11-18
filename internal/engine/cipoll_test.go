@@ -1340,7 +1340,7 @@ func TestCIRetryAgentFindsItsWorkAndTheLogs(t *testing.T) {
 	// The first attempt: the agent's work, committed, pushed and tidied away,
 	// as the reaper leaves it once the PR is open.
 	ctx := context.Background()
-	wt, err := wm.Create(ctx, "C-1", "main", nil)
+	wt, _, err := wm.Create(ctx, "C-1", "main", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

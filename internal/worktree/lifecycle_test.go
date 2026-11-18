@@ -14,7 +14,7 @@ func TestCreateReturnsWorktreePathAndRegistersBranch(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
 
-	path, err := m.Create("F2.1.T1", "main")
+	path, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestCreateBranchesFromTheFreshRemoteBase(t *testing.T) {
 	runGit(t, other, "push", "-q", "origin", "main")
 
 	m := NewManager(root, true)
-	wt, err := m.Create("F2.1.T9", "main")
+	wt, _, err := m.Create("F2.1.T9", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestCreateUsesTheLocalBaseWhenPushIsDisabled(t *testing.T) {
 	root := newTestRepo(t)
 	newBareRemote(t, root) // configured but empty: a fetch would fail
 	m := NewManager(root, false)
-	if _, err := m.Create("F2.1.T9", "main"); err != nil {
+	if _, _, err := m.Create("F2.1.T9", "main"); err != nil {
 		t.Fatalf("Create with push disabled: %v", err)
 	}
 }
@@ -82,7 +82,7 @@ func TestCreateRecreatesOverAPriorRealWorktree(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
 
-	first, err := m.Create("F2.1.T1", "main")
+	first, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestCreateRecreatesOverAPriorRealWorktree(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second, err := m.Create("F2.1.T1", "main")
+	second, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatalf("second Create failed: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestCreatePurgesOrphanBranchLeftByAPartialFailure(t *testing.T) {
 	m := NewManager(root, true)
 	runGit(t, root, "branch", m.BranchName("F7.T1"), "main")
 
-	path, err := m.Create("F7.T1", "main")
+	path, _, err := m.Create("F7.T1", "main")
 	if err != nil {
 		t.Fatalf("Create should purge the orphan branch and succeed, got: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestCreateFailsOnUnknownBaseBranch(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
 
-	_, err := m.Create("F2.1.T1", "does-not-exist")
+	_, _, err := m.Create("F2.1.T1", "does-not-exist")
 	if err == nil {
 		t.Fatal("expected an error for an unknown base branch")
 	}
@@ -145,7 +145,7 @@ func TestCreateFailsOnUnknownBaseBranch(t *testing.T) {
 func TestCommitPendingReturnsFalseOnCleanTree(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	if _, err := m.Create("F6.1.T1", "main"); err != nil {
+	if _, _, err := m.Create("F6.1.T1", "main"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -161,7 +161,7 @@ func TestCommitPendingReturnsFalseOnCleanTree(t *testing.T) {
 func TestCommitPendingCommitsAndReturnsTrueOnDirtyTree(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	wt, err := m.Create("F6.1.T1", "main")
+	wt, _, err := m.Create("F6.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestCommitPendingWorksWithoutAnyGlobalGitIdentity(t *testing.T) {
 	// depend on it by unsetting it before calling CommitPending.
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	wt, err := m.Create("F6.1.T2", "main")
+	wt, _, err := m.Create("F6.1.T2", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestCommitPendingWorksWithoutAnyGlobalGitIdentity(t *testing.T) {
 func TestCommitPendingRefusesWhenTheWorktreeIsGone(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	wt, err := m.Create("F3.1.T1", "main")
+	wt, _, err := m.Create("F3.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestCommitPendingRefusesWhenTheWorktreeIsGone(t *testing.T) {
 func TestPushIsNoopWhenDisabled(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
-	if _, err := m.Create("F2.1.T3", "main"); err != nil {
+	if _, _, err := m.Create("F2.1.T3", "main"); err != nil {
 		t.Fatal(err)
 	}
 	// No `origin` remote exists at all — if Push tried to run git push
@@ -284,7 +284,7 @@ func TestPushSendsBranchToOrigin(t *testing.T) {
 	root := newTestRepo(t)
 	remote := newBareRemote(t, root)
 	m := NewManager(root, true)
-	wt, err := m.Create("F2.1.T3", "main")
+	wt, _, err := m.Create("F2.1.T3", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestPushSendsBranchToOrigin(t *testing.T) {
 func TestPushFailsWithoutARemote(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	if _, err := m.Create("F2.1.T3", "main"); err != nil {
+	if _, _, err := m.Create("F2.1.T3", "main"); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.Push("F2.1.T3"); err == nil {
@@ -327,7 +327,7 @@ func TestRemoveIsNoopWhenDirectoryAbsent(t *testing.T) {
 func TestRemoveDeletesWorktreeAndClearsActive(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, true)
-	path, err := m.Create("F2.1.T1", "main")
+	path, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestRemoveAllRemovesEveryActiveWorktree(t *testing.T) {
 	m := NewManager(root, true)
 	ids := []string{"F2.1.T1", "F2.1.T2", "F2.1.T3"}
 	for _, id := range ids {
-		if _, err := m.Create(id, "main"); err != nil {
+		if _, _, err := m.Create(id, "main"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -384,7 +384,7 @@ func TestRecreateChecksOutThePushedBranch(t *testing.T) {
 	newBareRemote(t, root)
 	m := NewManager(root, true)
 
-	wt, err := m.Create("F9.T1", "main")
+	wt, _, err := m.Create("F9.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +427,7 @@ func TestRecreatePicksUpCommitsPushedByAnotherClone(t *testing.T) {
 	remote := newBareRemote(t, root)
 	m := NewManager(root, true)
 
-	wt, err := m.Create("F9.T2", "main")
+	wt, _, err := m.Create("F9.T2", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +480,7 @@ func TestExistsReflectsDirectoryPresence(t *testing.T) {
 	if m.Exists("F1") {
 		t.Errorf("Exists true before Create")
 	}
-	if _, err := m.Create("F1", "main"); err != nil {
+	if _, _, err := m.Create("F1", "main"); err != nil {
 		t.Fatal(err)
 	}
 	if !m.Exists("F1") {
@@ -514,7 +514,7 @@ func TestWorktreeHasNoProjectAncestor(t *testing.T) {
 	}
 	m := NewManager(root, false)
 
-	wt, err := m.Create("F1.T1", "main")
+	wt, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,7 +548,7 @@ func TestCreateNamesTheSiblingItCannotCreate(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) // #nosec G302 -- restores the temp dir so it can be cleaned up
 
-	_, err := NewManager(root, false).Create("F1.T1", "main")
+	_, _, err := NewManager(root, false).Create("F1.T1", "main")
 	if err == nil {
 		t.Fatal("Create succeeded in a read-only parent")
 	}
@@ -567,7 +567,7 @@ func TestCreateRefusesAProjectWithNoUsableSibling(t *testing.T) {
 		"name ends in suffix": filepath.Join(t.TempDir(), "app.worktrees"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := NewManager(root, false).Create("F1.T1", "main")
+			_, _, err := NewManager(root, false).Create("F1.T1", "main")
 			if err == nil || !strings.Contains(err.Error(), "dispatch.worktree_mode") {
 				t.Errorf("err = %v, want a refusal that says how to get out of it", err)
 			}
@@ -584,7 +584,7 @@ func TestCreateClearsAWorktreeLeftInsideTheCheckout(t *testing.T) {
 	runGit(t, root, "worktree", "add", legacy, "-b", "orch/F1.T1", "main")
 	m := NewManager(root, false)
 
-	wt, err := m.Create("F1.T1", "main")
+	wt, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatalf("Create over a leftover in the old layout: %v", err)
 	}
@@ -608,7 +608,7 @@ func TestCreateMergesTheUnmergedDependencyBranch(t *testing.T) {
 	m := NewManager(root, true)
 
 	// The dependency's task ran to done and pushed, but nobody merged its PR.
-	depWT, err := m.Create("F1.T1", "main")
+	depWT, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -625,7 +625,7 @@ func TestCreateMergesTheUnmergedDependencyBranch(t *testing.T) {
 		t.Fatal("the dependency branch was not pushed")
 	}
 
-	wt, err := m.Create("F1.T2", "main", "F1.T1")
+	wt, _, err := m.Create("F1.T2", "main", "F1.T1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,7 +640,7 @@ func TestCreateMergesTheLocalDependencyBranchWhenPushIsDisabled(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
 
-	depWT, err := m.Create("F1.T1", "main")
+	depWT, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -651,7 +651,7 @@ func TestCreateMergesTheLocalDependencyBranchWhenPushIsDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wt, err := m.Create("F1.T2", "main", "F1.T1")
+	wt, _, err := m.Create("F1.T2", "main", "F1.T1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -666,7 +666,7 @@ func TestCreateMergesTheLocalDependencyBranchWhenPushIsDisabled(t *testing.T) {
 func TestCreateSkipsADependencyWithNoBranch(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
-	if _, err := m.Create("F1.T2", "main", "F0.T9"); err != nil {
+	if _, _, err := m.Create("F1.T2", "main", "F0.T9"); err != nil {
 		t.Fatalf("Create with a branchless dependency: %v", err)
 	}
 }
@@ -678,7 +678,7 @@ func TestCreateFailsWhenTheDependencyBranchConflicts(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
 
-	depWT, err := m.Create("F1.T1", "main")
+	depWT, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -694,7 +694,7 @@ func TestCreateFailsWhenTheDependencyBranchConflicts(t *testing.T) {
 	}
 	runGit(t, root, "commit", "-q", "-am", "main moves")
 
-	_, err = m.Create("F1.T2", "main", "F1.T1")
+	_, _, err = m.Create("F1.T2", "main", "F1.T1")
 	if err == nil {
 		t.Fatal("Create merged a conflicting dependency branch without complaint")
 	}
@@ -715,7 +715,7 @@ func TestCreateRunsSetupInsideTheWorktree(t *testing.T) {
 	m := NewManager(root, true)
 	m.Setup = "pwd > setup-ran"
 
-	path, err := m.Create("F2.1.T1", "main")
+	path, _, err := m.Create("F2.1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -735,7 +735,7 @@ func TestCreateFailsAndCleansUpWhenSetupFails(t *testing.T) {
 	m := NewManager(root, true)
 	m.Setup = "echo 'ERR_PNPM_OUTDATED_LOCKFILE' && exit 3"
 
-	_, err := m.Create("F2.1.T1", "main")
+	_, _, err := m.Create("F2.1.T1", "main")
 	if err == nil || !strings.Contains(err.Error(), "ERR_PNPM_OUTDATED_LOCKFILE") {
 		t.Fatalf("err = %v, want the setup's output", err)
 	}
@@ -757,7 +757,7 @@ func TestCreateWithEnvHandsTheSetupItsEnvironment(t *testing.T) {
 	t.Setenv("ORCH_SETUP_INHERITED", "kept")
 	m.Setup = `printf '%s|%s|%s' "$COMPOSE_PROJECT_NAME" "$ORCH_TASK_SLOT" "$ORCH_SETUP_INHERITED" > setup-env`
 
-	path, err := m.CreateWithEnv("F2.1.T1", "main", []string{"COMPOSE_PROJECT_NAME=usebot-f2-1-t1", "ORCH_TASK_SLOT=2"})
+	path, _, err := m.CreateWithEnv("F2.1.T1", "main", []string{"COMPOSE_PROJECT_NAME=usebot-f2-1-t1", "ORCH_TASK_SLOT=2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -777,7 +777,7 @@ func TestChangedFilesLeavesOutTheDependencyMerge(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
 
-	depWT, err := m.Create("F1.T1", "main")
+	depWT, _, err := m.Create("F1.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -788,7 +788,7 @@ func TestChangedFilesLeavesOutTheDependencyMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wt, err := m.Create("F1.T2", "main", "F1.T1")
+	wt, _, err := m.Create("F1.T2", "main", "F1.T1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -825,7 +825,7 @@ func TestCreateClearsALeftoverBranchWhoseWorktreeIsGone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path, err := m.Create("F0.5.T1", "main")
+	path, _, err := m.Create("F0.5.T1", "main")
 	if err != nil {
 		t.Fatalf("Create over a leftover branch with no live worktree: %v", err)
 	}
@@ -843,7 +843,7 @@ func TestCreateRefusesABranchALiveWorktreeStillUses(t *testing.T) {
 	live := filepath.Join(t.TempDir(), "live")
 	runGit(t, root, "worktree", "add", "-q", live, "-b", m.BranchName("F0.5.T1"), "main")
 
-	_, err := m.Create("F0.5.T1", "main")
+	_, _, err := m.Create("F0.5.T1", "main")
 	if err == nil {
 		t.Fatal("Create took a branch a live worktree has checked out")
 	}
@@ -868,7 +868,7 @@ func TestCreateSkipsADependencyBranchDeletedFromTheRemote(t *testing.T) {
 	runGit(t, root, "push", "-q", "origin", "main")
 	m := NewManager(root, true)
 
-	depWT, err := m.Create("F0.2.T1", "main")
+	depWT, _, err := m.Create("F0.2.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -902,7 +902,7 @@ func TestCreateSkipsADependencyBranchDeletedFromTheRemote(t *testing.T) {
 		t.Fatal("setup: the local copy of the dependency branch should survive")
 	}
 
-	wt, err := m.Create("F0.3.T1", "main", "F0.2.T1")
+	wt, _, err := m.Create("F0.3.T1", "main", "F0.2.T1")
 	if err != nil {
 		t.Fatalf("Create merged a dependency branch the remote no longer has: %v", err)
 	}
@@ -922,7 +922,7 @@ func TestCreateSkipsADependencyBranchDeletedFromTheRemote(t *testing.T) {
 func TestCreateSkipsADependencyTheBaseAlreadyContains(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
-	depWT, err := m.Create("F0.2.T1", "main")
+	depWT, _, err := m.Create("F0.2.T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -935,7 +935,7 @@ func TestCreateSkipsADependencyTheBaseAlreadyContains(t *testing.T) {
 	runGit(t, root, "merge", "-q", "--ff-only", "orch/F0.2.T1")
 	runGit(t, root, "commit", "-q", "--allow-empty", "-m", "main moves on")
 
-	wt, err := m.Create("F0.3.T1", "main", "F0.2.T1")
+	wt, _, err := m.Create("F0.3.T1", "main", "F0.2.T1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -952,7 +952,7 @@ func TestCreateSkipsADependencyTheBaseAlreadyContains(t *testing.T) {
 func TestCreateKeepsAnEarlierAttemptsUnpushedWork(t *testing.T) {
 	root := newTestRepo(t)
 	m := NewManager(root, false)
-	wt, err := m.Create("F0.1.T5", "main")
+	wt, _, err := m.Create("F0.1.T5", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -967,7 +967,8 @@ func TestCreateKeepsAnEarlierAttemptsUnpushedWork(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := m.Create("F0.1.T5", "main"); err != nil {
+	_, salvage, err := m.Create("F0.1.T5", "main")
+	if err != nil {
 		t.Fatalf("Create over a branch with unpushed work: %v", err)
 	}
 
@@ -978,6 +979,12 @@ func TestCreateKeepsAnEarlierAttemptsUnpushedWork(t *testing.T) {
 	if id, ok := SalvageTaskID(kept[0]); !ok || id != "F0.1.T5" {
 		t.Errorf("SalvageTaskID(%q) = %q, %v", kept[0], id, ok)
 	}
+	// #620: Create must hand the salvage branch name back to its caller —
+	// a slog.Warn alone never reached the scheduler, so a restarted task's
+	// prompt never named the branch holding its previous attempt's work.
+	if salvage != kept[0] {
+		t.Errorf("Create's salvage branch = %q, want %q", salvage, kept[0])
+	}
 }
 
 // Work the earlier attempt pushed is safe on the remote: its branch is
@@ -987,7 +994,7 @@ func TestCreateClearsAnEarlierAttemptsPushedWork(t *testing.T) {
 	newBareRemote(t, root)
 	runGit(t, root, "push", "-q", "origin", "main")
 	m := NewManager(root, true)
-	wt, err := m.Create("F0.1.T6", "main")
+	wt, _, err := m.Create("F0.1.T6", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1004,7 +1011,7 @@ func TestCreateClearsAnEarlierAttemptsPushedWork(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := m.Create("F0.1.T6", "main"); err != nil {
+	if _, _, err := m.Create("F0.1.T6", "main"); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(runGit(t, root, "for-each-ref", "refs/heads/orch/F0.1.T6"+SalvageMarker+"*")); got != "" {
@@ -1020,7 +1027,7 @@ func TestMergeBase(t *testing.T) {
 	newBareRemote(t, root)
 	runGit(t, root, "push", "-q", "origin", "main")
 	m := NewManager(root, true)
-	wt, err := m.Create("T1", "main")
+	wt, _, err := m.Create("T1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
