@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"path"
 	"slices"
@@ -239,6 +240,7 @@ func newStatusCmd(flags *projectFlags) *cobra.Command {
 		asJSON       bool
 		only         string
 		statusFilter string
+		plain        bool
 	)
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -263,27 +265,43 @@ func newStatusCmd(flags *projectFlags) *cobra.Command {
 			if asJSON {
 				return printCompactJSON(cmd.OutOrStdout(), snap)
 			}
-			return renderStatusTable(cmd, snap)
+			return renderStatusTable(cmd, snap, plain)
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Emit the raw snapshot as JSON")
 	cmd.Flags().StringVar(&only, "only", "", "Restrict task rows to ids matching this glob")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Comma-separated status filter (e.g. todo,in-progress)")
+	cmd.Flags().BoolVar(&plain, "plain", false, "Force the plain space-padded layout even on a terminal")
 	return cmd
 }
 
-func renderStatusTable(cmd *cobra.Command, snap statusSnapshot) error {
+// renderStatusTable prints the leading "Project ... tasks" line, the task
+// table and the cost total line. The table itself is either the historic
+// text/tabwriter layout (no borders, space-padded columns) or a Unicode
+// box-drawing table (#619) — chosen once, here, so every caller downstream
+// stays untouched:
+//
+//   - `--plain` always forces the old layout, even on a terminal — the flag
+//     exists for scripts/greps that parse it and would break on borders.
+//   - otherwise it is the old layout unless cmd.OutOrStdout() is itself a
+//     terminal (isTerminalWriter) — piped output, redirected output, and a
+//     test's bytes.Buffer all read as "not a terminal" and keep the exact
+//     bytes those callers already depend on.
+//
+// `--json` never reaches this function at all (see newStatusCmd): its shape
+// is untouched by this change.
+func renderStatusTable(cmd *cobra.Command, snap statusSnapshot, plain bool) error {
 	out := cmd.OutOrStdout()
 	if _, err := fmt.Fprintf(out, "Project %s · backend=%s · %d tasks\n",
 		snap.Project.ProjectID, snap.Project.Backend, len(snap.Tasks)); err != nil {
 		return err
 	}
-	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "ID\tSTATUS\tBACKEND/MODEL\tLAST EVENT\tCOST\tPHASE"); err != nil {
-		return err
-	}
+
+	headers := []string{"ID", "STATUS", "BACKEND/MODEL", "LAST EVENT", "COST", "PHASE"}
+	cells := make([][]string, len(snap.Tasks))
+	phases := make([]int, len(snap.Tasks))
 	var total pricing.Sum
-	for _, r := range snap.Tasks {
+	for i, r := range snap.Tasks {
 		lastEvent := "—"
 		if r.LastEventHuman != nil {
 			lastEvent = *r.LastEventHuman
@@ -296,20 +314,47 @@ func renderStatusTable(cmd *cobra.Command, snap statusSnapshot) error {
 		if e := r.Effective; e != nil && slices.Contains(e.Mismatch, "model") {
 			route += " (ran " + e.Model + ")"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\n",
-			r.ID, r.Status, route, lastEvent, costCell(r.cost), r.Phase); err != nil {
+		cells[i] = []string{r.ID, fmt.Sprintf("%s", r.Status), route, lastEvent, costCell(r.cost), fmt.Sprintf("%d", r.Phase)}
+		phases[i] = r.Phase
+	}
+
+	if useBoxTable(plain, isTerminalWriter(out)) {
+		rows := make([]boxTableRow, len(cells))
+		for i, c := range cells {
+			rows[i] = boxTableRow{cells: c, separatorAbove: i > 0 && phases[i] != phases[i-1]}
+		}
+		if err := renderBoxTable(out, headers, rows); err != nil {
+			return err
+		}
+	} else {
+		if err := renderStatusTablePlain(out, headers, cells); err != nil {
 			return err
 		}
 	}
-	if err := w.Flush(); err != nil {
-		return err
-	}
+
 	if line := costTotalLine(total); line != "" {
 		if _, err := fmt.Fprintln(out, line); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// renderStatusTablePlain is the layout `orch status` always printed before
+// #619: text/tabwriter, space-padded columns, no borders. Kept byte for byte
+// so scripts and greps built against it keep working under --plain or a
+// non-TTY stdout (a pipe, a redirect, a test buffer).
+func renderStatusTablePlain(out io.Writer, headers []string, rows [][]string) error {
+	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
+	if _, err := fmt.Fprintln(w, strings.Join(headers, "	")); err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if _, err := fmt.Fprintln(w, strings.Join(r, "	")); err != nil {
+			return err
+		}
+	}
+	return w.Flush()
 }
 
 // costCell is a task's COST: what the CLIs billed, `~$` when part or all of

@@ -172,7 +172,7 @@ func TestStatusMarksUnbilledCostAsEstimateOrNA(t *testing.T) {
 	var out bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&out)
-	if err := renderStatusTable(cmd, snap); err != nil {
+	if err := renderStatusTable(cmd, snap, false); err != nil {
 		t.Fatal(err)
 	}
 	table := out.String()
@@ -264,7 +264,7 @@ func TestStatusShowsTheEffectiveRoute(t *testing.T) {
 	var out bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&out)
-	if err := renderStatusTable(cmd, statusSnapshot{Totals: newOrderedCount(), Tasks: rows}); err != nil {
+	if err := renderStatusTable(cmd, statusSnapshot{Totals: newOrderedCount(), Tasks: rows}, false); err != nil {
 		t.Fatal(err)
 	}
 	if !regexp.MustCompile(`(?m)^A\s+done\s+\?/codex/luna \(ran gpt-6-astra\)\s`).MatchString(out.String()) {
@@ -319,5 +319,57 @@ func TestStatusJSONCarriesEachTasksEvidence(t *testing.T) {
 	}
 	if _, ok := rows[1]["evidence"]; ok {
 		t.Errorf("F2.T4 has an evidence key with no manifest: %s", rows[1]["evidence"])
+	}
+}
+
+// TestStatusNonTTYFallsBackToPlainFormat is #619's acceptance criterion (a):
+// output not going to a terminal — a bytes.Buffer here, same as a pipe or a
+// redirect — keeps the historic space-padded tabwriter layout, box-drawing
+// off, whether or not --plain was passed.
+func TestStatusNonTTYFallsBackToPlainFormat(t *testing.T) {
+	snap := statusSnapshot{
+		Totals: newOrderedCount(),
+		Tasks: []statusRow{
+			{ID: "F1.T1", Status: model.StatusDone, Backend: "claude", CLIModel: "opus", Phase: 1},
+		},
+	}
+	for _, plain := range []bool{false, true} {
+		var out bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&out)
+		if err := renderStatusTable(cmd, snap, plain); err != nil {
+			t.Fatal(err)
+		}
+		table := out.String()
+		if strings.ContainsAny(table, "┌┬┐├┼┤└┴┘│") {
+			t.Errorf("plain=%v: non-TTY output must never draw box borders, got:\n%s", plain, table)
+		}
+		if !regexp.MustCompile(`(?m)^ID\s+STATUS\s+BACKEND/MODEL`).MatchString(table) {
+			t.Errorf("plain=%v: want the old tabwriter header, got:\n%s", plain, table)
+		}
+	}
+}
+
+// TestStatusJSONUnaffectedByTheTableChange is #619's acceptance criterion
+// (c): --json never reaches renderStatusTable (see newStatusCmd), so its
+// shape carries no trace of the box-drawing table — no border character
+// could ever end up inside a JSON string value either.
+func TestStatusJSONUnaffectedByTheTableChange(t *testing.T) {
+	snap := statusSnapshot{
+		Totals: newOrderedCount(),
+		Tasks: []statusRow{
+			{ID: "F1.T1", Status: model.StatusDone, Backend: "claude", CLIModel: "opus", Phase: 1},
+		},
+	}
+	var out bytes.Buffer
+	if err := printCompactJSON(&out, snap); err != nil {
+		t.Fatal(err)
+	}
+	js := out.String()
+	if strings.ContainsAny(js, "┌┬┐├┼┤└┴┘│") {
+		t.Errorf("status --json must never contain box-drawing characters:\n%s", js)
+	}
+	if !strings.Contains(js, `"id":"F1.T1"`) {
+		t.Errorf("status --json: want the task's id, got:\n%s", js)
 	}
 }
