@@ -740,6 +740,8 @@ export const es = {
   "findings.send": "Enviar",
   "findings.dismiss": "Descartar",
   "findings.cannot_send": "Para enviar hace falta gh; usa `orch findings send` en una terminal.",
+  "findings.local_only_hint":
+    "Enviar abre un issue público con tu login de gh, así que solo funciona desde esta máquina. Ejecuta en el host: `orch findings send {id}` (o abre el dashboard en http://127.0.0.1:<port>, por ejemplo con `ssh -L`).",
   "findings.sent": "Enviado: {url}",
   "findings.dismissed": "Descartado",
   "findings.banner": { one: "orch detectó {count} bug propio", other: "orch detectó {count} bugs propios" },

@@ -68,6 +68,20 @@ export async function getProjectConfig(): Promise<ProjectConfig> {
 }
 
 /**
+ * Every operator write (tunnel, steer, task edits, findings) hits the same
+ * loopback gate and answers an identical 403 `detail: "loopback only"` when
+ * the request did not come from this machine (#617). One mapping here means
+ * every write button that surfaces `detail` as its error gets the same
+ * actionable message instead of the bare gate string, without each call
+ * site repeating it.
+ */
+function friendlyDetail(detail: string | undefined): string | undefined {
+  if (detail !== "loopback only") return detail
+  return "This only works from this machine: open the dashboard at http://127.0.0.1:<port> " +
+    "(e.g. via `ssh -L`), or run the matching `orch` command in a terminal there."
+}
+
+/**
  * Dashboard tunnel. `/capabilities` always answers 200; `/status`, `/start`
  * and `/stop` answer only the local operator. Start and stop resolve with the
  * new status; a refusal rejects with the server's `detail` as the message.
@@ -90,7 +104,7 @@ async function tunnelAction(action: "start" | "stop" | "enable", body?: object):
     return data
   } catch (err) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    throw new Error(detail ?? (err instanceof Error ? err.message : `could not ${action} the tunnel`))
+    throw new Error(friendlyDetail(detail) ?? (err instanceof Error ? err.message : `could not ${action} the tunnel`))
   }
 }
 
@@ -119,7 +133,7 @@ async function steer<T>(id: string, action: "stop" | "note", body: { hold?: bool
     return data
   } catch (err) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    throw new Error(detail ?? (err instanceof Error ? err.message : `could not ${action} ${id}`))
+    throw new Error(friendlyDetail(detail) ?? (err instanceof Error ? err.message : `could not ${action} ${id}`))
   }
 }
 
@@ -180,7 +194,7 @@ async function taskWrite<T>(method: "post" | "patch" | "delete", path: string, b
     return data
   } catch (err) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    throw new Error(detail ?? (err instanceof Error ? err.message : `${method} ${path} failed`))
+    throw new Error(friendlyDetail(detail) ?? (err instanceof Error ? err.message : `${method} ${path} failed`))
   }
 }
 

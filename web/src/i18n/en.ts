@@ -729,6 +729,8 @@ export const en = {
   "findings.send": "Send",
   "findings.dismiss": "Dismiss",
   "findings.cannot_send": "Sending needs gh; use `orch findings send` in a terminal.",
+  "findings.local_only_hint":
+    "Sending files a public issue with your gh login, so it only works from this machine. Run on the host: `orch findings send {id}` (or open the dashboard at http://127.0.0.1:<port>, e.g. via `ssh -L`).",
   "findings.sent": "Sent: {url}",
   "findings.dismissed": "Dismissed",
   "findings.banner": { one: "orch found {count} bug of its own", other: "orch found {count} bugs of its own" },

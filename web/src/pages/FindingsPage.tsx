@@ -43,7 +43,7 @@ export function FindingsPage() {
       ) : (
         <ul className="space-y-3">
           {rows.map((f) => (
-            <FindingCard key={f.id} f={f} canSend={data?.can_send ?? false} />
+            <FindingCard key={f.id} f={f} canSend={data?.can_send ?? false} isLocal={data?.is_local ?? true} />
           ))}
         </ul>
       )}
@@ -51,7 +51,7 @@ export function FindingsPage() {
   )
 }
 
-function FindingCard({ f, canSend }: { f: Finding; canSend: boolean }) {
+function FindingCard({ f, canSend, isLocal }: { f: Finding; canSend: boolean; isLocal: boolean }) {
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -67,6 +67,7 @@ function FindingCard({ f, canSend }: { f: Finding; canSend: boolean }) {
       setBusy(false)
     }
   }
+  const disabled = busy || !isLocal
   return (
     <li className={cn("rounded-lg border bg-card", f.status !== "queued" && "opacity-70")}>
       <header className="flex flex-wrap items-center gap-2 border-b px-3.5 py-2.5">
@@ -82,13 +83,17 @@ function FindingCard({ f, canSend }: { f: Finding; canSend: boolean }) {
       <footer className="flex flex-wrap items-center gap-2 border-t px-3.5 py-2.5">
         {f.status === "queued" ? (
           <>
-            <Button size="sm" disabled={busy || !canSend} onClick={() => void act(sendFinding)}>
+            <Button size="sm" disabled={disabled || !canSend} onClick={() => void act(sendFinding)}>
               {t("findings.send")}
             </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => void act(dismissFinding)}>
+            <Button size="sm" variant="outline" disabled={disabled} onClick={() => void act(dismissFinding)}>
               {t("findings.dismiss")}
             </Button>
-            {!canSend ? <span className="text-xs text-muted-foreground">{t("findings.cannot_send")}</span> : null}
+            {!isLocal ? (
+              <span className="text-xs text-muted-foreground">{t("findings.local_only_hint", { id: String(f.id) })}</span>
+            ) : !canSend ? (
+              <span className="text-xs text-muted-foreground">{t("findings.cannot_send")}</span>
+            ) : null}
           </>
         ) : f.status === "sent" ? (
           <a className="text-xs underline" href={f.url} target="_blank" rel="noreferrer">
